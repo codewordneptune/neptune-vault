@@ -76,9 +76,27 @@ Threads (lever 2 below) are the planned answer if it does.
 
 ### Galaxy S24, Chrome, LDE trace not cached
 
-Total 456 s, peak 896 MB, single-threaded, run by the user on 2026-09-13.
-Inside the 10 minute budget (R23) with no optimisation at all. Per-sub-proof
-times to be added from the phone's log.
+Run by the user on 2026-09-13. Chrome 152 on Android, 10 cores reported,
+page served over plain http from the PC (so not cross-origin isolated).
+
+| # | Sub-proof | Time (s) | Proof (KB) | Wasm memory after (MB) |
+|---|-----------|---------:|-----------:|-----------------------:|
+| 1 | removal_records_integrity | 308.8 | 106 | 896 |
+| 2 | collect_lock_scripts | 14.6 | 83 | 896 |
+| 3 | kernel_to_outputs | 34.5 | 88 | 896 |
+| 4 | collect_type_scripts | 31.4 | 89 | 896 |
+| 5 | lock_script_0 | 3.0 | 70 | 896 |
+| 6 | type_script_0 | 62.9 | 94 | 896 |
+| | Total | 456.0 | 4252 | 896 peak |
+
+Inside the 10 minute budget (R23) with no optimisation at all, and only
+seven percent slower than the desktop run: the phone's big core is nearly as
+fast as a laptop core on this single-threaded workload. M0 passes.
+
+Note for the threaded build: wasm threads need `crossOriginIsolated`, which
+requires a secure context. The bench must then be served over https (or the
+origin whitelisted in `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
+on the phone).
 
 ### Comparison: native Android wallet
 
