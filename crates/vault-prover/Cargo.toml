@@ -22,6 +22,7 @@ web-time = "1"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
 js-sys = "0.3"
+wasm-bindgen-rayon = { version = "1.3", features = ["no-bundler"] }
 wasm-bindgen = "0.2"
 # Both getrandom majors are in the dependency tree; each needs its browser backend.
 getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }

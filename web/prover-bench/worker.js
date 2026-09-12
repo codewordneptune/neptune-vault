@@ -1,24 +1,40 @@
 // Prover worker for the milestone 0 benchmark.
-// Loads the wasm prover, proves a ProofCollection for the posted witness and
-// reports one message per progress event with the wasm memory size after it.
+// Loads the wasm prover, starts its thread pool, proves a ProofCollection for
+// the posted witness and reports one message per progress event with the
+// wasm memory size after it.
 
-import init, { prove_proof_collection, count_sub_proofs, prover_version } from './pkg/vault_prover.js';
+import init, { initThreadPool, prove_proof_collection, count_sub_proofs, prover_version, wasm_memory_bytes } from './pkg/vault_prover.js';
 
 self.onmessage = async ({ data }) => {
-  const { witness, network, height, cacheLde } = data;
-  let wasm;
+  const { witness, network, height, cacheLde, threads } = data;
   try {
-    wasm = await init();
+    await init();
   } catch (e) {
     self.postMessage({ kind: 'error', message: `wasm init failed: ${e.message ?? e}` });
     return;
   }
-  const memory = () => wasm.memory.buffer.byteLength;
+  // The threaded build imports its (shared) memory, so it is not on the
+  // exports object; the prover reports its own size instead.
+  const memory = () => wasm_memory_bytes();
   const bytes = new Uint8Array(witness);
+
+  // The thread pool needs SharedArrayBuffer, which needs cross-origin
+  // isolation. Without it, fall back to the single thread and say so.
+  let poolSize = 0;
+  if (self.crossOriginIsolated && threads > 0) {
+    try {
+      await initThreadPool(threads);
+      poolSize = threads;
+    } catch (e) {
+      self.postMessage({ kind: 'warn', message: `thread pool failed, single-threaded: ${e.message ?? e}` });
+    }
+  } else {
+    self.postMessage({ kind: 'warn', message: 'not cross-origin isolated, single-threaded' });
+  }
 
   try {
     const total = count_sub_proofs(bytes);
-    self.postMessage({ kind: 'ready', version: prover_version(), total, memory: memory() });
+    self.postMessage({ kind: 'ready', version: prover_version(), total, threads: poolSize, memory: memory() });
     const result = prove_proof_collection(bytes, network, BigInt(height), Boolean(cacheLde), (json) => {
       const event = JSON.parse(json);
       self.postMessage({ ...event, memory: memory() });

@@ -18,10 +18,22 @@ mod wasm {
     use neptune_primitives::network::Network;
     use wasm_bindgen::prelude::*;
 
+    /// Exposed to JavaScript as `initThreadPool(n)`. Must be awaited after
+    /// `init()` and before proving; needs a cross-origin isolated page.
+    pub use wasm_bindgen_rayon::init_thread_pool;
+
     /// Version of the prover package, for the UI's diagnostics screen.
     #[wasm_bindgen]
     pub fn prover_version() -> String {
         env!("CARGO_PKG_VERSION").to_string()
+    }
+
+    /// Current size of the wasm linear memory in bytes. Linear memory never
+    /// shrinks, so this is also the peak so far. With threads the memory is
+    /// imported and not visible on the JS exports, hence this accessor.
+    #[wasm_bindgen]
+    pub fn wasm_memory_bytes() -> f64 {
+        (core::arch::wasm32::memory_size(0) as f64) * 65536.0
     }
 
     /// Number of Triton VM proofs a ProofCollection for this witness needs.

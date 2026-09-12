@@ -27,6 +27,7 @@
   <label>Network <input id="network" value="main" size="6"></label>
   <label>Height <input id="height" value="55000" size="7"></label>
   <label><input type="checkbox" id="cache"> cache LDE trace (faster, several GB more memory)</label>
+  <label>Threads <input id="threads" type="number" min="0" size="3"></label> (0 = single-threaded; needs https or localhost)
 </p>
 <p><button id="run">Prove ProofCollection</button> <span id="status"></span> <span id="elapsed"></span></p>
 <p style="font-size:0.85rem;color:#555">The first sub-proof alone takes several minutes and reports nothing until it finishes. Keep this tab in the foreground.</p>
@@ -50,6 +51,7 @@ const log = (msg, cls) => {
 $('device').textContent =
   `${navigator.userAgent} | cores: ${navigator.hardwareConcurrency ?? '?'} | ` +
   `deviceMemory: ${navigator.deviceMemory ?? '?'} GB | crossOriginIsolated: ${self.crossOriginIsolated}`;
+$('threads').value = self.crossOriginIsolated ? (navigator.hardwareConcurrency ?? 1) : 0;
 
 let wakeLock = null;
 async function keepAwake() {
@@ -83,8 +85,10 @@ $('run').onclick = async () => {
   const finish = () => { clearInterval(ticker); worker.terminate(); wakeLock?.release(); $('run').disabled = false; };
   worker.onmessage = ({ data }) => {
     if (data.kind === 'ready') {
-      log(`prover ${data.version} loaded, ${data.total} sub-proofs, initial memory ${(data.memory / 1048576).toFixed(0)} MB`);
+      log(`prover ${data.version} loaded, ${data.total} sub-proofs, threads: ${data.threads || 'single'}, initial memory ${(data.memory / 1048576).toFixed(0)} MB`);
       $('status').textContent = `proving 0/${data.total}`;
+    } else if (data.kind === 'warn') {
+      log(data.message, 'err');
     } else if (data.kind === 'started') {
       stage = data.name; stageStart = performance.now();
       $('status').textContent = `proving ${data.index + 1}/${data.total}: ${data.name}`;
@@ -113,8 +117,11 @@ $('run').onclick = async () => {
     }
   };
   worker.onerror = (e) => { log(`worker error: ${e.message}`, 'err'); $('status').textContent = 'failed'; finish(); };
-  log(`LDE trace cache: ${$('cache').checked ? 'on' : 'off'}`);
-  worker.postMessage({ witness, network: $('network').value, height: Number($('height').value), cacheLde: $('cache').checked }, [witness]);
+  log(`LDE trace cache: ${$('cache').checked ? 'on' : 'off'}, requested threads: ${$('threads').value}`);
+  worker.postMessage({
+    witness, network: $('network').value, height: Number($('height').value),
+    cacheLde: $('cache').checked, threads: Number($('threads').value),
+  }, [witness]);
 };
 </script>
 </body>

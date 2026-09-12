@@ -145,3 +145,5 @@ vite.config.ts.timestamp-*
 # Rust and wasm build output
 target/
 web/prover-bench/pkg/
+web/prover-bench/certs/
+web/prover-bench/threads-test/

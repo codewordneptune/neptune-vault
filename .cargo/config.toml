@@ -1,8 +1,27 @@
 # Browser build settings for the wasm crates.
+#
+# Threads: wasm-bindgen-rayon needs atomics and a std rebuilt with them, which
+# is nightly-only (`build-std`). The page must be cross-origin isolated at
+# runtime or the thread pool cannot be created.
 [target.wasm32-unknown-unknown]
 rustflags = [
     # getrandom 0.3 needs to be told to use the browser's crypto API.
     "--cfg", "getrandom_backend=\"wasm_js\"",
-    # Let the linear memory grow to the full 32-bit limit (4 GiB).
+    # Let the (shared) linear memory grow to the full 32-bit limit (4 GiB).
     "-C", "link-arg=--max-memory=4294967296",
+    # Threads and 128-bit SIMD. Recent nightlies no longer pass
+    # --shared-memory to the linker for +atomics, so it is explicit here;
+    # without it the memory is unshared and the thread pool cannot start.
+    "-C", "link-arg=--shared-memory",
+    # wasm-bindgen's thread support needs the memory imported, not exported,
+    # and the thread-local-storage symbols exported.
+    "-C", "link-arg=--import-memory",
+    "-C", "link-arg=--export=__wasm_init_tls",
+    "-C", "link-arg=--export=__tls_size",
+    "-C", "link-arg=--export=__tls_align",
+    "-C", "link-arg=--export=__tls_base",
+    "-C", "target-feature=+atomics,+bulk-memory,+mutable-globals,+simd128",
 ]
+
+[unstable]
+build-std = ["panic_abort", "std"]
