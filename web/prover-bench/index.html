@@ -28,7 +28,8 @@
   <label>Height <input id="height" value="55000" size="7"></label>
   <label><input type="checkbox" id="cache"> cache LDE trace (faster, several GB more memory)</label>
 </p>
-<p><button id="run">Prove ProofCollection</button> <span id="status"></span></p>
+<p><button id="run">Prove ProofCollection</button> <span id="status"></span> <span id="elapsed"></span></p>
+<p style="font-size:0.85rem;color:#555">The first sub-proof alone takes several minutes and reports nothing until it finishes. Keep this tab in the foreground.</p>
 <table>
   <thead><tr><th>#</th><th>Sub-proof</th><th>Time (s)</th><th>Proof (KB)</th><th>Wasm memory after (MB)</th></tr></thead>
   <tbody id="rows"></tbody>
@@ -71,12 +72,21 @@ $('run').onclick = async () => {
 
   const worker = new Worker('./worker.js', { type: 'module' });
   const t0 = performance.now();
-  let peak = 0, totalBytes = 0;
+  let peak = 0, totalBytes = 0, stage = '', stageStart = t0;
+  // Triton VM reports nothing inside a single proof, and the first one takes
+  // minutes, so tick the elapsed time to show the worker is alive.
+  const ticker = setInterval(() => {
+    const now = performance.now();
+    $('elapsed').textContent = `elapsed ${((now - t0) / 1000).toFixed(0)} s` +
+      (stage ? `, current proof ${((now - stageStart) / 1000).toFixed(0)} s` : '');
+  }, 1000);
+  const finish = () => { clearInterval(ticker); worker.terminate(); wakeLock?.release(); $('run').disabled = false; };
   worker.onmessage = ({ data }) => {
     if (data.kind === 'ready') {
       log(`prover ${data.version} loaded, ${data.total} sub-proofs, initial memory ${(data.memory / 1048576).toFixed(0)} MB`);
       $('status').textContent = `proving 0/${data.total}`;
     } else if (data.kind === 'started') {
+      stage = data.name; stageStart = performance.now();
       $('status').textContent = `proving ${data.index + 1}/${data.total}: ${data.name}`;
       log(`start ${data.name}`);
     } else if (data.kind === 'finished') {
@@ -95,14 +105,14 @@ $('run').onclick = async () => {
       $('peak').textContent = peak.toFixed(0);
       $('status').textContent = 'done';
       log(`ProofCollection: ${data.bytes} bytes in ${secs.toFixed(1)} s, peak wasm memory ${peak.toFixed(0)} MB`, 'ok');
-      worker.terminate(); wakeLock?.release(); $('run').disabled = false;
+      finish();
     } else if (data.kind === 'error') {
       $('status').textContent = 'failed';
       log(`error: ${data.message}`, 'err');
-      worker.terminate(); wakeLock?.release(); $('run').disabled = false;
+      finish();
     }
   };
-  worker.onerror = (e) => { log(`worker error: ${e.message}`, 'err'); $('status').textContent = 'failed'; $('run').disabled = false; };
+  worker.onerror = (e) => { log(`worker error: ${e.message}`, 'err'); $('status').textContent = 'failed'; finish(); };
   log(`LDE trace cache: ${$('cache').checked ? 'on' : 'off'}`);
   worker.postMessage({ witness, network: $('network').value, height: Number($('height').value), cacheLde: $('cache').checked }, [witness]);
 };
