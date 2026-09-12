@@ -40,9 +40,39 @@ First ever ProofCollection proven in a browser, 2026-09-12. Two conclusions:
 - Single-threaded wasm is roughly five to ten times slower than the native
   multi-threaded desktop wallet on the same class of machine.
 
-### Desktop, LDE trace not cached
+### Correctness check, native
 
-Pending. Expected: far lower peak memory, longer time on the first proof.
+`cargo test --release -p vault-prover -- --ignored` proves the same witness
+natively with vault-prover's code (no LDE cache, 16 cores) and hands the
+result to the consensus crate's `TransactionProof::verify` under hardfork
+delta, which is what a node runs on submission. It passes. Times: removal
+records integrity 45.9 s, collect lock scripts 2.7 s, kernel to outputs 5.0 s,
+collect type scripts 4.7 s, lock script 0.4 s, type script 9.4 s, total
+68.7 s. So the browser output is the same computation the node accepts, and
+the browser's slowdown is purely the single-threaded, non-SIMD wasm target.
+
+### Desktop, Chrome 152, LDE trace not cached
+
+| # | Sub-proof | Time (s) | Wasm memory after (MB) |
+|---|-----------|---------:|-----------------------:|
+| 1 | removal_records_integrity | 277.4 | 896 |
+| 2 | collect_lock_scripts | 15.8 | 896 |
+| 3 | kernel_to_outputs | 36.3 | 896 |
+| 4 | collect_type_scripts | 30.5 | 896 |
+| 5 | lock_script_0 | 4.1 | 896 |
+| 6 | type_script_0 | 64.1 | 896 |
+| | Total | 428.3 | 896 peak |
+
+Not caching the LDE trace is both smaller and faster in wasm: peak memory
+falls from 3396 MB to 896 MB and total time from 557 s to 428 s. Growing
+linear memory by gigabytes is itself expensive in the browser, so the cache
+never pays off there. No-cache is therefore the default for the PWA, and the
+cache switch stays only for experiments.
+
+896 MB is a size a modern phone's browser will grant a worker. The open
+question for the S24 is time: a phone core is slower than a desktop core, so
+a single-threaded run is expected to land near or above the 10 minute budget.
+Threads (lever 2 below) are the planned answer if it does.
 
 ### Galaxy S24, Chrome, LDE trace not cached
 
