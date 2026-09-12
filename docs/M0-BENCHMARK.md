@@ -76,7 +76,26 @@ Threads (lever 2 below) are the planned answer if it does.
 
 ### Galaxy S24, Chrome, LDE trace not cached
 
-Pending. Needs the phone on the same network as the serving machine.
+Total 456 s, peak 896 MB, single-threaded, run by the user on 2026-09-13.
+Inside the 10 minute budget (R23) with no optimisation at all. Per-sub-proof
+times to be added from the phone's log.
+
+### Comparison: native Android wallet
+
+zeokin/npt-mobile-wallet, a Tauri Android app on neptune-cash 0.11.0 and
+triton-vm 3.0.0, sends in about 30 s on the same S24 according to the user.
+It proves the same six ProofCollection sub-proofs on the device
+(`src-tauri/src/transaction.rs`), so the gap is compilation and runtime, not
+a different protocol:
+
+- native ARM64 with rayon on all 8 cores, versus one wasm thread;
+- NEON, LTO and opt-level 3, versus wasm32 without SIMD or wasm-opt;
+- Triton VM's LDE cache on (memory permitting), versus off here;
+- an older proof system (triton-vm 3) whose consensus programs differ from
+  the 0.17 ones proven here, so the traces are not the same size.
+
+Together that is the observed 15x. Threads and SIMD (levers 2 and 3) are the
+part of it a PWA can recover; a realistic target on the S24 is 60 to 120 s.
 
 ## Levers if the phone misses the budget
 
