@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["crates/vault-prover", "crates/vault-core", "crates/vault-fixtures"]
+
+# Vendored copies of the published 0.17.0 crates with wasm32 gating.
+# See crates/vendor/VENDOR.md for the exact changes.
+[patch.crates-io]
+neptune-consensus = { path = "crates/vendor/neptune-consensus" }
+neptune-primitives = { path = "crates/vendor/neptune-primitives" }
+
+[profile.release]
+opt-level = 3
+debug = false

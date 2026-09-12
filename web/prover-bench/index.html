@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neptune Vault prover benchmark</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 1rem; max-width: 40rem; background: #fff; color: #111; }
+  h1 { font-size: 1.2rem; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { border-bottom: 1px solid #ddd; padding: 0.3rem 0.4rem; text-align: left; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  button { font-size: 1rem; padding: 0.6rem 1rem; }
+  select, input { font-size: 1rem; padding: 0.3rem; }
+  #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.8rem; background: #f4f4f4; padding: 0.5rem; max-height: 12rem; overflow: auto; }
+  .ok { color: #1a7f37; } .err { color: #b3261e; }
+</style>
+</head>
+<body>
+<h1>Neptune Vault prover benchmark (milestone 0)</h1>
+<p id="device"></p>
+<p>
+  <label>Witness <select id="fixture">
+    <option value="witness_1in_2out.bin">1 input, 2 outputs</option>
+    <option value="witness_2in_2out.bin">2 inputs, 2 outputs</option>
+  </select></label>
+  <label>Network <input id="network" value="main" size="6"></label>
+  <label>Height <input id="height" value="55000" size="7"></label>
+  <label><input type="checkbox" id="cache"> cache LDE trace (faster, several GB more memory)</label>
+</p>
+<p><button id="run">Prove ProofCollection</button> <span id="status"></span></p>
+<table>
+  <thead><tr><th>#</th><th>Sub-proof</th><th>Time (s)</th><th>Proof (KB)</th><th>Wasm memory after (MB)</th></tr></thead>
+  <tbody id="rows"></tbody>
+  <tfoot><tr><th colspan="2">Total</th><th id="total" class="num"></th><th id="size" class="num"></th><th id="peak" class="num"></th></tr></tfoot>
+</table>
+<h2 style="font-size:1rem">Log</h2>
+<div id="log"></div>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const log = (msg, cls) => {
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = `${new Date().toISOString().slice(11, 19)} ${msg}`;
+  $('log').appendChild(line);
+  $('log').scrollTop = $('log').scrollHeight;
+};
+
+$('device').textContent =
+  `${navigator.userAgent} | cores: ${navigator.hardwareConcurrency ?? '?'} | ` +
+  `deviceMemory: ${navigator.deviceMemory ?? '?'} GB | crossOriginIsolated: ${self.crossOriginIsolated}`;
+
+let wakeLock = null;
+async function keepAwake() {
+  try { wakeLock = await navigator.wakeLock?.request('screen'); log('wake lock acquired'); }
+  catch (e) { log(`wake lock unavailable: ${e.message}`); }
+}
+
+$('run').onclick = async () => {
+  $('run').disabled = true;
+  $('rows').innerHTML = '';
+  $('total').textContent = $('size').textContent = $('peak').textContent = '';
+  $('status').textContent = 'loading witness';
+  await keepAwake();
+
+  const fixture = $('fixture').value;
+  const res = await fetch(`../../fixtures/${fixture}`);
+  if (!res.ok) { log(`fixture ${fixture} not found (${res.status})`, 'err'); $('run').disabled = false; return; }
+  const witness = await res.arrayBuffer();
+  log(`witness ${fixture}: ${witness.byteLength} bytes`);
+
+  const worker = new Worker('./worker.js', { type: 'module' });
+  const t0 = performance.now();
+  let peak = 0, totalBytes = 0;
+  worker.onmessage = ({ data }) => {
+    if (data.kind === 'ready') {
+      log(`prover ${data.version} loaded, ${data.total} sub-proofs, initial memory ${(data.memory / 1048576).toFixed(0)} MB`);
+      $('status').textContent = `proving 0/${data.total}`;
+    } else if (data.kind === 'started') {
+      $('status').textContent = `proving ${data.index + 1}/${data.total}: ${data.name}`;
+      log(`start ${data.name}`);
+    } else if (data.kind === 'finished') {
+      const mb = data.memory / 1048576;
+      peak = Math.max(peak, mb);
+      totalBytes += data.proof_len;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${data.index + 1}</td><td>${data.name}</td><td class="num">${(data.millis / 1000).toFixed(1)}</td>` +
+        `<td class="num">${(data.proof_len / 1024).toFixed(0)}</td><td class="num">${mb.toFixed(0)}</td>`;
+      $('rows').appendChild(tr);
+      log(`done ${data.name} in ${(data.millis / 1000).toFixed(1)} s, memory ${mb.toFixed(0)} MB`);
+    } else if (data.kind === 'done') {
+      const secs = (performance.now() - t0) / 1000;
+      $('total').textContent = secs.toFixed(1);
+      $('size').textContent = (data.bytes / 1024).toFixed(0);
+      $('peak').textContent = peak.toFixed(0);
+      $('status').textContent = 'done';
+      log(`ProofCollection: ${data.bytes} bytes in ${secs.toFixed(1)} s, peak wasm memory ${peak.toFixed(0)} MB`, 'ok');
+      worker.terminate(); wakeLock?.release(); $('run').disabled = false;
+    } else if (data.kind === 'error') {
+      $('status').textContent = 'failed';
+      log(`error: ${data.message}`, 'err');
+      worker.terminate(); wakeLock?.release(); $('run').disabled = false;
+    }
+  };
+  worker.onerror = (e) => { log(`worker error: ${e.message}`, 'err'); $('status').textContent = 'failed'; $('run').disabled = false; };
+  log(`LDE trace cache: ${$('cache').checked ? 'on' : 'off'}`);
+  worker.postMessage({ witness, network: $('network').value, height: Number($('height').value), cacheLde: $('cache').checked }, [witness]);
+};
+</script>
+</body>
+</html>

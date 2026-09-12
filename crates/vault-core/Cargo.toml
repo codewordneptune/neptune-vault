@@ -1,0 +1,19 @@
+[package]
+name = "vault-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Wallet core for Neptune Vault (keys, addresses, scanning, witness building), compiled to WebAssembly"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+neptune-consensus = "0.17.0"
+neptune-primitives = "0.17.0"
+neptune-mutator-set = "0.17.0"
+neptune-wallet = "0.17.0"
+neptune-rpc-api = "0.17.0"
+wasm-bindgen = "0.2"
+getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
+getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
