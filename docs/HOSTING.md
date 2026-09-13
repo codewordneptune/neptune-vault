@@ -52,6 +52,10 @@ persistent-storage request was granted. Then open the diagnostics page at
 place, and the prover will use all cores. Install to the home screen from
 the browser menu; the app must open in standalone mode with the icon.
 
+First deployment 2026-09-13 (workflow run 34764130991, about 12 minutes cold):
+the live site serves every file with the isolation headers, `.wasm` as
+`application/wasm`, and `/diagnostics` reports "Cross-origin isolated: yes".
+
 Verified locally on 2026-09-13 with `npm run build` and `vite preview`: the
 isolation headers, the wasm mime type, both bundled workers (the prover
 starts its thread pool in production), and the precache list of 16 entries

@@ -65,4 +65,3 @@ jobs:
           action: upload
           app_location: web/dist
           skip_app_build: true
-          config_file_location: web/dist
