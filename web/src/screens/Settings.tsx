@@ -125,6 +125,7 @@ function ChangePassword() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const mismatch = again !== '' && again !== next;
   const tooShort = next !== '' && next.length < 8;
 
@@ -139,12 +140,26 @@ function ChangePassword() {
       setNext('');
       setAgain('');
       setDone(true);
+      setOpen(false);
     } catch (e) {
       setError(e instanceof WrongPasswordError ? 'The current password is wrong.' : (e as Error).message);
     } finally {
       setBusy(false);
     }
   };
+
+  if (!open) {
+    return (
+      <Stack>
+        {done && <Alert color="green" withCloseButton onClose={() => setDone(false)}>Password changed. Export a new backup file if you keep one; the old file still opens with the old password.</Alert>}
+        <Group>
+          <Button variant="light" leftSection={<IconKey size={16} stroke={1.8} />} disabled={!account} onClick={() => { setDone(false); setOpen(true); }}>
+            Change password
+          </Button>
+        </Group>
+      </Stack>
+    );
+  }
 
   return (
     <form
@@ -154,14 +169,18 @@ function ChangePassword() {
       }}
     >
       <Stack>
-        {done && <Alert color="green" withCloseButton onClose={() => setDone(false)}>Password changed. Export a new backup file if you keep one; the old file still opens with the old password.</Alert>}
         {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
         <PasswordInput label="Current password" value={current} onChange={(e) => setCurrent(e.currentTarget.value)} autoComplete="current-password" />
         <PasswordInput label="New password (at least 8 characters)" value={next} onChange={(e) => setNext(e.currentTarget.value)} error={tooShort ? 'At least 8 characters' : undefined} autoComplete="new-password" />
         <PasswordInput label="Repeat new password" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={mismatch ? 'Passwords differ' : undefined} autoComplete="new-password" />
-        <Button type="submit" variant="light" leftSection={<IconKey size={16} stroke={1.8} />} loading={busy} disabled={!account || !current || next.length < 8 || next !== again}>
-          Change password
-        </Button>
+        <Group grow>
+          <Button variant="default" onClick={() => { setOpen(false); setError(null); setCurrent(''); setNext(''); setAgain(''); }}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={busy} disabled={!account || !current || next.length < 8 || next !== again}>
+            Save new password
+          </Button>
+        </Group>
       </Stack>
     </form>
   );
