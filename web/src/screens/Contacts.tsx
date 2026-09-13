@@ -196,7 +196,9 @@ export function ContactForm({
 
   const paste = async () => {
     try {
-      setAddress(parsePaymentText(await navigator.clipboard.readText()).address);
+      const parsed = parsePaymentText(await navigator.clipboard.readText());
+      if (parsed.error) setAddressError(parsed.error);
+      else setAddress(parsed.address);
     } catch {
       setError('Clipboard access was refused. Long-press the field to paste instead.');
     }
@@ -255,7 +257,9 @@ export function ContactForm({
         onClose={() => setScanning(false)}
         onResult={(text) => {
           setScanning(false);
-          setAddress(parsePaymentText(text).address);
+          const parsed = parsePaymentText(text);
+          if (parsed.error) setAddressError(parsed.error);
+          else setAddress(parsed.address);
         }}
       />
     </Modal>

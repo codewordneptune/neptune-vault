@@ -2,6 +2,17 @@ import { Button, Divider, Paper, PasswordInput, Stack, Title } from '@mantine/co
 import { IconFingerprint } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+// The passkey sheet opens by itself once per page load; after that the
+// button is there for a retry, and the password field for the fallback.
+let promptedThisLoad = false;
+
+/** A cancelled or timed-out system sheet is not an error to show. */
+function isCancellation(e: unknown): boolean {
+  const name = (e as { name?: string }).name;
+  const message = (e as Error).message ?? '';
+  return name === 'NotAllowedError' || name === 'AbortError' || /cancel/i.test(message);
+}
+
 import { useApp } from '../app/AppContext';
 import { WrongPasswordError } from '../storage/envelope';
 
@@ -21,15 +32,18 @@ export function Unlock() {
     try {
       await services.accounts.unlockWithPasskey(account.id);
     } catch (e) {
-      setError((e as Error).message);
+      if (!isCancellation(e)) setError((e as Error).message);
+      inputRef.current?.focus();
     } finally {
       setPasskeyBusy(false);
     }
   };
 
-  // Offer the passkey straight away; the password field stays for fallback.
   useEffect(() => {
-    if (hasPasskey) void unlockWithPasskey();
+    if (hasPasskey && !promptedThisLoad) {
+      promptedThisLoad = true;
+      void unlockWithPasskey();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.id]);
 

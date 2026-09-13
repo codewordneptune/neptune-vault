@@ -7,9 +7,9 @@ import { IconCopy, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
-import { useApp } from '../app/AppContext';
+import { formatNau, useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
-import { abbreviateAddress } from '../util/address';
+import { abbreviateAddress, paymentQrPayload, paymentUri } from '../util/address';
 import { copyText } from '../util/clipboard';
 import type { KeyKind } from '../wallet/core';
 
@@ -38,8 +38,45 @@ export function Receive() {
   const [showFull, setShowFull] = useState(false);
   // Optional amount for a payment request; the link follows NIP-2 (npt:).
   const [requestAmount, setRequestAmount] = useState('');
+  const [amountError, setAmountError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
-  const paymentLink = `npt:${address}${requestAmount.trim() ? `?amount=${encodeURIComponent(requestAmount.trim())}` : ''}`;
+  const [qrNote, setQrNote] = useState<string | null>(null);
+  // The requested amount as a conforming NIP-002 decimal (from nau, so
+  // "1,5" or ".5" never reach the link), or undefined when none is asked.
+  const [linkAmount, setLinkAmount] = useState<string | undefined>(undefined);
+  const paymentLink = paymentUri(address, linkAmount);
+
+  // Validate the request amount through the wallet core and normalise it.
+  useEffect(() => {
+    let cancelled = false;
+    const text = requestAmount.trim();
+    if (text === '') {
+      setLinkAmount(undefined);
+      setAmountError(null);
+      return;
+    }
+    void (async () => {
+      try {
+        const nau = BigInt(await services.core.parseAmount(text));
+        if (cancelled) return;
+        if (nau <= 0n) {
+          setAmountError('The amount must be greater than zero');
+          setLinkAmount(undefined);
+        } else {
+          setAmountError(null);
+          setLinkAmount(formatNau(nau));
+        }
+      } catch {
+        if (!cancelled) {
+          setAmountError('Enter a number, such as 1.5');
+          setLinkAmount(undefined);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestAmount, services]);
   const index = indices[kind];
 
   useEffect(() => {
@@ -48,28 +85,37 @@ export function Receive() {
       const a = kind === 'generation' && index === 0 && account ? account.address0 : await services.core.address(kind, index);
       if (cancelled) return;
       setAddress(a);
-      // Upper-case bech32m is still valid and fits the QR alphanumeric mode
-      // (4296 chars at level L), which a 2900-character generation address
-      // needs; mixed case would overflow the byte mode. SVG scales to any
-      // width without blur.
-      try {
-        const svg = await QRCode.toString(a.toUpperCase(), { type: 'svg', margin: 2, errorCorrectionLevel: 'L' });
+      // The QR carries the complete NIP-002 URI. Scheme and address are
+      // upper-cased for the alphanumeric mode a generation address needs;
+      // a query needs byte mode, and when the amount does not fit the code
+      // falls back to the address-only URI and the link carries the amount.
+      const render = async (payload: string) => {
+        const svg = await QRCode.toString(payload, { type: 'svg', margin: 2, errorCorrectionLevel: 'L' });
         setQr(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
+      };
+      try {
+        await render(paymentQrPayload(a, linkAmount));
+        setQrNote(null);
       } catch {
-        setQr('');
+        try {
+          await render(paymentQrPayload(a));
+          setQrNote(linkAmount ? 'The amount does not fit in the code for this address; the shared link carries it.' : null);
+        } catch {
+          setQr('');
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [kind, index, account, services]);
+  }, [kind, index, account, services, linkAmount]);
 
   const copy = () => void copyText(address, 'Address copied');
 
   // The system share sheet where it exists; otherwise the link is copied.
   const share = async () => {
     setSharing(false);
-    const text = requestAmount.trim() ? `Please send ${requestAmount.trim()} NPT to ${paymentLink}` : paymentLink;
+    const text = linkAmount ? `Please send ${linkAmount} NPT to ${paymentLink}` : paymentLink;
     if (navigator.share) {
       try {
         await navigator.share({ text });
@@ -77,7 +123,7 @@ export function Receive() {
         // Cancelled by the user; nothing to report.
       }
     } else {
-      await copyText(text, requestAmount.trim() ? 'Payment request copied' : 'Payment link copied');
+      await copyText(text, linkAmount ? 'Payment request copied' : 'Payment link copied');
     }
   };
 
@@ -99,6 +145,11 @@ export function Receive() {
         <Text size="sm" c="dimmed">
           {KIND_NOTES[kind]}
         </Text>
+        {qrNote && (
+          <Text size="xs" c="dimmed">
+            {qrNote}
+          </Text>
+        )}
         {qr && (
           <img
             src={qr}
@@ -121,13 +172,17 @@ export function Receive() {
           <Stack>
             <TextInput
               label="Amount to request (optional)"
-              description="Goes into the shared link so the payer's wallet fills it in. The QR code stays the plain address."
+              description="Goes into the link and, where it fits, the QR code, so the payer's wallet fills it in."
               inputMode="decimal"
               value={requestAmount}
               onChange={(e) => setRequestAmount(e.currentTarget.value)}
+              error={amountError}
               autoFocus
             />
-            <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()}>
+            <Text size="xs" c="dimmed" ff="monospace" style={{ wordBreak: 'break-all' }}>
+              {abbreviateAddress(paymentLink)}
+            </Text>
+            <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={Boolean(amountError)}>
               Share
             </Button>
           </Stack>

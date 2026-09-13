@@ -149,6 +149,10 @@ export function Send() {
   const applyText = useCallback(
     (text: string) => {
       const parsed = parsePaymentText(text);
+      if (parsed.error) {
+        setRecipientError(parsed.error);
+        return;
+      }
       setRecipient(parsed.address);
       setRecipientError(null);
       if (parsed.amount) setAmount(parsed.amount);
