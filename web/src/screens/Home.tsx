@@ -27,6 +27,9 @@ export function Home() {
 
   return (
     <Stack gap="md">
+      <Title order={2} className="sr-only">
+        Home
+      </Title>
       <Paper>
         <Stack gap="xs">
           <span className="vault-eyebrow">Spendable balance</span>
@@ -51,7 +54,7 @@ export function Home() {
       </Paper>
 
       <Paper>
-        <Title order={4} mb="sm">
+        <Title order={3} mb="sm">
           History
         </Title>
         {history.length === 0 ? (

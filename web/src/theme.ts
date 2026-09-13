@@ -46,10 +46,10 @@ export const theme = createTheme({
   headings: {
     fontWeight: '600',
     sizes: {
-      h1: { fontSize: '2.25rem', lineHeight: '1.1' },
-      h2: { fontSize: '1.5rem' },
-      h3: { fontSize: '1.125rem' },
-      h4: { fontSize: '0.8125rem' },
+      // h1 is the brand in the header; h2 a screen title; h3 a section label.
+      h1: { fontSize: '0.9375rem', lineHeight: '1.2' },
+      h2: { fontSize: '1.125rem' },
+      h3: { fontSize: '0.8125rem' },
     },
   },
   components: {

@@ -153,7 +153,7 @@ export function Onboarding() {
       {step === 'welcome' && (
         <Paper>
           <Stack>
-            <Title order={3}>Welcome</Title>
+            <Title order={2}>Welcome</Title>
             <Text size="sm" c="dimmed">This wallet keeps your keys on this device only. Your seed phrase is the only backup.</Text>
             <Select
               label="Network"
@@ -179,7 +179,7 @@ export function Onboarding() {
       {step === 'show' && (
         <Paper>
           <Stack>
-            <Title order={3}>Write down these 18 words</Title>
+            <Title order={2}>Write down these 18 words</Title>
             <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your funds. Clearing the browser deletes everything except what you write down.</Text>
             <WordGrid words={phrase} />
             <Button onClick={startConfirm}>I have written them down</Button>
@@ -193,7 +193,7 @@ export function Onboarding() {
       {step === 'confirm' && (
         <Paper>
           <Stack>
-            <Title order={3}>Confirm your phrase</Title>
+            <Title order={2}>Confirm your phrase</Title>
             <Text size="sm" c="dimmed">Tap the words below to put them back in their places.</Text>
             <WordGrid
               words={phrase.map((w, i) => (checks.includes(i) ? (slots[i] ?? '') : w))}
@@ -257,7 +257,7 @@ function PasswordStep({ busy, onSubmit }: { busy: boolean; onSubmit: (password: 
   return (
     <Paper>
       <Stack>
-        <Title order={3}>Choose a password</Title>
+        <Title order={2}>Choose a password</Title>
         <Text size="sm" c="dimmed">It encrypts your phrase on this device and is asked for on every unlock. It cannot be recovered.</Text>
         <PasswordInput label="Password (at least 8 characters)" value={password} onChange={(e) => setPassword(e.currentTarget.value)} />
         <PasswordInput label="Repeat" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={again && again !== password ? 'passwords differ' : undefined} />
@@ -289,12 +289,12 @@ function ImportStep({
   return (
     <Paper>
       <Stack>
-        <Title order={3}>Import</Title>
+        <Title order={2}>Import</Title>
         <Textarea label="Seed phrase (18 words)" autosize minRows={3} value={text} onChange={(e) => setText(e.currentTarget.value)} />
         <NumberInput label="Scan from block height" description="The block your first funds arrived in, or 1 to scan everything (slow)." min={1} value={birthday} onChange={setBirthday} />
         <Button disabled={words.length !== 18} onClick={() => onPhrase(words.map((w) => w.toLowerCase()))}>Continue with this phrase</Button>
         <Text size="sm" c="dimmed">Or restore a backup file exported by this app:</Text>
-        <input type="file" accept="application/json,.json" onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
+        <input type="file" aria-label="Backup file" accept="application/json,.json" onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <PasswordInput label="Backup file password" value={filePassword} onChange={(e) => setFilePassword(e.currentTarget.value)} />
         <Button variant="light" disabled={!file || !filePassword} loading={busy} onClick={() => file && onFile(file, filePassword)}>Restore from file</Button>
         <Button variant="subtle" onClick={onBack}>Back</Button>

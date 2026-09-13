@@ -41,18 +41,18 @@ export function App() {
 
   return (
     <Box onClick={touch} onKeyDown={touch} pb={showTabs ? 84 : 0}>
-      <Box className="vault-topbar">
+      <header className="vault-topbar">
         <Container size="xs" py="sm">
           <Group justify="space-between" align="center">
-            <span className="vault-brand">
+            <h1 className="vault-brand">
               <Logo size={26} />
               Neptune Vault
-            </span>
+            </h1>
             <NetworkMenu />
           </Group>
         </Container>
-      </Box>
-      <Container size="xs" py="md">
+      </header>
+      <Container component="main" size="xs" py="md">
         <Routes>
           <Route path="/onboarding" element={account ? <Navigate to="/" replace /> : <Onboarding />} />
           <Route path="/" element={gate(<Home />)} />
@@ -64,7 +64,7 @@ export function App() {
         </Routes>
       </Container>
       {showTabs && (
-        <nav className="vault-tabbar">
+        <nav className="vault-tabbar" aria-label="Main">
           <Container size="xs" px={0}>
             <Group gap={0} wrap="nowrap">
               {TABS.map(({ to, label, Icon }) => (

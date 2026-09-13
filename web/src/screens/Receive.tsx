@@ -74,7 +74,7 @@ export function Receive() {
   return (
     <Paper>
       <Stack>
-        <Title order={3}>Receive</Title>
+        <Title order={2}>Receive</Title>
         <SegmentedControl
           fullWidth
           value={kind}
@@ -88,7 +88,7 @@ export function Receive() {
           <img
             src={qr}
             alt={`${KIND_LABELS[kind]} address QR code`}
-            style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 'var(--mantine-radius-md)', background: '#fff' }}
+            style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }}
           />
         )}
         <Text ff="monospace" size="sm" ta="center" style={{ wordBreak: 'break-all' }}>

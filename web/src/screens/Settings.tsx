@@ -59,10 +59,13 @@ export function Settings() {
 
   return (
     <Stack gap="md">
+      <Title order={2} className="sr-only">
+        Settings
+      </Title>
       {message && <Alert color="green" onClose={() => setMessage(null)} withCloseButton>{message}</Alert>}
       <Paper>
         <Stack>
-          <Title order={4}>Network and node</Title>
+          <Title order={3}>Network and node</Title>
           <Select label="Network" data={['main', 'testnet', 'regtest']} value={network} onChange={(v) => void changeNetwork(v)} />
           <TextInput label="Node URL" value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
           <Group>
@@ -75,7 +78,7 @@ export function Settings() {
 
       <Paper>
         <Stack>
-          <Title order={4}>Backup</Title>
+          <Title order={3}>Backup</Title>
           <Text size="sm" c="dimmed">
             Persistent storage {services.persistent ? 'granted' : 'not granted'}. Clearing the browser's site data deletes this wallet; keep the phrase or a backup file.
           </Text>
@@ -89,7 +92,7 @@ export function Settings() {
 
       <Paper>
         <Stack>
-          <Title order={4}>Session</Title>
+          <Title order={3}>Session</Title>
           <Text size="sm" c="dimmed">Locks after 5 minutes idle and when the app goes to the background.</Text>
           <Button variant="light" leftSection={<IconLock size={16} stroke={1.8} />} onClick={() => void services.accounts.lock()}>Lock now</Button>
         </Stack>

@@ -34,7 +34,7 @@ export function Unlock() {
         }}
       >
         <Stack>
-          <Title order={3}>Unlock</Title>
+          <Title order={2}>Unlock</Title>
           <Text size="sm" c="dimmed">
             {account?.network} account, {account ? abbreviateAddress(account.address0) : ''}
           </Text>
