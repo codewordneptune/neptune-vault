@@ -52,7 +52,7 @@ it talks to a neptune-core node over its JSON-RPC API.
 | R16 | Batch send | Not supported in the first release. |
 | R17 | Sync | Use the node's bloom-index and UTXO-origin endpoints to skip blocks that cannot contain anything relevant; fall back to downloading and scanning blocks. |
 | R18 | Transaction status | After broadcast the transaction shows as pending in history. It becomes confirmed when it appears in a canonical block. Its inputs stay reserved until then. No re-proving. |
-| R19 | Fee | A default fee is pre-filled and the user can edit it. Validate against the node's minimum if the API exposes one. Default value: OPEN. |
+| R19 | Fee | Presets Low 0.1, Medium 0.3 (default), High 0.5 NPT, plus Custom with a free field (decided 2026-09-13). All clear the node's default proof-upgrader floor (60 % of the fee must reach 0.01 NPT, so about 0.017 NPT). |
 | R20 | Frontend | React, Mantine, Vite. Same stack as the desktop wallet so screens and helpers can be ported. |
 | R21 | Platforms | iOS 17 and later Safari, current Android Chrome, both installed as a home-screen PWA. |
 | R22 | Test device | Samsung Galaxy S24, 8 GB RAM. No iOS device is available for testing. |

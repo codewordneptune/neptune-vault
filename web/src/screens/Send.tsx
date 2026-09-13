@@ -1,19 +1,30 @@
 // Send screen (F15 to F18, R23): one recipient, amount, fee; validation
 // before proving; per-sub-proof progress with a wake lock; cancel.
 
-import { Alert, Button, Group, Paper, Progress, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 
 import { formatNau, useApp } from '../app/AppContext';
 import { RequiresLustrationError, type SendProgress } from '../app/send';
 
-const DEFAULT_FEE = '0.01';
+// Fee presets (R19). Every level clears the default proof-upgrader floor of
+// about 0.017 NPT; the spread is for when upgraders or composers have
+// transactions to choose between.
+const FEE_PRESETS: { value: string; label: string; fee: string }[] = [
+  { value: 'low', label: 'Low', fee: '0.1' },
+  { value: 'medium', label: 'Medium', fee: '0.3' },
+  { value: 'high', label: 'High', fee: '0.5' },
+  { value: 'custom', label: 'Custom', fee: '' },
+];
+const DEFAULT_PRESET = 'medium';
+const DEFAULT_FEE = FEE_PRESETS.find((p) => p.value === DEFAULT_PRESET)!.fee;
 
 export function Send() {
   const { services, account, balance, refresh } = useApp();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [fee, setFee] = useState(DEFAULT_FEE);
+  const [feePreset, setFeePreset] = useState(DEFAULT_PRESET);
   const [recipientError, setRecipientError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [progress, setProgress] = useState<SendProgress | null>(null);
@@ -133,7 +144,24 @@ export function Send() {
             <Stack>
               <TextInput label="Recipient address" value={recipient} onChange={(e) => setRecipient(e.currentTarget.value)} error={recipientError} />
               <TextInput label="Amount (NPT)" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.currentTarget.value)} error={amountError} />
-              <TextInput label="Fee (NPT)" inputMode="decimal" value={fee} onChange={(e) => setFee(e.currentTarget.value)} />
+              <div>
+                <Text size="sm" fw={500} mb={6}>
+                  Fee{feePreset !== 'custom' && `: ${fee} NPT`}
+                </Text>
+                <SegmentedControl
+                  fullWidth
+                  value={feePreset}
+                  onChange={(v) => {
+                    setFeePreset(v);
+                    const preset = FEE_PRESETS.find((p) => p.value === v);
+                    if (preset && preset.fee) setFee(preset.fee);
+                  }}
+                  data={FEE_PRESETS.map((p) => ({ value: p.value, label: p.label }))}
+                />
+              </div>
+              {feePreset === 'custom' && (
+                <TextInput label="Custom fee (NPT)" inputMode="decimal" value={fee} onChange={(e) => setFee(e.currentTarget.value)} autoFocus />
+              )}
               <Text size="xs" c="dimmed">
                 Spendable: {formatNau(balance.spendableNau)} NPT. Proving takes a few minutes on a phone.
               </Text>
