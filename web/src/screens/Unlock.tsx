@@ -1,4 +1,5 @@
-import { Alert, Button, Paper, PasswordInput, Stack, Text, Title } from '@mantine/core';
+import { Alert, Button, Paper, PasswordInput, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { IconCheck, IconCopy } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { useApp } from '../app/AppContext';
@@ -11,6 +12,15 @@ export function Unlock() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // The unlock screen doubles as a quick way to grab the main address.
+  const copyAddress = async () => {
+    if (!account) return;
+    await navigator.clipboard.writeText(account.address0);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   const unlock = async () => {
     if (!account) return;
@@ -35,10 +45,21 @@ export function Unlock() {
         }}
       >
         <Stack>
-          <Title order={2}>Unlock</Title>
+          <Title order={2}>Welcome back</Title>
           <Text size="sm" c="dimmed">
-            {networkLabel(account?.network)} account, {account ? abbreviateAddress(account.address0) : ''}
+            Enter your password to unlock your {networkLabel(account?.network)} wallet.
           </Text>
+          {account && (
+            <UnstyledButton onClick={() => void copyAddress()} aria-label="Copy the main address" fz="xs" c="dimmed">
+              <Text component="span" size="xs" c="dimmed">
+                Address{' '}
+              </Text>
+              <Text component="span" size="xs" ff="monospace" c="dimmed">
+                {abbreviateAddress(account.address0)}
+              </Text>
+              {copied ? <IconCheck size={13} style={{ marginLeft: 6, verticalAlign: -2 }} /> : <IconCopy size={13} style={{ marginLeft: 6, verticalAlign: -2 }} />}
+            </UnstyledButton>
+          )}
           {error && <Alert color="red">{error}</Alert>}
           <PasswordInput label="Password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoFocus />
           <Button type="submit" loading={busy} disabled={!password}>
