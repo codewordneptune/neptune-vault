@@ -1,10 +1,11 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
-import { Alert, Button, Group, Paper, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconDownload, IconEye, IconLock } from '@tabler/icons-react';
+import { Alert, Button, Group, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { IconDownload, IconEye, IconKey, IconLock } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { useApp } from '../app/AppContext';
+import { WrongPasswordError } from '../storage/envelope';
 import { WordGrid } from '../components/WordGrid';
 import { NETWORK_OPTIONS } from '../util/network';
 import type { Network } from '../storage/db';
@@ -97,11 +98,71 @@ export function Settings() {
 
       <Paper>
         <Stack>
+          <Title order={3}>Security</Title>
+          <Text size="sm" c="dimmed">
+            The password encrypts your phrase on this device and is asked for on every unlock. Changing it does not change the phrase or the backup file's contents beyond the new wrapping.
+          </Text>
+          <ChangePassword />
+        </Stack>
+      </Paper>
+
+      <Paper>
+        <Stack>
           <Title order={3}>Session</Title>
           <Text size="sm" c="dimmed">Locks after 5 minutes idle and when the app goes to the background.</Text>
           <Button variant="light" leftSection={<IconLock size={16} stroke={1.8} />} onClick={() => void services.accounts.lock()}>Lock now</Button>
         </Stack>
       </Paper>
     </Stack>
+  );
+}
+
+function ChangePassword() {
+  const { services, account } = useApp();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [again, setAgain] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const mismatch = again !== '' && again !== next;
+  const tooShort = next !== '' && next.length < 8;
+
+  const submit = async () => {
+    if (!account) return;
+    setBusy(true);
+    setError(null);
+    setDone(false);
+    try {
+      await services.accounts.changePassword(account.id, current, next);
+      setCurrent('');
+      setNext('');
+      setAgain('');
+      setDone(true);
+    } catch (e) {
+      setError(e instanceof WrongPasswordError ? 'The current password is wrong.' : (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      <Stack>
+        {done && <Alert color="green" withCloseButton onClose={() => setDone(false)}>Password changed. Export a new backup file if you keep one; the old file still opens with the old password.</Alert>}
+        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
+        <PasswordInput label="Current password" value={current} onChange={(e) => setCurrent(e.currentTarget.value)} autoComplete="current-password" />
+        <PasswordInput label="New password (at least 8 characters)" value={next} onChange={(e) => setNext(e.currentTarget.value)} error={tooShort ? 'At least 8 characters' : undefined} autoComplete="new-password" />
+        <PasswordInput label="Repeat new password" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={mismatch ? 'Passwords differ' : undefined} autoComplete="new-password" />
+        <Button type="submit" variant="light" leftSection={<IconKey size={16} stroke={1.8} />} loading={busy} disabled={!account || !current || next.length < 8 || next !== again}>
+          Change password
+        </Button>
+      </Stack>
+    </form>
   );
 }

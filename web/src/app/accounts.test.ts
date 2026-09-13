@@ -108,6 +108,19 @@ describe('account service', () => {
     expect(service.currentAccountId).toBeNull();
   });
 
+  it('changes the password and keeps the seed', async () => {
+    const { service } = await setup();
+    const phrase = await service.generatePhrase();
+    const record = await service.createAccount(phrase, 'old-password', 'regtest', 1);
+    await expect(service.changePassword(record.id, 'wrong', 'new-password')).rejects.toThrow(WrongPasswordError);
+    await expect(service.changePassword(record.id, 'old-password', 'short')).rejects.toThrow('at least 8');
+    await service.changePassword(record.id, 'old-password', 'new-password');
+    await service.lock();
+    await expect(service.unlock(record.id, 'old-password')).rejects.toThrow(WrongPasswordError);
+    await service.unlock(record.id, 'new-password');
+    expect(service.currentAccountId).toBe(record.id);
+  });
+
   it('exports and imports a backup file', async () => {
     const { service } = await setup();
     const phrase = await service.generatePhrase();

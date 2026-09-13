@@ -2,7 +2,7 @@
 // policy (R11: five minutes idle, immediately on backgrounding).
 
 import { FRESH_KEY_INDICES, type AccountRecord, type Network, type VaultDb } from '../storage/db';
-import { DEFAULT_KDF, openSeed, sealSeed, type DeriveKey, type ExportFile } from '../storage/envelope';
+import { changePassword as reWrapSeed, DEFAULT_KDF, openSeed, sealSeed, type DeriveKey, type ExportFile } from '../storage/envelope';
 import { addressKindLabel } from '../util/address';
 import type { WalletCore } from '../wallet/core';
 
@@ -70,6 +70,19 @@ export class AccountService {
     const phrase = await openSeed(record.envelope, password, this.derive);
     await this.core.unlock(phrase, record.network);
     this.setUnlocked(accountId);
+  }
+
+  /**
+   * Change the password: the content key is re-wrapped under the new
+   * password; the seed ciphertext is untouched. Throws WrongPasswordError
+   * when the current password is wrong. The account stays unlocked.
+   */
+  async changePassword(accountId: string, currentPassword: string, newPassword: string): Promise<void> {
+    if (newPassword.length < 8) throw new Error('The new password must be at least 8 characters');
+    const record = await this.db.get('accounts', accountId);
+    if (!record) throw new Error('account not found');
+    const envelope = await reWrapSeed(record.envelope, currentPassword, newPassword, this.derive, DEFAULT_KDF);
+    await this.db.put('accounts', { ...record, envelope });
   }
 
   async lock(): Promise<void> {
