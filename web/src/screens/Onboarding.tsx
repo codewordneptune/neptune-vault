@@ -11,14 +11,43 @@ import type { ExportFile } from '../storage/envelope';
 
 type Step = 'welcome' | 'show' | 'confirm' | 'password' | 'import';
 
+// The draft phrase lives in this tab's session storage until the account
+// exists, so a screenshot, app switch, tab discard or reload does not throw
+// the user back to the start. It has no funds behind it yet, is invisible to
+// other tabs and sites, and is wiped on completion or when the tab closes.
+const DRAFT_KEY = 'neptune-vault.onboarding-draft';
+interface Draft {
+  phrase: string[];
+  network: Network;
+  imported: boolean;
+  birthday: number | string;
+}
+function loadDraft(): Draft | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as Draft) : null;
+  } catch {
+    return null;
+  }
+}
+function saveDraft(draft: Draft | null) {
+  try {
+    if (draft) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    else sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // Session storage unavailable: onboarding still works, just without resume.
+  }
+}
+
 export function Onboarding() {
   const { services, setAccount } = useApp();
   const navigate = useNavigate();
-  const [step, setStep] = useState<Step>('welcome');
-  const [network, setNetwork] = useState<Network>(services.settings.network);
-  const [phrase, setPhrase] = useState<string[]>([]);
-  const [imported, setImported] = useState(false);
-  const [birthday, setBirthday] = useState<number | string>(1);
+  const draft = loadDraft();
+  const [step, setStep] = useState<Step>(draft ? (draft.imported ? 'password' : 'show') : 'welcome');
+  const [network, setNetwork] = useState<Network>(draft?.network ?? services.settings.network);
+  const [phrase, setPhrase] = useState<string[]>(draft?.phrase ?? []);
+  const [imported, setImported] = useState(draft?.imported ?? false);
+  const [birthday, setBirthday] = useState<number | string>(draft?.birthday ?? 1);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -29,8 +58,10 @@ export function Onboarding() {
   const startCreate = async () => {
     setBusy(true);
     try {
-      setPhrase(await services.accounts.generatePhrase());
+      const words = await services.accounts.generatePhrase();
+      setPhrase(words);
       setImported(false);
+      saveDraft({ phrase: words, network, imported: false, birthday });
       setStep('show');
     } catch (e) {
       setError((e as Error).message);
@@ -63,8 +94,8 @@ export function Onboarding() {
         }
       }
       const record = await services.accounts.createAccount(phrase, password, network, height);
-      if (!imported) await services.accounts.markBackupConfirmed(record.id);
-      else await services.accounts.markBackupConfirmed(record.id);
+      saveDraft(null);
+      await services.accounts.markBackupConfirmed(record.id);
       await services.updateSettings({ currentAccountId: record.id });
       setAccount({ ...record, backupConfirmed: true });
       navigate('/');
@@ -81,6 +112,7 @@ export function Onboarding() {
     try {
       const parsed = JSON.parse(await file.text()) as ExportFile;
       const record = await services.accounts.importFile(parsed, password);
+      saveDraft(null);
       await services.updateSettings({ currentAccountId: record.id, network: record.network });
       setAccount(record);
       navigate('/');
@@ -112,6 +144,11 @@ export function Onboarding() {
             />
             <Button onClick={startCreate} loading={busy}>Create a new account</Button>
             <Button variant="light" onClick={() => setStep('import')}>Import a phrase or backup file</Button>
+            {draft && (
+              <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>
+                Discard the unfinished account
+              </Button>
+            )}
           </Stack>
         </Paper>
       )}
@@ -129,6 +166,9 @@ export function Onboarding() {
               ))}
             </SimpleGrid>
             <Button onClick={startConfirm}>I have written them down</Button>
+            <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); setStep('welcome'); }}>
+              Start over
+            </Button>
           </Stack>
         </Paper>
       )}
@@ -166,6 +206,7 @@ export function Onboarding() {
           onPhrase={(words) => {
             setPhrase(words);
             setImported(true);
+            saveDraft({ phrase: words, network, imported: true, birthday });
             setStep('password');
           }}
           onFile={importFile}
