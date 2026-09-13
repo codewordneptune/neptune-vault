@@ -11,8 +11,9 @@ Cross-Origin-Embedder-Policy: require-corp
 ```
 
 Azure Static Web Apps (R24) sets them through `globalHeaders` in
-`web/staticwebapp.config.json`, which also maps `.wasm` to
-`application/wasm` and routes unknown paths to `index.html` for the router.
+`web/public/staticwebapp.config.json`, which Vite copies into `dist`, and
+which also maps `.wasm` to `application/wasm` and routes unknown paths to
+`index.html` for the router. The site is `https://vault.dev.useneptune.org`.
 
 ## One-time setup (you)
 
@@ -21,9 +22,8 @@ Azure Static Web Apps (R24) sets them through `globalHeaders` in
    "Other", since our GitHub Actions workflow uploads a prebuilt `dist`.
 2. Copy its deployment token (Overview, "Manage deployment token") into the
    GitHub repository secret `AZURE_STATIC_WEB_APPS_API_TOKEN`.
-3. Custom domain: add `<name>.useneptune.org` under "Custom domains" and
-   create the CNAME it asks for at the DNS provider of useneptune.org. Azure
-   issues the TLS certificate itself. The host name is open item O5.
+3. Custom domain: `vault.dev.useneptune.org` is configured (2026-09-13);
+   Azure issues the TLS certificate itself.
 4. Tell the node operator the final origin so the node's CORS allow-list can
    name it, or ask for a wildcard (open item O2).
 

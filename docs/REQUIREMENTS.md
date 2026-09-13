@@ -57,7 +57,7 @@ it talks to a neptune-core node over its JSON-RPC API.
 | R21 | Platforms | iOS 17 and later Safari, current Android Chrome, both installed as a home-screen PWA. |
 | R22 | Test device | Samsung Galaxy S24, 8 GB RAM. No iOS device is available for testing. |
 | R23 | Proving budget | Up to 10 minutes on the test device. Keep the screen awake while proving. Show progress per sub-proof. If the device cannot finish, fail with a clear error. No fallback. |
-| R24 | Hosting | Azure, on a custom sub-domain of useneptune.org. Exact host name: OPEN. |
+| R24 | Hosting | Azure Static Web Apps at `https://vault.dev.useneptune.org` (set up 2026-09-13). |
 | R25 | Repository | Monorepo: `crates/` for Rust, `web/` for the PWA. |
 | R26 | Licence | No licence file yet. |
 | R27 | Process | Requirements and architecture documents first, review, then implementation on feature branches with pull requests. |
@@ -158,5 +158,4 @@ On the Galaxy S24, installed as a PWA, against a testnet node:
 | O1 | Testnet node URL (R6) | Milestone 1 testing |
 | O2 | The default mainnet node does not send CORS headers, so a browser cannot call it directly today. See ARCHITECTURE.md section 3 for the options. | Any network access from the PWA |
 | O4 | Default fee value (R19) | Send screen |
-| O5 | Azure host name (R24) | Hosting setup and CORS allow-list |
 | O6 | Resolved 2026-09-13: vendored copies in crates/vendor with the changes listed in VENDOR.md (consensus, primitives, twenty-first, triton-vm). Upstreaming remains desirable. | |
