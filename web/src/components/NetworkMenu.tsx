@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import type { Network } from '../storage/db';
+import { NETWORK_LABELS } from '../util/network';
 
 const NETWORKS: Network[] = ['main', 'testnet', 'regtest'];
 
@@ -26,8 +27,8 @@ export function NetworkMenu() {
   return (
     <Menu opened={opened} onChange={setOpened} position="bottom-end" width={200} radius="md" shadow="md">
       <Menu.Target>
-        <button type="button" className="vault-network" aria-label={`Network: ${network}. Change network`}>
-          {network}
+        <button type="button" className="vault-network" aria-label={`Network: ${NETWORK_LABELS[network]}. Change network`}>
+          {NETWORK_LABELS[network]}
           <IconChevronDown size={12} stroke={2.2} />
         </button>
       </Menu.Target>
@@ -42,7 +43,7 @@ export function NetworkMenu() {
               <span className="vault-network-hint">{withAccount.has(n) ? 'account' : 'no account'}</span>
             }
           >
-            {n}
+            {NETWORK_LABELS[n]}
           </Menu.Item>
         ))}
       </Menu.Dropdown>

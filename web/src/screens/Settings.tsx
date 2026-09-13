@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import { WordGrid } from '../components/WordGrid';
+import { NETWORK_OPTIONS } from '../util/network';
 import type { Network } from '../storage/db';
 
 export function Settings() {
@@ -66,7 +67,7 @@ export function Settings() {
       <Paper>
         <Stack>
           <Title order={3}>Network and node</Title>
-          <Select label="Network" data={['main', 'testnet', 'regtest']} value={network} onChange={(v) => void changeNetwork(v)} />
+          <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} />
           <TextInput label="Node URL" value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
           <Group>
             <Button onClick={() => void saveNode()}>Save</Button>

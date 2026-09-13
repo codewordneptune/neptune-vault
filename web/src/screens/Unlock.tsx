@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import { abbreviateAddress } from '../util/address';
+import { networkLabel } from '../util/network';
 import { WrongPasswordError } from '../storage/envelope';
 
 export function Unlock() {
@@ -36,7 +37,7 @@ export function Unlock() {
         <Stack>
           <Title order={2}>Unlock</Title>
           <Text size="sm" c="dimmed">
-            {account?.network} account, {account ? abbreviateAddress(account.address0) : ''}
+            {networkLabel(account?.network)} account, {account ? abbreviateAddress(account.address0) : ''}
           </Text>
           {error && <Alert color="red">{error}</Alert>}
           <PasswordInput label="Password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoFocus />

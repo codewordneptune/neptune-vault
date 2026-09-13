@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { formatNau, useApp } from '../app/AppContext';
 import { RequiresLustrationError, type SendProgress } from '../app/send';
+import { networkLabel } from '../util/network';
 
 // Fee presets (R19). Every level clears the default proof-upgrader floor of
 // about 0.017 NPT; the spread is for when upgraders or composers have
@@ -27,6 +28,7 @@ export function Send() {
   const [feePreset, setFeePreset] = useState(DEFAULT_PRESET);
   const [recipientError, setRecipientError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
+  const [feeError, setFeeError] = useState<string | null>(null);
   const [progress, setProgress] = useState<SendProgress | null>(null);
   const [result, setResult] = useState<{ txid: string; seconds: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,24 +37,48 @@ export function Send() {
 
   useEffect(() => () => void wakeLock.current?.release(), []);
 
-  const validate = async (): Promise<boolean> => {
-    const network = services.networkName();
-    const okAddress = recipient.trim() !== '' && (await services.core.isValidAddress(recipient, network));
-    setRecipientError(okAddress ? null : `Not a valid ${services.settings.network} address`);
-    let okAmount = false;
+  // Field checks run on blur and again on submit. A value in nau, or the
+  // message explaining why there is none.
+  const parsePositive = async (text: string, what: string): Promise<{ nau: bigint } | { message: string }> => {
+    if (text.trim() === '') return { message: `Enter the ${what}` };
+    if (text.trim().startsWith('-')) return { message: `The ${what} must be greater than zero` };
+    let nau: bigint;
     try {
-      const nau = BigInt(await services.core.parseAmount(amount));
-      const feeNau = BigInt(await services.core.parseAmount(fee || '0'));
-      if (nau <= 0n) setAmountError('Amount must be positive');
-      else if (nau + feeNau > balance.spendableNau) setAmountError(`Only ${formatNau(balance.spendableNau)} NPT spendable`);
-      else {
-        setAmountError(null);
-        okAmount = true;
-      }
-    } catch (e) {
-      setAmountError((e as Error).message);
+      nau = BigInt(await services.core.parseAmount(text));
+    } catch {
+      return { message: `The ${what} must be a number, such as 1.5` };
     }
-    return okAddress && okAmount;
+    if (nau <= 0n) return { message: `The ${what} must be greater than zero` };
+    return { nau };
+  };
+
+  const checkRecipient = async (): Promise<boolean> => {
+    const text = recipient.trim();
+    if (text === '') {
+      setRecipientError('Enter the recipient address');
+      return false;
+    }
+    const ok = await services.core.isValidAddress(text, services.networkName());
+    setRecipientError(ok ? null : `Not a valid ${networkLabel(services.settings.network)} address`);
+    return ok;
+  };
+
+  const checkAmounts = async (): Promise<boolean> => {
+    const a = await parsePositive(amount, 'amount');
+    const f = await parsePositive(fee, 'fee');
+    let amountMessage = 'message' in a ? a.message : null;
+    const feeMessage = 'message' in f ? f.message : null;
+    if ('nau' in a && 'nau' in f && a.nau + f.nau > balance.spendableNau) {
+      amountMessage = `Amount plus fee exceeds the spendable balance of ${formatNau(balance.spendableNau)} NPT`;
+    }
+    setAmountError(amountMessage);
+    setFeeError(feeMessage);
+    return amountMessage === null && feeMessage === null;
+  };
+
+  const validate = async (): Promise<boolean> => {
+    const [okAddress, okAmounts] = await Promise.all([checkRecipient(), checkAmounts()]);
+    return okAddress && okAmounts;
   };
 
   const send = async (acceptLustration: boolean) => {
@@ -142,8 +168,27 @@ export function Send() {
             }}
           >
             <Stack>
-              <TextInput label="Recipient address" value={recipient} onChange={(e) => setRecipient(e.currentTarget.value)} error={recipientError} />
-              <TextInput label="Amount (NPT)" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.currentTarget.value)} error={amountError} />
+              <TextInput
+                label="Recipient address"
+                value={recipient}
+                onChange={(e) => {
+                  setRecipient(e.currentTarget.value);
+                  setRecipientError(null);
+                }}
+                onBlur={() => void checkRecipient()}
+                error={recipientError}
+              />
+              <TextInput
+                label="Amount (NPT)"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => {
+                  setAmount(e.currentTarget.value);
+                  setAmountError(null);
+                }}
+                onBlur={() => void checkAmounts()}
+                error={amountError}
+              />
               <div>
                 <Text size="sm" fw={500} mb={6}>
                   Fee{feePreset !== 'custom' && `: ${fee} NPT`}
@@ -160,12 +205,23 @@ export function Send() {
                 />
               </div>
               {feePreset === 'custom' && (
-                <TextInput label="Custom fee (NPT)" inputMode="decimal" value={fee} onChange={(e) => setFee(e.currentTarget.value)} autoFocus />
+                <TextInput
+                  label="Custom fee (NPT)"
+                  inputMode="decimal"
+                  value={fee}
+                  onChange={(e) => {
+                    setFee(e.currentTarget.value);
+                    setFeeError(null);
+                  }}
+                  onBlur={() => void checkAmounts()}
+                  error={feeError}
+                  autoFocus
+                />
               )}
               <Text size="xs" c="dimmed">
                 Spendable: {formatNau(balance.spendableNau)} NPT. Proving takes a few minutes on a phone.
               </Text>
-              <Button type="submit" disabled={!recipient || !amount}>
+              <Button type="submit" disabled={!recipient || !amount || !fee || Boolean(recipientError || amountError || feeError)}>
                 Send
               </Button>
             </Stack>

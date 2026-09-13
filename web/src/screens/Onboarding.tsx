@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 import { WordGrid } from '../components/WordGrid';
+import { NETWORK_OPTIONS } from '../util/network';
 import type { Network } from '../storage/db';
 import type { ExportFile } from '../storage/envelope';
 
@@ -157,7 +158,7 @@ export function Onboarding() {
             <Text size="sm" c="dimmed">This wallet keeps your keys on this device only. Your seed phrase is the only backup.</Text>
             <Select
               label="Network"
-              data={['main', 'testnet', 'regtest']}
+              data={NETWORK_OPTIONS}
               value={network}
               onChange={(v) => {
                 if (!v) return;
