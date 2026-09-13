@@ -35,7 +35,7 @@ export function Settings() {
       const height = await new NodeClient(nodeUrl.trim()).probe();
       setProbe({ ok: true, text: `Reachable, tip height ${height}` });
     } catch (e) {
-      setProbe({ ok: false, text: `Failed: ${(e as Error).message}. The node must send CORS headers for a browser to reach it.` });
+      setProbe({ ok: false, text: (e as Error).message });
     }
   };
 

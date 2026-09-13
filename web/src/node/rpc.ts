@@ -60,6 +60,15 @@ export class NodeClient {
     this.fetchImpl = options.fetch ?? fetch.bind(globalThis);
   }
 
+  /** The node's host for messages; a relative dev-proxy path is shown as is. */
+  private host(): string {
+    try {
+      return new URL(this.url, globalThis.location?.origin ?? 'http://localhost').host;
+    } catch {
+      return this.url;
+    }
+  }
+
   async call<T>(method: string, params: unknown[] = [], timeoutMs = this.timeoutMs): Promise<T> {
     const id = this.nextId++;
     const controller = new AbortController();
@@ -74,8 +83,12 @@ export class NodeClient {
       });
     } catch (e) {
       const aborted = (e as Error).name === 'AbortError';
+      // A browser reports a CORS rejection and an unreachable host the same
+      // way, as a fetch failure with no status, so name both possibilities.
       throw new NodeError(
-        aborted ? `${method}: no answer within ${timeoutMs / 1000} s` : `${method}: ${(e as Error).message}`,
+        aborted
+          ? `No answer from the node at ${this.host()} within ${timeoutMs / 1000} s`
+          : `Could not reach the node at ${this.host()}. Either it is offline, or it does not send the CORS headers a browser needs. Check the node URL in Settings.`,
         aborted ? 'timeout' : 'network',
         method,
       );
