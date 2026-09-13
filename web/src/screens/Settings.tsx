@@ -11,7 +11,7 @@ import type { Network } from '../storage/db';
 export function Settings() {
   const { services, account, network, switchNetwork } = useApp();
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
-  const [probe, setProbe] = useState<string | null>(null);
+  const [probe, setProbe] = useState<{ ok: boolean; text: string } | null>(null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -28,13 +28,13 @@ export function Settings() {
   };
 
   const testNode = async () => {
-    setProbe('testing…');
+    setProbe({ ok: true, text: 'Testing…' });
     try {
       const { NodeClient } = await import('../node/rpc');
       const height = await new NodeClient(nodeUrl.trim()).probe();
-      setProbe(`Reachable, tip height ${height}`);
+      setProbe({ ok: true, text: `Reachable, tip height ${height}` });
     } catch (e) {
-      setProbe(`Failed: ${(e as Error).message}. The node must send CORS headers for a browser to reach it.`);
+      setProbe({ ok: false, text: `Failed: ${(e as Error).message}. The node must send CORS headers for a browser to reach it.` });
     }
   };
 
@@ -72,7 +72,11 @@ export function Settings() {
             <Button onClick={() => void saveNode()}>Save</Button>
             <Button variant="light" onClick={() => void testNode()}>Test connection</Button>
           </Group>
-          {probe && <Text size="sm">{probe}</Text>}
+          {probe && (
+            <Text size="sm" c={probe.ok ? 'dimmed' : 'red'}>
+              {probe.text}
+            </Text>
+          )}
         </Stack>
       </Paper>
 
