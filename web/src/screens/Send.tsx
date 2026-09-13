@@ -98,7 +98,7 @@ export function Send() {
       <Stack>
         <Title order={3}>Send</Title>
         {result && (
-          <Alert color="teal" title="Submitted">
+          <Alert color="green" title="Submitted">
             Transaction {result.txid.slice(0, 16)}… is pending. Proof took {result.seconds.toFixed(0)} s.
           </Alert>
         )}

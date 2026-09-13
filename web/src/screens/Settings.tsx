@@ -59,7 +59,7 @@ export function Settings() {
 
   return (
     <Stack gap="md">
-      {message && <Alert color="teal" onClose={() => setMessage(null)} withCloseButton>{message}</Alert>}
+      {message && <Alert color="green" onClose={() => setMessage(null)} withCloseButton>{message}</Alert>}
       <Paper>
         <Stack>
           <Title order={4}>Network and node</Title>

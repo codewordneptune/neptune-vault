@@ -84,7 +84,7 @@ export function Home() {
                       {formatNau(BigInt(h.amountNau))}
                     </Text>
                     <Group gap={6} justify="flex-end">
-                      <Badge size="xs" color={h.status === 'confirmed' ? 'teal' : h.status === 'pending' ? 'yellow' : 'red'}>
+                      <Badge size="xs" color={h.status === 'confirmed' ? 'green' : h.status === 'pending' ? 'yellow' : 'red'}>
                         {h.status}
                       </Badge>
                       {h.kind === 'sent' && h.status === 'pending' && (

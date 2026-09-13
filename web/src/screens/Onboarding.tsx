@@ -154,7 +154,7 @@ export function Onboarding() {
         <Paper>
           <Stack>
             <Title order={3}>Welcome</Title>
-            <Text>This wallet keeps your keys on this device only. Your seed phrase is the only backup.</Text>
+            <Text size="sm" c="dimmed">This wallet keeps your keys on this device only. Your seed phrase is the only backup.</Text>
             <Select
               label="Network"
               data={['main', 'testnet', 'regtest']}
@@ -180,7 +180,7 @@ export function Onboarding() {
         <Paper>
           <Stack>
             <Title order={3}>Write down these 18 words</Title>
-            <Text size="sm">In order, on paper. Anyone with these words can spend your funds. Clearing the browser deletes everything except what you write down.</Text>
+            <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your funds. Clearing the browser deletes everything except what you write down.</Text>
             <WordGrid words={phrase} />
             <Button onClick={startConfirm}>I have written them down</Button>
             <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); setStep('welcome'); }}>
@@ -194,7 +194,7 @@ export function Onboarding() {
         <Paper>
           <Stack>
             <Title order={3}>Confirm your phrase</Title>
-            <Text size="sm">Tap the words below to put them back in their places.</Text>
+            <Text size="sm" c="dimmed">Tap the words below to put them back in their places.</Text>
             <WordGrid
               words={phrase.map((w, i) => (checks.includes(i) ? (slots[i] ?? '') : w))}
               blanks={checks}
@@ -258,7 +258,7 @@ function PasswordStep({ busy, onSubmit }: { busy: boolean; onSubmit: (password: 
     <Paper>
       <Stack>
         <Title order={3}>Choose a password</Title>
-        <Text size="sm">It encrypts your phrase on this device and is asked for on every unlock. It cannot be recovered.</Text>
+        <Text size="sm" c="dimmed">It encrypts your phrase on this device and is asked for on every unlock. It cannot be recovered.</Text>
         <PasswordInput label="Password (at least 8 characters)" value={password} onChange={(e) => setPassword(e.currentTarget.value)} />
         <PasswordInput label="Repeat" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={again && again !== password ? 'passwords differ' : undefined} />
         <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password)}>Create wallet</Button>

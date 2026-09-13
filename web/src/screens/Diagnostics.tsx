@@ -25,7 +25,7 @@ function Row({ label, ok, text }: { label: string; ok: boolean; text: string }) 
   return (
     <Group justify="space-between">
       <Text>{label}</Text>
-      <Badge color={ok ? 'teal' : 'yellow'} variant="light">
+      <Badge color={ok ? 'green' : 'yellow'} variant="light">
         {text}
       </Badge>
     </Group>
