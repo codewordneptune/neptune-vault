@@ -1,0 +1,68 @@
+# Builds the wasm packages and the web app, then deploys to Azure Static Web
+# Apps. Needs the repository secret AZURE_STATIC_WEB_APPS_API_TOKEN from the
+# Static Web App's deployment token (see docs/HOSTING.md).
+
+name: Deploy web app
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'crates/**', 'Cargo.*', '.cargo/**', 'rust-toolchain.toml', '.github/workflows/deploy-web.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      # rust-toolchain.toml pins the nightly and pulls rust-src and the wasm32
+      # target; the threaded build rebuilds std, so both are required.
+      - name: Rust toolchain
+        run: rustup show
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: wasm-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', '.cargo/config.toml') }}
+          restore-keys: wasm-${{ runner.os }}-
+
+      - name: Install wasm-pack
+        run: curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+
+      - name: Build wasm packages
+        working-directory: web
+        run: |
+          npm run wasm:core
+          npm run wasm:prover
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install, test, build
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: web/dist
+          skip_app_build: true
+          config_file_location: web
