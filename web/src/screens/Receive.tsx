@@ -2,12 +2,14 @@
 // kinds. Key 0 of a kind is its main address; "next unused" derives the next
 // key of that kind.
 
-import { Button, Code, Group, Paper, SegmentedControl, Stack, Text, Title } from '@mantine/core';
+import { Button, Code, Group, Paper, SegmentedControl, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { IconCheck, IconCopy } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
+import { abbreviateAddress } from '../util/address';
 import type { KeyKind } from '../wallet/core';
 
 const KIND_LABELS: Record<KeyKind, string> = {
@@ -33,6 +35,7 @@ export function Receive() {
   const [address, setAddress] = useState<string>(account?.address0 ?? '');
   const [qr, setQr] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [showFull, setShowFull] = useState(false);
   const index = indices[kind];
 
   useEffect(() => {
@@ -88,15 +91,25 @@ export function Receive() {
             style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 'var(--mantine-radius-md)', background: '#fff' }}
           />
         )}
-        <Code block style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap', fontSize: 11 }}>
-          {address}
-        </Code>
+        <Text ff="monospace" size="sm" ta="center" style={{ wordBreak: 'break-all' }}>
+          {abbreviateAddress(address)}
+        </Text>
         <Group grow>
-          <Button onClick={copy}>{copied ? 'Copied' : 'Copy address'}</Button>
+          <Button leftSection={copied ? <IconCheck size={16} stroke={1.8} /> : <IconCopy size={16} stroke={1.8} />} onClick={copy}>
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
           <Button variant="light" onClick={nextUnused}>
             Next unused
           </Button>
         </Group>
+        <UnstyledButton onClick={() => setShowFull((v) => !v)} c="neptune.3" fz="sm" ta="center">
+          {showFull ? 'Hide full address' : 'Show full address'}
+        </UnstyledButton>
+        {showFull && (
+          <Code block style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap', fontSize: 11 }}>
+            {address}
+          </Code>
+        )}
         <Text size="xs" c="dimmed">
           {KIND_LABELS[kind]} address {index}. Funds sent to any of your addresses are found by the sync.
         </Text>

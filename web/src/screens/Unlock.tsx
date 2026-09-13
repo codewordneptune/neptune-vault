@@ -2,6 +2,7 @@ import { Alert, Button, Paper, PasswordInput, Stack, Text, Title } from '@mantin
 import { useState } from 'react';
 
 import { useApp } from '../app/AppContext';
+import { abbreviateAddress } from '../util/address';
 import { WrongPasswordError } from '../storage/envelope';
 
 export function Unlock() {
@@ -35,7 +36,7 @@ export function Unlock() {
         <Stack>
           <Title order={3}>Unlock</Title>
           <Text size="sm" c="dimmed">
-            {account?.network} account, receiving address {account?.address0.slice(0, 16)}…
+            {account?.network} account, {account ? abbreviateAddress(account.address0) : ''}
           </Text>
           {error && <Alert color="red">{error}</Alert>}
           <PasswordInput label="Password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoFocus />
