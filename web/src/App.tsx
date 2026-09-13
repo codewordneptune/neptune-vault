@@ -1,6 +1,7 @@
-import { Anchor, Container, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { Box, Container, Group, Loader, Text, Title } from '@mantine/core';
+import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
 import type { ReactElement } from 'react';
-import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 
 import { useApp } from './app/AppContext';
 import { Diagnostics } from './screens/Diagnostics';
@@ -11,9 +12,15 @@ import { Send } from './screens/Send';
 import { Settings } from './screens/Settings';
 import { Unlock } from './screens/Unlock';
 
+const TABS = [
+  { to: '/', label: 'Home', Icon: IconHome },
+  { to: '/receive', label: 'Receive', Icon: IconArrowDownLeft },
+  { to: '/send', label: 'Send', Icon: IconArrowUpRight },
+  { to: '/settings', label: 'Settings', Icon: IconSettings },
+];
+
 export function App() {
   const { ready, account, locked, services } = useApp();
-  const location = useLocation();
 
   // Do not route until the stored account has been looked up, or a reload
   // would bounce an existing account to onboarding.
@@ -28,15 +35,21 @@ export function App() {
     return element;
   };
 
+  const showTabs = Boolean(account) && !locked;
+
   return (
-    <Container size="xs" py="md" onClick={touch} onKeyDown={touch}>
-      <Stack gap="md">
-        <Group justify="space-between" align="baseline">
-          <Title order={2}>Neptune Vault</Title>
-          <Text size="xs" c="dimmed">
-            {services.settings.network}
-          </Text>
-        </Group>
+    <Box onClick={touch} onKeyDown={touch} pb={showTabs ? 80 : 0}>
+      <Box className="vault-topbar">
+        <Container size="xs" py="sm">
+          <Group justify="space-between" align="baseline">
+            <Title order={3}>Neptune Vault</Title>
+            <Text size="xs" c="dimmed">
+              {services.settings.network}
+            </Text>
+          </Group>
+        </Container>
+      </Box>
+      <Container size="xs" py="md">
         <Routes>
           <Route path="/onboarding" element={account ? <Navigate to="/" replace /> : <Onboarding />} />
           <Route path="/" element={gate(<Home />)} />
@@ -46,21 +59,21 @@ export function App() {
           <Route path="/diagnostics" element={<Diagnostics />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        {account && !locked && (
-          <Group justify="space-around" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
-            {[
-              ['/', 'Home'],
-              ['/receive', 'Receive'],
-              ['/send', 'Send'],
-              ['/settings', 'Settings'],
-            ].map(([to, label]) => (
-              <Anchor component={NavLink} to={to} key={to} size="sm" fw={location.pathname === to ? 700 : 400}>
-                {label}
-              </Anchor>
-            ))}
-          </Group>
-        )}
-      </Stack>
-    </Container>
+      </Container>
+      {showTabs && (
+        <nav className="vault-tabbar">
+          <Container size="xs" px={0}>
+            <Group gap={0} wrap="nowrap">
+              {TABS.map(({ to, label, Icon }) => (
+                <NavLink key={to} to={to} end className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`}>
+                  <Icon size={22} stroke={1.8} />
+                  {label}
+                </NavLink>
+              ))}
+            </Group>
+          </Container>
+        </nav>
+      )}
+    </Box>
   );
 }

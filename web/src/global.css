@@ -1,0 +1,54 @@
+/* Page background and primary buttons as on useneptune.org (dark theme). */
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(92, 163, 255, 0.14), transparent 28%),
+    linear-gradient(180deg, #111923 0%, #0d131c 100%);
+  background-attachment: fixed;
+  line-height: 1.55;
+}
+
+.mantine-Button-root[data-variant='filled'] {
+  background: linear-gradient(135deg, #1f6fe0, #1a5fc4);
+  border-color: transparent;
+}
+.mantine-Button-root[data-variant='filled']:hover {
+  background: linear-gradient(135deg, #1a5fc4, #144c9f);
+}
+
+/* Sticky header and fixed tab bar; the tab bar respects the home indicator. */
+.vault-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(13, 19, 28, 0.9);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(143, 200, 255, 0.24);
+}
+.vault-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: rgba(13, 19, 28, 0.92);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(143, 200, 255, 0.24);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.vault-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  padding: 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9aa9bc;
+  text-decoration: none;
+}
+.vault-tab.active {
+  color: #7db4f5;
+}

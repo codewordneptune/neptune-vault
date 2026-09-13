@@ -1,7 +1,8 @@
 // Account creation and import (F1 to F5): generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Select, SimpleGrid, Stack, Text, Textarea, Title } from '@mantine/core';
+import { Alert, Box, Button, Group, NumberInput, Paper, PasswordInput, Select, SimpleGrid, Stack, Text, Textarea, Title, UnstyledButton } from '@mantine/core';
+import { IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -51,9 +52,12 @@ export function Onboarding() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Confirmation: three random positions the user must type.
+  // Confirmation: CHECKS random positions are blanked and their words go
+  // into a shuffled bank; the user taps them back into place (as the desktop
+  // wallet does). A wrong placement can be undone by tapping the slot.
   const [checks, setChecks] = useState<number[]>([]);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [slots, setSlots] = useState<Record<number, string>>({});
+  const [bank, setBank] = useState<string[]>([]);
 
   const startCreate = async () => {
     setBusy(true);
@@ -72,13 +76,32 @@ export function Onboarding() {
 
   const startConfirm = () => {
     const positions = new Set<number>();
-    while (positions.size < 3) positions.add(Math.floor(Math.random() * phrase.length));
-    setChecks([...positions].sort((a, b) => a - b));
-    setAnswers({});
+    while (positions.size < CHECKS) positions.add(Math.floor(Math.random() * phrase.length));
+    const sorted = [...positions].sort((a, b) => a - b);
+    setChecks(sorted);
+    setSlots({});
+    setBank(shuffle(sorted.map((i) => phrase[i])));
     setStep('confirm');
   };
 
-  const confirmed = checks.every((i) => (answers[i] ?? '').trim().toLowerCase() === phrase[i]);
+  const pick = (bankIndex: number) => {
+    const target = checks.find((i) => slots[i] === undefined);
+    if (target === undefined) return;
+    setSlots({ ...slots, [target]: bank[bankIndex] });
+    setBank(bank.filter((_, i) => i !== bankIndex));
+  };
+
+  const unpick = (position: number) => {
+    const word = slots[position];
+    if (word === undefined) return;
+    const rest = { ...slots };
+    delete rest[position];
+    setSlots(rest);
+    setBank([...bank, word]);
+  };
+
+  const allPlaced = bank.length === 0 && checks.length > 0;
+  const confirmed = allPlaced && checks.every((i) => slots[i] === phrase[i]);
 
   const finish = async (password: string) => {
     setBusy(true);
@@ -158,13 +181,7 @@ export function Onboarding() {
           <Stack>
             <Title order={3}>Write down these 18 words</Title>
             <Text size="sm">In order, on paper. Anyone with these words can spend your funds. Clearing the browser deletes everything except what you write down.</Text>
-            <SimpleGrid cols={3} spacing="xs">
-              {phrase.map((w, i) => (
-                <Text key={i} ff="monospace" size="sm">
-                  {i + 1}. {w}
-                </Text>
-              ))}
-            </SimpleGrid>
+            <WordGrid words={phrase} />
             <Button onClick={startConfirm}>I have written them down</Button>
             <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); setStep('welcome'); }}>
               Start over
@@ -177,17 +194,22 @@ export function Onboarding() {
         <Paper withBorder p="md">
           <Stack>
             <Title order={3}>Confirm your phrase</Title>
-            {checks.map((i) => (
-              <Textarea
-                key={i}
-                label={`Word ${i + 1}`}
-                autosize
-                minRows={1}
-                value={answers[i] ?? ''}
-                onChange={(e) => setAnswers({ ...answers, [i]: e.currentTarget.value })}
-                error={(answers[i] ?? '') !== '' && (answers[i] ?? '').trim().toLowerCase() !== phrase[i] ? 'does not match' : undefined}
-              />
-            ))}
+            <Text size="sm">Tap the words below to put them back in their places.</Text>
+            <WordGrid
+              words={phrase.map((w, i) => (checks.includes(i) ? (slots[i] ?? '') : w))}
+              blanks={checks}
+              onClear={unpick}
+            />
+            <Group gap="xs" justify="center" mih={44}>
+              {bank.map((w, i) => (
+                <Button key={`${w}-${i}`} variant="default" size="compact-md" onClick={() => pick(i)}>
+                  {w}
+                </Button>
+              ))}
+            </Group>
+            {allPlaced && !confirmed && (
+              <Alert color="yellow">Some words are in the wrong place. Tap a word to take it out and try again.</Alert>
+            )}
             <Group>
               <Button variant="subtle" onClick={() => setStep('show')}>Show the words again</Button>
               <Button disabled={!confirmed} onClick={() => setStep('password')}>Continue</Button>
@@ -214,6 +236,63 @@ export function Onboarding() {
         />
       )}
     </Stack>
+  );
+}
+
+const CHECKS = 5;
+
+function shuffle<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Numbered word cells that never wrap: two columns on phones, three wider.
+// Positions in "blanks" render as slots; a filled slot can be tapped to
+// empty it again.
+function WordGrid({ words, blanks = [], onClear }: { words: string[]; blanks?: number[]; onClear?: (i: number) => void }) {
+  return (
+    <SimpleGrid cols={{ base: 2, xs: 3 }} spacing="xs">
+      {words.map((w, i) => {
+        const blank = blanks.includes(i);
+        const cell = (
+          <Group gap={6} wrap="nowrap">
+            <Text size="xs" c="dimmed" w={22} ta="right" style={{ flexShrink: 0 }}>
+              {i + 1}.
+            </Text>
+            <Box
+              style={{
+                flex: 1,
+                minHeight: 34,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 4,
+                padding: '4px 8px',
+                borderRadius: 'var(--mantine-radius-md)',
+                border: `1px ${blank && !w ? 'dashed' : 'solid'} var(--mantine-color-default-border)`,
+                background: blank ? 'transparent' : 'var(--mantine-color-dark-5)',
+              }}
+            >
+              <Text size="sm" fw={500} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {w}
+              </Text>
+              {blank && w && <IconX size={14} style={{ flexShrink: 0 }} />}
+            </Box>
+          </Group>
+        );
+        return blank && w && onClear ? (
+          <UnstyledButton key={i} onClick={() => onClear(i)} aria-label={`Remove word ${i + 1}`} w="100%">
+            {cell}
+          </UnstyledButton>
+        ) : (
+          <Box key={i}>{cell}</Box>
+        );
+      })}
+    </SimpleGrid>
   );
 }
 

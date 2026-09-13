@@ -19,8 +19,8 @@ export default defineConfig({
         name: 'Neptune Vault',
         short_name: 'Vault',
         description: 'Neptune Cash wallet that runs in your browser',
-        theme_color: '#0b1b2b',
-        background_color: '#0b1b2b',
+        theme_color: '#111923',
+        background_color: '#111923',
         display: 'standalone',
         start_url: '/',
         icons: [
