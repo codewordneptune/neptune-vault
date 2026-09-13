@@ -256,6 +256,10 @@ Peak wasm memory 1026 MB. 3.1x from threads in the browser against 8x
 natively on the same machine with the same inverse (43 s), so there is
 still headroom, but the phone budget question is settled with margin.
 
+Same build with 8 threads: 160.5 s total (removal records integrity
+106.7 s), peak 969 MB. Sixteen threads are still worth it on this CPU, with
+diminishing returns; memory barely moves with the thread count.
+
 ## Levers if the phone misses the budget
 
 1. No LDE cache (this build). Memory first, time second.
