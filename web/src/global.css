@@ -1,54 +1,301 @@
-/* Page background and primary buttons as on useneptune.org (dark theme). */
+/* Design tokens, after useneptune.org's dark theme, and the few surfaces
+   Mantine does not cover. Everything below reads from these variables so
+   colours, sizes and radii stay consistent across screens. */
+
+:root {
+  --v-page: #111923;
+  --v-page-end: #0d131c;
+  --v-surface: #161f2b;
+  --v-surface-2: #1c2734;
+  --v-field: #0f151d;
+  --v-text: #e4ebf4;
+  --v-text-2: #c9d4e2;
+  --v-muted: #9aa9bc;
+  --v-faint: #5f7390;
+  --v-accent: #3a8bf3;
+  --v-accent-2: #1f6fe0;
+  --v-accent-deep: #1a5fc4;
+  --v-accent-text: #7db4f5;
+  --v-accent-soft: rgba(58, 139, 243, 0.12);
+  --v-radius-xs: 8px;
+  --v-radius-sm: 12px;
+  --v-radius-md: 16px;
+  --v-fs-xs: 0.75rem;
+  --v-fs-sm: 0.875rem;
+  --v-fs-md: 0.9375rem;
+  --v-shadow-accent: 0 8px 20px rgba(31, 111, 224, 0.25);
+}
 
 body {
   min-height: 100vh;
   background:
     radial-gradient(circle at top left, rgba(92, 163, 255, 0.14), transparent 28%),
-    linear-gradient(180deg, #111923 0%, #0d131c 100%);
+    linear-gradient(180deg, var(--v-page) 0%, var(--v-page-end) 100%);
   background-attachment: fixed;
-  line-height: 1.55;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
+h1, h2, h3 {
+  letter-spacing: -0.01em;
+}
+/* Section titles inside cards read as quiet eyebrow labels. */
+h4.mantine-Title-root {
+  font-size: var(--v-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--v-muted);
+}
+
+/* Cards are flat: a lighter surface, no border, no shadow. */
+.mantine-Paper-root {
+  background: var(--v-surface);
+  border: 0 !important;
+  box-shadow: none;
+}
+
+/* Buttons: one radius, one weight; primary carries the accent gradient. */
+.mantine-Button-root {
+  font-weight: 600;
+}
 .mantine-Button-root[data-variant='filled'] {
-  background: linear-gradient(135deg, #1f6fe0, #1a5fc4);
-  border-color: transparent;
+  background: linear-gradient(135deg, var(--v-accent-2), var(--v-accent-deep));
+  border: 0;
+  box-shadow: var(--v-shadow-accent);
 }
 .mantine-Button-root[data-variant='filled']:hover {
-  background: linear-gradient(135deg, #1a5fc4, #144c9f);
+  background: linear-gradient(135deg, var(--v-accent-deep), #144c9f);
+}
+.mantine-Button-root[data-variant='filled']:disabled,
+.mantine-Button-root[data-variant='filled'][data-disabled] {
+  background: var(--v-surface-2);
+  box-shadow: none;
+  color: var(--v-faint);
+}
+.mantine-Button-root[data-variant='light'] {
+  background: var(--v-accent-soft);
+  color: var(--v-accent-text);
+  border: 0;
+}
+.mantine-Button-root[data-variant='default'] {
+  background: var(--v-surface-2);
+  border: 0;
+  color: var(--v-text);
+}
+.mantine-Button-root[data-variant='subtle'] {
+  color: var(--v-accent-text);
 }
 
-/* Sticky header and fixed tab bar; the tab bar respects the home indicator. */
+/* Fields: a darker well, no border, accent ring on focus. */
+.mantine-Input-input {
+  background: var(--v-field);
+  border: 1px solid transparent;
+  color: var(--v-text);
+}
+.mantine-Input-input:focus,
+.mantine-Input-input:focus-within {
+  border-color: var(--v-accent);
+}
+.mantine-InputWrapper-label {
+  font-size: var(--v-fs-sm);
+  font-weight: 500;
+  color: var(--v-text-2);
+}
+.mantine-InputWrapper-description {
+  color: var(--v-muted);
+}
+
+.mantine-SegmentedControl-root {
+  background: var(--v-field);
+  border: 0;
+  padding: 4px;
+}
+.mantine-SegmentedControl-indicator {
+  background: var(--v-surface-2);
+  box-shadow: none;
+}
+.mantine-SegmentedControl-label {
+  color: var(--v-muted);
+  font-weight: 500;
+}
+.mantine-SegmentedControl-label[data-active] {
+  color: var(--v-text);
+}
+
+.mantine-Code-root {
+  background: var(--v-field);
+  border: 0;
+  color: var(--v-text-2);
+}
+.mantine-Alert-root {
+  border: 0;
+}
+.mantine-Menu-dropdown {
+  background: var(--v-surface-2);
+  border: 0;
+  padding: 6px;
+}
+.mantine-Menu-item {
+  border-radius: var(--v-radius-xs);
+  font-size: var(--v-fs-sm);
+}
+.mantine-Menu-label {
+  font-size: var(--v-fs-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--v-faint);
+}
+
+/* Header: translucent, sticky; brand mark and a quiet network selector. */
 .vault-topbar {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(13, 19, 28, 0.9);
+  background: rgba(17, 25, 35, 0.82);
   backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(143, 200, 255, 0.24);
+  -webkit-backdrop-filter: blur(16px);
 }
+.vault-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: var(--v-fs-md);
+  letter-spacing: -0.01em;
+}
+button.vault-network {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: var(--v-muted);
+  font: inherit;
+  font-size: var(--v-fs-sm);
+  font-weight: 500;
+  padding: 6px 8px;
+  border-radius: var(--v-radius-xs);
+  transition: background 160ms ease, color 160ms ease;
+}
+button.vault-network:hover {
+  background: var(--v-surface-2);
+  color: var(--v-text);
+}
+button.vault-network::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--v-accent);
+}
+.vault-network-hint {
+  font-size: var(--v-fs-xs);
+  color: var(--v-faint);
+}
+
+/* Fixed tab bar; respects the home indicator. */
 .vault-tabbar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 40;
-  background: rgba(13, 19, 28, 0.92);
+  background: rgba(17, 25, 35, 0.88);
   backdrop-filter: blur(16px);
-  border-top: 1px solid rgba(143, 200, 255, 0.24);
+  -webkit-backdrop-filter: blur(16px);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .vault-tab {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   flex: 1;
-  padding: 8px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #9aa9bc;
+  padding: 10px 4px 8px;
+  font-size: var(--v-fs-xs);
+  font-weight: 500;
+  color: var(--v-faint);
   text-decoration: none;
+  transition: color 160ms ease;
 }
 .vault-tab.active {
-  color: #7db4f5;
+  color: var(--v-accent-text);
+}
+
+/* Seed word cells. */
+.vault-word {
+  flex: 1;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--v-radius-xs);
+  background: var(--v-field);
+}
+.vault-word.slot {
+  background: var(--v-accent-soft);
+}
+.vault-word.slot.empty {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--v-surface-2);
+}
+
+/* Key figures. */
+.vault-eyebrow {
+  font-size: var(--v-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--v-muted);
+}
+.vault-balance {
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.vault-balance small {
+  font-size: var(--v-fs-md);
+  font-weight: 500;
+  color: var(--v-muted);
+  margin-left: 6px;
+}
+
+/* History rows: hairline dividers only between rows. */
+.vault-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--v-surface-2);
+}
+.vault-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.vault-row > *:first-child {
+  min-width: 0;
+}
+.vault-row > *:last-child {
+  flex-shrink: 0;
+}
+.vault-row-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--v-radius-xs);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--v-accent-soft);
+  color: var(--v-accent-text);
+}
+.vault-row-icon.out {
+  background: var(--v-surface-2);
+  color: var(--v-text-2);
 }

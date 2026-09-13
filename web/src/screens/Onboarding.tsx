@@ -1,12 +1,12 @@
 // Account creation and import (F1 to F5): generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Box, Button, Group, NumberInput, Paper, PasswordInput, Select, SimpleGrid, Stack, Text, Textarea, Title, UnstyledButton } from '@mantine/core';
-import { IconX } from '@tabler/icons-react';
+import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Select, Stack, Text, Textarea, Title } from '@mantine/core';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
+import { WordGrid } from '../components/WordGrid';
 import type { Network } from '../storage/db';
 import type { ExportFile } from '../storage/envelope';
 
@@ -41,7 +41,7 @@ function saveDraft(draft: Draft | null) {
 }
 
 export function Onboarding() {
-  const { services, setAccount } = useApp();
+  const { services, setAccount, switchNetwork } = useApp();
   const navigate = useNavigate();
   const draft = loadDraft();
   const [step, setStep] = useState<Step>(draft ? (draft.imported ? 'password' : 'show') : 'welcome');
@@ -151,7 +151,7 @@ export function Onboarding() {
       {error && <Alert color="red">{error}</Alert>}
 
       {step === 'welcome' && (
-        <Paper withBorder p="md">
+        <Paper>
           <Stack>
             <Title order={3}>Welcome</Title>
             <Text>This wallet keeps your keys on this device only. Your seed phrase is the only backup.</Text>
@@ -162,7 +162,7 @@ export function Onboarding() {
               onChange={(v) => {
                 if (!v) return;
                 setNetwork(v as Network);
-                void services.updateSettings({ network: v as Network });
+                void switchNetwork(v as Network);
               }}
             />
             <Button onClick={startCreate} loading={busy}>Create a new account</Button>
@@ -177,7 +177,7 @@ export function Onboarding() {
       )}
 
       {step === 'show' && (
-        <Paper withBorder p="md">
+        <Paper>
           <Stack>
             <Title order={3}>Write down these 18 words</Title>
             <Text size="sm">In order, on paper. Anyone with these words can spend your funds. Clearing the browser deletes everything except what you write down.</Text>
@@ -191,7 +191,7 @@ export function Onboarding() {
       )}
 
       {step === 'confirm' && (
-        <Paper withBorder p="md">
+        <Paper>
           <Stack>
             <Title order={3}>Confirm your phrase</Title>
             <Text size="sm">Tap the words below to put them back in their places.</Text>
@@ -250,58 +250,12 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
-// Numbered word cells that never wrap: two columns on phones, three wider.
-// Positions in "blanks" render as slots; a filled slot can be tapped to
-// empty it again.
-function WordGrid({ words, blanks = [], onClear }: { words: string[]; blanks?: number[]; onClear?: (i: number) => void }) {
-  return (
-    <SimpleGrid cols={{ base: 2, xs: 3 }} spacing="xs">
-      {words.map((w, i) => {
-        const blank = blanks.includes(i);
-        const cell = (
-          <Group gap={6} wrap="nowrap">
-            <Text size="xs" c="dimmed" w={22} ta="right" style={{ flexShrink: 0 }}>
-              {i + 1}.
-            </Text>
-            <Box
-              style={{
-                flex: 1,
-                minHeight: 34,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 4,
-                padding: '4px 8px',
-                borderRadius: 'var(--mantine-radius-md)',
-                border: `1px ${blank && !w ? 'dashed' : 'solid'} var(--mantine-color-default-border)`,
-                background: blank ? 'transparent' : 'var(--mantine-color-dark-5)',
-              }}
-            >
-              <Text size="sm" fw={500} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {w}
-              </Text>
-              {blank && w && <IconX size={14} style={{ flexShrink: 0 }} />}
-            </Box>
-          </Group>
-        );
-        return blank && w && onClear ? (
-          <UnstyledButton key={i} onClick={() => onClear(i)} aria-label={`Remove word ${i + 1}`} w="100%">
-            {cell}
-          </UnstyledButton>
-        ) : (
-          <Box key={i}>{cell}</Box>
-        );
-      })}
-    </SimpleGrid>
-  );
-}
-
 function PasswordStep({ busy, onSubmit }: { busy: boolean; onSubmit: (password: string) => void }) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
   const ok = password.length >= 8 && password === again;
   return (
-    <Paper withBorder p="md">
+    <Paper>
       <Stack>
         <Title order={3}>Choose a password</Title>
         <Text size="sm">It encrypts your phrase on this device and is asked for on every unlock. It cannot be recovered.</Text>
@@ -333,7 +287,7 @@ function ImportStep({
   const [filePassword, setFilePassword] = useState('');
   const words = text.trim().split(/\s+/).filter(Boolean);
   return (
-    <Paper withBorder p="md">
+    <Paper>
       <Stack>
         <Title order={3}>Import</Title>
         <Textarea label="Seed phrase (18 words)" autosize minRows={3} value={text} onChange={(e) => setText(e.currentTarget.value)} />

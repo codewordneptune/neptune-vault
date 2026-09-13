@@ -100,25 +100,30 @@ mod wasm {
             self.0.phrase()
         }
 
-        /// bech32m receiving address of the nth generation key.
-        pub fn address(&mut self, index: u64) -> Result<String, JsError> {
-            self.0.address(index).map_err(js_err)
+        /// bech32m receiving address of the nth key of `kind`
+        /// (`generation`, `ec_hybrid` or `viewing`).
+        pub fn address(&mut self, kind: &str, index: u64) -> Result<String, JsError> {
+            let kind = account::KeyKind::parse(kind).map_err(js_err)?;
+            self.0.address(kind, index).map_err(js_err)
         }
 
         /// Scan a batch of blocks. `blocks_json` is the node's
         /// `GetBlocksResponse.blocks` array, `unspent_json` the app's unspent
-        /// `StoredUtxo` array. Returns a `ScanResult` as JSON.
+        /// `StoredUtxo` array, `next_key_indices_json` a `NextKeyIndices`.
+        /// Returns a `ScanResult` as JSON.
         pub fn scan_blocks(
             &mut self,
             blocks_json: &str,
             unspent_json: &str,
-            next_key_index: u64,
+            next_key_indices_json: &str,
         ) -> Result<String, JsError> {
             let blocks = serde_json::from_str(blocks_json)
                 .map_err(|e| JsError::new(&format!("cannot decode blocks: {e}")))?;
             let unspent = serde_json::from_str(unspent_json)
                 .map_err(|e| JsError::new(&format!("cannot decode unspent utxos: {e}")))?;
-            let result = scan::scan_blocks(&mut self.0, blocks, unspent, next_key_index)
+            let next_key_indices = serde_json::from_str(next_key_indices_json)
+                .map_err(|e| JsError::new(&format!("cannot decode next key indices: {e}")))?;
+            let result = scan::scan_blocks(&mut self.0, blocks, unspent, next_key_indices)
                 .map_err(js_err)?;
             serde_json::to_string(&result).map_err(|e| JsError::new(&e.to_string()))
         }

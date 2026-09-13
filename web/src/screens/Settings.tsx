@@ -1,14 +1,15 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
-import { Alert, Button, Group, Paper, Select, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Group, Paper, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { IconDownload, IconEye, IconLock } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { useApp } from '../app/AppContext';
+import { WordGrid } from '../components/WordGrid';
 import type { Network } from '../storage/db';
 
 export function Settings() {
-  const { services, account, setAccount } = useApp();
-  const [network, setNetwork] = useState<Network>(services.settings.network);
+  const { services, account, network, switchNetwork } = useApp();
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
   const [probe, setProbe] = useState<string | null>(null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
@@ -17,12 +18,8 @@ export function Settings() {
   const changeNetwork = async (value: string | null) => {
     if (!value) return;
     const next = value as Network;
-    setNetwork(next);
     setNodeUrl(services.settings.nodeUrls[next] ?? '');
-    await services.updateSettings({ network: next, currentAccountId: null });
-    await services.accounts.lock();
-    const all = await services.db.getAllFromIndex('accounts', 'byNetwork', next);
-    setAccount(all[0] ?? null);
+    await switchNetwork(next);
   };
 
   const saveNode = async () => {
@@ -63,7 +60,7 @@ export function Settings() {
   return (
     <Stack gap="md">
       {message && <Alert color="teal" onClose={() => setMessage(null)} withCloseButton>{message}</Alert>}
-      <Paper withBorder p="md">
+      <Paper>
         <Stack>
           <Title order={4}>Network and node</Title>
           <Select label="Network" data={['main', 'testnet', 'regtest']} value={network} onChange={(v) => void changeNetwork(v)} />
@@ -76,31 +73,25 @@ export function Settings() {
         </Stack>
       </Paper>
 
-      <Paper withBorder p="md">
+      <Paper>
         <Stack>
           <Title order={4}>Backup</Title>
           <Text size="sm" c="dimmed">
             Persistent storage {services.persistent ? 'granted' : 'not granted'}. Clearing the browser's site data deletes this wallet; keep the phrase or a backup file.
           </Text>
           <Group>
-            <Button size="xs" onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>
-            <Button size="xs" variant="light" onClick={() => void showPhrase()} disabled={!account}>Show seed phrase</Button>
+            <Button size="xs" leftSection={<IconDownload size={16} stroke={1.8} />} onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>
+            <Button size="xs" variant="light" leftSection={<IconEye size={16} stroke={1.8} />} onClick={() => void showPhrase()} disabled={!account}>Show seed phrase</Button>
           </Group>
-          {phrase && (
-            <SimpleGrid cols={3} spacing="xs">
-              {phrase.map((w, i) => (
-                <Text key={i} ff="monospace" size="sm">{i + 1}. {w}</Text>
-              ))}
-            </SimpleGrid>
-          )}
+          {phrase && <WordGrid words={phrase} />}
         </Stack>
       </Paper>
 
-      <Paper withBorder p="md">
+      <Paper>
         <Stack>
           <Title order={4}>Session</Title>
           <Text size="sm" c="dimmed">Locks after 5 minutes idle and when the app goes to the background.</Text>
-          <Button size="xs" color="red" variant="light" onClick={() => void services.accounts.lock()}>Lock now</Button>
+          <Button size="xs" variant="light" leftSection={<IconLock size={16} stroke={1.8} />} onClick={() => void services.accounts.lock()}>Lock now</Button>
         </Stack>
       </Paper>
     </Stack>

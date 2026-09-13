@@ -4,6 +4,7 @@
 // both networks can coexist (R14, F20). The wallet core's own types
 // (StoredUtxo, ScannedBlock, SendSummary) are stored as it produces them.
 
+import type { NextKeyIndices } from '../wallet/core';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 
 export type Network = 'main' | 'testnet' | 'regtest';
@@ -27,8 +28,8 @@ export interface AccountRecord {
   envelope: SeedEnvelope;
   /** Address of key 0, so the receive screen works before unlocking. */
   address0: string;
-  /** Next unused generation key index, advanced by scanning. */
-  nextKeyIndex: number;
+  /** Next unused derivation index per key kind, advanced by scanning. */
+  nextKeyIndices: NextKeyIndices;
   /** True once the user confirmed the seed phrase (F3). */
   backupConfirmed: boolean;
 }
@@ -157,4 +158,16 @@ export async function requestPersistentStorage(): Promise<boolean> {
     // Not available in this context; nothing to do.
   }
   return false;
+}
+
+/** Indices for a brand-new account: key 0 of each kind is shown first. */
+export const FRESH_KEY_INDICES: NextKeyIndices = { generation: 1, ec_hybrid: 0, viewing: 0 };
+
+/**
+ * Accounts stored before address kinds existed carry a single
+ * `nextKeyIndex`; read them as generation-only.
+ */
+export function nextKeyIndicesOf(account: AccountRecord): NextKeyIndices {
+  const legacy = (account as unknown as { nextKeyIndex?: number }).nextKeyIndex;
+  return account.nextKeyIndices ?? { generation: legacy ?? 1, ec_hybrid: 0, viewing: 0 };
 }

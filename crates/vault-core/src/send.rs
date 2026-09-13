@@ -36,6 +36,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::account::Account;
+use crate::account::KeyKind;
 use crate::amount;
 use crate::scan::StoredUtxo;
 
@@ -171,9 +172,9 @@ pub fn build_send(
                 recovery.receiver_preimage,
             )
             .ok_or_else(|| anyhow!("node returned a bad membership proof for {}", input.hash))?;
-        let key = account.key(input.key_index).clone();
+        let key = account.key(input.key_kind, input.key_index).clone();
         if key.lock_script_hash() != recovery.utxo.lock_script_hash() {
-            bail!("input {} does not belong to key {}", input.hash, input.key_index);
+            bail!("input {} does not belong to {:?} key {}", input.hash, input.key_kind, input.key_index);
         }
         unlocked.push(UnlockedUtxo::unlock(
             recovery.utxo.clone(),
@@ -186,7 +187,7 @@ pub fn build_send(
     // Recipient output, announced on chain. Owned if it is one of our keys.
     let recipient_utxo = Utxo::new_native_currency(recipient.lock_script_hash(), amount);
     let owned = account
-        .key_index_for_lock_script_hash(recipient_utxo.lock_script_hash())
+        .key_for_lock_script_hash(recipient_utxo.lock_script_hash())
         .is_some();
     let sender_randomness = account
         .entropy()
@@ -216,7 +217,7 @@ pub fn build_send(
         .checked_sub(&total_out)
         .ok_or_else(|| anyhow!("change underflow"))?;
     let change_nau = if change_amount.is_positive() {
-        let change_address = account.key(0).to_address();
+        let change_address = account.key(KeyKind::Generation, 0).to_address();
         let change_randomness = account
             .entropy()
             .generate_sender_randomness(tip_header.height, change_address.privacy_digest());

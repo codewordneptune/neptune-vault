@@ -1,7 +1,7 @@
 // Account lifecycle: create or import, unlock, lock, and the auto-lock
 // policy (R11: five minutes idle, immediately on backgrounding).
 
-import type { AccountRecord, Network, VaultDb } from '../storage/db';
+import { FRESH_KEY_INDICES, type AccountRecord, type Network, type VaultDb } from '../storage/db';
 import { DEFAULT_KDF, openSeed, sealSeed, type DeriveKey, type ExportFile } from '../storage/envelope';
 import type { WalletCore } from '../wallet/core';
 
@@ -43,7 +43,7 @@ export class AccountService {
   async createAccount(phrase: string[], password: string, network: Network, birthdayHeight: number): Promise<AccountRecord> {
     const envelope = await sealSeed(phrase, password, this.derive, DEFAULT_KDF);
     await this.core.unlock(phrase, network);
-    const address0 = await this.core.address(0);
+    const address0 = await this.core.address('generation', 0);
     const record: AccountRecord = {
       id: crypto.randomUUID(),
       network,
@@ -51,7 +51,7 @@ export class AccountService {
       birthdayHeight: Math.max(1, birthdayHeight),
       envelope,
       address0,
-      nextKeyIndex: 1,
+      nextKeyIndices: FRESH_KEY_INDICES,
       backupConfirmed: false,
     };
     await this.db.put('accounts', record);
@@ -118,7 +118,7 @@ export class AccountService {
     const network = file.network as Network;
     const phrase = await openSeed(file.envelope, password, this.derive);
     await this.core.unlock(phrase, network);
-    const address0 = await this.core.address(0);
+    const address0 = await this.core.address('generation', 0);
     const record: AccountRecord = {
       id: crypto.randomUUID(),
       network,
@@ -126,7 +126,7 @@ export class AccountService {
       birthdayHeight: Math.max(1, file.birthdayHeight),
       envelope: file.envelope,
       address0,
-      nextKeyIndex: 1,
+      nextKeyIndices: FRESH_KEY_INDICES,
       backupConfirmed: true,
     };
     await this.db.put('accounts', record);

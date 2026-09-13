@@ -73,10 +73,10 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
     case 'phrase':
       return { result: requireAccount().phrase() };
     case 'address':
-      return { result: requireAccount().address(BigInt(args[0] as number)) };
+      return { result: requireAccount().address(args[0] as string, BigInt(args[1] as number)) };
     case 'scanBlocks': {
-      const [blocks, unspent, nextKeyIndex] = args as [unknown[], unknown[], number];
-      const json = requireAccount().scan_blocks(JSON.stringify(blocks), JSON.stringify(unspent), BigInt(nextKeyIndex));
+      const [blocks, unspent, nextKeyIndices] = args as [unknown[], unknown[], unknown];
+      const json = requireAccount().scan_blocks(JSON.stringify(blocks), JSON.stringify(unspent), JSON.stringify(nextKeyIndices));
       return { result: JSON.parse(json) };
     }
     case 'planInputs': {

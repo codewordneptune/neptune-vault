@@ -11,9 +11,20 @@ export interface ScannedBlock {
   spent: string[];
 }
 
+/** Address kinds the app offers; names match the Rust serde names. */
+export type KeyKind = 'generation' | 'ec_hybrid' | 'viewing';
+export const KEY_KINDS: KeyKind[] = ['generation', 'ec_hybrid', 'viewing'];
+
+/** Next unused derivation index per key kind. */
+export interface NextKeyIndices {
+  generation: number;
+  ec_hybrid: number;
+  viewing: number;
+}
+
 export interface ScanResult {
   blocks: ScannedBlock[];
-  next_key_index: number;
+  next_key_indices: NextKeyIndices;
 }
 
 /** Opaque to the app except for the fields it displays or indexes. */
@@ -21,6 +32,7 @@ export interface StoredUtxo {
   hash: string;
   amount_nau: string;
   amount: string;
+  key_kind: KeyKind;
   key_index: number;
   release_date_ms: number | null;
   confirmed_height: number;
@@ -75,8 +87,8 @@ export interface WalletCore {
 
   /** The unlocked account's phrase, for the backup screen. */
   phrase(): Promise<string[]>;
-  address(index: number): Promise<string>;
-  scanBlocks(blocks: unknown[], unspent: StoredUtxo[], nextKeyIndex: number): Promise<ScanResult>;
+  address(kind: KeyKind, index: number): Promise<string>;
+  scanBlocks(blocks: unknown[], unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices): Promise<ScanResult>;
   planInputs(unspent: StoredUtxo[], request: SendRequest, nowMs: number): Promise<InputPlan>;
   buildSend(
     inputs: StoredUtxo[],

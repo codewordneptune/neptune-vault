@@ -24,7 +24,7 @@ class FakeCore implements Partial<WalletCore> {
   async lock() {
     this.unlocked = null;
   }
-  async address(index: number) {
+  async address(_kind: string, index: number) {
     return `nolgar1-${this.unlocked?.[0]}-${index}`;
   }
 }

@@ -23,7 +23,7 @@ const account: AccountRecord = {
     seed: { iv: 'AAAA', ciphertext: 'AAAA' },
   },
   address0: 'nolgar1...',
-  nextKeyIndex: 1,
+  nextKeyIndices: { generation: 1, ec_hybrid: 0, viewing: 0 },
   backupConfirmed: false,
 };
 

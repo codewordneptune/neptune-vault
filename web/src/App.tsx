@@ -1,9 +1,11 @@
-import { Box, Container, Group, Loader, Text, Title } from '@mantine/core';
+import { Box, Container, Group, Loader } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
 import type { ReactElement } from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 
 import { useApp } from './app/AppContext';
+import { Logo } from './components/Logo';
+import { NetworkMenu } from './components/NetworkMenu';
 import { Diagnostics } from './screens/Diagnostics';
 import { Home } from './screens/Home';
 import { Onboarding } from './screens/Onboarding';
@@ -38,14 +40,15 @@ export function App() {
   const showTabs = Boolean(account) && !locked;
 
   return (
-    <Box onClick={touch} onKeyDown={touch} pb={showTabs ? 80 : 0}>
+    <Box onClick={touch} onKeyDown={touch} pb={showTabs ? 84 : 0}>
       <Box className="vault-topbar">
         <Container size="xs" py="sm">
-          <Group justify="space-between" align="baseline">
-            <Title order={3}>Neptune Vault</Title>
-            <Text size="xs" c="dimmed">
-              {services.settings.network}
-            </Text>
+          <Group justify="space-between" align="center">
+            <span className="vault-brand">
+              <Logo size={26} />
+              Neptune Vault
+            </span>
+            <NetworkMenu />
           </Group>
         </Container>
       </Box>
@@ -66,7 +69,7 @@ export function App() {
             <Group gap={0} wrap="nowrap">
               {TABS.map(({ to, label, Icon }) => (
                 <NavLink key={to} to={to} end className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`}>
-                  <Icon size={22} stroke={1.8} />
+                  <Icon size={22} stroke={1.6} />
                   {label}
                 </NavLink>
               ))}

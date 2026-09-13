@@ -45,7 +45,7 @@ it talks to a neptune-core node over its JSON-RPC API.
 | R9  | Passkey backup | Optional: where the platform supports the WebAuthn PRF extension, the encrypted seed can additionally be wrapped with a passkey-derived key. Not required on iOS 17. |
 | R10 | Unlock | Password or PIN. Argon2id key derivation, AES-256-GCM encryption via WebCrypto. |
 | R11 | Auto-lock | The decrypted seed is held only while unlocked. Lock after 5 minutes idle and immediately when the app goes to the background (decided 2026-09-13). |
-| R12 | Address type | Generation addresses only. |
+| R12 | Address type | Generation, EC hybrid and viewing addresses, each with its own key sequence (changed 2026-09-13 from generation only). Symmetric keys are not offered. |
 | R13 | Send screen | One recipient, amount, and fee. |
 | R14 | Accounts | One account in the UI. All storage is keyed by an account id so more can be added later. |
 | R15 | Other key types | Not supported in the first release. |
@@ -91,10 +91,11 @@ it talks to a neptune-core node over its JSON-RPC API.
 
 ### 5.3 Receive
 
-- F11. The app shows the account's current generation address as text and QR
-  code, and can produce the next unused address.
+- F11. The app shows the account's current address of the chosen kind
+  (generation, EC hybrid or viewing) as text and a full-width QR code, and
+  can produce the next unused address of that kind.
 - F12. The app syncs from the account's birthday block (creation height) and
-  detects incoming UTXOs addressed to the account's generation keys (R12, R17).
+  detects incoming UTXOs addressed to any of the account's keys (R12, R17).
 - F13. Balance shows confirmed funds and, separately, funds reserved by pending
   outgoing transactions (R18).
 - F14. Sync runs while the app is in the foreground and resumes from where it

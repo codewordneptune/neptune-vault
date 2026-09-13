@@ -8,7 +8,8 @@
 
 import type { NodeClient } from '../node/rpc';
 import type { BlockRecord, HistoryRecord, UtxoRecord, VaultDb } from '../storage/db';
-import type { ScannedBlock, StoredUtxo, WalletCore } from './core';
+import { nextKeyIndicesOf } from '../storage/db';
+import type { NextKeyIndices, ScannedBlock, StoredUtxo, WalletCore } from './core';
 
 export interface SyncProgress {
   phase: 'checking' | 'scanning' | 'done' | 'error';
@@ -62,7 +63,7 @@ export class SyncEngine {
         state = await this.db.get('syncState', this.accountId) ?? state;
       }
 
-      let nextKeyIndex = account.nextKeyIndex;
+      let nextKeyIndices = nextKeyIndicesOf(account);
       let height = state.syncedHeight + 1;
       while (height <= tip.height) {
         const to = Math.min(height + this.batchSize - 1, tip.height);
@@ -70,9 +71,9 @@ export class SyncEngine {
         const blocks = await this.node.getBlocks(height, to);
         if (blocks.length === 0) break;
         const unspent = await this.unspentStored();
-        const result = await this.core.scanBlocks(blocks, unspent, nextKeyIndex);
-        nextKeyIndex = result.next_key_index;
-        await this.persist(result.blocks, nextKeyIndex);
+        const result = await this.core.scanBlocks(blocks, unspent, nextKeyIndices);
+        nextKeyIndices = result.next_key_indices;
+        await this.persist(result.blocks, nextKeyIndices);
         const last = result.blocks[result.blocks.length - 1];
         height = last.height + 1;
       }
@@ -153,7 +154,7 @@ export class SyncEngine {
     await tx.done;
   }
 
-  private async persist(blocks: ScannedBlock[], nextKeyIndex: number): Promise<void> {
+  private async persist(blocks: ScannedBlock[], nextKeyIndices: NextKeyIndices): Promise<void> {
     if (blocks.length === 0) return;
     const tx = this.db.transaction(['utxos', 'blocks', 'history', 'syncState', 'accounts'], 'readwrite');
     const utxoStore = tx.objectStore('utxos');
@@ -226,8 +227,8 @@ export class SyncEngine {
 
     await tx.objectStore('syncState').put({ accountId: this.accountId, syncedHeight: last.height, syncedHash: last.hash, updatedAt: Date.now() });
     const account = await tx.objectStore('accounts').get(this.accountId);
-    if (account && account.nextKeyIndex !== nextKeyIndex) {
-      await tx.objectStore('accounts').put({ ...account, nextKeyIndex });
+    if (account && JSON.stringify(nextKeyIndicesOf(account)) !== JSON.stringify(nextKeyIndices)) {
+      await tx.objectStore('accounts').put({ ...account, nextKeyIndices });
     }
     await tx.done;
   }

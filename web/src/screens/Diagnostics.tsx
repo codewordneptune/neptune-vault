@@ -8,7 +8,7 @@ export function Diagnostics() {
   const installed = matchMedia('(display-mode: standalone)').matches;
 
   return (
-    <Paper withBorder p="md">
+    <Paper>
       <Stack gap="xs">
         <Row label="Cross-origin isolated" ok={isolated} text={isolated ? 'yes, threads available' : 'no, single-threaded'} />
         <Row label="Cores" ok text={String(cores)} />

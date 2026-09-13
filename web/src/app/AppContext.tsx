@@ -3,7 +3,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import type { AccountRecord, HistoryRecord, UtxoRecord } from '../storage/db';
+import type { AccountRecord, HistoryRecord, Network, UtxoRecord } from '../storage/db';
 import type { SyncProgress } from '../wallet/sync';
 import type { Services } from './services';
 
@@ -29,6 +29,10 @@ export interface AppState {
   /** Run one sync pass now (also runs on a timer while unlocked). */
   syncNow: () => Promise<void>;
   setAccount: (account: AccountRecord | null) => void;
+  /** The selected network; accounts are bound to one. */
+  network: Network;
+  /** Lock, select the network, and show its account (or onboarding). */
+  switchNetwork: (network: Network) => Promise<void>;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -48,7 +52,19 @@ export function AppProvider({ services, children }: { services: Services; childr
   const [sync, setSync] = useState<SyncProgress | null>(null);
   const [utxos, setUtxos] = useState<UtxoRecord[]>([]);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [network, setNetwork] = useState<Network>(services.settings.network);
   const syncing = useRef(false);
+
+  const switchNetwork = useCallback(
+    async (next: Network) => {
+      await services.updateSettings({ network: next, currentAccountId: null });
+      await services.accounts.lock();
+      const all = await services.db.getAllFromIndex('accounts', 'byNetwork', next);
+      setAccount(all[0] ?? null);
+      setNetwork(next);
+    },
+    [services],
+  );
 
   // Initial account: the one settings point at, else the only one on this network.
   useEffect(() => {
@@ -118,8 +134,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   }, [utxos]);
 
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, setAccount }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, setAccount, network, switchNetwork }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, network, switchNetwork],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

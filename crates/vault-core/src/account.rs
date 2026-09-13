@@ -1,8 +1,9 @@
 //! Seed, phrase and key derivation.
 //!
-//! Wraps neptune-wallet so the phrase, the derivation of generation keys and
-//! the bech32m addresses are byte for byte what neptune-core produces.
+//! Wraps neptune-wallet so the phrase, the derivation of keys and the bech32m
+//! addresses are byte for byte what neptune-core produces.
 
+use anyhow::bail;
 use anyhow::Context;
 use anyhow::Result;
 use neptune_primitives::network::Network;
@@ -12,20 +13,59 @@ use neptune_wallet::secret_key_material::SecretKeyMaterial;
 use neptune_wallet::tasm_lib::prelude::Digest;
 use neptune_wallet::wallet_entropy::WalletEntropy;
 use rand::Rng;
+use serde::Deserialize;
+use serde::Serialize;
 
-/// How many generation keys beyond the highest used index are scanned for,
+/// How many keys of each kind beyond the highest used index are scanned for,
 /// so that funds sent to a not-yet-shown address are still found.
 pub const KEY_LOOKAHEAD: u64 = 5;
 
+/// The address kinds the app offers. Symmetric keys are left out: they are
+/// secrets, not addresses.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeyKind {
+    /// Lattice-based, post-quantum; long addresses, safe to reuse.
+    #[default]
+    Generation,
+    /// Elliptic-curve hybrid; short addresses, meant for a single payer.
+    EcHybrid,
+    /// Viewing address; whoever holds it can see its incoming payments.
+    Viewing,
+}
+
+impl KeyKind {
+    pub const ALL: [KeyKind; 3] = [KeyKind::Generation, KeyKind::EcHybrid, KeyKind::Viewing];
+
+    /// Parse the serde name (`generation`, `ec_hybrid`, `viewing`).
+    pub fn parse(name: &str) -> Result<Self> {
+        Ok(match name {
+            "generation" => KeyKind::Generation,
+            "ec_hybrid" => KeyKind::EcHybrid,
+            "viewing" => KeyKind::Viewing,
+            other => bail!("unknown key kind: {other}"),
+        })
+    }
+
+    fn slot(self) -> usize {
+        match self {
+            KeyKind::Generation => 0,
+            KeyKind::EcHybrid => 1,
+            KeyKind::Viewing => 2,
+        }
+    }
+}
+
 /// An unlocked account: the wallet entropy plus a cache of derived keys.
 ///
-/// Key derivation runs a lattice key generation per key, so keys are derived
-/// once and kept for the life of the object.
+/// Generation key derivation runs a lattice key generation per key, so keys
+/// are derived once and kept for the life of the object.
 pub struct Account {
     secret: SecretKeyMaterial,
     entropy: WalletEntropy,
     network: Network,
-    keys: Vec<SpendingKey>,
+    /// Derived keys per kind, indexed by derivation index.
+    keys: [Vec<SpendingKey>; 3],
 }
 
 impl Account {
@@ -41,7 +81,7 @@ impl Account {
             secret,
             entropy: WalletEntropy::new(secret),
             network,
-            keys: Vec::new(),
+            keys: Default::default(),
         })
     }
 
@@ -57,39 +97,53 @@ impl Account {
         &self.entropy
     }
 
-    /// Derive generation keys up to and including `max_index`.
-    pub fn ensure_keys(&mut self, max_index: u64) {
-        while (self.keys.len() as u64) <= max_index {
-            let index = self.keys.len() as u64;
-            let key = SpendingKey::Generation(self.entropy.nth_generation_spending_key(index));
-            self.keys.push(key);
+    fn derive(&self, kind: KeyKind, index: u64) -> SpendingKey {
+        match kind {
+            KeyKind::Generation => {
+                SpendingKey::Generation(self.entropy.nth_generation_spending_key(index))
+            }
+            KeyKind::EcHybrid => SpendingKey::EcHybrid(self.entropy.nth_ec_hybrid_key(index)),
+            KeyKind::Viewing => {
+                SpendingKey::ViewingAddressKey(self.entropy.nth_viewing_address_key(index))
+            }
         }
     }
 
-    pub fn key(&mut self, index: u64) -> &SpendingKey {
-        self.ensure_keys(index);
-        &self.keys[index as usize]
+    /// Derive keys of `kind` up to and including `max_index`.
+    pub fn ensure_keys(&mut self, kind: KeyKind, max_index: u64) {
+        while (self.keys[kind.slot()].len() as u64) <= max_index {
+            let index = self.keys[kind.slot()].len() as u64;
+            let key = self.derive(kind, index);
+            self.keys[kind.slot()].push(key);
+        }
     }
 
-    /// All generation keys with index at most `max_index`, in index order.
-    pub fn keys_up_to(&mut self, max_index: u64) -> Vec<SpendingKey> {
-        self.ensure_keys(max_index);
-        self.keys[..=max_index as usize].to_vec()
+    pub fn key(&mut self, kind: KeyKind, index: u64) -> &SpendingKey {
+        self.ensure_keys(kind, index);
+        &self.keys[kind.slot()][index as usize]
     }
 
-    /// The receiving address of the nth generation key, bech32m for the
+    /// All keys of `kind` with index at most `max_index`, in index order.
+    pub fn keys_up_to(&mut self, kind: KeyKind, max_index: u64) -> Vec<SpendingKey> {
+        self.ensure_keys(kind, max_index);
+        self.keys[kind.slot()][..=max_index as usize].to_vec()
+    }
+
+    /// The receiving address of the nth key of `kind`, bech32m for the
     /// account's network.
-    pub fn address(&mut self, index: u64) -> Result<String> {
+    pub fn address(&mut self, kind: KeyKind, index: u64) -> Result<String> {
         let network = self.network;
-        self.key(index).to_address().to_bech32m(network)
+        self.key(kind, index).to_address().to_bech32m(network)
     }
 
-    /// Index of the derived key whose lock script hash matches, if any.
-    pub fn key_index_for_lock_script_hash(&self, lock_script_hash: Digest) -> Option<u64> {
-        self.keys
-            .iter()
-            .position(|k| k.lock_script_hash() == lock_script_hash)
-            .map(|i| i as u64)
+    /// Kind and index of the derived key whose lock script hash matches, if any.
+    pub fn key_for_lock_script_hash(&self, lock_script_hash: Digest) -> Option<(KeyKind, u64)> {
+        KeyKind::ALL.into_iter().find_map(|kind| {
+            self.keys[kind.slot()]
+                .iter()
+                .position(|k| k.lock_script_hash() == lock_script_hash)
+                .map(|i| (kind, i as u64))
+        })
     }
 
     pub fn parse_address(&self, encoded: &str) -> Result<ReceivingAddress> {

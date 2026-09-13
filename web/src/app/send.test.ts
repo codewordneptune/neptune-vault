@@ -8,7 +8,7 @@ import type { InputPlan, SendPlan, SendRequest, StoredUtxo, WalletCore } from '.
 import { RequiresLustrationError, SendService, type Prover } from './send';
 
 function stored(hash: string, amount: string, height: number): StoredUtxo {
-  return { hash, amount_nau: amount, amount, key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
+  return { hash, amount_nau: amount, amount, key_kind: 'generation', key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
 }
 
 function row(u: StoredUtxo, extra: Partial<UtxoRecord> = {}): UtxoRecord {

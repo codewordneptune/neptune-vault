@@ -83,7 +83,7 @@ export function Send() {
   const p = progress?.proving;
 
   return (
-    <Paper withBorder p="md">
+    <Paper>
       <Stack>
         <Title order={3}>Send</Title>
         {result && (

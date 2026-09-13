@@ -25,7 +25,7 @@ export function Unlock() {
   };
 
   return (
-    <Paper withBorder p="md">
+    <Paper>
       <form
         onSubmit={(e) => {
           e.preventDefault();

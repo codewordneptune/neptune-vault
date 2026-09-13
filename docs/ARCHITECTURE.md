@@ -107,12 +107,14 @@ in JSON, byte arrays for witnesses, kernels and proofs.
 
 - `generate_phrase()`: 18 BIP39 words from the browser's random source.
 - `Account(words, network)`: the unlocked account, holding the seed and a
-  cache of derived generation keys. Dropping it locks.
-- `account.address(index)`: bech32m receiving address (`nolgam` on
-  mainnet, `nolgat` on testnet).
-- `account.scan_blocks(blocks, unspent, next_key_index)`: takes the node's
-  `get_blocks` response, decrypts announcements for every key up to the
-  next unused index plus a lookahead of five, confirms each hit against the
+  cache of derived keys per kind (generation, EC hybrid, viewing).
+  Dropping it locks.
+- `account.address(kind, index)`: bech32m receiving address of the nth
+  key of that kind (`nolgam`, `nechm`, `nviewm` on mainnet; `nolgat`,
+  `necht`, `nviewt` on testnet).
+- `account.scan_blocks(blocks, unspent, next_key_indices)`: takes the node's
+  `get_blocks` response, decrypts announcements for every key of every kind
+  up to its next unused index plus a lookahead of five, confirms each hit against the
   block's addition records, assigns the AOCL index, and detects spends of the
   given unspent UTXOs by exact absolute-index-set match. Returns per block
   the incoming UTXOs (with the recovery data needed to spend them later),

@@ -21,6 +21,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::account::Account;
+use crate::account::KeyKind;
 use crate::account::KEY_LOOKAHEAD;
 use crate::amount;
 
@@ -35,7 +36,10 @@ pub struct StoredUtxo {
     pub amount_nau: String,
     /// Amount formatted for display.
     pub amount: String,
-    /// Index of the generation key that owns it.
+    /// Kind of the key that owns it (older records lack it: generation).
+    #[serde(default)]
+    pub key_kind: KeyKind,
+    /// Derivation index of that key.
     pub key_index: u64,
     /// Time lock, if any, as milliseconds since the epoch.
     pub release_date_ms: Option<u64>,
@@ -67,11 +71,39 @@ pub struct ScannedBlock {
     pub spent: Vec<String>,
 }
 
+/// Next unused derivation index per key kind.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NextKeyIndices {
+    pub generation: u64,
+    pub ec_hybrid: u64,
+    pub viewing: u64,
+}
+
+impl NextKeyIndices {
+    pub fn get(&self, kind: KeyKind) -> u64 {
+        match kind {
+            KeyKind::Generation => self.generation,
+            KeyKind::EcHybrid => self.ec_hybrid,
+            KeyKind::Viewing => self.viewing,
+        }
+    }
+
+    /// Record that key `index` of `kind` has been used.
+    pub fn mark_used(&mut self, kind: KeyKind, index: u64) {
+        let slot = match kind {
+            KeyKind::Generation => &mut self.generation,
+            KeyKind::EcHybrid => &mut self.ec_hybrid,
+            KeyKind::Viewing => &mut self.viewing,
+        };
+        *slot = (*slot).max(index + 1);
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResult {
     pub blocks: Vec<ScannedBlock>,
-    /// Next unused generation key index after this scan.
-    pub next_key_index: u64,
+    /// Next unused key indices after this scan.
+    pub next_key_indices: NextKeyIndices,
 }
 
 /// Scan a batch of blocks, in order. `unspent` are the wallet's unspent UTXOs
@@ -81,10 +113,10 @@ pub fn scan_blocks(
     account: &mut Account,
     blocks: Vec<RpcWalletBlock>,
     unspent: Vec<StoredUtxo>,
-    next_key_index: u64,
+    next_key_indices: NextKeyIndices,
 ) -> Result<ScanResult> {
     let mut working_unspent = unspent;
-    let mut next_key_index = next_key_index;
+    let mut next_key_indices = next_key_indices;
     let mut scanned = Vec::with_capacity(blocks.len());
 
     for block in blocks {
@@ -103,12 +135,12 @@ pub fn scan_blocks(
             &addition_records,
             num_aocl_leafs_prior,
             &working_unspent,
-            next_key_index,
+            next_key_indices,
             height,
             &block_hash.to_hex(),
             timestamp_ms,
         );
-        next_key_index = next;
+        next_key_indices = next;
 
         working_unspent.retain(|u| !spent.contains(&u.hash));
         working_unspent.extend(incoming.iter().cloned());
@@ -125,12 +157,12 @@ pub fn scan_blocks(
 
     Ok(ScanResult {
         blocks: scanned,
-        next_key_index,
+        next_key_indices,
     })
 }
 
 /// The block-independent core of scanning, so tests can drive it with a bare
-/// transaction kernel. Returns (incoming, spent hashes, next key index).
+/// transaction kernel. Returns (incoming, spent hashes, next key indices).
 #[allow(clippy::too_many_arguments)]
 pub fn scan_kernel(
     account: &mut Account,
@@ -138,17 +170,20 @@ pub fn scan_kernel(
     addition_records: &[AdditionRecord],
     num_aocl_leafs_prior: u64,
     unspent: &[StoredUtxo],
-    next_key_index: u64,
+    next_key_indices: NextKeyIndices,
     height: u64,
     block_hash_hex: &str,
     timestamp_ms: u64,
-) -> (Vec<StoredUtxo>, Vec<String>, u64) {
-    // Incoming: decrypt announcements addressed to any key up to the
-    // lookahead, then confirm the addition record really is in the block.
-    let keys = account.keys_up_to(next_key_index + KEY_LOOKAHEAD);
+) -> (Vec<StoredUtxo>, Vec<String>, NextKeyIndices) {
+    // Incoming: decrypt announcements addressed to any key of any kind up to
+    // the lookahead, then confirm the addition record really is in the block.
+    let mut keys = Vec::new();
+    for kind in KeyKind::ALL {
+        keys.extend(account.keys_up_to(kind, next_key_indices.get(kind) + KEY_LOOKAHEAD));
+    }
     let announced = SpendingKey::scan_announcements_for_keys(&tx_kernel.announcements, keys);
 
-    let mut next_key_index = next_key_index;
+    let mut next_key_indices = next_key_indices;
     let mut incoming = Vec::new();
     for found in announced {
         let addition_record = found.addition_record();
@@ -158,11 +193,11 @@ pub fn scan_kernel(
         if !found.utxo.all_type_script_states_are_valid() {
             continue;
         }
-        let Some(key_index) = account.key_index_for_lock_script_hash(found.utxo.lock_script_hash())
+        let Some((key_kind, key_index)) = account.key_for_lock_script_hash(found.utxo.lock_script_hash())
         else {
             continue;
         };
-        next_key_index = next_key_index.max(key_index + 1);
+        next_key_indices.mark_used(key_kind, key_index);
 
         let native_amount = found.utxo.get_native_currency_amount();
         let recovery = IncomingUtxoRecoveryData {
@@ -176,6 +211,7 @@ pub fn scan_kernel(
             recovery,
             amount_nau: amount::to_nau_string(native_amount),
             amount: amount::format(native_amount),
+            key_kind,
             key_index,
             release_date_ms: found.utxo.release_date().map(|t| t.0.value()),
             confirmed_height: height,
@@ -200,7 +236,7 @@ pub fn scan_kernel(
             .collect()
     };
 
-    (incoming, spent, next_key_index)
+    (incoming, spent, next_key_indices)
 }
 
 /// Digest as the app stores it.

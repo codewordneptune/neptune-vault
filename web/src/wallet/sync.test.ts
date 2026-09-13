@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { NodeClient, RpcBlockHeader, RpcWalletBlock } from '../node/rpc';
 import { openVaultDb, type AccountRecord, type VaultDb } from '../storage/db';
-import type { ScanResult, StoredUtxo, WalletCore } from './core';
+import type { NextKeyIndices, ScanResult, StoredUtxo, WalletCore } from './core';
 import { SyncEngine } from './sync';
 
 // A chain the fake node serves and a fake core that "finds" what we tell it.
@@ -14,6 +14,7 @@ function utxo(hash: string, height: number, amount: string): StoredUtxo {
     hash,
     amount_nau: `${amount}000000000000000000000000000000`,
     amount,
+    key_kind: 'generation',
     key_index: 0,
     release_date_ms: null,
     confirmed_height: height,
@@ -61,7 +62,7 @@ class FakeCore implements Partial<WalletCore> {
   incoming = new Map<number, StoredUtxo[]>();
   spent = new Map<number, string[]>();
   nextKeyIndexAfter = 1;
-  async scanBlocks(blocks: unknown[], _unspent: StoredUtxo[], _next: number): Promise<ScanResult> {
+  async scanBlocks(blocks: unknown[], _unspent: StoredUtxo[], _next: NextKeyIndices): Promise<ScanResult> {
     const out = (blocks as RpcWalletBlock[]).map((b) => ({
       height: b.kernel.header.height,
       hash: b.proofLeaf,
@@ -70,7 +71,7 @@ class FakeCore implements Partial<WalletCore> {
       incoming: this.incoming.get(b.kernel.header.height) ?? [],
       spent: this.spent.get(b.kernel.header.height) ?? [],
     }));
-    return { blocks: out, next_key_index: this.nextKeyIndexAfter };
+    return { blocks: out, next_key_indices: { generation: this.nextKeyIndexAfter, ec_hybrid: 0, viewing: 0 } };
   }
 }
 
@@ -81,7 +82,7 @@ const account: AccountRecord = {
   birthdayHeight: 3,
   envelope: { version: 1, kdf: { name: 'argon2id', mKib: 8, tCost: 1, pCost: 1, salt: 'A' }, wrappedContentKey: { iv: 'A', ciphertext: 'A' }, seed: { iv: 'A', ciphertext: 'A' } },
   address0: 'x',
-  nextKeyIndex: 1,
+  nextKeyIndices: { generation: 1, ec_hybrid: 0, viewing: 0 },
   backupConfirmed: true,
 };
 
@@ -117,7 +118,7 @@ describe('sync engine', () => {
     expect(utxos[0].spentHeight).toBeNull();
     const history = await db.getAllFromIndex('history', 'byAccount', 'acc');
     expect(history.map((h) => [h.kind, h.status, h.height])).toEqual([['received', 'confirmed', 5]]);
-    expect((await db.get('accounts', 'acc'))?.nextKeyIndex).toBe(2);
+    expect((await db.get('accounts', 'acc'))?.nextKeyIndices).toEqual({ generation: 2, ec_hybrid: 0, viewing: 0 });
     expect((await db.get('syncState', 'acc'))?.syncedHash).toBe('hash-10');
   });
 

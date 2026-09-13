@@ -14,6 +14,8 @@ use neptune_wallet::tasm_lib::prelude::Tip5;
 use neptune_wallet::utxo_notification::UtxoNotificationPayload;
 use num_traits::Zero;
 use vault_core::account::Account;
+use vault_core::account::KeyKind;
+use vault_core::scan::NextKeyIndices;
 use vault_core::amount;
 use vault_core::scan;
 use vault_core::send::plan_inputs;
@@ -37,13 +39,23 @@ fn addresses_carry_the_network_prefix_and_decode() {
     let words = Account::generate_phrase();
     let mut main = Account::from_phrase(&words, Network::Main).unwrap();
     let mut test = Account::from_phrase(&words, Network::Testnet(0)).unwrap();
-    let a = main.address(0).unwrap();
-    let t = test.address(0).unwrap();
+    let a = main.address(KeyKind::Generation, 0).unwrap();
+    let t = test.address(KeyKind::Generation, 0).unwrap();
     assert!(a.starts_with("nolgam1"), "{a}");
     assert!(t.starts_with("nolgat1"), "{t}");
     assert!(main.parse_address(&a).is_ok());
     assert!(main.parse_address(&t).is_err(), "testnet address must not parse on mainnet");
-    assert_ne!(main.address(1).unwrap(), a);
+    assert_ne!(main.address(KeyKind::Generation, 1).unwrap(), a);
+
+    // The other kinds carry their own prefixes and are far shorter.
+    let ech = main.address(KeyKind::EcHybrid, 0).unwrap();
+    let view = main.address(KeyKind::Viewing, 0).unwrap();
+    assert!(ech.starts_with("nechm1"), "{ech}");
+    assert!(view.starts_with("nviewm1"), "{view}");
+    assert!(ech.len() < 400 && view.len() < 400, "{} {}", ech.len(), view.len());
+    assert!(main.parse_address(&ech).is_ok());
+    assert!(main.parse_address(&view).is_ok());
+    assert_ne!(main.address(KeyKind::EcHybrid, 1).unwrap(), ech);
 }
 
 #[test]
@@ -60,7 +72,16 @@ fn amounts_parse_and_format() {
 /// Build a kernel with one announced output to `account`'s key `key_index`
 /// and return it with its addition record.
 fn kernel_paying(account: &mut Account, key_index: u64, coins: &str) -> (TransactionKernelProxy, Digest) {
-    let key = account.key(key_index).clone();
+    kernel_paying_kind(account, KeyKind::Generation, key_index, coins)
+}
+
+fn kernel_paying_kind(
+    account: &mut Account,
+    kind: KeyKind,
+    key_index: u64,
+    coins: &str,
+) -> (TransactionKernelProxy, Digest) {
+    let key = account.key(kind, key_index).clone();
     let address = key.to_address();
     let amount = amount::parse(coins).unwrap();
     let utxo = Utxo::new_native_currency(address.lock_script_hash(), amount);
@@ -94,7 +115,7 @@ fn scan_finds_announced_utxo_then_its_spend() {
         &addition_records,
         1000,
         &[],
-        0,
+        NextKeyIndices::default(),
         7,
         "00",
         1234,
@@ -104,10 +125,13 @@ fn scan_finds_announced_utxo_then_its_spend() {
     let found = &incoming[0];
     assert_eq!(found.hash, utxo_hash.to_hex());
     assert_eq!(found.amount, "3.25");
+    assert_eq!(found.key_kind, KeyKind::Generation);
     assert_eq!(found.key_index, 2);
     assert_eq!(found.recovery.aocl_index, 1000);
     assert_eq!(found.confirmed_height, 7);
-    assert_eq!(next_key, 3, "next unused key follows the highest key seen");
+    assert_eq!(next_key.generation, 3, "next unused key follows the highest key seen");
+    assert_eq!(next_key.ec_hybrid, 0);
+    assert_eq!(next_key.viewing, 0);
 
     // A later kernel whose removal record carries our absolute index set.
     let removal = RemovalRecord {
@@ -138,9 +162,28 @@ fn scan_ignores_announcements_for_other_wallets() {
     let (proxy, _) = kernel_paying(&mut theirs, 0, "1");
     let kernel = proxy.into_kernel();
     let records = kernel.outputs.clone();
-    let (incoming, _, next) = scan::scan_kernel(&mut ours, &kernel, &records, 0, &[], 0, 1, "00", 0);
+    let (incoming, _, next) =
+        scan::scan_kernel(&mut ours, &kernel, &records, 0, &[], NextKeyIndices::default(), 1, "00", 0);
     assert!(incoming.is_empty());
-    assert_eq!(next, 0);
+    assert_eq!(next, NextKeyIndices::default());
+}
+
+#[test]
+fn scan_finds_payments_to_ec_hybrid_and_viewing_addresses() {
+    for kind in [KeyKind::EcHybrid, KeyKind::Viewing] {
+        let mut account = account();
+        let (proxy, utxo_hash) = kernel_paying_kind(&mut account, kind, 1, "0.5");
+        let kernel = proxy.into_kernel();
+        let records = kernel.outputs.clone();
+        let (incoming, _, next) =
+            scan::scan_kernel(&mut account, &kernel, &records, 0, &[], NextKeyIndices::default(), 1, "00", 0);
+        assert_eq!(incoming.len(), 1, "{kind:?}");
+        assert_eq!(incoming[0].hash, utxo_hash.to_hex());
+        assert_eq!(incoming[0].key_kind, kind);
+        assert_eq!(incoming[0].key_index, 1);
+        assert_eq!(next.get(kind), 2, "{kind:?}");
+        assert_eq!(next.generation, 0);
+    }
 }
 
 #[test]
@@ -151,8 +194,17 @@ fn input_planning_picks_oldest_first_and_reports_shortfall() {
         let (proxy, _) = kernel_paying(&mut account, 0, coins);
         let kernel = proxy.into_kernel();
         let records = kernel.outputs.clone();
-        let (mut incoming, _, _) =
-            scan::scan_kernel(&mut account, &kernel, &records, 100 * i as u64, &[], 0, i as u64, "00", 0);
+        let (mut incoming, _, _) = scan::scan_kernel(
+            &mut account,
+            &kernel,
+            &records,
+            100 * i as u64,
+            &[],
+            NextKeyIndices::default(),
+            i as u64,
+            "00",
+            0,
+        );
         unspent.append(&mut incoming);
     }
     let request = SendRequest {
