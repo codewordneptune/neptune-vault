@@ -16,6 +16,8 @@ export interface Balance {
 
 export interface AppState {
   services: Services;
+  /** False until the stored account (if any) has been looked up. */
+  ready: boolean;
   account: AccountRecord | null;
   locked: boolean;
   sync: SyncProgress | null;
@@ -41,6 +43,7 @@ const SYNC_INTERVAL_MS = 15_000;
 
 export function AppProvider({ services, children }: { services: Services; children: ReactNode }) {
   const [account, setAccount] = useState<AccountRecord | null>(null);
+  const [ready, setReady] = useState(false);
   const [locked, setLocked] = useState(true);
   const [sync, setSync] = useState<SyncProgress | null>(null);
   const [utxos, setUtxos] = useState<UtxoRecord[]>([]);
@@ -53,51 +56,55 @@ export function AppProvider({ services, children }: { services: Services; childr
       const all = await services.db.getAllFromIndex('accounts', 'byNetwork', services.settings.network);
       const chosen = all.find((a) => a.id === services.settings.currentAccountId) ?? all[0] ?? null;
       setAccount(chosen);
+      setReady(true);
     })();
   }, [services]);
 
   useEffect(() => services.accounts.onLockChange(setLocked), [services]);
   useEffect(() => services.accounts.installVisibilityLock(), [services]);
 
+  // Depends on the account id, not the object: refresh replaces the object,
+  // and depending on it would re-trigger refresh forever.
+  const accountId = account?.id ?? null;
   const refresh = useCallback(async () => {
-    if (!account) {
+    if (!accountId) {
       setUtxos([]);
       setHistory([]);
       return;
     }
-    const fresh = await services.db.get('accounts', account.id);
-    if (fresh) setAccount(fresh);
-    setUtxos(await services.db.getAllFromIndex('utxos', 'byAccount', account.id));
-    const rows = await services.db.getAllFromIndex('history', 'byAccount', account.id);
+    const fresh = await services.db.get('accounts', accountId);
+    if (fresh) setAccount((prev) => (prev && JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh));
+    setUtxos(await services.db.getAllFromIndex('utxos', 'byAccount', accountId));
+    const rows = await services.db.getAllFromIndex('history', 'byAccount', accountId);
     rows.sort((a, b) => b.timestampMs - a.timestampMs);
     setHistory(rows);
-  }, [services, account]);
+  }, [services, accountId]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const syncNow = useCallback(async () => {
-    if (!account || locked || syncing.current) return;
+    if (!accountId || locked || syncing.current) return;
     syncing.current = true;
     try {
-      const engine = services.syncEngine(account.id, setSync);
+      const engine = services.syncEngine(accountId, setSync);
       await engine.syncOnce();
       await refresh();
     } finally {
       syncing.current = false;
     }
-  }, [services, account, locked, refresh]);
+  }, [services, accountId, locked, refresh]);
 
   // Poll the node while unlocked and visible.
   useEffect(() => {
-    if (!account || locked) return;
+    if (!accountId || locked) return;
     void syncNow();
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') void syncNow();
     }, SYNC_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [account, locked, syncNow]);
+  }, [accountId, locked, syncNow]);
 
   const balance = useMemo<Balance>(() => {
     let spendable = 0n;
@@ -111,8 +118,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   }, [utxos]);
 
   const value = useMemo<AppState>(
-    () => ({ services, account, locked, sync, balance, history, utxos, refresh, syncNow, setAccount }),
-    [services, account, locked, sync, balance, history, utxos, refresh, syncNow],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, setAccount }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -1,4 +1,4 @@
-import { Anchor, Container, Group, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Container, Group, Loader, Stack, Text, Title } from '@mantine/core';
 import type { ReactElement } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 
@@ -12,8 +12,12 @@ import { Settings } from './screens/Settings';
 import { Unlock } from './screens/Unlock';
 
 export function App() {
-  const { account, locked, services } = useApp();
+  const { ready, account, locked, services } = useApp();
   const location = useLocation();
+
+  // Do not route until the stored account has been looked up, or a reload
+  // would bounce an existing account to onboarding.
+  if (!ready) return <Loader m="xl" />;
 
   // Any interaction postpones the idle lock (R11).
   const touch = () => services.accounts.touch();
@@ -34,7 +38,7 @@ export function App() {
           </Text>
         </Group>
         <Routes>
-          <Route path="/onboarding" element={account && !locked && location.pathname === '/onboarding' ? <Navigate to="/" replace /> : <Onboarding />} />
+          <Route path="/onboarding" element={account ? <Navigate to="/" replace /> : <Onboarding />} />
           <Route path="/" element={gate(<Home />)} />
           <Route path="/receive" element={gate(<Receive />)} />
           <Route path="/send" element={gate(<Send />)} />

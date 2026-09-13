@@ -20,7 +20,14 @@ export function Receive() {
       const a = index === 0 && account ? account.address0 : await services.core.address(index);
       if (cancelled) return;
       setAddress(a);
-      setQr(await QRCode.toDataURL(a, { margin: 1, width: 240 }));
+      // Generation addresses are about 2900 characters. Upper-case bech32m is
+      // still valid and fits the QR alphanumeric mode (4296 chars at level L),
+      // where mixed case would overflow the byte mode.
+      try {
+        setQr(await QRCode.toDataURL(a.toUpperCase(), { margin: 1, width: 240, errorCorrectionLevel: 'L' }));
+      } catch {
+        setQr('');
+      }
     })();
     return () => {
       cancelled = true;
