@@ -61,7 +61,7 @@ export const theme = createTheme({
     NumberInput: { defaultProps: { radius: 'sm', size: 'md' } },
     Textarea: { defaultProps: { radius: 'sm', size: 'md' } },
     Select: { defaultProps: { radius: 'sm', size: 'md' } },
-    SegmentedControl: { defaultProps: { radius: 'sm', size: 'sm' } },
+    SegmentedControl: { defaultProps: { radius: 'sm', size: 'md' } },
     Alert: { defaultProps: { radius: 'sm', variant: 'light' } },
     Code: { defaultProps: { radius: 'sm' } },
     Menu: { defaultProps: { radius: 'sm', shadow: 'lg' } },

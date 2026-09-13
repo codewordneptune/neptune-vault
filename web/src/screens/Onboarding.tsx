@@ -215,7 +215,7 @@ export function Onboarding() {
             />
             <Group gap="xs" justify="center" mih={44}>
               {bank.map((w, i) => (
-                <Button key={`${w}-${i}`} variant="default" size="compact-md" onClick={() => pick(i)}>
+                <Button key={`${w}-${i}`} variant="default" className="vault-chip" onClick={() => pick(i)}>
                   {w}
                 </Button>
               ))}

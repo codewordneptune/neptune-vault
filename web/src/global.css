@@ -427,3 +427,18 @@ button.vault-network::before {
     animation: none;
   }
 }
+
+/* Tap targets: 44 px for the seed chips and the segmented controls. */
+.vault-chip {
+  min-height: 44px;
+  padding: 0 16px;
+}
+.mantine-SegmentedControl-label {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vault-word {
+  min-height: 44px;
+}
