@@ -44,19 +44,27 @@ function fromB64(text: string): Uint8Array {
   return out;
 }
 
+/** WebCrypto exists only in secure contexts (https or localhost). */
+function subtle(): SubtleCrypto {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error('This page is not a secure context, so the browser provides no encryption. Open the app over https or on localhost.');
+  }
+  return globalThis.crypto.subtle;
+}
+
 async function importAesKey(raw: Uint8Array, usages: KeyUsage[]): Promise<CryptoKey> {
-  return crypto.subtle.importKey('raw', ab(raw), { name: 'AES-GCM' }, false, usages);
+  return subtle().importKey('raw', ab(raw), { name: 'AES-GCM' }, false, usages);
 }
 
 async function aesEncrypt(key: CryptoKey, plaintext: Uint8Array): Promise<{ iv: string; ciphertext: string }> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: ab(iv) }, key, ab(plaintext)));
+  const ciphertext = new Uint8Array(await subtle().encrypt({ name: 'AES-GCM', iv: ab(iv) }, key, ab(plaintext)));
   return { iv: toB64(iv), ciphertext: toB64(ciphertext) };
 }
 
 async function aesDecrypt(key: CryptoKey, box: { iv: string; ciphertext: string }): Promise<Uint8Array> {
   return new Uint8Array(
-    await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ab(fromB64(box.iv)) }, key, ab(fromB64(box.ciphertext))),
+    await subtle().decrypt({ name: 'AES-GCM', iv: ab(fromB64(box.iv)) }, key, ab(fromB64(box.ciphertext))),
   );
 }
 
