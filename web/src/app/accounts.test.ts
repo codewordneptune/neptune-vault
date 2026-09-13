@@ -90,6 +90,24 @@ describe('account service', () => {
     expect(service.currentAccountId).toBeNull();
   });
 
+  it('defers the background lock while a send runs, then locks', async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const { service } = await setup(5 * 60 * 1000);
+    await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const doc = { visibilityState: 'visible', listeners: [] as Array<() => void>, addEventListener(_: string, f: () => void) { this.listeners.push(f); }, removeEventListener() {} };
+    service.installVisibilityLock(doc as unknown as Document);
+
+    service.setLockDeferred(true);
+    doc.visibilityState = 'hidden';
+    for (const f of doc.listeners) f();
+    await sleep(10);
+    expect(service.currentAccountId).not.toBeNull();
+
+    service.setLockDeferred(false);
+    await sleep(10);
+    expect(service.currentAccountId).toBeNull();
+  });
+
   it('exports and imports a backup file', async () => {
     const { service } = await setup();
     const phrase = await service.generatePhrase();

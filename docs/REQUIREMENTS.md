@@ -44,7 +44,7 @@ it talks to a neptune-core node over its JSON-RPC API.
 | R8  | Export file | The user can export the encrypted seed as a file to device storage and import it later. |
 | R9  | Passkey backup | Optional: where the platform supports the WebAuthn PRF extension, the encrypted seed can additionally be wrapped with a passkey-derived key. Not required on iOS 17. |
 | R10 | Unlock | Password or PIN. Argon2id key derivation, AES-256-GCM encryption via WebCrypto. |
-| R11 | Auto-lock | The decrypted seed is held only while unlocked. Lock after 5 minutes idle and immediately when the app goes to the background (decided 2026-09-13). |
+| R11 | Auto-lock | The decrypted seed is held only while unlocked. Lock after 5 minutes idle and immediately when the app goes to the background (decided 2026-09-13). Exception (2026-09-13): while a send is running, both locks are deferred and applied when it finishes, so a proof survives an app switch; the seed stays in worker memory for those minutes. |
 | R12 | Address type | Generation, EC hybrid and viewing addresses, each with its own key sequence (changed 2026-09-13 from generation only). Symmetric keys are not offered. |
 | R13 | Send screen | One recipient, amount, and fee. |
 | R14 | Accounts | One account in the UI. All storage is keyed by an account id so more can be added later. |

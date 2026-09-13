@@ -12,6 +12,10 @@ export class AccountService {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly listeners = new Set<LockListener>();
   private visibilityHandler: (() => void) | null = null;
+  // While a send is running the seed must stay loaded, so the background
+  // and idle locks are deferred and applied once the send finishes.
+  private lockDeferred = false;
+  private lockPending = false;
 
   constructor(
     private readonly db: VaultDb,
@@ -78,14 +82,32 @@ export class AccountService {
   /** Call on any user interaction to postpone the idle lock. */
   touch(): void {
     if (this.unlockedId === null) return;
+    this.lockPending = false;
     this.clearIdleTimer();
-    this.idleTimer = setTimeout(() => void this.lock(), this.lockTimeoutMs);
+    this.idleTimer = setTimeout(() => this.requestLock(), this.lockTimeoutMs);
+  }
+
+  /**
+   * Defer the automatic locks (background, idle) while a send runs; when
+   * deferral ends and a lock was requested meanwhile, lock then.
+   */
+  setLockDeferred(deferred: boolean): void {
+    this.lockDeferred = deferred;
+    if (!deferred && this.lockPending) {
+      this.lockPending = false;
+      void this.lock();
+    }
+  }
+
+  private requestLock(): void {
+    if (this.lockDeferred) this.lockPending = true;
+    else void this.lock();
   }
 
   /** Lock as soon as the page is hidden (backgrounded or tab switched). */
   installVisibilityLock(doc: Document = document): () => void {
     this.visibilityHandler = () => {
-      if (doc.visibilityState === 'hidden') void this.lock();
+      if (doc.visibilityState === 'hidden') this.requestLock();
     };
     doc.addEventListener('visibilitychange', this.visibilityHandler);
     return () => {

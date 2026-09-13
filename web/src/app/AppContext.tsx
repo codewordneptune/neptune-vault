@@ -1,11 +1,25 @@
 // App-wide state: the services, the current account, lock state, sync
 // progress, and the derived balance and history. Screens subscribe here.
 
+import { notifications } from '@mantine/notifications';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { AccountRecord, HistoryRecord, Network, UtxoRecord } from '../storage/db';
+import type { SendRequest } from '../wallet/core';
 import type { SyncProgress } from '../wallet/sync';
+import { RequiresLustrationError, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
+
+/** A send in flight, or just finished; lives here so it survives the
+ * Send screen unmounting when the app locks on backgrounding. */
+export interface SendJob {
+  request: SendRequest;
+  startedAt: number;
+  progress: SendProgress;
+  done: boolean;
+  outcome: SendOutcome | null;
+  error: string | null;
+}
 
 export interface Balance {
   /** Confirmed and spendable, in nau. */
@@ -33,6 +47,12 @@ export interface AppState {
   network: Network;
   /** Lock, select the network, and show its account (or onboarding). */
   switchNetwork: (network: Network) => Promise<void>;
+  /** The running or last send. */
+  sendJob: SendJob | null;
+  /** Run a send as a job: wake lock held, auto-lock deferred, toast at the end. */
+  startSend: (request: SendRequest) => Promise<SendOutcome>;
+  cancelSend: () => void;
+  dismissSendJob: () => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -53,6 +73,7 @@ export function AppProvider({ services, children }: { services: Services; childr
   const [utxos, setUtxos] = useState<UtxoRecord[]>([]);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [network, setNetwork] = useState<Network>(services.settings.network);
+  const [sendJob, setSendJob] = useState<SendJob | null>(null);
   const syncing = useRef(false);
 
   const switchNetwork = useCallback(
@@ -96,6 +117,44 @@ export function AppProvider({ services, children }: { services: Services; childr
     setHistory(rows);
   }, [services, accountId]);
 
+  const startSend = useCallback(
+    async (request: SendRequest): Promise<SendOutcome> => {
+      if (!accountId) throw new Error('no account');
+      const service = services.sendService(accountId);
+      let wake: WakeLockSentinel | null = null;
+      try {
+        wake = (await navigator.wakeLock?.request('screen')) ?? null;
+      } catch {
+        wake = null;
+      }
+      services.accounts.setLockDeferred(true);
+      setSendJob({ request, startedAt: Date.now(), progress: { stage: 'planning' }, done: false, outcome: null, error: null });
+      try {
+        const outcome = await service.send(request, (progress) => setSendJob((job) => (job ? { ...job, progress } : job)));
+        setSendJob((job) => (job ? { ...job, done: true, outcome } : job));
+        notifications.show({ color: 'green', title: 'Sent', message: `${request.amount} NPT submitted. It shows as pending until the network includes it.` });
+        await refresh();
+        return outcome;
+      } catch (e) {
+        const message = e instanceof RequiresLustrationError ? null : (e as Error).message;
+        setSendJob((job) => (job ? { ...job, done: true, error: message } : job));
+        if (message) notifications.show({ color: 'red', title: 'Not sent', message });
+        throw e;
+      } finally {
+        await wake?.release();
+        services.accounts.setLockDeferred(false);
+      }
+    },
+    [services, accountId, refresh],
+  );
+
+  const cancelSend = useCallback(() => {
+    services.prover.cancel();
+    setSendJob((job) => (job && !job.done ? { ...job, done: true, error: 'Cancelled.' } : job));
+  }, [services]);
+
+  const dismissSendJob = useCallback(() => setSendJob(null), []);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -134,8 +193,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   }, [utxos]);
 
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, setAccount, network, switchNetwork }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, network, switchNetwork],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, setAccount, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

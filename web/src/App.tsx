@@ -6,6 +6,7 @@ import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { useApp } from './app/AppContext';
 import { Logo } from './components/Logo';
 import { NetworkMenu } from './components/NetworkMenu';
+import { SendStrip } from './components/SendStrip';
 import { Diagnostics } from './screens/Diagnostics';
 import { Home } from './screens/Home';
 import { Onboarding } from './screens/Onboarding';
@@ -52,6 +53,7 @@ export function App() {
           </Group>
         </Container>
       </header>
+      <SendStrip />
       <Container component="main" size="xs" py="md">
         <Routes>
           <Route path="/onboarding" element={account ? <Navigate to="/" replace /> : <Onboarding />} />

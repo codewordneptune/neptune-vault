@@ -313,3 +313,55 @@ button.vault-network::before {
   white-space: nowrap;
   border: 0;
 }
+
+/* Send-in-progress strip under the header. */
+.vault-sendstrip {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 8px 16px 10px;
+  background: var(--v-accent-soft);
+  color: var(--v-text);
+  border-bottom: 1px solid var(--v-surface-2);
+}
+.vault-sendstrip:disabled {
+  cursor: default;
+}
+.vault-sendstrip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  max-width: 540px;
+  margin: 0 auto 6px;
+}
+.vault-sendstrip .mantine-Progress-root {
+  max-width: 540px;
+  margin: 0 auto;
+}
+
+/* Review step rows. */
+.vault-review {
+  display: grid;
+  gap: 10px;
+}
+.vault-review-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--v-surface-2);
+  font-size: var(--v-fs-sm);
+  color: var(--v-muted);
+}
+.vault-review-row b {
+  color: var(--v-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.vault-review-row.total {
+  font-size: var(--v-fs-md);
+}
+.vault-review-row.total b {
+  font-size: 1.125rem;
+}
