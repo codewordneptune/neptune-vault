@@ -1,7 +1,7 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Button, Group, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconDeviceMobile, IconDownload, IconEye, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
+import { IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -55,11 +55,10 @@ export function Settings() {
     URL.revokeObjectURL(url);
   };
 
-  const showPhrase = async () => {
-    // The phrase is only in the worker; ask it back via the account record's
-    // envelope by re-deriving is not possible without the password, so the
-    // worker exposes it directly while unlocked.
-    setPhrase(await services.core.phrase());
+  // The phrase lives only in the worker while unlocked; it is fetched on
+  // show and dropped from this screen on hide.
+  const togglePhrase = async () => {
+    setPhrase(phrase ? null : await services.core.phrase());
   };
 
   return (
@@ -93,7 +92,9 @@ export function Settings() {
           </Text>
           <Group>
             <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>
-            <Button variant="light" leftSection={<IconEye size={16} stroke={1.8} />} onClick={() => void showPhrase()} disabled={!account}>Show seed phrase</Button>
+            <Button variant="light" leftSection={phrase ? <IconEyeOff size={16} stroke={1.8} /> : <IconEye size={16} stroke={1.8} />} onClick={() => void togglePhrase()} disabled={!account}>
+              {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
+            </Button>
           </Group>
           {phrase && <WordGrid words={phrase} />}
         </Stack>
