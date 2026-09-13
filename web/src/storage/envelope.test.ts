@@ -40,3 +40,17 @@ describe('seed envelope', () => {
     expect(a.seed.iv).not.toBe(b.seed.iv);
   });
 });
+
+describe('passkey wrapping', () => {
+  it('wraps the content key under a secret and opens the seed with it', async () => {
+    const { extractContentKey, wrapContentKey, openSeedWithSecret } = await import('./envelope');
+    const phrase = ['a', 'b', 'c'];
+    const env = await sealSeed(phrase, 'pw', fakeDerive, { mKib: 8, tCost: 1, pCost: 1 });
+    const contentRaw = await extractContentKey(env, 'pw', fakeDerive);
+    const secret = new Uint8Array(32).fill(7);
+    const wrapped = await wrapContentKey(contentRaw, secret);
+    expect(await openSeedWithSecret(env, wrapped, secret)).toEqual(phrase);
+    await expect(openSeedWithSecret(env, wrapped, new Uint8Array(32).fill(8))).rejects.toThrow('no longer matches');
+    await expect(extractContentKey(env, 'nope', fakeDerive)).rejects.toThrow(WrongPasswordError);
+  });
+});

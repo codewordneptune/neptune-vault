@@ -120,6 +120,43 @@ export async function openSeed(envelope: SeedEnvelope, password: string, deriveK
   return td.decode(phrase).split(' ');
 }
 
+/** The raw content key, after checking the password. Zero it when done. */
+export async function extractContentKey(envelope: SeedEnvelope, password: string, deriveKey: DeriveKey): Promise<Uint8Array> {
+  const { mKib, tCost, pCost, salt } = envelope.kdf;
+  const wrapRaw = await deriveKey(te.encode(password), fromB64(salt), mKib, tCost, pCost);
+  const wrapKey = await importAesKey(wrapRaw, ['decrypt']);
+  wrapRaw.fill(0);
+  try {
+    return await aesDecrypt(wrapKey, envelope.wrappedContentKey);
+  } catch {
+    throw new WrongPasswordError();
+  }
+}
+
+/** Wrap the content key under a 32-byte secret (a passkey's PRF output). */
+export async function wrapContentKey(contentRaw: Uint8Array, secret: Uint8Array): Promise<{ iv: string; ciphertext: string }> {
+  const key = await importAesKey(secret, ['encrypt']);
+  return aesEncrypt(key, contentRaw);
+}
+
+/** Recover the phrase from a content key wrapped under a secret. */
+export async function openSeedWithSecret(
+  envelope: SeedEnvelope,
+  wrapped: { iv: string; ciphertext: string },
+  secret: Uint8Array,
+): Promise<string[]> {
+  const key = await importAesKey(secret, ['decrypt']);
+  let contentRaw: Uint8Array;
+  try {
+    contentRaw = await aesDecrypt(key, wrapped);
+  } catch {
+    throw new Error('This passkey no longer matches the wallet; unlock with the password and set the passkey up again.');
+  }
+  const contentKey = await importAesKey(contentRaw, ['decrypt']);
+  contentRaw.fill(0);
+  return td.decode(await aesDecrypt(contentKey, envelope.seed)).split(' ');
+}
+
 /** Re-wrap the content key under a new password; the seed ciphertext stays. */
 export async function changePassword(
   envelope: SeedEnvelope,

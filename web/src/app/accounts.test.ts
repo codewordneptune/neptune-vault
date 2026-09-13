@@ -6,6 +6,14 @@ import { openVaultDb, type VaultDb } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import type { WalletCore } from '../wallet/core';
 import { AccountService } from './accounts';
+import type { PasskeyProvider } from './passkey';
+
+class FakePasskeys implements PasskeyProvider {
+  secretBytes = new Uint8Array(32).fill(42);
+  async supported() { return true; }
+  async enrol() { return { credentialId: 'cred', prfSalt: 'salt', secret: new Uint8Array(this.secretBytes) }; }
+  async secret(credentialId: string) { if (credentialId !== 'cred') throw new Error('unknown credential'); return new Uint8Array(this.secretBytes); }
+}
 
 /** Enough of the wallet core for the account flows. */
 class FakeCore implements Partial<WalletCore> {
@@ -106,6 +114,27 @@ describe('account service', () => {
     service.setLockDeferred(false);
     await sleep(10);
     expect(service.currentAccountId).toBeNull();
+  });
+
+  it('enables passkey unlock, unlocks with it, survives a password change, and turns off', async () => {
+    db = await openVaultDb();
+    const core = new FakeCore();
+    const passkeys = new FakePasskeys();
+    const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000, passkeys);
+    const record = await service.createAccount(await service.generatePhrase(), 'pw-one', 'regtest', 1);
+    await expect(service.enablePasskey(record.id, 'wrong')).rejects.toThrow(WrongPasswordError);
+    await service.enablePasskey(record.id, 'pw-one');
+    expect((await db.get('accounts', record.id))?.passkey?.credentialId).toBe('cred');
+    await service.lock();
+    await service.unlockWithPasskey(record.id);
+    expect(service.currentAccountId).toBe(record.id);
+    await service.changePassword(record.id, 'pw-one', 'pw-two-long');
+    await service.lock();
+    await service.unlockWithPasskey(record.id);
+    expect(service.currentAccountId).toBe(record.id);
+    await service.disablePasskey(record.id);
+    expect((await db.get('accounts', record.id))?.passkey).toBeUndefined();
+    await expect(service.unlockWithPasskey(record.id)).rejects.toThrow('No passkey');
   });
 
   it('changes the password and keeps the seed', async () => {

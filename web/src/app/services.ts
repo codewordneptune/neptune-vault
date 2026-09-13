@@ -6,6 +6,7 @@ import { ProverClient } from '../prover/client';
 import { loadSettings, openVaultDb, requestPersistentStorage, saveSettings, type Network, type SettingsRecord, type VaultDb } from '../storage/db';
 import { WalletWorkerClient } from '../wallet/workerClient';
 import { ContactsService } from './contacts';
+import { WebAuthnPasskeys } from './passkey';
 import { SyncEngine, type SyncProgress } from '../wallet/sync';
 import { AccountService } from './accounts';
 import { SendService } from './send';
@@ -35,7 +36,7 @@ export async function createServices(): Promise<Services> {
   const persistent = await requestPersistentStorage();
   let settings = await loadSettings(db);
   const core = new WalletWorkerClient();
-  const accounts = new AccountService(db, core, settings.lockTimeoutMs);
+  const accounts = new AccountService(db, core, settings.lockTimeoutMs, new WebAuthnPasskeys());
   const prover = new ProverClient();
 
   const services: Services = {

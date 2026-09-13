@@ -36,6 +36,8 @@ export interface AccountRecord {
   lastBackupAt?: number;
   /** When the Home backup reminder was last dismissed; it returns after a week. */
   backupNudgeDismissedAt?: number;
+  /** Passkey unlock: the content key wrapped under the passkey's PRF secret. */
+  passkey?: { credentialId: string; prfSalt: string; wrappedContentKey: { iv: string; ciphertext: string } };
 }
 
 export interface UtxoRecord {

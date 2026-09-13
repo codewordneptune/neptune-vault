@@ -2,7 +2,8 @@
 // confirm it word by word, set a password.
 
 import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Select, Stack, Text, Textarea, Title } from '@mantine/core';
-import { IconCopy } from '@tabler/icons-react';
+import { IconCopy, IconFileUpload } from '@tabler/icons-react';
+import { useRef } from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -307,6 +308,7 @@ function ImportStep({
 }) {
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [filePassword, setFilePassword] = useState('');
   const words = text.trim().split(/\s+/).filter(Boolean);
   return (
@@ -318,7 +320,15 @@ function ImportStep({
         <NumberInput label="Scan from block height" description="The block your first funds arrived in, or 1 to scan everything (slow)." min={1} value={birthday} onChange={setBirthday} />
         <Button disabled={words.length !== 18} onClick={() => onPhrase(words.map((w) => w.toLowerCase()))}>Continue with this phrase</Button>
         <Text size="sm" c="dimmed">Or restore a backup file exported by this app:</Text>
-        <input type="file" aria-label="Backup file" accept="application/json,.json" onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
+        <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
+        <Group align="center">
+          <Button variant="default" leftSection={<IconFileUpload size={16} stroke={1.8} />} onClick={() => fileInput.current?.click()}>
+            Choose backup file
+          </Button>
+          <Text size="sm" c={file ? undefined : 'dimmed'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {file ? file.name : 'No file chosen'}
+          </Text>
+        </Group>
         <PasswordInput label="Backup file password" value={filePassword} onChange={(e) => setFilePassword(e.currentTarget.value)} />
         <Button variant="light" disabled={!file || !filePassword} loading={busy} onClick={() => file && onFile(file, filePassword)}>Restore from file</Button>
         <Button variant="subtle" onClick={onBack}>Back</Button>

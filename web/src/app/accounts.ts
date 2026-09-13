@@ -2,7 +2,8 @@
 // policy (R11: five minutes idle, immediately on backgrounding).
 
 import { FRESH_KEY_INDICES, type AccountRecord, type Network, type VaultDb } from '../storage/db';
-import { changePassword as reWrapSeed, DEFAULT_KDF, openSeed, sealSeed, type DeriveKey, type ExportFile } from '../storage/envelope';
+import { changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, openSeed, openSeedWithSecret, sealSeed, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
+import type { PasskeyProvider } from './passkey';
 import { addressKindLabel } from '../util/address';
 import type { WalletCore } from '../wallet/core';
 
@@ -22,7 +23,54 @@ export class AccountService {
     private readonly db: VaultDb,
     private readonly core: WalletCore,
     private readonly lockTimeoutMs: number,
+    private readonly passkeys: PasskeyProvider | null = null,
   ) {}
+
+  passkeySupported(): Promise<boolean> {
+    return this.passkeys ? this.passkeys.supported() : Promise.resolve(false);
+  }
+
+  /**
+   * Set up passkey unlock: the password proves the account, the passkey is
+   * created with user verification, and its PRF secret wraps the content
+   * key. Throws WrongPasswordError for a wrong password.
+   */
+  async enablePasskey(accountId: string, password: string): Promise<void> {
+    if (!this.passkeys) throw new Error('Passkeys are not available here');
+    const record = await this.db.get('accounts', accountId);
+    if (!record) throw new Error('account not found');
+    const contentRaw = await extractContentKey(record.envelope, password, this.derive);
+    try {
+      const enrolment = await this.passkeys.enrol(`Neptune Vault (${record.network})`);
+      const wrappedContentKey = await wrapContentKey(contentRaw, enrolment.secret);
+      enrolment.secret.fill(0);
+      await this.db.put('accounts', { ...record, passkey: { credentialId: enrolment.credentialId, prfSalt: enrolment.prfSalt, wrappedContentKey } });
+    } finally {
+      contentRaw.fill(0);
+    }
+  }
+
+  async disablePasskey(accountId: string): Promise<void> {
+    const record = await this.db.get('accounts', accountId);
+    if (!record) return;
+    const { passkey: _dropped, ...rest } = record;
+    await this.db.put('accounts', rest);
+  }
+
+  async unlockWithPasskey(accountId: string): Promise<void> {
+    if (!this.passkeys) throw new Error('Passkeys are not available here');
+    const record = await this.db.get('accounts', accountId);
+    if (!record?.passkey) throw new Error('No passkey is set up for this wallet');
+    const secret = await this.passkeys.secret(record.passkey.credentialId, record.passkey.prfSalt);
+    let phrase: string[];
+    try {
+      phrase = await openSeedWithSecret(record.envelope, record.passkey.wrappedContentKey, secret);
+    } finally {
+      secret.fill(0);
+    }
+    await this.core.unlock(phrase, record.network);
+    this.setUnlocked(accountId);
+  }
 
   private readonly derive: DeriveKey = (pw, salt, m, t, p) => this.core.deriveKey(pw, salt, m, t, p);
 

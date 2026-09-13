@@ -2,7 +2,7 @@
 // kinds. Key 0 of a kind is its main address; "next unused" derives the next
 // key of that kind.
 
-import { Button, Code, Group, Paper, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { Button, Code, Group, Modal, Paper, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { IconCopy, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
@@ -38,6 +38,7 @@ export function Receive() {
   const [showFull, setShowFull] = useState(false);
   // Optional amount for a payment request; the link follows NIP-2 (npt:).
   const [requestAmount, setRequestAmount] = useState('');
+  const [sharing, setSharing] = useState(false);
   const paymentLink = `npt:${address}${requestAmount.trim() ? `?amount=${encodeURIComponent(requestAmount.trim())}` : ''}`;
   const index = indices[kind];
 
@@ -67,6 +68,7 @@ export function Receive() {
 
   // The system share sheet where it exists; otherwise the link is copied.
   const share = async () => {
+    setSharing(false);
     const text = requestAmount.trim() ? `Please send ${requestAmount.trim()} NPT to ${paymentLink}` : paymentLink;
     if (navigator.share) {
       try {
@@ -111,20 +113,25 @@ export function Receive() {
           <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy}>
             Copy
           </Button>
-          <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()}>
+          <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => setSharing(true)}>
             Share
           </Button>
         </Group>
-        <TextInput
-          label="Request an amount (optional)"
-          description="Adds the amount to the shared payment link; the QR code stays the plain address."
-          inputMode="decimal"
-          value={requestAmount}
-          onChange={(e) => setRequestAmount(e.currentTarget.value)}
-        />
-        <Button variant="subtle" size="compact-sm" onClick={nextUnused} style={{ alignSelf: 'flex-start' }}>
-          Use the next unused address
-        </Button>
+        <Modal opened={sharing} onClose={() => setSharing(false)} title="Share a payment link">
+          <Stack>
+            <TextInput
+              label="Amount to request (optional)"
+              description="Goes into the shared link so the payer's wallet fills it in. The QR code stays the plain address."
+              inputMode="decimal"
+              value={requestAmount}
+              onChange={(e) => setRequestAmount(e.currentTarget.value)}
+              autoFocus
+            />
+            <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()}>
+              Share
+            </Button>
+          </Stack>
+        </Modal>
         <UnstyledButton onClick={() => setShowFull((v) => !v)} c="neptune.3" fz="sm" ta="center">
           {showFull ? 'Hide full address' : 'Show full address'}
         </UnstyledButton>
@@ -133,9 +140,14 @@ export function Receive() {
             {address}
           </Code>
         )}
-        <Text size="xs" c="dimmed">
-          {KIND_LABELS[kind]} address {index}. Funds sent to any of your addresses are found by the sync.
-        </Text>
+        <Group justify="space-between" align="baseline">
+          <Text size="xs" c="dimmed">
+            {KIND_LABELS[kind]} address {index}. Funds sent to any of your addresses are found by the sync.
+          </Text>
+          <UnstyledButton onClick={nextUnused} c="neptune.3" fz="xs" style={{ flexShrink: 0 }}>
+            Next unused
+          </UnstyledButton>
+        </Group>
       </Stack>
     </Paper>
   );

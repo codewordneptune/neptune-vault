@@ -1,4 +1,15 @@
+import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+
 import { defineConfig } from 'vite';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
+let commit = 'unknown';
+try {
+  commit = execSync('git rev-parse --short HEAD').toString().trim();
+} catch {
+  // Not a git checkout (a plain source archive); the version still shows.
+}
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -10,6 +21,11 @@ const isolationHeaders = {
 };
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_COMMIT__: JSON.stringify(commit),
+    __APP_BUILT_AT__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({

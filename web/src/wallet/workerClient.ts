@@ -61,6 +61,9 @@ export class WalletWorkerClient implements WalletCore {
     this.pending.clear();
   }
 
+  coreVersion() {
+    return this.call<string>('coreVersion');
+  }
   generatePhrase() {
     return this.call<string[]>('generatePhrase');
   }

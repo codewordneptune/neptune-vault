@@ -74,6 +74,8 @@ export interface SendPlan {
 
 /** Everything the app asks of the wallet core, unlocked or not. */
 export interface WalletCore {
+  /** Version of the wasm wallet core package. */
+  coreVersion?(): Promise<string>;
   generatePhrase(): Promise<string[]>;
   deriveKey(password: Uint8Array, salt: Uint8Array, mKib: number, tCost: number, pCost: number): Promise<Uint8Array>;
   parseAmount(text: string): Promise<string>;

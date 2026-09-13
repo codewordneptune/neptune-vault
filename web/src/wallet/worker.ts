@@ -48,6 +48,8 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
   switch (op) {
     case 'ping':
       return { result: true };
+    case 'coreVersion':
+      return { result: m.core_version() };
     case 'generatePhrase':
       return { result: m.generate_phrase() };
     case 'deriveKey': {

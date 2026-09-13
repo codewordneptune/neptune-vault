@@ -1,7 +1,7 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Button, Group, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconCopy, IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
+import { IconCopy, IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconFingerprint, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -138,6 +138,7 @@ export function Settings() {
             The password encrypts your phrase on this device and is asked for on every unlock. Changing it does not change the phrase or the backup file's contents beyond the new wrapping.
           </Text>
           <ChangePassword />
+          <PasskeyCard />
         </Stack>
       </Paper>
 
@@ -282,5 +283,98 @@ function InstallCard() {
     <Text size="sm" c="dimmed">
       To install: open the browser menu and choose "Install app" or "Add to Home screen".
     </Text>
+  );
+}
+
+function PasskeyCard() {
+  const { services, account, refresh } = useApp();
+  const [supported, setSupported] = useState<boolean | null>(null);
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const enabled = Boolean(account?.passkey);
+
+  useEffect(() => {
+    void services.accounts.passkeySupported().then(setSupported);
+  }, [services]);
+
+  const enable = async () => {
+    if (!account) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await services.accounts.enablePasskey(account.id, password);
+      setPassword('');
+      setOpen(false);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof WrongPasswordError ? 'The password is wrong.' : (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disable = async () => {
+    if (!account) return;
+    await services.accounts.disablePasskey(account.id);
+    await refresh();
+  };
+
+  if (supported === false && !enabled) {
+    return (
+      <Text size="sm" c="dimmed">
+        Passkey unlock needs a device with a screen lock and a browser that supports passkeys; this one does not offer it.
+      </Text>
+    );
+  }
+  if (enabled) {
+    return (
+      <Stack gap="xs">
+        <Text size="sm" c="dimmed">
+          Passkey unlock is on: the wallet opens with your fingerprint, face or device PIN. The password still works and is what a backup file needs.
+        </Text>
+        <Group>
+          <Button variant="light" leftSection={<IconFingerprint size={16} stroke={1.8} />} onClick={() => void disable()}>
+            Turn off passkey unlock
+          </Button>
+        </Group>
+      </Stack>
+    );
+  }
+  if (!open) {
+    return (
+      <Stack gap="xs">
+        <Text size="sm" c="dimmed">
+          Unlock with your fingerprint, face or device PIN instead of typing the password. The passkey stays on this device.
+        </Text>
+        <Group>
+          <Button variant="light" leftSection={<IconFingerprint size={16} stroke={1.8} />} disabled={!account || supported === null} onClick={() => setOpen(true)}>
+            Set up passkey unlock
+          </Button>
+        </Group>
+      </Stack>
+    );
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void enable();
+      }}
+    >
+      <Stack>
+        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
+        <PasswordInput label="Confirm your password" description="Needed once, to let the passkey protect the same key." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" autoFocus />
+        <Group grow>
+          <Button variant="default" onClick={() => { setOpen(false); setPassword(''); setError(null); }}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={busy} disabled={!password}>
+            Create passkey
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }
