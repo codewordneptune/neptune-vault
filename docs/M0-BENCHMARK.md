@@ -240,6 +240,22 @@ The inverse also helps natively: the round-trip test on 16 cores went from
 68.7 s to 43.1 s (removal records integrity 45.9 s to 29.0 s), and the
 consensus verifier still accepts the collection.
 
+### Desktop, Chrome 152, production build, 16 threads, no LDE cache
+
+| # | Sub-proof | Time (s) | Single-threaded (s) | Speed-up |
+|---|-----------|---------:|--------------------:|---------:|
+| 1 | removal_records_integrity | 97.0 | 277.4 | 2.9 |
+| 2 | collect_lock_scripts | 4.6 | 15.8 | 3.4 |
+| 3 | kernel_to_outputs | 8.6 | 36.3 | 4.2 |
+| 4 | collect_type_scripts | 9.0 | 30.5 | 3.4 |
+| 5 | lock_script_0 | 1.0 | 4.1 | 4.1 |
+| 6 | type_script_0 | 17.1 | 64.1 | 3.7 |
+| | Total | 138.0 | 428.3 | 3.1 |
+
+Peak wasm memory 1026 MB. 3.1x from threads in the browser against 8x
+natively on the same machine with the same inverse (43 s), so there is
+still headroom, but the phone budget question is settled with margin.
+
 ## Levers if the phone misses the budget
 
 1. No LDE cache (this build). Memory first, time second.
