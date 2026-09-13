@@ -1,0 +1,140 @@
+[package]
+name = "twenty-first"
+version = "1.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+description = "Collection of mathematics routines and cryptography for the twenty-first century."
+license.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+keywords = ["polynomial", "merkle-tree", "post-quantum", "algebra", "tip5"]
+categories = ["cryptography", "mathematics"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+arbitrary = { version = "1", features = ["derive"] }
+bfieldcodec_derive = "0.7"
+get-size2 = { version = "0.7", features = ["derive"] }
+hex = "0.4.3"
+itertools = "0.14"
+num-bigint = { version = "0.4", features = ["serde"] }
+num-traits = "0.2"
+phf = { version = "0.13", features = ["macros"] }
+rand = "0.9"
+rayon = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+serde-big-array = "0.5"
+serde_derive = "1"
+serde_json = "1.0"
+sha3 = "0.10.8"
+thiserror = "2.0"
+zeroize = { version = "1.8.1", features = ["derive"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] } # note that there is also a flag in .cargo/config.toml
+wasm-bindgen = "0.2.104"
+
+[dev-dependencies]
+bincode = "1.3.3"
+blake3 = "1.5.5"
+macro_rules_attr = "0.1.3"
+test-strategy = "=0.4.3"
+trybuild = "1.0"
+proptest = { version = "1.7.0", default-features = false, features = ["std"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+criterion = { package = "codspeed-criterion-compat", version = "4.0", features = ["html_reports"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+criterion = { version = "0.8.1", default-features = false }
+wasm-bindgen-test = "0.3.42"
+
+# Workaround for Rust 1.87.0 (see also: <https://github.com/rust-lang/rust/issues/141048>)
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O4", "--enable-bulk-memory"]
+
+[lints]
+workspace = true
+
+[[bench]]
+name = "tip5"
+harness = false
+
+[[bench]]
+name = "ntt"
+harness = false
+
+[[bench]]
+name = "evaluation"
+harness = false
+
+[[bench]]
+name = "extrapolation"
+harness = false
+
+[[bench]]
+name = "coset_extrapolation"
+harness = false
+
+[[bench]]
+name = "poly_mod_reduce"
+harness = false
+
+[[bench]]
+name = "interpolation"
+harness = false
+
+[[bench]]
+name = "poly_clean_div"
+harness = false
+
+[[bench]]
+name = "poly_mul"
+harness = false
+
+[[bench]]
+name = "poly_scalar_mul"
+harness = false
+
+[[bench]]
+name = "poly_scale"
+harness = false
+
+[[bench]]
+name = "inverses"
+harness = false
+
+[[bench]]
+name = "merkle_tree"
+harness = false
+
+[[bench]]
+name = "merkle_tree_authenticate"
+harness = false
+
+[[bench]]
+name = "merkle_tree_auth_structure_size"
+harness = false
+
+[[bench]]
+name = "polynomial_coset"
+harness = false
+
+[[bench]]
+name = "various_muls"
+harness = false
+
+[[bench]]
+name = "zerofier"
+harness = false
+
+[[bench]]
+name = "formal_power_series_inverse"
+harness = false

@@ -59,6 +59,7 @@ mod wasm {
         network: &str,
         block_height: u64,
         cache_lde_trace: bool,
+        profile: bool,
         on_progress: &js_sys::Function,
     ) -> Result<Vec<u8>, JsError> {
         console_error_panic_hook::set_once();
@@ -80,8 +81,9 @@ mod wasm {
         } else {
             super::LdeTrace::NoCache
         };
-        let collection = super::prove_proof_collection(&witness, rule_set, lde_trace, &mut report)
-            .map_err(|e| JsError::new(&format!("{e:#}")))?;
+        let collection =
+            super::prove_proof_collection(&witness, rule_set, lde_trace, profile, &mut report)
+                .map_err(|e| JsError::new(&format!("{e:#}")))?;
         bincode::serialize(&collection)
             .map_err(|e| JsError::new(&format!("cannot encode proof collection: {e}")))
     }

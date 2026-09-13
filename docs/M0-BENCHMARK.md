@@ -115,6 +115,127 @@ a different protocol:
 Together that is the observed 15x. Threads and SIMD (levers 2 and 3) are the
 part of it a PWA can recover; a realistic target on the S24 is 60 to 120 s.
 
+## Threaded build (lever 2)
+
+Build: wasm-bindgen-rayon, std rebuilt with atomics, SIMD on, no LDE cache
+unless stated. Cross-origin isolated page. Current nightlies need explicit
+`--shared-memory`, `--import-memory` and the TLS exports as linker args,
+see `.cargo/config.toml`.
+
+### Thread pool sanity check, desktop Chrome, pure compute
+
+| Threads | Time (ms) | Speed-up |
+|--------:|----------:|---------:|
+| 1 | 6226 | 1.0 |
+| 2 | 3066 | 2.0 |
+| 4 | 1477 | 4.2 |
+| 8 | 755 | 8.2 |
+| 16 | 513 | 12.1 |
+
+The pool and the machine scale as expected on a parallel loop without
+allocation.
+
+### Desktop, Chrome 152, 16 threads, no LDE cache
+
+| # | Sub-proof | Time (s) | Single-threaded (s) | Wasm memory after (MB) |
+|---|-----------|---------:|--------------------:|-----------------------:|
+| 1 | removal_records_integrity | 224.9 | 277.4 | 1022 |
+| 2 | collect_lock_scripts | 13.6 | 15.8 | 1022 |
+| 3 | kernel_to_outputs | 27.1 | 36.3 | 1022 |
+| 4 | collect_type_scripts | 26.6 | 30.5 | 1022 |
+| 5 | lock_script_0 | 2.4 | 4.1 | 1022 |
+| 6 | type_script_0 | 52.5 | 64.1 | 1022 |
+| | Total | 350.3 | 428.3 | 1022 peak |
+
+Only 1.22x from 16 threads, while the compute-only loop gets 12x. The
+bottleneck is inside the prover's workload, not the thread pool.
+
+### Desktop, Chrome 152, 16 threads, LDE cache on
+
+| # | Sub-proof | Time (s) | Single-threaded cached (s) | Wasm memory after (MB) |
+|---|-----------|---------:|---------------------------:|-----------------------:|
+| 1 | removal_records_integrity | 181.0 | 378.3 | 3474 |
+| 2 | collect_lock_scripts | 6.0 | 21.2 | 3474 |
+| 3 | kernel_to_outputs | 12.3 | 42.7 | 3474 |
+| 4 | collect_type_scripts | 12.1 | 36.1 | 3474 |
+| 5 | lock_script_0 | 0.8 | 2.3 | 3474 |
+| 6 | type_script_0 | 26.9 | 76.0 | 3474 |
+| | Total | 242.2 | 556.9 | 3474 peak |
+
+With the cache on, the same threads give 2.1x on the largest proof and 3.5x
+on the small ones. So the parallel structure of the cached path works in
+wasm, and it is the no-cache path that does not scale. Unfortunately the
+no-cache path is the only one that fits a phone.
+
+Allocation is not the reason: the compute loop with a small Vec allocated
+and freed per item still scales 20x at 16 threads (7581 ms to 368 ms), so
+the wasm allocator's lock is not the limit at this granularity.
+
+### Native baseline, no LDE cache, 1 thread versus 16
+
+`RAYON_NUM_THREADS=1 cargo test --release -p vault-prover -- --ignored`:
+
+| Sub-proof | 1 thread (s) | 16 threads (s) | Speed-up | wasm 1 thread (s) |
+|-----------|-------------:|---------------:|---------:|------------------:|
+| removal_records_integrity | 220.9 | 45.9 | 4.8 | 277.4 |
+| collect_lock_scripts | 12.8 | 2.7 | 4.7 | 15.8 |
+| kernel_to_outputs | 25.0 | 5.0 | 5.0 | 36.3 |
+| collect_type_scripts | 24.3 | 4.7 | 5.2 | 30.5 |
+| lock_script_0 | 2.3 | 0.4 | 5.8 | 4.1 |
+| type_script_0 | 59.4 | 9.4 | 6.3 | 64.1 |
+| Total | 345.4 | 68.7 | 5.0 | 428.3 |
+
+Two facts follow. The no-cache path does scale natively, about 5x on 16
+cores, so the algorithm is parallel enough. And single-threaded wasm is only
+1.24x slower than single-threaded native, so the wasm code itself is fine.
+The loss is specific to running the no-cache path with wasm threads. If that
+loss is recovered, the phone's 456 s would become roughly 100 s.
+
+Large per-task allocations (64 tasks of 4 MB each) also scale, 7x at 16
+threads, so plain allocation volume is not the limit either.
+
+### Phase profile, wasm, no LDE cache, removal_records_integrity
+
+Triton VM's profiler compiled in (debug assertions on for that crate, which
+makes both runs slower than the production build; only the ratio matters).
+
+| Phase | 1 thread (s) | 16 threads (s) | Speed-up |
+|-------|-------------:|---------------:|---------:|
+| main tables | 135.6 | 24.7 | 5.5 |
+| aux tables | 93.2 | 13.2 | 7.1 |
+| quotient calculation (just-in-time) | 301.9 | 38.1 | 7.9 |
+| DEEP | 16.9 | 69.1 | 0.24 |
+| whole proof | 590.0 | 154.0 | 3.8 |
+
+Every phase scales except DEEP, which gets four times slower with more
+threads and grows from 3 percent of the proof to 45 percent. DEEP is a
+parallel map over the FRI domain doing one extension-field division per
+point. `XFieldElement::inverse` in twenty-first 1.1.0 is implemented with a
+polynomial extended GCD that allocates several vectors per call. With wasm
+threads every allocation takes the allocator's single global lock, so a
+million inversions on sixteen threads turn into a lock convoy. The earlier
+allocation sweeps did not trigger it because they allocated far less often.
+
+Fix: a vendored twenty-first whose inverse uses the field norm,
+`a^{-1} = a^p * a^{p^2} / N(a)`, with no allocation. Same values, pinned by
+a test against the GCD version on 20,000 random elements.
+
+Confirmation, same profiler build, 16 threads, no cache:
+
+| Sub-proof | Before fix (s) | After fix (s) | 1 thread, same build (s) |
+|-----------|---------------:|--------------:|-------------------------:|
+| removal_records_integrity | 154.0 | 84.2 | 590.0 |
+| collect_lock_scripts | 7.6 | 5.0 | 34.2 |
+| kernel_to_outputs | 15.3 | 9.5 | 75.3 |
+| collect_type_scripts | 15.6 | 9.4 | 80.7 |
+| lock_script_0 | 1.5 | 1.1 | 6.3 |
+| type_script_0 | 31.2 | 19.6 | 132.0 |
+| Total | 226.3 | 129.2 | 918.9 |
+
+DEEP on the largest proof fell from 69.1 s to 6.6 s. Threads now give 7.1x
+over one thread on the same build. Peak memory 1024 MB. The production build
+(profiler off) is measured below.
+
 ## Levers if the phone misses the budget
 
 1. No LDE cache (this build). Memory first, time second.

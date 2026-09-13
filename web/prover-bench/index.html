@@ -28,6 +28,7 @@
   <label>Height <input id="height" value="55000" size="7"></label>
   <label><input type="checkbox" id="cache"> cache LDE trace (faster, several GB more memory)</label>
   <label>Threads <input id="threads" type="number" min="0" size="3"></label> (0 = single-threaded; needs https or localhost)
+  <label><input type="checkbox" id="profile"> Triton VM phase profile in the log</label>
 </p>
 <p><button id="run">Prove ProofCollection</button> <span id="status"></span> <span id="elapsed"></span></p>
 <p style="font-size:0.85rem;color:#555">The first sub-proof alone takes several minutes and reports nothing until it finishes. Keep this tab in the foreground.</p>
@@ -102,6 +103,7 @@ $('run').onclick = async () => {
         `<td class="num">${(data.proof_len / 1024).toFixed(0)}</td><td class="num">${mb.toFixed(0)}</td>`;
       $('rows').appendChild(tr);
       log(`done ${data.name} in ${(data.millis / 1000).toFixed(1)} s, memory ${mb.toFixed(0)} MB`);
+      if (data.profile) log(data.profile);
     } else if (data.kind === 'done') {
       const secs = (performance.now() - t0) / 1000;
       $('total').textContent = secs.toFixed(1);
@@ -120,7 +122,7 @@ $('run').onclick = async () => {
   log(`LDE trace cache: ${$('cache').checked ? 'on' : 'off'}, requested threads: ${$('threads').value}`);
   worker.postMessage({
     witness, network: $('network').value, height: Number($('height').value),
-    cacheLde: $('cache').checked, threads: Number($('threads').value),
+    cacheLde: $('cache').checked, threads: Number($('threads').value), profile: $('profile').checked,
   }, [witness]);
 };
 </script>

@@ -26,11 +26,16 @@ async fn one_input_proof_collection_verifies_under_delta() {
         .unwrap()
         .current();
     let rule_set = ConsensusRuleSet::HardforkDelta;
+    // VAULT_PROFILE=1 prints Triton VM phase profiles (needs the profiler compiled in).
+    let profile = std::env::var("VAULT_PROFILE").is_ok();
 
     let mut events = vec![];
-    let collection = prove_proof_collection(&witness, rule_set, LdeTrace::NoCache, &mut |e| {
-        if let ProgressEvent::Finished { name, millis, .. } = &e {
+    let collection = prove_proof_collection(&witness, rule_set, LdeTrace::NoCache, profile, &mut |e| {
+        if let ProgressEvent::Finished { name, millis, profile, .. } = &e {
             eprintln!("{name}: {:.1} s", millis / 1000.0);
+            if let Some(report) = profile {
+                eprintln!("{report}");
+            }
         }
         events.push(e);
     })

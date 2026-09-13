@@ -41,6 +41,9 @@ pub enum ProgressEvent {
         total: usize,
         millis: f64,
         proof_len: usize,
+        /// Triton VM's per-phase profile, when profiling was requested and
+        /// the build has the profiler compiled in.
+        profile: Option<String>,
     },
 }
 
@@ -99,6 +102,7 @@ pub fn prove_proof_collection(
     witness: &PrimitiveWitness,
     rule_set: ConsensusRuleSet,
     lde_trace: LdeTrace,
+    profile: bool,
     progress: &mut dyn FnMut(ProgressEvent),
 ) -> Result<ProofCollection> {
     // The setting is thread-local, so it must be made on the proving thread.
@@ -122,14 +126,23 @@ pub fn prove_proof_collection(
             total,
         });
         let start = Instant::now();
+        // Triton VM's profiler is a thread-local, so start and finish it
+        // around the proof on this thread. It only records phases when the
+        // crate is built with its profiler enabled (debug assertions on or
+        // the `no_profile` feature off); otherwise the report is empty.
+        if profile {
+            triton_vm::profiler::start(name);
+        }
         let proof = produce(program, claim, nondeterminism)
             .with_context(|| format!("while proving {name}"))?;
+        let report = profile.then(|| triton_vm::profiler::finish().to_string());
         progress(ProgressEvent::Finished {
             name: name.to_string(),
             index,
             total,
             millis: start.elapsed().as_secs_f64() * 1000.0,
             proof_len: proof.0.len(),
+            profile: report,
         });
         index += 1;
         Ok(proof)

@@ -2737,8 +2737,6 @@ dependencies = [
 [[package]]
 name = "twenty-first"
 version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f2127e955aea73cc584e429c544f4a5997128fd5e4021c852cb63f309bf51ea"
 dependencies = [
  "arbitrary",
  "bfieldcodec_derive",

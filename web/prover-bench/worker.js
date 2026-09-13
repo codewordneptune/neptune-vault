@@ -6,7 +6,7 @@
 import init, { initThreadPool, prove_proof_collection, count_sub_proofs, prover_version, wasm_memory_bytes } from './pkg/vault_prover.js';
 
 self.onmessage = async ({ data }) => {
-  const { witness, network, height, cacheLde, threads } = data;
+  const { witness, network, height, cacheLde, threads, profile } = data;
   try {
     await init();
   } catch (e) {
@@ -28,14 +28,14 @@ self.onmessage = async ({ data }) => {
     } catch (e) {
       self.postMessage({ kind: 'warn', message: `thread pool failed, single-threaded: ${e.message ?? e}` });
     }
-  } else {
+  } else if (threads > 0) {
     self.postMessage({ kind: 'warn', message: 'not cross-origin isolated, single-threaded' });
   }
 
   try {
     const total = count_sub_proofs(bytes);
     self.postMessage({ kind: 'ready', version: prover_version(), total, threads: poolSize, memory: memory() });
-    const result = prove_proof_collection(bytes, network, BigInt(height), Boolean(cacheLde), (json) => {
+    const result = prove_proof_collection(bytes, network, BigInt(height), Boolean(cacheLde), Boolean(profile), (json) => {
       const event = JSON.parse(json);
       self.postMessage({ ...event, memory: memory() });
     });
