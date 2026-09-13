@@ -24,8 +24,8 @@ which also maps `.wasm` to `application/wasm` and routes unknown paths to
    GitHub repository secret `AZURE_STATIC_WEB_APPS_API_TOKEN_DEV`.
 3. Custom domain: `vault.dev.useneptune.org` is configured (2026-09-13);
    Azure issues the TLS certificate itself.
-4. Tell the node operator the final origin so the node's CORS allow-list can
-   name it, or ask for a wildcard (open item O2).
+4. The public mainnet node allows any origin since 2026-09-13
+   (`Access-Control-Allow-Origin: *`); a new node must do the same.
 
 ## Deploying
 
@@ -66,6 +66,6 @@ on the deployed site (Application tab, Service Workers).
 ## What the hosted app can talk to
 
 The app calls the node from the browser, so the node must send CORS
-headers. Until O2 is resolved, a hosted build can only reach a node that
-does, or one behind a proxy that adds them. The regtest proxy in
+headers; the public mainnet node does. A node that does not can only be
+reached through a proxy that adds them. The regtest proxy in
 `vite.config.ts` exists only on the dev server.

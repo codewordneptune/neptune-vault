@@ -21,9 +21,9 @@ Not yet done for milestone 1:
 
 - The acceptance test on the Galaxy S24 (R28), including clearing site data
   and restoring from the export file.
-- Hosting on Azure with the isolation headers (component 5).
-- A testnet node (O1) and CORS on it (O2). Everything above ran through the
-  dev server's same-origin proxy to the local node.
+- A testnet node (O1). Mainnet: the public node enabled CORS on
+  2026-09-13 (`Access-Control-Allow-Origin: *`), so the hosted app reaches
+  it directly; O2 is closed.
 - Polish: change outputs appear as a "received" entry next to the "sent"
   one; the network label in the header does not update until reload; Enter
   in the unlock form does not submit in the automated browser.
@@ -63,6 +63,15 @@ produced a single proof for it (seconds on regtest); mine after the log says
 
 ## Facts learned that shape later work
 
+- Node JSON must never pass through JavaScript objects on its way to the
+  wasm core. Mainnet blocks carry `u64::MAX` in every removal record's
+  chunk dictionary (`chunk_index`), and `JSON.parse` rounds any integer
+  above 2^53; re-serialising produced a value Rust rejected, and smaller
+  big integers would have been rounded silently. The node client keeps the
+  raw response text for blocks, membership-proof snapshots and the tip
+  header, and the core parses the JSON-RPC envelope (fixed 2026-09-13).
+- Mainnet `wallet_getBlocks` returns 15 to 19 MB per 100 blocks; the core
+  scans such a batch in under a second, the transfer dominates on a phone.
 - The consensus verifier on mock-proof networks (`Network::use_mock_proof`)
   returns `proof.is_valid_mock()` and nothing else, so real proofs are
   rejected on regtest. Real proving can only be tested end to end on testnet

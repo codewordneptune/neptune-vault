@@ -161,6 +161,5 @@ On the Galaxy S24, installed as a PWA, against a testnet node:
 | Id | Item | Needed by |
 |----|------|-----------|
 | O1 | Testnet node URL (R6) | Milestone 1 testing |
-| O2 | The default mainnet node does not send CORS headers, so a browser cannot call it directly today. See ARCHITECTURE.md section 3 for the options. | Any network access from the PWA |
 | O4 | Default fee value (R19) | Send screen |
 | O6 | Resolved 2026-09-13: vendored copies in crates/vendor with the changes listed in VENDOR.md (consensus, primitives, twenty-first, triton-vm). Upstreaming remains desirable. | |
