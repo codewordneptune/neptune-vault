@@ -32,6 +32,10 @@ export interface AccountRecord {
   nextKeyIndices: NextKeyIndices;
   /** True once the user confirmed the seed phrase (F3). */
   backupConfirmed: boolean;
+  /** When an export file was last saved, or the file's date for an imported account. Absent: never. */
+  lastBackupAt?: number;
+  /** When the Home backup reminder was last dismissed; it returns after a week. */
+  backupNudgeDismissedAt?: number;
 }
 
 export interface UtxoRecord {

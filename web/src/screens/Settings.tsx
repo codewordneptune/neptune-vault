@@ -13,8 +13,9 @@ import { NETWORK_OPTIONS } from '../util/network';
 import type { Network } from '../storage/db';
 
 export function Settings() {
-  const { services, account, network, switchNetwork } = useApp();
+  const { services, account, network, switchNetwork, refresh } = useApp();
   const navigate = useNavigate();
+  const lastBackup = account?.lastBackupAt ? new Date(account.lastBackupAt).toLocaleString() : 'never';
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
   const [probe, setProbe] = useState<{ ok: boolean; text: string } | null>(null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
@@ -46,6 +47,8 @@ export function Settings() {
   const exportBackup = async () => {
     if (!account) return;
     const file = await services.accounts.exportFile(account.id);
+    await services.accounts.markBackedUp(account.id, file.exportedAt);
+    await refresh();
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -88,7 +91,10 @@ export function Settings() {
         <Stack>
           <Title order={3}>Backup</Title>
           <Text size="sm" c="dimmed">
-            Persistent storage {services.persistent ? 'granted' : 'not granted'}. Clearing the browser's site data deletes this wallet; keep the phrase or a backup file.
+            Persistent storage {services.persistent ? 'granted' : 'not granted'}. Clearing the browser's site data deletes this wallet and its contacts; keep the phrase or a backup file.
+          </Text>
+          <Text size="sm" c={account?.lastBackupAt ? 'dimmed' : 'yellow'}>
+            Last backup file: {lastBackup}
           </Text>
           <Group>
             <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>

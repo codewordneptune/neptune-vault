@@ -1,12 +1,24 @@
 // Balance, sync status and history (F13, F14, R18).
 
-import { Badge, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconRefresh } from '@tabler/icons-react';
+import { Alert, Badge, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { IconArrowDownLeft, IconArrowUpRight, IconRefresh, IconShieldCheck } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
 
 import { formatNau, useApp } from '../app/AppContext';
 
 export function Home() {
   const { balance, sync, history, syncNow, services, refresh, account } = useApp();
+  const navigate = useNavigate();
+
+  // Reminder until an export file exists; a dismissal snoozes it for a week.
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const showBackupNudge =
+    Boolean(account) && !account?.lastBackupAt && !(account?.backupNudgeDismissedAt && Date.now() - account.backupNudgeDismissedAt < WEEK_MS);
+  const dismissNudge = async () => {
+    if (!account) return;
+    await services.accounts.dismissBackupNudge(account.id);
+    await refresh();
+  };
 
   const forget = async (txid: string) => {
     if (!account) return;
@@ -30,6 +42,14 @@ export function Home() {
       <Title order={2} className="sr-only">
         Home
       </Title>
+      {showBackupNudge && (
+        <Alert color="yellow" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
+          <Text size="sm">Clearing the browser's site data deletes it. Save a backup file so you can restore the wallet and its contacts.</Text>
+          <Button size="compact-sm" variant="light" mt="xs" onClick={() => navigate('/settings')}>
+            Save a backup file
+          </Button>
+        </Alert>
+      )}
       <Paper>
         <Stack gap="xs">
           <span className="vault-eyebrow">Spendable balance</span>

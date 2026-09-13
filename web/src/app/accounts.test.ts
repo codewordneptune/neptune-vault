@@ -121,6 +121,19 @@ describe('account service', () => {
     expect(service.currentAccountId).toBe(record.id);
   });
 
+  it('records the last backup on export and on import', async () => {
+    const { service } = await setup();
+    const created = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    expect((await db.get('accounts', created.id))?.lastBackupAt).toBeUndefined();
+    const file = await service.exportFile(created.id);
+    await service.markBackedUp(created.id, file.exportedAt);
+    expect((await db.get('accounts', created.id))?.lastBackupAt).toBe(file.exportedAt);
+    const imported = await service.importFile(file, 'pw');
+    expect(imported.lastBackupAt).toBe(file.exportedAt);
+    await service.dismissBackupNudge(created.id, 123);
+    expect((await db.get('accounts', created.id))?.backupNudgeDismissedAt).toBe(123);
+  });
+
   it('exports and imports a backup file', async () => {
     const { service } = await setup();
     const phrase = await service.generatePhrase();

@@ -150,6 +150,18 @@ export class AccountService {
     };
   }
 
+  /** Record that the export file was saved (R8), for the reminder and Settings. */
+  async markBackedUp(accountId: string, when = Date.now()): Promise<void> {
+    const record = await this.db.get('accounts', accountId);
+    if (record) await this.db.put('accounts', { ...record, lastBackupAt: when });
+  }
+
+  /** Snooze the Home backup reminder for a week. */
+  async dismissBackupNudge(accountId: string, when = Date.now()): Promise<void> {
+    const record = await this.db.get('accounts', accountId);
+    if (record) await this.db.put('accounts', { ...record, backupNudgeDismissedAt: when });
+  }
+
   /** Import an export file. The password is checked by unlocking. */
   async importFile(file: ExportFile, password: string): Promise<AccountRecord> {
     if (file.format !== 'neptune-vault-backup' || (file.version !== 1 && file.version !== 2)) throw new Error('not a Neptune Vault backup file');
@@ -166,6 +178,8 @@ export class AccountService {
       address0,
       nextKeyIndices: FRESH_KEY_INDICES,
       backupConfirmed: true,
+      // The file it came from is a backup as of its export date.
+      lastBackupAt: file.exportedAt,
     };
     await this.db.put('accounts', record);
     for (const c of file.contacts ?? []) {
