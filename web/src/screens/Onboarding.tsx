@@ -112,6 +112,16 @@ export function Onboarding() {
     setError(null);
     try {
       let height = Number(birthday) || 1;
+      if (imported) {
+        // Refuse a start above the chain when the node can say where it is.
+        try {
+          const tip = await services.node().probe();
+          if (height > tip) throw new Error(`The chain is only at block ${tip}; enter that or a lower block`);
+        } catch (e) {
+          if ((e as Error).message.startsWith('The chain is only')) throw e;
+          // Node unreachable: the sync clamps the height on first contact.
+        }
+      }
       if (!imported) {
         // A fresh account has nothing before the current tip. If the node
         // cannot be reached now, 0 marks the height as unknown and the first

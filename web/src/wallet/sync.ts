@@ -56,7 +56,10 @@ export class SyncEngine {
       const tip = await this.node.tipHeader();
       // An account created while the node was unreachable has no start
       // height yet; it starts at the tip seen now, tip block included.
-      if (account.birthdayHeight === 0) {
+      // A start height above the chain (a typo at import, or a rescan aimed
+      // too far ahead) would leave the sync state in the future and skip
+      // every block until the chain caught up; it means "from now".
+      if (account.birthdayHeight === 0 || account.birthdayHeight > tip.height) {
         account.birthdayHeight = tip.height;
         await this.db.put('accounts', account);
       }

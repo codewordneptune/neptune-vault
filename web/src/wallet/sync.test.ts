@@ -178,6 +178,16 @@ describe('sync engine', () => {
     expect(node.getBlocksCalls).toEqual([[9, 9]]);
   });
 
+  it('clamps a start height above the tip to the tip', async () => {
+    const { node, engine } = await setup();
+    await db.put('accounts', { ...(await db.get('accounts', 'acc'))!, birthdayHeight: 500 });
+    node.extendTo(9);
+    const result = await engine.syncOnce();
+    expect((await db.get('accounts', 'acc'))?.birthdayHeight).toBe(9);
+    expect(result.syncedHeight).toBe(9);
+    expect(node.getBlocksCalls).toEqual([[9, 9]]);
+  });
+
   it('reports node errors without corrupting state', async () => {
     const { node, engine } = await setup();
     node.extendTo(5);

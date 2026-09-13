@@ -409,9 +409,20 @@ function RescanCard() {
   if (!account) return null;
   const from = account.birthdayHeight === 0 ? 'the current tip (not set yet)' : `block ${account.birthdayHeight}`;
 
+  const [rescanError, setRescanError] = useState<string | null>(null);
   const rescan = async () => {
     setBusy(true);
+    setRescanError(null);
     try {
+      try {
+        const tip = await services.node().probe();
+        if (Number(height) > tip) {
+          setRescanError(`The chain is only at block ${tip}; enter that or a lower block.`);
+          return;
+        }
+      } catch {
+        // Node unreachable: the sync clamps the height on first contact.
+      }
       await services.accounts.rescanFrom(account.id, Number(height) || 0);
       setOpen(false);
       await refresh();
@@ -436,7 +447,7 @@ function RescanCard() {
           <Text size="sm">
             The local history and balance are rebuilt from the chain starting at this block. Your funds are not affected; older blocks take longer to fetch.
           </Text>
-          <NumberInput label="Start block" min={1} value={height} onChange={setHeight} />
+          <NumberInput label="Start block" min={1} value={height} onChange={setHeight} error={rescanError} />
           <Group grow>
             <Button variant="default" onClick={() => setOpen(false)}>
               Cancel
