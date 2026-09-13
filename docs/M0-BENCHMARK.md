@@ -260,6 +260,31 @@ Same build with 8 threads: 160.5 s total (removal records integrity
 106.7 s), peak 969 MB. Sixteen threads are still worth it on this CPU, with
 diminishing returns; memory barely moves with the thread count.
 
+### Galaxy S24, Chrome 152, production build, 10 threads, no LDE cache
+
+Run by the user on 2026-09-13, page cross-origin isolated (http origin
+whitelisted in Chrome flags), deviceMemory 8 GB.
+
+| # | Sub-proof | Time (s) | Single-threaded (s) | Speed-up | Wasm memory after (MB) |
+|---|-----------|---------:|--------------------:|---------:|-----------------------:|
+| 1 | removal_records_integrity | 85.2 | 308.8 | 3.6 | 985 |
+| 2 | collect_lock_scripts | 5.6 | 14.6 | 2.6 | 985 |
+| 3 | kernel_to_outputs | 10.4 | 34.5 | 3.3 | 985 |
+| 4 | collect_type_scripts | 10.2 | 31.4 | 3.1 | 985 |
+| 5 | lock_script_0 | 1.1 | 3.0 | 2.7 | 985 |
+| 6 | type_script_0 | 20.5 | 62.9 | 3.1 | 985 |
+| | Total | 134.4 | 456.0 | 3.4 | 985 peak |
+
+A full ProofCollection in 2 minutes 14 seconds on the phone, under 1 GB,
+with the same code the node verifies. That is within a factor of 4.5 of the
+native Android app (about 30 s) and well inside the 10 minute budget. The
+S24 with 10 threads matches this laptop with 16, so the phone is not the
+weak link; the remaining gap to native is in the wasm runtime.
+
+Threads on the phone are now the default for the PWA. Open question for
+later: whether the thread count should be capped below the core count on
+phones to leave headroom for the UI and to limit heat.
+
 ## Levers if the phone misses the budget
 
 1. No LDE cache (this build). Memory first, time second.
