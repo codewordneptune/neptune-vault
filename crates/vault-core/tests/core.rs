@@ -166,7 +166,7 @@ fn input_planning_picks_oldest_first_and_reports_shortfall() {
     assert_eq!(plan.inputs.len(), 2);
     assert_eq!(plan.inputs[0].amount, "2");
     assert_eq!(plan.inputs[1].amount, "1");
-    assert_eq!(plan.membership_proof_request.absolute_index_sets.len(), 2);
+    assert_eq!(plan.absolute_index_sets.len(), 2);
 
     let too_much = SendRequest { amount: "100".into(), ..request };
     let err = plan_inputs(&unspent, &too_much, 0).unwrap_err().to_string();

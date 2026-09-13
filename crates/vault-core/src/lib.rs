@@ -124,7 +124,7 @@ mod wasm {
         }
 
         /// Choose inputs for a send. Returns an `InputPlan` as JSON, whose
-        /// `membership_proof_request` is the body of `restore_membership_proof`.
+        /// `absolute_index_sets` is the parameter of `wallet_restoreMembershipProof`.
         pub fn plan_inputs(
             &self,
             unspent_json: &str,
@@ -187,8 +187,8 @@ mod wasm {
         }
     }
 
-    /// Combine a kernel and a proof collection into the JSON body of
-    /// `submit_transaction`.
+    /// Combine a kernel and a proof collection into the transaction JSON,
+    /// the parameter of `wallet_submitTransaction`.
     #[wasm_bindgen]
     pub fn assemble_submission(kernel: &[u8], proof_collection: &[u8]) -> Result<String, JsError> {
         let request = send::assemble_submission(kernel, proof_collection).map_err(js_err)?;

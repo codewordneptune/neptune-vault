@@ -23,8 +23,7 @@ use neptune_consensus::type_scripts::native_currency_amount::NativeCurrencyAmoun
 use neptune_mutator_set::mutator_set_accumulator::MutatorSetAccumulator;
 use neptune_primitives::timestamp::Timestamp;
 use neptune_rpc_api::model::block::header::RpcBlockHeader;
-use neptune_rpc_api::model::message::RestoreMembershipProofRequest;
-use neptune_rpc_api::model::message::SubmitTransactionRequest;
+use neptune_rpc_api::model::block::transaction_kernel::RpcAbsoluteIndexSet;
 use neptune_rpc_api::model::wallet::mutator_set::RpcMsMembershipSnapshot;
 use neptune_rpc_api::model::wallet::transaction::RpcTransaction;
 use neptune_wallet::transaction_details::TransactionDetails;
@@ -52,12 +51,12 @@ pub struct SendRequest {
     pub accept_lustration: bool,
 }
 
-/// Inputs chosen for a send, plus the request to fetch their membership
-/// proofs from the node.
+/// Inputs chosen for a send, plus the absolute index sets to pass as the
+/// single positional parameter of `wallet_restoreMembershipProof`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InputPlan {
     pub inputs: Vec<StoredUtxo>,
-    pub membership_proof_request: RestoreMembershipProofRequest,
+    pub absolute_index_sets: Vec<RpcAbsoluteIndexSet>,
     pub total_in_nau: String,
 }
 
@@ -123,7 +122,7 @@ pub fn plan_inputs(unspent: &[StoredUtxo], request: &SendRequest, now_ms: u64) -
         .collect();
     Ok(InputPlan {
         inputs: chosen,
-        membership_proof_request: RestoreMembershipProofRequest { absolute_index_sets },
+        absolute_index_sets,
         total_in_nau: amount::to_nau_string(total),
     })
 }
@@ -277,8 +276,9 @@ pub fn build_send(
 }
 
 /// Combine the kernel from `build_send` with the proof collection from the
-/// prover into the node's submission request.
-pub fn assemble_submission(kernel: &[u8], proof_collection: &[u8]) -> Result<SubmitTransactionRequest> {
+/// prover into the transaction to pass as the single positional parameter
+/// of `wallet_submitTransaction`.
+pub fn assemble_submission(kernel: &[u8], proof_collection: &[u8]) -> Result<RpcTransaction> {
     let kernel: TransactionKernel = bincode::deserialize(kernel).context("decode kernel")?;
     let proof: ProofCollection =
         bincode::deserialize(proof_collection).context("decode proof collection")?;
@@ -286,7 +286,5 @@ pub fn assemble_submission(kernel: &[u8], proof_collection: &[u8]) -> Result<Sub
         kernel,
         proof: TransactionProof::ProofCollection(proof),
     };
-    let transaction = RpcTransaction::try_from(transaction)
-        .map_err(|e| anyhow!("transaction is not transferable: {e}"))?;
-    Ok(SubmitTransactionRequest { transaction })
+    RpcTransaction::try_from(transaction).map_err(|e| anyhow!("transaction is not transferable: {e}"))
 }
