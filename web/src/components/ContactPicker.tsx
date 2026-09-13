@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import type { ContactRecord } from '../storage/db';
-import { abbreviateAddress } from '../util/address';
+import { abbreviateAddress, addressKind } from '../util/address';
 
 export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; onClose: () => void; onPick: (c: ContactRecord) => void }) {
   const { services, account } = useApp();
@@ -35,7 +35,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
               </Text>
             </div>
             <Text size="xs" c="dimmed">
-              {c.kind}
+              {addressKind(c.address).intent}
             </Text>
           </UnstyledButton>
         ))}

@@ -1,12 +1,13 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
-import { Alert, Button, Group, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { IconCopy, IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconFingerprint, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
+import { LINKS } from '../app/links';
 import { WrongPasswordError } from '../storage/envelope';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
@@ -153,6 +154,26 @@ export function Settings() {
             <Button variant="light" leftSection={<IconStethoscope size={16} stroke={1.8} />} onClick={() => navigate('/diagnostics')}>
               Diagnostics
             </Button>
+          </Group>
+        </Stack>
+      </Paper>
+
+      <Paper>
+        <Stack>
+          <Title order={3}>About</Title>
+          <Text size="sm" c="dimmed">
+            Neptune Vault is a wallet for Neptune Cash that runs entirely in your browser: keys never leave this device, and the app talks only to the node you choose. It is an early release; keep your phrase safe and expect changes.
+          </Text>
+          <Group gap="md">
+            <Anchor href={LINKS.project} target="_blank" rel="noreferrer" size="sm">
+              Project page
+            </Anchor>
+            <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm">
+              Report a problem
+            </Anchor>
+            <Anchor href={LINKS.neptune} target="_blank" rel="noreferrer" size="sm">
+              About Neptune Cash
+            </Anchor>
           </Group>
         </Stack>
       </Paper>

@@ -58,9 +58,9 @@ describe('payment URI generation', () => {
 
 describe('addressKindLabel', () => {
   it('names the kind from the prefix', () => {
-    expect(addressKindLabel('nolgam1abc')).toBe('Generation');
-    expect(addressKindLabel('NECHM1ABC')).toBe('EC hybrid');
-    expect(addressKindLabel('nviewt1abc')).toBe('Viewing');
+    expect(addressKindLabel('nolgam1abc')).toBe('Standard (Generation)');
+    expect(addressKindLabel('NECHM1ABC')).toBe('Short (EC hybrid)');
+    expect(addressKindLabel('nviewt1abc')).toBe('View-only (Viewing)');
     expect(addressKindLabel('hello')).toBe('Unknown kind');
   });
 });

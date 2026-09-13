@@ -13,20 +13,26 @@ import { abbreviateAddress, paymentQrPayload, paymentUri } from '../util/address
 import { copyText } from '../util/clipboard';
 import type { KeyKind } from '../wallet/core';
 
+// Labelled by what the address is for; the protocol name is the caption.
 const KIND_LABELS: Record<KeyKind, string> = {
-  generation: 'Generation',
-  ec_hybrid: 'EC hybrid',
-  viewing: 'Viewing',
+  generation: 'Standard',
+  ec_hybrid: 'Short',
+  viewing: 'View-only',
+};
+const KIND_PROTOCOL: Record<KeyKind, string> = {
+  generation: 'Generation address',
+  ec_hybrid: 'EC hybrid address',
+  viewing: 'Viewing address',
 };
 
 // Same guidance as the desktop wallet gives on its addresses page.
 const KIND_NOTES: Record<KeyKind, string> = {
   generation:
-    'The most private option and a good default. Safe to reuse. The code is dense: scan from close up, or copy the address instead.',
+    'Safe to reuse and the most private: the default for anything you publish. The code is dense: scan from close up, or copy the address instead.',
   ec_hybrid:
-    'Short and easy to share. Give each one to a single person: if reused widely, a future quantum attacker could reveal, but never spend, the funds sent to it.',
+    'Easy to share by message. Give each one to a single payer: if reused widely, a future quantum attacker could reveal, but never spend, the funds sent to it.',
   viewing:
-    'Anyone holding this address can see every payment it receives, though never spend them. Share it only with someone you trust to see that activity.',
+    'For auditing: anyone holding this address can see every payment it receives, though never spend them. Share it only with someone you trust to see that activity.',
 };
 
 export function Receive() {
@@ -143,6 +149,9 @@ export function Receive() {
           data={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))}
         />
         <Text size="sm" c="dimmed">
+          <Text component="span" size="sm" fw={500} c="var(--v-text-2)">
+            {KIND_PROTOCOL[kind]}.{' '}
+          </Text>
           {KIND_NOTES[kind]}
         </Text>
         {qrNote && (

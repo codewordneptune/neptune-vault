@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { QrScanner } from '../components/QrScanner';
 import type { ContactRecord } from '../storage/db';
-import { abbreviateAddress, parsePaymentText } from '../util/address';
+import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
 import { networkLabel } from '../util/network';
 
 export function Contacts() {
@@ -64,7 +64,7 @@ export function Contacts() {
                       {abbreviateAddress(c.address)}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      {c.kind} address
+                      {addressKindLabel(c.address)}
                     </Text>
                   </div>
                   <Group gap={4} wrap="nowrap">

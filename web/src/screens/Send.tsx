@@ -356,7 +356,7 @@ export function Send() {
             />
             <div>
               <Text size="sm" fw={500} mb={6}>
-                Fee{feePreset !== 'custom' && `: ${fee} NPT`}
+                Fee (NPT)
               </Text>
               <SegmentedControl
                 fullWidth
@@ -368,7 +368,7 @@ export function Send() {
                   else if (v === 'custom') setFee(services.settings.feeCustom ?? '');
                   void services.updateSettings({ feePreset: v });
                 }}
-                data={FEE_PRESETS.map((x) => ({ value: x.value, label: x.label }))}
+                data={FEE_PRESETS.map((x) => ({ value: x.value, label: x.fee ? `${x.label} ${x.fee}` : x.label }))}
               />
             </div>
             {feePreset === 'custom' && (

@@ -1,7 +1,8 @@
 // Balance, sync status and history (F13, F14, R18).
 
-import { Alert, Badge, Button, Group, Modal, Paper, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconRefresh, IconShieldCheck } from '@tabler/icons-react';
+import { formatWhen } from '../util/time';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { HistoryRecord } from '../storage/db';
@@ -62,6 +63,24 @@ export function Home() {
       <Title order={2} className="sr-only">
         Home
       </Title>
+      <div className={`vault-status${sync?.phase === 'error' ? ' error' : ''}`}>
+        <span className="vault-status-text">
+          {busy && <IconRefresh size={14} stroke={1.8} className="vault-spin" />}
+          {syncText}
+        </span>
+        {!busy && (
+          <span className="vault-status-actions">
+            {sync?.phase === 'error' && (
+              <UnstyledButton onClick={() => navigate('/settings')} fz="xs" c="var(--v-accent-text)">
+                Settings
+              </UnstyledButton>
+            )}
+            <UnstyledButton onClick={() => void syncNow()} fz="xs" c="var(--v-accent-text)">
+              {sync?.phase === 'error' ? 'Retry' : 'Sync'}
+            </UnstyledButton>
+          </span>
+        )}
+      </div>
       {showBackupNudge && (
         <Alert color="yellow" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
           <Text size="sm">Clearing the browser's site data deletes it. Save a backup file so you can restore the wallet and its contacts.</Text>
@@ -82,24 +101,14 @@ export function Home() {
               {formatNau(balance.reservedNau)} NPT is held by a pending send. It stays held until the network includes the transaction, usually within a few blocks; then the change comes back as spendable.
             </Text>
           )}
-          <Group justify="space-between" mt="xs" wrap="nowrap" align="flex-start">
-            <Group gap={6} wrap="nowrap" align="flex-start" style={{ minWidth: 0 }}>
-              {busy && <IconRefresh size={16} stroke={1.8} className="vault-spin" style={{ flexShrink: 0, marginTop: 3, color: 'var(--v-accent-text)' }} />}
-              <Text size="sm" c={sync?.phase === 'error' ? 'red' : 'dimmed'}>
-                {syncText}
-              </Text>
-            </Group>
-            {!busy && (
-              <Button size="compact-sm" variant="subtle" leftSection={<IconRefresh size={16} stroke={1.8} />} onClick={() => void syncNow()} style={{ flexShrink: 0 }}>
-                {sync?.phase === 'error' ? 'Retry' : 'Sync'}
-              </Button>
-            )}
-          </Group>
-          {sync?.phase === 'error' && (
-            <Button size="compact-sm" variant="subtle" onClick={() => navigate('/settings')} style={{ alignSelf: 'flex-start' }}>
-              Check the node in Settings
+          <Group grow mt="sm">
+            <Button leftSection={<IconArrowUpRight size={18} stroke={1.8} />} onClick={() => navigate('/send')}>
+              Send
             </Button>
-          )}
+            <Button variant="light" leftSection={<IconArrowDownLeft size={18} stroke={1.8} />} onClick={() => navigate('/receive')}>
+              Receive
+            </Button>
+          </Group>
         </Stack>
       </Paper>
 
@@ -126,7 +135,7 @@ export function Home() {
                         {received ? 'Received' : 'Sent'}
                       </Text>
                       <Text size="xs" c="dimmed">
-                        {new Date(h.timestampMs).toLocaleString()}
+                        {formatWhen(h.timestampMs)}
                         {h.height !== null && ` · block ${h.height}`}
                       </Text>
                     </div>

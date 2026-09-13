@@ -11,15 +11,24 @@ export function abbreviateAddress(address: string): string {
   return `${address.slice(0, firstLen)}...${address.slice(-lastLen)}`;
 }
 
-/** Human label for the kind an address string belongs to, from its prefix. */
-export function addressKindLabel(address: string): string {
+/**
+ * The kind an address string belongs to, from its prefix: the label people
+ * choose by (intent) and the protocol's own name (mechanism).
+ */
+export function addressKind(address: string): { intent: string; protocol: string } {
   const hrp = address.toLowerCase().slice(0, Math.max(address.indexOf('1'), 0));
-  if (hrp.startsWith('nolga')) return 'Generation';
-  if (hrp.startsWith('nechvk')) return 'EC hybrid viewing key';
-  if (hrp.startsWith('nech')) return 'EC hybrid';
-  if (hrp.startsWith('nview')) return 'Viewing';
-  if (hrp.startsWith('nolsym')) return 'Symmetric';
-  return 'Unknown kind';
+  if (hrp.startsWith('nolga')) return { intent: 'Standard', protocol: 'Generation' };
+  if (hrp.startsWith('nechvk')) return { intent: 'Viewing key', protocol: 'EC hybrid viewing key' };
+  if (hrp.startsWith('nech')) return { intent: 'Short', protocol: 'EC hybrid' };
+  if (hrp.startsWith('nview')) return { intent: 'View-only', protocol: 'Viewing' };
+  if (hrp.startsWith('nolsym')) return { intent: 'Symmetric key', protocol: 'Symmetric' };
+  return { intent: 'Unknown', protocol: 'unknown kind' };
+}
+
+/** "Standard (Generation)": intent first, mechanism in brackets. */
+export function addressKindLabel(address: string): string {
+  const k = addressKind(address);
+  return k.protocol === 'unknown kind' ? 'Unknown kind' : `${k.intent} (${k.protocol})`;
 }
 
 export interface PaymentText {

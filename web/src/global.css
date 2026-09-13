@@ -442,3 +442,28 @@ button.vault-network::before {
 .vault-word {
   min-height: 44px;
 }
+
+/* Sync status row above the balance card. */
+.vault-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--v-fs-xs);
+  color: var(--v-muted);
+  padding: 0 4px;
+}
+.vault-status.error {
+  color: #ff8a80;
+}
+.vault-status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.vault-status-actions {
+  display: inline-flex;
+  gap: 14px;
+  flex-shrink: 0;
+}

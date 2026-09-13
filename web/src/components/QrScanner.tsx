@@ -3,7 +3,8 @@
 // video frames elsewhere (Safari). Generation addresses make a version-40
 // code, so frames are captured at the camera's full resolution.
 
-import { Button, Modal, Stack, Text } from '@mantine/core';
+import { Button, Group, Modal, Stack, Text } from '@mantine/core';
+import { IconBulb, IconBulbOff } from '@tabler/icons-react';
 import jsQR from 'jsqr';
 import { useEffect, useRef, useState } from 'react';
 
@@ -18,7 +19,21 @@ declare global {
 
 export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onClose: () => void; onResult: (text: string) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const trackRef = useRef<MediaStreamTrack | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+
+  const toggleTorch = async () => {
+    const track = trackRef.current;
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn } as MediaTrackConstraintSet] });
+      setTorchOn((v) => !v);
+    } catch {
+      setTorchAvailable(false);
+    }
+  };
 
   useEffect(() => {
     if (!opened) return;
@@ -69,6 +84,11 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
         if (stopped) return;
         const video = videoRef.current;
         if (!video) return;
+        const track = stream.getVideoTracks()[0] ?? null;
+        trackRef.current = track;
+        const caps = (track?.getCapabilities?.() ?? {}) as { torch?: boolean };
+        setTorchAvailable(Boolean(caps.torch));
+        setTorchOn(false);
         video.srcObject = stream;
         await video.play();
         void tick();
@@ -80,6 +100,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     return () => {
       stopped = true;
       stream?.getTracks().forEach((t) => t.stop());
+      trackRef.current = null;
     };
   }, [opened, onResult]);
 
@@ -96,9 +117,16 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           </Text>
         )}
         <video ref={videoRef} playsInline muted style={{ width: '100%', borderRadius: 'var(--v-radius-sm)', background: '#000' }} />
-        <Button variant="default" onClick={onClose}>
-          Cancel
-        </Button>
+        <Group grow>
+          <Button variant="default" onClick={onClose}>
+            Cancel
+          </Button>
+          {torchAvailable && (
+            <Button variant="light" leftSection={torchOn ? <IconBulbOff size={16} stroke={1.8} /> : <IconBulb size={16} stroke={1.8} />} onClick={() => void toggleTorch()}>
+              {torchOn ? 'Torch off' : 'Torch on'}
+            </Button>
+          )}
+        </Group>
       </Stack>
     </Modal>
   );

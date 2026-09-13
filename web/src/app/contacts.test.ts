@@ -22,7 +22,7 @@ describe('contacts', () => {
     const b = await svc.add('acc', 'Bob', 'NOLGAR1BOBADDRESS');
     await svc.add('acc', 'alice', 'nechr1alice');
     expect(b.address).toBe('nolgar1bobaddress');
-    expect(b.kind).toBe('Generation');
+    expect(b.kind).toBe('Standard (Generation)');
     expect((await svc.list('acc')).map((c) => c.name)).toEqual(['alice', 'Bob']);
     await expect(svc.add('acc', 'Bob again', 'nolgar1bobaddress')).rejects.toThrow('already saved');
     await expect(svc.add('acc', 'Wrong net', 'nolgam1main')).rejects.toThrow('Not a valid address');
