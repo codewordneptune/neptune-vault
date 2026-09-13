@@ -9,22 +9,39 @@ export class WalletWorkerClient implements WalletCore {
   private nextId = 1;
   private readonly pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 
+  /** How long the worker may take to load the wasm core and answer a ping. */
+  static readonly START_TIMEOUT_MS = 20_000;
+
   private get w(): Worker {
     if (!this.worker) {
-      this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
-      this.worker.onmessage = ({ data }: MessageEvent<WorkerResponse>) => {
+      const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+      worker.onmessage = ({ data }: MessageEvent<WorkerResponse>) => {
         const entry = this.pending.get(data.id);
         if (!entry) return;
         this.pending.delete(data.id);
         if (data.ok) entry.resolve(data.result);
         else entry.reject(new Error(data.error ?? 'wallet worker failed'));
       };
-      this.worker.onerror = (e) => {
-        for (const entry of this.pending.values()) entry.reject(new Error(e.message));
-        this.pending.clear();
-      };
+      worker.onerror = (e) => this.fail(new Error(e.message || 'wallet worker failed'));
+      this.worker = worker;
+      // A worker whose script the browser blocked never answers and never
+      // errors, so every call would hang silently; a ping with a deadline
+      // turns that into a visible failure.
+      const timer = setTimeout(
+        () => this.fail(new Error('The wallet worker did not start. Reload the page; if that does not help, clear the site data in the browser and try again.')),
+        WalletWorkerClient.START_TIMEOUT_MS,
+      );
+      this.call<boolean>('ping').then(() => clearTimeout(timer), () => clearTimeout(timer));
     }
     return this.worker;
+  }
+
+  /** Reject everything in flight and drop the worker so the next call retries. */
+  private fail(error: Error): void {
+    for (const entry of this.pending.values()) entry.reject(error);
+    this.pending.clear();
+    this.worker?.terminate();
+    this.worker = null;
   }
 
   private call<T>(op: string, args: unknown[] = [], transfer: Transferable[] = []): Promise<T> {

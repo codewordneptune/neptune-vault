@@ -46,6 +46,8 @@ function requireAccount(): Account {
 async function handle(op: string, args: unknown[]): Promise<{ result: unknown; transfer?: Transferable[] }> {
   const m = await ensureReady();
   switch (op) {
+    case 'ping':
+      return { result: true };
     case 'generatePhrase':
       return { result: m.generate_phrase() };
     case 'deriveKey': {
