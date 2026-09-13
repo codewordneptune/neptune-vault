@@ -99,6 +99,10 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       plan.free();
       return { result: { witness, kernel, summary }, transfer: [witness.buffer, kernel.buffer] };
     }
+    case 'mockProofCollection': {
+      const pc = m.mock_proof_collection(args[0] as Uint8Array);
+      return { result: pc, transfer: [pc.buffer] };
+    }
     case 'assembleSubmission': {
       const [kernel, proof] = args as [Uint8Array, Uint8Array];
       return { result: JSON.parse(m.assemble_submission(kernel, proof)) };

@@ -44,6 +44,8 @@ export class SendService {
     private readonly accountId: string,
     private readonly network: string,
     private readonly threads: number,
+    /** Regtest nodes accept only mock proofs; the prover is bypassed there. */
+    private readonly useMockProofs = false,
   ) {}
 
   /** Unspent, unreserved, unlocked UTXOs available to spend. */
@@ -75,10 +77,12 @@ export class SendService {
     }
 
     onProgress({ stage: 'proving' });
-    const proving = await this.prover.prove(
-      { witness: built.witness, network: this.network, blockHeight: tipHeader.height, threads: this.threads },
-      (p) => onProgress({ stage: 'proving', proving: p }),
-    );
+    const proving: ProveOutcome = this.useMockProofs
+      ? { proofCollection: await this.core.mockProofCollection(built.witness), seconds: 0, memoryMb: 0, threads: 0 }
+      : await this.prover.prove(
+          { witness: built.witness, network: this.network, blockHeight: tipHeader.height, threads: this.threads },
+          (p) => onProgress({ stage: 'proving', proving: p }),
+        );
 
     onProgress({ stage: 'submitting' });
     const transaction = await this.core.assembleSubmission(built.kernel, proving.proofCollection);

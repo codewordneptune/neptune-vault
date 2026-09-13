@@ -187,6 +187,12 @@ mod wasm {
         }
     }
 
+    /// Mock ProofCollection for mock-proof networks (regtest), bincode.
+    #[wasm_bindgen]
+    pub fn mock_proof_collection(witness: &[u8]) -> Result<Vec<u8>, JsError> {
+        send::mock_proof_collection(witness).map_err(js_err)
+    }
+
     /// Combine a kernel and a proof collection into the transaction JSON,
     /// the parameter of `wallet_submitTransaction`.
     #[wasm_bindgen]

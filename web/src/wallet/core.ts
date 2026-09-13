@@ -85,5 +85,7 @@ export interface WalletCore {
     request: SendRequest,
     nowMs: number,
   ): Promise<SendPlan>;
+  /** Mock ProofCollection for mock-proof networks (regtest), where real proofs are rejected. */
+  mockProofCollection(witness: Uint8Array): Promise<Uint8Array>;
   assembleSubmission(kernel: Uint8Array, proofCollection: Uint8Array): Promise<unknown>;
 }

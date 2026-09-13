@@ -169,6 +169,14 @@ Pipeline for one send:
 5. The assembled transaction goes to `submit_transaction`. The kernel and the
    reserved inputs are stored as a pending history entry (R18).
 
+Mock-proof networks. The consensus verifier on regtest (and the testnet-mock
+network) accepts only valid mock proofs and rejects real STARK proofs, so a
+real ProofCollection can never be submitted to a regtest node. On those
+networks the app bypasses the prover and submits a mock ProofCollection
+(`ProofCollection::produce_mock`) through the same flow, which is how the
+node's own wallet behaves there. Real proving is exercised natively, in the
+benchmark, and on testnet and mainnet.
+
 Memory plan:
 
 - Triton VM's cached low-degree extension is off in the browser. The desktop

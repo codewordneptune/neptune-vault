@@ -90,7 +90,8 @@ export class NodeClient {
       error?: { code: number; message: string; data?: unknown };
     };
     if (body.error) {
-      throw new NodeError(`${method}: ${body.error.message}`, body.error.code, method);
+      const detail = body.error.data === undefined ? '' : ` (${JSON.stringify(body.error.data).slice(0, 300)})`;
+      throw new NodeError(`${method}: ${body.error.message}${detail}`, body.error.code, method);
     }
     return body.result as T;
   }

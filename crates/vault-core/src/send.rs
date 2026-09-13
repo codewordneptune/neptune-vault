@@ -9,6 +9,7 @@ use anyhow::Context;
 use anyhow::Result;
 use neptune_consensus::block::block_header::BlockHeader;
 use neptune_consensus::transaction::announcement::Announcement;
+use neptune_consensus::transaction::primitive_witness::PrimitiveWitness;
 use neptune_consensus::transaction::transaction_kernel::TransactionKernel;
 use neptune_primitives::mast_hash::MastHash;
 use num_traits::CheckedAdd;
@@ -273,6 +274,14 @@ pub fn build_send(
             requires_lustration,
         },
     })
+}
+
+/// A mock ProofCollection for networks whose nodes accept only mock proofs
+/// (regtest). Real proofs are rejected there, so the prover is bypassed.
+pub fn mock_proof_collection(witness: &[u8]) -> Result<Vec<u8>> {
+    let witness: PrimitiveWitness = bincode::deserialize(witness).context("decode witness")?;
+    let collection = ProofCollection::produce_mock(&witness, true);
+    bincode::serialize(&collection).context("encode proof collection")
 }
 
 /// Combine the kernel from `build_send` with the proof collection from the

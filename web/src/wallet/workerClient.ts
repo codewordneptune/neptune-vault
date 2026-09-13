@@ -83,6 +83,9 @@ export class WalletWorkerClient implements WalletCore {
   buildSend(inputs: StoredUtxo[], snapshot: unknown, tipHeader: unknown, request: SendRequest, nowMs: number) {
     return this.call<SendPlan>('buildSend', [inputs, snapshot, tipHeader, request, nowMs]);
   }
+  mockProofCollection(witness: Uint8Array) {
+    return this.call<Uint8Array>('mockProofCollection', [witness]);
+  }
   assembleSubmission(kernel: Uint8Array, proofCollection: Uint8Array) {
     return this.call<unknown>('assembleSubmission', [kernel, proofCollection]);
   }

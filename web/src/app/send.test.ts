@@ -33,6 +33,9 @@ class FakeCore implements Partial<WalletCore> {
   async assembleSubmission(kernel: Uint8Array, proof: Uint8Array) {
     return { kernel: [...kernel], proof: [...proof] };
   }
+  async mockProofCollection(_witness: Uint8Array) {
+    return new Uint8Array([7, 7, 7]);
+  }
 }
 
 class FakeNode {
@@ -118,6 +121,16 @@ describe('send service', () => {
     core.lustration = true;
     await expect(service.send(request, () => {})).rejects.toBeInstanceOf(RequiresLustrationError);
     await expect(service.send({ ...request, accept_lustration: true }, () => {})).resolves.toBeDefined();
+  });
+
+  it('uses a mock proof and skips the prover on mock-proof networks', async () => {
+    const { node, prover, service: _unused } = await setup();
+    prover.fail = true;
+    const core = new FakeCore();
+    const mockService = new SendService(db, node as unknown as NodeClient, core as unknown as WalletCore, prover, 'acc', 'regtest', 4, true);
+    const outcome = await mockService.send(request, () => {});
+    expect(outcome.txid).toBe('tx-abc');
+    expect(node.submitted[0]).toEqual({ kernel: [4], proof: [7, 7, 7] });
   });
 
   it('forget releases the inputs of a pending send', async () => {

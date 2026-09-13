@@ -56,7 +56,7 @@ export async function createServices(): Promise<Services> {
       return new SyncEngine(db, services.node(), core, accountId, { onProgress });
     },
     sendService(accountId) {
-      return new SendService(db, services.node(), core, prover, accountId, coreNetworkName(settings.network), ProverClient.defaultThreads());
+      return new SendService(db, services.node(), core, prover, accountId, coreNetworkName(settings.network), ProverClient.defaultThreads(), settings.network === 'regtest');
     },
     networkName() {
       return coreNetworkName(settings.network);
