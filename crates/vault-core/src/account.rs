@@ -1,0 +1,99 @@
+//! Seed, phrase and key derivation.
+//!
+//! Wraps neptune-wallet so the phrase, the derivation of generation keys and
+//! the bech32m addresses are byte for byte what neptune-core produces.
+
+use anyhow::Context;
+use anyhow::Result;
+use neptune_primitives::network::Network;
+use neptune_wallet::address::ReceivingAddress;
+use neptune_wallet::address::SpendingKey;
+use neptune_wallet::secret_key_material::SecretKeyMaterial;
+use neptune_wallet::tasm_lib::prelude::Digest;
+use neptune_wallet::wallet_entropy::WalletEntropy;
+use rand::Rng;
+
+/// How many generation keys beyond the highest used index are scanned for,
+/// so that funds sent to a not-yet-shown address are still found.
+pub const KEY_LOOKAHEAD: u64 = 5;
+
+/// An unlocked account: the wallet entropy plus a cache of derived keys.
+///
+/// Key derivation runs a lattice key generation per key, so keys are derived
+/// once and kept for the life of the object.
+pub struct Account {
+    secret: SecretKeyMaterial,
+    entropy: WalletEntropy,
+    network: Network,
+    keys: Vec<SpendingKey>,
+}
+
+impl Account {
+    /// A fresh 18-word phrase from the browser's random source.
+    pub fn generate_phrase() -> Vec<String> {
+        SecretKeyMaterial(rand::rng().random()).to_phrase()
+    }
+
+    pub fn from_phrase(words: &[String], network: Network) -> Result<Self> {
+        let secret = SecretKeyMaterial::from_phrase(words.iter().map(|w| w.trim()))
+            .context("invalid seed phrase")?;
+        Ok(Self {
+            secret,
+            entropy: WalletEntropy::new(secret),
+            network,
+            keys: Vec::new(),
+        })
+    }
+
+    pub fn phrase(&self) -> Vec<String> {
+        self.secret.to_phrase()
+    }
+
+    pub fn network(&self) -> Network {
+        self.network
+    }
+
+    pub fn entropy(&self) -> &WalletEntropy {
+        &self.entropy
+    }
+
+    /// Derive generation keys up to and including `max_index`.
+    pub fn ensure_keys(&mut self, max_index: u64) {
+        while (self.keys.len() as u64) <= max_index {
+            let index = self.keys.len() as u64;
+            let key = SpendingKey::Generation(self.entropy.nth_generation_spending_key(index));
+            self.keys.push(key);
+        }
+    }
+
+    pub fn key(&mut self, index: u64) -> &SpendingKey {
+        self.ensure_keys(index);
+        &self.keys[index as usize]
+    }
+
+    /// All generation keys with index at most `max_index`, in index order.
+    pub fn keys_up_to(&mut self, max_index: u64) -> Vec<SpendingKey> {
+        self.ensure_keys(max_index);
+        self.keys[..=max_index as usize].to_vec()
+    }
+
+    /// The receiving address of the nth generation key, bech32m for the
+    /// account's network.
+    pub fn address(&mut self, index: u64) -> Result<String> {
+        let network = self.network;
+        self.key(index).to_address().to_bech32m(network)
+    }
+
+    /// Index of the derived key whose lock script hash matches, if any.
+    pub fn key_index_for_lock_script_hash(&self, lock_script_hash: Digest) -> Option<u64> {
+        self.keys
+            .iter()
+            .position(|k| k.lock_script_hash() == lock_script_hash)
+            .map(|i| i as u64)
+    }
+
+    pub fn parse_address(&self, encoded: &str) -> Result<ReceivingAddress> {
+        ReceivingAddress::from_bech32m(encoded.trim(), self.network)
+            .with_context(|| format!("not a valid {} address", self.network))
+    }
+}

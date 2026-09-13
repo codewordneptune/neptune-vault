@@ -100,20 +100,38 @@ headers, and the settings screen should say so.
 
 ## 4. Wallet core (vault-core)
 
-Exposed to JavaScript as a small API; all types cross the boundary as bytes or
-JSON.
+Implemented in milestone 1 (crates/vault-core). Rust modules run natively
+for tests and in the browser; the wasm-bindgen surface is what the wallet
+worker calls. JSON crosses the boundary for anything the node also speaks
+in JSON, byte arrays for witnesses, kernels and proofs.
 
-- `generate_seed()`, `seed_from_phrase(words)`, `phrase_from_seed(seed)`:
-  BIP39 phrase compatible with neptune-core.
-- `derive_generation_address(seed, network, index)`: bech32m `nolgam...` on
-  mainnet, testnet prefix on testnet. Also returns the spending-key material
-  needed later for the lock script, kept inside the worker.
-- `scan_block(block, keys, state)`: decrypts announcements for the account's
-  generation keys, records new UTXOs, applies removal records to detect spends,
-  returns the updated state and any balance change.
-- `build_primitive_witness(inputs, membership_proofs, recipient, amount, fee,
-  change_key, tip_header, rule_set)`: produces the witness for the prover and
-  the transaction kernel for the pending record.
+- `generate_phrase()`: 18 BIP39 words from the browser's random source.
+- `Account(words, network)`: the unlocked account, holding the seed and a
+  cache of derived generation keys. Dropping it locks.
+- `account.address(index)`: bech32m receiving address (`nolgam` on
+  mainnet, `nolgat` on testnet).
+- `account.scan_blocks(blocks, unspent, next_key_index)`: takes the node's
+  `get_blocks` response, decrypts announcements for every key up to the
+  next unused index plus a lookahead of five, confirms each hit against the
+  block's addition records, assigns the AOCL index, and detects spends of the
+  given unspent UTXOs by exact absolute-index-set match. Returns per block
+  the incoming UTXOs (with the recovery data needed to spend them later),
+  the spent hashes, and the new next key index.
+- `account.plan_inputs(unspent, request, now)`: oldest-first selection
+  covering amount plus fee, skipping time-locked UTXOs, plus the body of the
+  `restore_membership_proof` call for the chosen inputs.
+- `account.build_send(inputs, snapshot, tip_header, request, now)`: unlocks
+  the inputs with the node's membership proofs, builds the recipient output
+  (announced on chain), change to generation key 0 (also on chain, so the
+  normal scan finds it and no expected-UTXO table is needed), adds
+  lustration announcements when the tip requires them and the user agreed,
+  and returns the primitive witness for the prover, the kernel, and a
+  summary for the pending record.
+- `assemble_submission(kernel, proof_collection)`: the `submit_transaction`
+  body.
+- `derive_key(password, salt, m, t, p)`: Argon2id for the seed envelope.
+- `parse_amount` / `format_amount` / `is_valid_address`: validation
+  helpers so the UI never reimplements consensus formats.
 
 Sync algorithm (R17):
 

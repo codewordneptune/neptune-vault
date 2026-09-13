@@ -1,12 +1,200 @@
 //! Wallet core for Neptune Vault.
 //!
-//! Milestone 0 skeleton: proves that the wallet, mutator-set and RPC model
-//! crates link for wasm32. The wallet API is added in milestone 1.
+//! The Rust modules run natively (for tests) and in the browser. The
+//! wasm-bindgen surface at the bottom is what the web app's wallet worker
+//! calls. Data crosses the boundary as JSON strings for anything the node
+//! also speaks in JSON, and as byte arrays for witnesses, kernels and proofs.
 
-use wasm_bindgen::prelude::*;
+pub mod account;
+pub mod amount;
+pub mod kdf;
+pub mod scan;
+pub mod send;
 
-/// Version of the wallet core package, for the UI's diagnostics screen.
-#[wasm_bindgen]
-pub fn core_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+    use neptune_primitives::network::Network;
+    use wasm_bindgen::prelude::*;
+
+    use crate::account;
+    use crate::amount;
+    use crate::kdf;
+    use crate::scan;
+    use crate::send;
+
+    fn js_err(e: anyhow::Error) -> JsError {
+        JsError::new(&format!("{e:#}"))
+    }
+
+    fn parse_network(network: &str) -> Result<Network, JsError> {
+        network
+            .parse()
+            .map_err(|_| JsError::new(&format!("unknown network: {network}")))
+    }
+
+    /// Version of the wallet core package, for the diagnostics screen.
+    #[wasm_bindgen]
+    pub fn core_version() -> String {
+        env!("CARGO_PKG_VERSION").to_string()
+    }
+
+    /// A fresh 18-word seed phrase.
+    #[wasm_bindgen]
+    pub fn generate_phrase() -> Vec<String> {
+        console_error_panic_hook::set_once();
+        account::Account::generate_phrase()
+    }
+
+    /// Argon2id key derivation for the seed envelope. Returns 32 bytes.
+    #[wasm_bindgen]
+    pub fn derive_key(
+        password: &[u8],
+        salt: &[u8],
+        m_kib: u32,
+        t_cost: u32,
+        p_cost: u32,
+    ) -> Result<Vec<u8>, JsError> {
+        let key = kdf::derive_key(password, salt, m_kib, t_cost, p_cost).map_err(js_err)?;
+        Ok(key.to_vec())
+    }
+
+    /// Parse an NPT amount; returns the amount in nau as a decimal string.
+    #[wasm_bindgen]
+    pub fn parse_amount(text: &str) -> Result<String, JsError> {
+        amount::parse(text).map(amount::to_nau_string).map_err(js_err)
+    }
+
+    /// Format an amount given in nau as a decimal string.
+    #[wasm_bindgen]
+    pub fn format_amount(nau: &str) -> Result<String, JsError> {
+        amount::from_nau_string(nau).map(amount::format).map_err(js_err)
+    }
+
+    /// Whether `encoded` is a valid receiving address for `network`.
+    #[wasm_bindgen]
+    pub fn is_valid_address(encoded: &str, network: &str) -> Result<bool, JsError> {
+        let network = parse_network(network)?;
+        Ok(neptune_wallet::address::ReceivingAddress::from_bech32m(
+            encoded.trim(),
+            network,
+        )
+        .is_ok())
+    }
+
+    /// An unlocked account. Holds the seed in wasm memory; drop it to lock.
+    #[wasm_bindgen]
+    pub struct Account(account::Account);
+
+    #[wasm_bindgen]
+    impl Account {
+        #[wasm_bindgen(constructor)]
+        pub fn from_phrase(words: Vec<String>, network: &str) -> Result<Account, JsError> {
+            console_error_panic_hook::set_once();
+            let network = parse_network(network)?;
+            account::Account::from_phrase(&words, network)
+                .map(Account)
+                .map_err(js_err)
+        }
+
+        pub fn phrase(&self) -> Vec<String> {
+            self.0.phrase()
+        }
+
+        /// bech32m receiving address of the nth generation key.
+        pub fn address(&mut self, index: u64) -> Result<String, JsError> {
+            self.0.address(index).map_err(js_err)
+        }
+
+        /// Scan a batch of blocks. `blocks_json` is the node's
+        /// `GetBlocksResponse.blocks` array, `unspent_json` the app's unspent
+        /// `StoredUtxo` array. Returns a `ScanResult` as JSON.
+        pub fn scan_blocks(
+            &mut self,
+            blocks_json: &str,
+            unspent_json: &str,
+            next_key_index: u64,
+        ) -> Result<String, JsError> {
+            let blocks = serde_json::from_str(blocks_json)
+                .map_err(|e| JsError::new(&format!("cannot decode blocks: {e}")))?;
+            let unspent = serde_json::from_str(unspent_json)
+                .map_err(|e| JsError::new(&format!("cannot decode unspent utxos: {e}")))?;
+            let result = scan::scan_blocks(&mut self.0, blocks, unspent, next_key_index)
+                .map_err(js_err)?;
+            serde_json::to_string(&result).map_err(|e| JsError::new(&e.to_string()))
+        }
+
+        /// Choose inputs for a send. Returns an `InputPlan` as JSON, whose
+        /// `membership_proof_request` is the body of `restore_membership_proof`.
+        pub fn plan_inputs(
+            &self,
+            unspent_json: &str,
+            request_json: &str,
+            now_ms: f64,
+        ) -> Result<String, JsError> {
+            let unspent: Vec<scan::StoredUtxo> = serde_json::from_str(unspent_json)
+                .map_err(|e| JsError::new(&format!("cannot decode unspent utxos: {e}")))?;
+            let request: send::SendRequest = serde_json::from_str(request_json)
+                .map_err(|e| JsError::new(&format!("cannot decode send request: {e}")))?;
+            let plan = send::plan_inputs(&unspent, &request, now_ms as u64).map_err(js_err)?;
+            serde_json::to_string(&plan).map_err(|e| JsError::new(&e.to_string()))
+        }
+
+        /// Build the witness for a send. `snapshot_json` is the node's
+        /// `RestoreMembershipProofResponse.snapshot`, `tip_header_json` its
+        /// `TipHeaderResponse.header`.
+        pub fn build_send(
+            &mut self,
+            inputs_json: &str,
+            snapshot_json: &str,
+            tip_header_json: &str,
+            request_json: &str,
+            now_ms: f64,
+        ) -> Result<SendPlan, JsError> {
+            let inputs: Vec<scan::StoredUtxo> = serde_json::from_str(inputs_json)
+                .map_err(|e| JsError::new(&format!("cannot decode inputs: {e}")))?;
+            let snapshot = serde_json::from_str(snapshot_json)
+                .map_err(|e| JsError::new(&format!("cannot decode membership proof snapshot: {e}")))?;
+            let tip_header = serde_json::from_str(tip_header_json)
+                .map_err(|e| JsError::new(&format!("cannot decode tip header: {e}")))?;
+            let request: send::SendRequest = serde_json::from_str(request_json)
+                .map_err(|e| JsError::new(&format!("cannot decode send request: {e}")))?;
+            send::build_send(&mut self.0, &inputs, snapshot, tip_header, &request, now_ms as u64)
+                .map(SendPlan)
+                .map_err(js_err)
+        }
+    }
+
+    /// Result of `build_send`: bytes for the prover and the assembler, and a
+    /// JSON summary for the pending record.
+    #[wasm_bindgen]
+    pub struct SendPlan(send::SendPlan);
+
+    #[wasm_bindgen]
+    impl SendPlan {
+        /// bincode `PrimitiveWitness`, the prover's input.
+        pub fn witness(&self) -> Vec<u8> {
+            self.0.witness.clone()
+        }
+
+        /// bincode `TransactionKernel`, for `assemble_submission`.
+        pub fn kernel(&self) -> Vec<u8> {
+            self.0.kernel.clone()
+        }
+
+        /// `SendSummary` as JSON.
+        pub fn summary(&self) -> Result<String, JsError> {
+            serde_json::to_string(&self.0.summary).map_err(|e| JsError::new(&e.to_string()))
+        }
+    }
+
+    /// Combine a kernel and a proof collection into the JSON body of
+    /// `submit_transaction`.
+    #[wasm_bindgen]
+    pub fn assemble_submission(kernel: &[u8], proof_collection: &[u8]) -> Result<String, JsError> {
+        let request = send::assemble_submission(kernel, proof_collection).map_err(js_err)?;
+        serde_json::to_string(&request).map_err(|e| JsError::new(&e.to_string()))
+    }
 }
+
+#[cfg(target_arch = "wasm32")]
+pub use wasm::*;
