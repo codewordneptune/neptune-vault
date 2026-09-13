@@ -239,7 +239,12 @@ export function Send() {
   return (
     <Paper>
       <Stack>
-        <Title order={2}>Send</Title>
+        <Group justify="space-between" align="baseline">
+          <Title order={2}>Send</Title>
+          <Text size="sm" c="dimmed">
+            Spendable {formatNau(balance.spendableNau)} NPT
+          </Text>
+        </Group>
         {sendJob?.done && sendJob.outcome && (
           <Alert color="green" title="Submitted" withCloseButton onClose={dismissSendJob}>
             {sendJob.request.amount} NPT is on its way. It shows as pending until the network includes it
@@ -285,7 +290,6 @@ export function Send() {
             />
             <TextInput
               label="Amount (NPT)"
-              description={`Spendable ${formatNau(balance.spendableNau)} NPT`}
               inputMode="decimal"
               value={amount}
               onChange={(e) => {
