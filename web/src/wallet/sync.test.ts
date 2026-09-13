@@ -47,8 +47,12 @@ class FakeNode {
   async isBlockCanonical(digest: string) {
     return this.canonical.has(digest);
   }
-  async getBlocks(from: number, to: number): Promise<RpcWalletBlock[]> {
+  async getBlocksRaw(from: number, to: number): Promise<string> {
     this.getBlocksCalls.push([from, to]);
+    return JSON.stringify({ jsonrpc: '2.0', id: 1, result: { blocks: await this.getBlocks(from, to) } });
+  }
+
+  async getBlocks(from: number, to: number): Promise<RpcWalletBlock[]> {
     const blocks: RpcWalletBlock[] = [];
     for (let h = from; h <= Math.min(to, this.tip); h++) {
       blocks.push({ kernel: { header: { height: h, prevBlockDigest: this.hashAt(h - 1), timestamp: h * 1000, difficulty: '1' }, body: {}, appendix: [] }, proofLeaf: this.hashAt(h) });
@@ -62,7 +66,8 @@ class FakeCore implements Partial<WalletCore> {
   incoming = new Map<number, StoredUtxo[]>();
   spent = new Map<number, string[]>();
   nextKeyIndexAfter = 1;
-  async scanBlocks(blocks: unknown[], _unspent: StoredUtxo[], _next: NextKeyIndices): Promise<ScanResult> {
+  async scanBlocks(blocksResponse: string, _unspent: StoredUtxo[], _next: NextKeyIndices): Promise<ScanResult> {
+    const blocks = (JSON.parse(blocksResponse) as { result: { blocks: unknown[] } }).result.blocks;
     const out = (blocks as RpcWalletBlock[]).map((b) => ({
       height: b.kernel.header.height,
       hash: b.proofLeaf,

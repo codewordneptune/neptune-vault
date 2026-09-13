@@ -64,13 +64,13 @@ export class SendService {
     onProgress({ stage: 'membership-proofs' });
     // Read the proofs before the header so a tip moving in between fails the
     // height check inside build_send rather than yielding mismatched data.
-    const snapshot = await this.node.restoreMembershipProof(plan.absolute_index_sets);
-    const tipHeader = await this.node.tipHeader();
+    const snapshotResponse = await this.node.restoreMembershipProofRaw(plan.absolute_index_sets);
+    const tipHeader = await this.node.tipHeaderRaw();
 
     onProgress({ stage: 'building' });
     let built;
     try {
-      built = await this.core.buildSend(plan.inputs, snapshot, tipHeader, request, Date.now());
+      built = await this.core.buildSend(plan.inputs, snapshotResponse, tipHeader.raw, request, Date.now());
     } catch (e) {
       if (e instanceof Error && e.message.includes('lustration')) throw new RequiresLustrationError();
       throw e;

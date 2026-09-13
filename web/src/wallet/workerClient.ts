@@ -94,14 +94,14 @@ export class WalletWorkerClient implements WalletCore {
   address(kind: KeyKind, index: number) {
     return this.call<string>('address', [kind, index]);
   }
-  scanBlocks(blocks: unknown[], unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices) {
-    return this.call<ScanResult>('scanBlocks', [blocks, unspent, nextKeyIndices]);
+  scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices) {
+    return this.call<ScanResult>('scanBlocks', [blocksResponse, unspent, nextKeyIndices]);
   }
   planInputs(unspent: StoredUtxo[], request: SendRequest, nowMs: number) {
     return this.call<InputPlan>('planInputs', [unspent, request, nowMs]);
   }
-  buildSend(inputs: StoredUtxo[], snapshot: unknown, tipHeader: unknown, request: SendRequest, nowMs: number) {
-    return this.call<SendPlan>('buildSend', [inputs, snapshot, tipHeader, request, nowMs]);
+  buildSend(inputs: StoredUtxo[], snapshotResponse: string, tipHeaderResponse: string, request: SendRequest, nowMs: number) {
+    return this.call<SendPlan>('buildSend', [inputs, snapshotResponse, tipHeaderResponse, request, nowMs]);
   }
   mockProofCollection(witness: Uint8Array) {
     return this.call<Uint8Array>('mockProofCollection', [witness]);

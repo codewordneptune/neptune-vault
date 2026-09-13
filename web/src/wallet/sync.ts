@@ -68,10 +68,10 @@ export class SyncEngine {
       while (height <= tip.height) {
         const to = Math.min(height + this.batchSize - 1, tip.height);
         this.progress('scanning', height - 1, tip.height);
-        const blocks = await this.node.getBlocks(height, to);
-        if (blocks.length === 0) break;
+        const blocksResponse = await this.node.getBlocksRaw(height, to);
         const unspent = await this.unspentStored();
-        const result = await this.core.scanBlocks(blocks, unspent, nextKeyIndices);
+        const result = await this.core.scanBlocks(blocksResponse, unspent, nextKeyIndices);
+        if (result.blocks.length === 0) break;
         nextKeyIndices = result.next_key_indices;
         await this.persist(result.blocks, nextKeyIndices);
         const last = result.blocks[result.blocks.length - 1];

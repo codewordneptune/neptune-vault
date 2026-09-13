@@ -90,12 +90,14 @@ export interface WalletCore {
   /** The unlocked account's phrase, for the backup screen. */
   phrase(): Promise<string[]>;
   address(kind: KeyKind, index: number): Promise<string>;
-  scanBlocks(blocks: unknown[], unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices): Promise<ScanResult>;
+  /** `blocksResponse` is the node's raw JSON-RPC response text for wallet_getBlocks. */
+  scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices): Promise<ScanResult>;
   planInputs(unspent: StoredUtxo[], request: SendRequest, nowMs: number): Promise<InputPlan>;
+  /** `snapshotResponse` and `tipHeaderResponse` are raw JSON-RPC response texts. */
   buildSend(
     inputs: StoredUtxo[],
-    snapshot: unknown,
-    tipHeader: unknown,
+    snapshotResponse: string,
+    tipHeaderResponse: string,
     request: SendRequest,
     nowMs: number,
   ): Promise<SendPlan>;

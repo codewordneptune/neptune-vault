@@ -79,8 +79,9 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
     case 'address':
       return { result: requireAccount().address(args[0] as string, BigInt(args[1] as number)) };
     case 'scanBlocks': {
-      const [blocks, unspent, nextKeyIndices] = args as [unknown[], unknown[], unknown];
-      const json = requireAccount().scan_blocks(JSON.stringify(blocks), JSON.stringify(unspent), JSON.stringify(nextKeyIndices));
+      // The blocks arrive as the node's raw response text: big integers survive.
+      const [blocksResponse, unspent, nextKeyIndices] = args as [string, unknown[], unknown];
+      const json = requireAccount().scan_blocks(blocksResponse, JSON.stringify(unspent), JSON.stringify(nextKeyIndices));
       return { result: JSON.parse(json) };
     }
     case 'planInputs': {
@@ -89,14 +90,8 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       return { result: JSON.parse(json) };
     }
     case 'buildSend': {
-      const [inputs, snapshot, tipHeader, request, nowMs] = args as [unknown[], unknown, unknown, unknown, number];
-      const plan = requireAccount().build_send(
-        JSON.stringify(inputs),
-        JSON.stringify(snapshot),
-        JSON.stringify(tipHeader),
-        JSON.stringify(request),
-        nowMs,
-      );
+      const [inputs, snapshotResponse, tipHeaderResponse, request, nowMs] = args as [unknown[], string, string, unknown, number];
+      const plan = requireAccount().build_send(JSON.stringify(inputs), snapshotResponse, tipHeaderResponse, JSON.stringify(request), nowMs);
       const witness = plan.witness();
       const kernel = plan.kernel();
       const summary = JSON.parse(plan.summary());

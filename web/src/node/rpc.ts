@@ -69,7 +69,13 @@ export class NodeClient {
     }
   }
 
-  async call<T>(method: string, params: unknown[] = [], timeoutMs = this.timeoutMs): Promise<T> {
+  /**
+   * The raw JSON-RPC response text. Node payloads carry u64 and u128
+   * values that JavaScript numbers cannot hold exactly (anything above
+   * 2^53), so whatever the wasm core will read must stay as text and never
+   * pass through JSON.parse and JSON.stringify.
+   */
+  async callRaw(method: string, params: unknown[] = [], timeoutMs = this.timeoutMs): Promise<string> {
     const id = this.nextId++;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -98,15 +104,20 @@ export class NodeClient {
     if (!response.ok) {
       throw new NodeError(`${method}: HTTP ${response.status}`, 'http', method);
     }
-    const body = (await response.json()) as {
-      result?: T;
-      error?: { code: number; message: string; data?: unknown };
-    };
+    const text = await response.text();
+    // Parsed only to detect an error; the parsed result is not returned.
+    const body = JSON.parse(text) as { error?: { code: number; message: string; data?: unknown } };
     if (body.error) {
       const detail = body.error.data === undefined ? '' : ` (${JSON.stringify(body.error.data).slice(0, 300)})`;
       throw new NodeError(`${method}: ${body.error.message}${detail}`, body.error.code, method);
     }
-    return body.result as T;
+    return text;
+  }
+
+  /** The parsed result, for values the app itself reads (heights, flags). */
+  async call<T>(method: string, params: unknown[] = [], timeoutMs = this.timeoutMs): Promise<T> {
+    const text = await this.callRaw(method, params, timeoutMs);
+    return (JSON.parse(text) as { result: T }).result;
   }
 
   async tipDigest(): Promise<string> {
@@ -130,11 +141,20 @@ export class NodeClient {
     return r.canonical;
   }
 
-  /** Blocks from `from` to `to` inclusive. Never ask for genesis (height 0). */
-  async getBlocks(from: number, to: number): Promise<RpcWalletBlock[]> {
+  /**
+   * Blocks from `from` to `to` inclusive, as the raw response text for the
+   * wasm core. Never ask for genesis (height 0).
+   */
+  async getBlocksRaw(from: number, to: number): Promise<string> {
     if (from < 1) throw new Error('getBlocks: heights start at 1');
-    const r = await this.call<{ blocks: RpcWalletBlock[] }>('wallet_getBlocks', [from, to], this.timeoutMs * 4);
-    return r.blocks;
+    return this.callRaw('wallet_getBlocks', [from, to], this.timeoutMs * 4);
+  }
+
+  /** The tip header as raw response text, plus its height for the app. */
+  async tipHeaderRaw(): Promise<{ raw: string; height: number }> {
+    const raw = await this.callRaw('chain_tipHeader');
+    const height = (JSON.parse(raw) as { result: { header: { height: number } } }).result.header.height;
+    return { raw, height };
   }
 
   /** One boolean per absolute index set: true when any of its indices is set. */
@@ -143,13 +163,9 @@ export class NodeClient {
     return r.areSet;
   }
 
-  async restoreMembershipProof(absoluteIndexSets: unknown[]): Promise<RpcMsMembershipSnapshot> {
-    const r = await this.call<{ snapshot: RpcMsMembershipSnapshot }>(
-      'wallet_restoreMembershipProof',
-      [absoluteIndexSets],
-      this.timeoutMs * 2,
-    );
-    return r.snapshot;
+  /** Membership-proof snapshot as raw response text for the wasm core. */
+  async restoreMembershipProofRaw(absoluteIndexSets: unknown[]): Promise<string> {
+    return this.callRaw('wallet_restoreMembershipProof', [absoluteIndexSets], this.timeoutMs * 2);
   }
 
   /** True when the node accepted the transaction into its mempool. */

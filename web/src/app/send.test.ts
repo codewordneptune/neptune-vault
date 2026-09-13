@@ -22,7 +22,7 @@ class FakeCore implements Partial<WalletCore> {
     this.planned = unspent;
     return { inputs: unspent, absolute_index_sets: unspent.map((u) => ({ set: u.hash })), total_in_nau: '0' };
   }
-  async buildSend(inputs: StoredUtxo[], _s: unknown, _t: unknown, request: SendRequest): Promise<SendPlan> {
+  async buildSend(inputs: StoredUtxo[], _s: string, _t: string, request: SendRequest): Promise<SendPlan> {
     if (this.lustration && !request.accept_lustration) throw new Error('this send requires lustration announcements; confirm to proceed');
     return {
       witness: new Uint8Array([1, 2, 3]),
@@ -41,11 +41,11 @@ class FakeCore implements Partial<WalletCore> {
 class FakeNode {
   accept = true;
   submitted: unknown[] = [];
-  async restoreMembershipProof(sets: unknown[]) {
-    return { syncedHeight: 10, syncedHash: 'h', syncedMutatorSet: {}, membershipProofs: sets };
+  async restoreMembershipProofRaw(sets: unknown[]) {
+    return JSON.stringify({ jsonrpc: '2.0', id: 1, result: { snapshot: { syncedHeight: 10, syncedHash: 'h', syncedMutatorSet: {}, membershipProofs: sets } } });
   }
-  async tipHeader() {
-    return { height: 10, prevBlockDigest: 'p', timestamp: 0, difficulty: '1' };
+  async tipHeaderRaw() {
+    return { raw: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { header: { height: 10, prevBlockDigest: 'p', timestamp: 0, difficulty: '1' } } }), height: 10 };
   }
   async submitTransaction(tx: unknown) {
     this.submitted.push(tx);

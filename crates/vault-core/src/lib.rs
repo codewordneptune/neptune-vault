@@ -22,6 +22,12 @@ mod wasm {
     use crate::scan;
     use crate::send;
 
+    /// A JSON-RPC response as the node sends it; only `result` matters here.
+    #[derive(serde::Deserialize)]
+    struct Envelope<T> {
+        result: T,
+    }
+
     fn js_err(e: anyhow::Error) -> JsError {
         JsError::new(&format!("{e:#}"))
     }
@@ -107,18 +113,21 @@ mod wasm {
             self.0.address(kind, index).map_err(js_err)
         }
 
-        /// Scan a batch of blocks. `blocks_json` is the node's
-        /// `GetBlocksResponse.blocks` array, `unspent_json` the app's unspent
-        /// `StoredUtxo` array, `next_key_indices_json` a `NextKeyIndices`.
-        /// Returns a `ScanResult` as JSON.
+        /// Scan a batch of blocks. `blocks_response` is the node's raw
+        /// JSON-RPC response text for `wallet_getBlocks` (kept as text so
+        /// u64 and u128 values are not rounded by JavaScript), `unspent_json`
+        /// the app's unspent `StoredUtxo` array, `next_key_indices_json` a
+        /// `NextKeyIndices`. Returns a `ScanResult` as JSON.
         pub fn scan_blocks(
             &mut self,
-            blocks_json: &str,
+            blocks_response: &str,
             unspent_json: &str,
             next_key_indices_json: &str,
         ) -> Result<String, JsError> {
-            let blocks = serde_json::from_str(blocks_json)
-                .map_err(|e| JsError::new(&format!("cannot decode blocks: {e}")))?;
+            let envelope: Envelope<neptune_rpc_api::model::message::GetBlocksResponse> =
+                serde_json::from_str(blocks_response)
+                    .map_err(|e| JsError::new(&format!("cannot decode blocks: {e}")))?;
+            let blocks = envelope.result.blocks;
             let unspent = serde_json::from_str(unspent_json)
                 .map_err(|e| JsError::new(&format!("cannot decode unspent utxos: {e}")))?;
             let next_key_indices = serde_json::from_str(next_key_indices_json)
@@ -144,23 +153,27 @@ mod wasm {
             serde_json::to_string(&plan).map_err(|e| JsError::new(&e.to_string()))
         }
 
-        /// Build the witness for a send. `snapshot_json` is the node's
-        /// `RestoreMembershipProofResponse.snapshot`, `tip_header_json` its
-        /// `TipHeaderResponse.header`.
+        /// Build the witness for a send. `snapshot_response` is the node's raw
+        /// JSON-RPC response text for `wallet_restoreMembershipProof`,
+        /// `tip_header_response` the raw text for `chain_tipHeader`.
         pub fn build_send(
             &mut self,
             inputs_json: &str,
-            snapshot_json: &str,
-            tip_header_json: &str,
+            snapshot_response: &str,
+            tip_header_response: &str,
             request_json: &str,
             now_ms: f64,
         ) -> Result<SendPlan, JsError> {
             let inputs: Vec<scan::StoredUtxo> = serde_json::from_str(inputs_json)
                 .map_err(|e| JsError::new(&format!("cannot decode inputs: {e}")))?;
-            let snapshot = serde_json::from_str(snapshot_json)
-                .map_err(|e| JsError::new(&format!("cannot decode membership proof snapshot: {e}")))?;
-            let tip_header = serde_json::from_str(tip_header_json)
-                .map_err(|e| JsError::new(&format!("cannot decode tip header: {e}")))?;
+            let snapshot: Envelope<neptune_rpc_api::model::message::RestoreMembershipProofResponse> =
+                serde_json::from_str(snapshot_response)
+                    .map_err(|e| JsError::new(&format!("cannot decode membership proof snapshot: {e}")))?;
+            let snapshot = snapshot.result.snapshot;
+            let tip_header: Envelope<neptune_rpc_api::model::message::TipHeaderResponse> =
+                serde_json::from_str(tip_header_response)
+                    .map_err(|e| JsError::new(&format!("cannot decode tip header: {e}")))?;
+            let tip_header = tip_header.result.header;
             let request: send::SendRequest = serde_json::from_str(request_json)
                 .map_err(|e| JsError::new(&format!("cannot decode send request: {e}")))?;
             send::build_send(&mut self.0, &inputs, snapshot, tip_header, &request, now_ms as u64)
