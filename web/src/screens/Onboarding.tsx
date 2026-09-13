@@ -2,11 +2,13 @@
 // confirm it word by word, set a password.
 
 import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Select, Stack, Text, Textarea, Title } from '@mantine/core';
+import { IconCopy } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 import { WordGrid } from '../components/WordGrid';
+import { copyText } from '../util/clipboard';
 import { NETWORK_OPTIONS } from '../util/network';
 import type { Network } from '../storage/db';
 import type { ExportFile } from '../storage/envelope';
@@ -184,6 +186,14 @@ export function Onboarding() {
             <Title order={2}>Write down these 18 words</Title>
             <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your funds. Clearing the browser deletes everything except what you write down.</Text>
             <WordGrid words={phrase} />
+            <Group justify="space-between" align="center">
+              <Button variant="subtle" size="compact-sm" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+                Copy words
+              </Button>
+              <Text size="xs" c="dimmed">
+                Other apps can read the clipboard; paste into a password manager, then clear it.
+              </Text>
+            </Group>
             <Button onClick={startConfirm}>I have written them down</Button>
             <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); setStep('welcome'); }}>
               Start over

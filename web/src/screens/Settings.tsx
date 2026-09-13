@@ -1,7 +1,7 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Button, Group, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
+import { IconCopy, IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,6 +9,7 @@ import { useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { WrongPasswordError } from '../storage/envelope';
 import { WordGrid } from '../components/WordGrid';
+import { copyText } from '../util/clipboard';
 import { NETWORK_OPTIONS } from '../util/network';
 import type { Network } from '../storage/db';
 
@@ -114,7 +115,19 @@ export function Settings() {
               {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
             </Button>
           </Group>
-          {phrase && <WordGrid words={phrase} />}
+          {phrase && (
+            <Stack gap="xs">
+              <WordGrid words={phrase} />
+              <Group justify="space-between" align="center">
+                <Button variant="subtle" size="compact-sm" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+                  Copy words
+                </Button>
+                <Text size="xs" c="dimmed">
+                  Other apps can read the clipboard; clear it afterwards.
+                </Text>
+              </Group>
+            </Stack>
+          )}
         </Stack>
       </Paper>
 
