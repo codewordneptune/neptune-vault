@@ -9,8 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "wasm:prover": "wasm-pack build ../crates/vault-prover --target web --release --out-dir ../../web/src/wasm/prover",
-    "wasm:core": "wasm-pack build ../crates/vault-core --target web --release --out-dir ../../web/src/wasm/core"
+    "wasm:prover": "wasm-pack build ../crates/vault-prover --target web --release --out-dir ../../web/public/wasm/prover",
+    "wasm:core": "wasm-pack build ../crates/vault-core --target web --release --out-dir ../../web/public/wasm/core"
   },
   "dependencies": {
     "@mantine/core": "^9.6.1",

@@ -2,7 +2,18 @@
 // (when the page is cross-origin isolated), and proves one ProofCollection
 // per request, reporting progress per sub-proof.
 
-import init, { initThreadPool, prove_proof_collection, count_sub_proofs, wasm_memory_bytes } from '../wasm/prover/vault_prover.js';
+// The wasm package is served untransformed from /wasm/prover (public dir):
+// wasm-bindgen-rayon re-fetches its own helper script into blob workers,
+// and a dev-server transform would inject imports those cannot resolve.
+type ProverModule = typeof import('../../public/wasm/prover/vault_prover');
+let prover: ProverModule | null = null;
+async function loadProver(): Promise<ProverModule> {
+  // An absolute URL keeps both TypeScript and Vite's dev-time import rewriting
+  // (which appends a query to root-relative dynamic imports) out of the way.
+  const url = new URL('/wasm/prover/vault_prover.js', self.location.origin).href;
+  prover ??= (await import(/* @vite-ignore */ url)) as ProverModule;
+  return prover;
+}
 
 export interface ProveRequest {
   witness: Uint8Array;
@@ -18,37 +29,40 @@ export type ProveMessage =
   | { kind: 'done'; proofCollection: Uint8Array; memoryBytes: number }
   | { kind: 'error'; message: string };
 
-let ready: Promise<void> | null = null;
+let ready: Promise<ProverModule> | null = null;
 let poolSize = 0;
 
-async function ensureReady(threads: number): Promise<void> {
-  ready ??= (async () => {
-    await init();
+async function ensureReady(threads: number): Promise<ProverModule> {
+  const p = ready ?? (async () => {
+    const m = await loadProver();
+    await m.default();
     if (self.crossOriginIsolated && threads > 0) {
       try {
-        await initThreadPool(threads);
+        await m.initThreadPool(threads);
         poolSize = threads;
       } catch {
         poolSize = 0;
       }
     }
+    return m;
   })();
-  return ready;
+  ready = p;
+  return p;
 }
 
 const post = (m: ProveMessage, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(m, transfer);
 
 self.onmessage = async ({ data }: MessageEvent<ProveRequest>) => {
   try {
-    await ensureReady(data.threads);
-    const total = count_sub_proofs(data.witness);
+    const m = await ensureReady(data.threads);
+    const total = m.count_sub_proofs(data.witness);
     post({ kind: 'ready', total, threads: poolSize });
-    const result = prove_proof_collection(data.witness, data.network, BigInt(data.blockHeight), false, false, (json: string) => {
+    const result = m.prove_proof_collection(data.witness, data.network, BigInt(data.blockHeight), false, false, (json: string) => {
       const event = JSON.parse(json) as { kind: 'started' | 'finished'; name: string; index: number; total: number; millis?: number };
       if (event.kind === 'started') post({ kind: 'started', name: event.name, index: event.index, total: event.total });
-      else post({ kind: 'finished', name: event.name, index: event.index, total: event.total, millis: event.millis ?? 0, memoryBytes: wasm_memory_bytes() });
+      else post({ kind: 'finished', name: event.name, index: event.index, total: event.total, millis: event.millis ?? 0, memoryBytes: m.wasm_memory_bytes() });
     });
-    post({ kind: 'done', proofCollection: result, memoryBytes: wasm_memory_bytes() }, [result.buffer]);
+    post({ kind: 'done', proofCollection: result, memoryBytes: m.wasm_memory_bytes() }, [result.buffer]);
   } catch (e) {
     post({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
   }

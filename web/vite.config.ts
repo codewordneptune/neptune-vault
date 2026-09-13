@@ -47,8 +47,4 @@ export default defineConfig({
   preview: { headers: isolationHeaders, port: 4401 },
   worker: { format: 'es' },
   build: { target: 'es2022' },
-  optimizeDeps: {
-    // wasm-pack output must not be pre-bundled: it locates its .wasm by URL.
-    exclude: ['./src/wasm/prover/vault_prover.js', './src/wasm/core/vault_core.js'],
-  },
 });

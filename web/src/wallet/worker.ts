@@ -2,15 +2,10 @@
 // witness building never block the UI thread, and so the decrypted seed
 // lives in this worker's memory only. Terminating the worker locks.
 
-import init, {
-  Account,
-  assemble_submission,
-  derive_key,
-  format_amount,
-  generate_phrase,
-  is_valid_address,
-  parse_amount,
-} from '../wasm/core/vault_core.js';
+// Served untransformed from the public dir, like the prover package.
+type CoreModule = typeof import('../../public/wasm/core/vault_core');
+type Account = InstanceType<CoreModule['Account']>;
+
 
 export interface WorkerRequest {
   id: number;
@@ -26,11 +21,19 @@ export interface WorkerResponse {
   transfer?: Transferable[];
 }
 
-let ready: Promise<void> | null = null;
+let ready: Promise<CoreModule> | null = null;
 let account: Account | null = null;
 
-function ensureReady(): Promise<void> {
-  const p = ready ?? init().then(() => undefined);
+function ensureReady(): Promise<CoreModule> {
+  const p =
+    ready ??
+    (async () => {
+      const url = new URL('/wasm/core/vault_core.js', self.location.origin).href;
+      const m = (await import(/* @vite-ignore */ url)) as CoreModule;
+      await m.default();
+
+      return m;
+    })();
   ready = p;
   return p;
 }
@@ -41,24 +44,24 @@ function requireAccount(): Account {
 }
 
 async function handle(op: string, args: unknown[]): Promise<{ result: unknown; transfer?: Transferable[] }> {
-  await ensureReady();
+  const m = await ensureReady();
   switch (op) {
     case 'generatePhrase':
-      return { result: generate_phrase() };
+      return { result: m.generate_phrase() };
     case 'deriveKey': {
       const [password, salt, mKib, tCost, pCost] = args as [Uint8Array, Uint8Array, number, number, number];
-      const key = derive_key(password, salt, mKib, tCost, pCost);
+      const key = m.derive_key(password, salt, mKib, tCost, pCost);
       return { result: key, transfer: [key.buffer] };
     }
     case 'parseAmount':
-      return { result: parse_amount(args[0] as string) };
+      return { result: m.parse_amount(args[0] as string) };
     case 'formatAmount':
-      return { result: format_amount(args[0] as string) };
+      return { result: m.format_amount(args[0] as string) };
     case 'isValidAddress':
-      return { result: is_valid_address(args[0] as string, args[1] as string) };
+      return { result: m.is_valid_address(args[0] as string, args[1] as string) };
     case 'unlock': {
       account?.free();
-      account = new Account(args[0] as string[], args[1] as string);
+      account = new m.Account(args[0] as string[], args[1] as string);
       return { result: null };
     }
     case 'lock':
@@ -98,7 +101,7 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
     }
     case 'assembleSubmission': {
       const [kernel, proof] = args as [Uint8Array, Uint8Array];
-      return { result: JSON.parse(assemble_submission(kernel, proof)) };
+      return { result: JSON.parse(m.assemble_submission(kernel, proof)) };
     }
     default:
       throw new Error(`unknown wallet operation ${op}`);
