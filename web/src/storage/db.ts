@@ -98,6 +98,11 @@ export interface SettingsRecord {
   nodeUrls: Record<Network, string>;
   currentAccountId: string | null;
   lockTimeoutMs: number;
+  /** Last fee preset chosen on Send, and the custom value if any. */
+  feePreset?: string;
+  feeCustom?: string;
+  /** Last connection test per network, kept so Settings shows it on return. */
+  nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
 }
 
 /** A saved recipient (contact), per account. */

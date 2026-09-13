@@ -1,5 +1,5 @@
-import { Alert, Button, Paper, PasswordInput, Stack, Title } from '@mantine/core';
-import { useState } from 'react';
+import { Button, Paper, PasswordInput, Stack, Title } from '@mantine/core';
+import { useRef, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import { WrongPasswordError } from '../storage/envelope';
@@ -9,6 +9,7 @@ export function Unlock() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
 
   const unlock = async () => {
@@ -19,7 +20,9 @@ export function Unlock() {
       await services.accounts.unlock(account.id, password);
       setPassword('');
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password.' : (e as Error).message);
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+      setPassword('');
+      inputRef.current?.focus();
     } finally {
       setBusy(false);
     }
@@ -35,8 +38,17 @@ export function Unlock() {
       >
         <Stack>
           <Title order={2}>Welcome back</Title>
-          {error && <Alert color="red">{error}</Alert>}
-          <PasswordInput label="Password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoFocus />
+          <PasswordInput
+            ref={inputRef}
+            label="Password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.currentTarget.value);
+              setError(null);
+            }}
+            error={error}
+            autoFocus
+          />
           <Button type="submit" loading={busy} disabled={!password}>
             Unlock
           </Button>

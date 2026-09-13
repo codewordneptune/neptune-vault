@@ -17,7 +17,7 @@ export function Settings() {
   const navigate = useNavigate();
   const lastBackup = account?.lastBackupAt ? new Date(account.lastBackupAt).toLocaleString() : 'never';
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
-  const [probe, setProbe] = useState<{ ok: boolean; text: string } | null>(null);
+  const [probe, setProbe] = useState<{ ok: boolean; text: string; at?: number } | null>(services.settings.nodeProbe?.[network] ?? null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -25,23 +25,31 @@ export function Settings() {
     if (!value) return;
     const next = value as Network;
     setNodeUrl(services.settings.nodeUrls[next] ?? '');
+    setProbe(services.settings.nodeProbe?.[next] ?? null);
     await switchNetwork(next);
   };
 
-  const saveNode = async () => {
-    await services.updateSettings({ nodeUrls: { ...services.settings.nodeUrls, [network]: nodeUrl.trim() } });
-    setMessage('Node URL saved.');
-  };
-
+  // Saved on blur and tested at once; the result is kept per network.
   const testNode = async () => {
     setProbe({ ok: true, text: 'Testing…' });
+    let result: { ok: boolean; text: string; at: number };
     try {
       const { NodeClient } = await import('../node/rpc');
       const height = await new NodeClient(nodeUrl.trim()).probe();
-      setProbe({ ok: true, text: `Reachable, tip height ${height}` });
+      result = { ok: true, text: `Reachable, tip height ${height}`, at: Date.now() };
     } catch (e) {
-      setProbe({ ok: false, text: (e as Error).message });
+      result = { ok: false, text: (e as Error).message, at: Date.now() };
     }
+    setProbe(result);
+    await services.updateSettings({ nodeProbe: { ...services.settings.nodeProbe, [network]: result } });
+  };
+
+  const saveAndTestNode = async () => {
+    const url = nodeUrl.trim();
+    if (url !== (services.settings.nodeUrls[network] ?? '')) {
+      await services.updateSettings({ nodeUrls: { ...services.settings.nodeUrls, [network]: url } });
+    }
+    await testNode();
   };
 
   const exportBackup = async () => {
@@ -74,16 +82,23 @@ export function Settings() {
         <Stack>
           <Title order={3}>Network and node</Title>
           <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} />
-          <TextInput label="Node URL" value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
-          <Group>
-            <Button onClick={() => void saveNode()}>Save</Button>
-            <Button variant="light" onClick={() => void testNode()}>Test connection</Button>
-          </Group>
+          <TextInput
+            label="Node URL"
+            description="Saved and tested when you leave the field."
+            value={nodeUrl}
+            onChange={(e) => setNodeUrl(e.currentTarget.value)}
+            onBlur={() => void saveAndTestNode()}
+            placeholder="https://…"
+          />
           {probe && (
             <Text size="sm" c={probe.ok ? 'dimmed' : 'red'}>
               {probe.text}
+              {probe.at && probe.text !== 'Testing…' ? ` · checked ${new Date(probe.at).toLocaleTimeString()}` : ''}
             </Text>
           )}
+          <Group>
+            <Button variant="light" onClick={() => void testNode()}>Test again</Button>
+          </Group>
         </Stack>
       </Paper>
 

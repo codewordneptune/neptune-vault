@@ -412,3 +412,18 @@ button.vault-network::before {
 .mantine-Modal-overlay {
   background: rgba(9, 14, 21, 0.7);
 }
+
+/* Sync in progress. */
+@keyframes vault-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.vault-spin {
+  animation: vault-spin 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vault-spin {
+    animation: none;
+  }
+}

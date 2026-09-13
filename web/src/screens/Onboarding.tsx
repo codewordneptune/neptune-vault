@@ -180,6 +180,7 @@ export function Onboarding() {
       {step === 'show' && (
         <Paper>
           <Stack>
+            <span className="vault-eyebrow">Step 1 of 3</span>
             <Title order={2}>Write down these 18 words</Title>
             <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your funds. Clearing the browser deletes everything except what you write down.</Text>
             <WordGrid words={phrase} />
@@ -194,6 +195,7 @@ export function Onboarding() {
       {step === 'confirm' && (
         <Paper>
           <Stack>
+            <span className="vault-eyebrow">Step 2 of 3</span>
             <Title order={2}>Confirm your phrase</Title>
             <Text size="sm" c="dimmed">Tap the words below to put them back in their places.</Text>
             <WordGrid
@@ -219,7 +221,7 @@ export function Onboarding() {
         </Paper>
       )}
 
-      {step === 'password' && <PasswordStep busy={busy} onSubmit={finish} />}
+      {step === 'password' && <PasswordStep busy={busy} onSubmit={finish} stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'} />}
 
       {step === 'import' && (
         <ImportStep
@@ -251,16 +253,26 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
-function PasswordStep({ busy, onSubmit }: { busy: boolean; onSubmit: (password: string) => void }) {
+function PasswordStep({ busy, onSubmit, stepLabel }: { busy: boolean; onSubmit: (password: string) => void; stepLabel: string }) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
   const ok = password.length >= 8 && password === again;
+  // Length is the only signal worth showing; anything finer misleads.
+  const strength = password.length === 0 ? null : password.length < 8 ? 'Too short' : password.length < 12 ? 'Weak' : password.length < 16 ? 'Good' : 'Strong';
   return (
     <Paper>
       <Stack>
+        <span className="vault-eyebrow">{stepLabel}</span>
         <Title order={2}>Choose a password</Title>
-        <Text size="sm" c="dimmed">It encrypts your phrase on this device and is asked for on every unlock. It cannot be recovered.</Text>
-        <PasswordInput label="Password (at least 8 characters)" value={password} onChange={(e) => setPassword(e.currentTarget.value)} />
+        <Text size="sm" c="dimmed">
+          It only protects the phrase stored on this device and is asked for on every unlock. It cannot be recovered, but the phrase can always restore the wallet, so a forgotten password costs a re-import, not your funds.
+        </Text>
+        <PasswordInput
+          label="Password (at least 8 characters)"
+          description={strength ? `Strength: ${strength}. Longer beats complicated.` : 'Longer beats complicated.'}
+          value={password}
+          onChange={(e) => setPassword(e.currentTarget.value)}
+        />
         <PasswordInput label="Repeat" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={again && again !== password ? 'passwords differ' : undefined} />
         <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password)}>Create wallet</Button>
       </Stack>
@@ -290,6 +302,7 @@ function ImportStep({
   return (
     <Paper>
       <Stack>
+        <span className="vault-eyebrow">Step 1 of 2</span>
         <Title order={2}>Import</Title>
         <Textarea label="Seed phrase (18 words)" autosize minRows={3} value={text} onChange={(e) => setText(e.currentTarget.value)} />
         <NumberInput label="Scan from block height" description="The block your first funds arrived in, or 1 to scan everything (slow)." min={1} value={birthday} onChange={setBirthday} />

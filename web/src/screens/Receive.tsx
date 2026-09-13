@@ -2,14 +2,15 @@
 // kinds. Key 0 of a kind is its main address; "next unused" derives the next
 // key of that kind.
 
-import { Button, Code, Group, Paper, SegmentedControl, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconCheck, IconCopy } from '@tabler/icons-react';
+import { Button, Code, Group, Paper, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconCopy, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
 import { abbreviateAddress } from '../util/address';
+import { copyText } from '../util/clipboard';
 import type { KeyKind } from '../wallet/core';
 
 const KIND_LABELS: Record<KeyKind, string> = {
@@ -34,8 +35,10 @@ export function Receive() {
   const [indices, setIndices] = useState<Record<KeyKind, number>>({ generation: 0, ec_hybrid: 0, viewing: 0 });
   const [address, setAddress] = useState<string>(account?.address0 ?? '');
   const [qr, setQr] = useState<string>('');
-  const [copied, setCopied] = useState(false);
   const [showFull, setShowFull] = useState(false);
+  // Optional amount for a payment request; the link follows NIP-2 (npt:).
+  const [requestAmount, setRequestAmount] = useState('');
+  const paymentLink = `npt:${address}${requestAmount.trim() ? `?amount=${encodeURIComponent(requestAmount.trim())}` : ''}`;
   const index = indices[kind];
 
   useEffect(() => {
@@ -60,10 +63,20 @@ export function Receive() {
     };
   }, [kind, index, account, services]);
 
-  const copy = async () => {
-    await navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  const copy = () => void copyText(address, 'Address copied');
+
+  // The system share sheet where it exists; otherwise the link is copied.
+  const share = async () => {
+    const text = requestAmount.trim() ? `Please send ${requestAmount.trim()} NPT to ${paymentLink}` : paymentLink;
+    if (navigator.share) {
+      try {
+        await navigator.share({ text });
+      } catch {
+        // Cancelled by the user; nothing to report.
+      }
+    } else {
+      await copyText(text, requestAmount.trim() ? 'Payment request copied' : 'Payment link copied');
+    }
   };
 
   const nextUnused = () => {
@@ -95,13 +108,23 @@ export function Receive() {
           {abbreviateAddress(address)}
         </Text>
         <Group grow>
-          <Button leftSection={copied ? <IconCheck size={16} stroke={1.8} /> : <IconCopy size={16} stroke={1.8} />} onClick={copy}>
-            {copied ? 'Copied' : 'Copy'}
+          <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy}>
+            Copy
           </Button>
-          <Button variant="light" onClick={nextUnused}>
-            Next unused
+          <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()}>
+            Share
           </Button>
         </Group>
+        <TextInput
+          label="Request an amount (optional)"
+          description="Adds the amount to the shared payment link; the QR code stays the plain address."
+          inputMode="decimal"
+          value={requestAmount}
+          onChange={(e) => setRequestAmount(e.currentTarget.value)}
+        />
+        <Button variant="subtle" size="compact-sm" onClick={nextUnused} style={{ alignSelf: 'flex-start' }}>
+          Use the next unused address
+        </Button>
         <UnstyledButton onClick={() => setShowFull((v) => !v)} c="neptune.3" fz="sm" ta="center">
           {showFull ? 'Hide full address' : 'Show full address'}
         </UnstyledButton>

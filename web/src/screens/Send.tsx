@@ -26,6 +26,8 @@ const FEE_PRESETS: { value: string; label: string; fee: string }[] = [
 ];
 const DEFAULT_PRESET = 'medium';
 const DEFAULT_FEE = FEE_PRESETS.find((p) => p.value === DEFAULT_PRESET)!.fee;
+const presetFee = (preset: string, custom: string | undefined) =>
+  preset === 'custom' ? (custom ?? '') : (FEE_PRESETS.find((p) => p.value === preset)?.fee ?? DEFAULT_FEE);
 
 type Step = 'form' | 'review';
 
@@ -46,8 +48,10 @@ export function Send() {
     void services.contacts.findByAddress(account.id, lastRecipient).then((c) => setSavedName(c?.name ?? null));
   }, [services, account, lastRecipient]);
   const [amount, setAmount] = useState('');
-  const [fee, setFee] = useState(DEFAULT_FEE);
-  const [feePreset, setFeePreset] = useState(DEFAULT_PRESET);
+  // The fee level is remembered between sends (settings).
+  const [feePreset, setFeePreset] = useState(services.settings.feePreset ?? DEFAULT_PRESET);
+  const [fee, setFee] = useState(presetFee(services.settings.feePreset ?? DEFAULT_PRESET, services.settings.feeCustom));
+  const [reviewName, setReviewName] = useState<string | null>(null);
   const [recipientError, setRecipientError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [feeError, setFeeError] = useState<string | null>(null);
@@ -117,7 +121,10 @@ export function Send() {
 
   const review = async () => {
     const [okAddress, okAmounts] = await Promise.all([checkRecipient(), checkAmounts()]);
-    if (okAddress && okAmounts) setStep('review');
+    if (!(okAddress && okAmounts)) return;
+    const contact = account ? await services.contacts.findByAddress(account.id, recipient.trim()) : undefined;
+    setReviewName(contact?.name ?? null);
+    setStep('review');
   };
 
   const send = async (acceptLustration: boolean) => {
@@ -213,7 +220,12 @@ export function Send() {
           <div className="vault-review">
             <div>
               <span className="vault-eyebrow">To</span>
-              <Text ff="monospace" size="sm">
+              {reviewName && (
+                <Text size="lg" fw={600}>
+                  {reviewName}
+                </Text>
+              )}
+              <Text ff="monospace" size="sm" c={reviewName ? 'dimmed' : undefined}>
                 {abbreviateAddress(recipient)}
               </Text>
               <Text size="xs" c="dimmed">
@@ -349,6 +361,8 @@ export function Send() {
                   setFeePreset(v);
                   const preset = FEE_PRESETS.find((x) => x.value === v);
                   if (preset && preset.fee) setFee(preset.fee);
+                  else if (v === 'custom') setFee(services.settings.feeCustom ?? '');
+                  void services.updateSettings({ feePreset: v });
                 }}
                 data={FEE_PRESETS.map((x) => ({ value: x.value, label: x.label }))}
               />
@@ -361,6 +375,7 @@ export function Send() {
                 onChange={(e) => {
                   setFee(e.currentTarget.value);
                   setFeeError(null);
+                  void services.updateSettings({ feeCustom: e.currentTarget.value });
                 }}
                 onBlur={() => void checkAmounts()}
                 error={feeError}

@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 import { App } from './App';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { captureInstallPrompt } from './app/install';
 import { AppProvider } from './app/AppContext';
 import { createServices, type Services } from './app/services';
@@ -38,7 +39,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="dark">
       <Notifications position="top-center" />
-      <Root />
+      <ErrorBoundary>
+        <Root />
+      </ErrorBoundary>
     </MantineProvider>
   </StrictMode>,
 );

@@ -2,14 +2,26 @@
 
 import { Alert, Badge, Button, Group, Modal, Paper, Stack, Text, Title } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconRefresh, IconShieldCheck } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { HistoryRecord } from '../storage/db';
 
 import { formatNau, useApp } from '../app/AppContext';
 
 export function Home() {
-  const { balance, sync, history, utxos, syncNow, services, refresh, account } = useApp();
+  const { balance, sync, history, utxos, syncNow, lastSyncedAt, services, refresh, account } = useApp();
+  // Re-render every 30 s so "2 min ago" stays right.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const ago = (ms: number) => {
+    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 45) return 'just now';
+    if (s < 3600) return `${Math.round(s / 60)} min ago`;
+    return `${Math.round(s / 3600)} h ago`;
+  };
   const navigate = useNavigate();
 
   // Reminder until an export file exists; a dismissal snoozes it for a week.
@@ -33,16 +45,17 @@ export function Home() {
   // Exactly what is held: the inputs reserved for that transaction.
   const reservedFor = (h: HistoryRecord) => utxos.filter((u) => u.pendingTxid === h.txid).reduce((sum, u) => sum + BigInt(u.amountNau), 0n);
 
+  const busy = sync?.phase === 'checking' || sync?.phase === 'scanning';
   const syncText =
     sync === null
       ? 'Not synced yet'
       : sync.phase === 'checking'
-        ? 'Checking chain…'
+        ? 'Checking the chain'
         : sync.phase === 'scanning'
           ? `Scanning block ${sync.syncedHeight} of ${sync.tipHeight}`
           : sync.phase === 'done'
-            ? `Synced to block ${sync.syncedHeight}`
-            : `Sync failed: ${sync.message}`;
+            ? `Up to date · block ${sync.syncedHeight}${lastSyncedAt ? ` · ${ago(lastSyncedAt)}` : ''}`
+            : sync.message ?? 'Sync failed';
 
   return (
     <Stack gap="md">
@@ -69,14 +82,24 @@ export function Home() {
               {formatNau(balance.reservedNau)} NPT is held by a pending send. It stays held until the network includes the transaction, usually within a few blocks; then the change comes back as spendable.
             </Text>
           )}
-          <Group justify="space-between" mt="xs">
-            <Text size="sm" c={sync?.phase === 'error' ? 'red' : 'dimmed'}>
-              {syncText}
-            </Text>
-            <Button size="compact-sm" variant="subtle" leftSection={<IconRefresh size={16} stroke={1.8} />} onClick={() => void syncNow()}>
-              Sync
-            </Button>
+          <Group justify="space-between" mt="xs" wrap="nowrap" align="flex-start">
+            <Group gap={6} wrap="nowrap" align="flex-start" style={{ minWidth: 0 }}>
+              {busy && <IconRefresh size={16} stroke={1.8} className="vault-spin" style={{ flexShrink: 0, marginTop: 3, color: 'var(--v-accent-text)' }} />}
+              <Text size="sm" c={sync?.phase === 'error' ? 'red' : 'dimmed'}>
+                {syncText}
+              </Text>
+            </Group>
+            {!busy && (
+              <Button size="compact-sm" variant="subtle" leftSection={<IconRefresh size={16} stroke={1.8} />} onClick={() => void syncNow()} style={{ flexShrink: 0 }}>
+                {sync?.phase === 'error' ? 'Retry' : 'Sync'}
+              </Button>
+            )}
           </Group>
+          {sync?.phase === 'error' && (
+            <Button size="compact-sm" variant="subtle" onClick={() => navigate('/settings')} style={{ alignSelf: 'flex-start' }}>
+              Check the node in Settings
+            </Button>
+          )}
         </Stack>
       </Paper>
 

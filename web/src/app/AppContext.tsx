@@ -42,6 +42,8 @@ export interface AppState {
   refresh: () => Promise<void>;
   /** Run one sync pass now (also runs on a timer while unlocked). */
   syncNow: () => Promise<void>;
+  /** When the last sync pass finished without error. */
+  lastSyncedAt: number | null;
   setAccount: (account: AccountRecord | null) => void;
   /** The selected network; accounts are bound to one. */
   network: Network;
@@ -74,6 +76,7 @@ export function AppProvider({ services, children }: { services: Services; childr
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [network, setNetwork] = useState<Network>(services.settings.network);
   const [sendJob, setSendJob] = useState<SendJob | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const syncing = useRef(false);
 
   const switchNetwork = useCallback(
@@ -163,7 +166,10 @@ export function AppProvider({ services, children }: { services: Services; childr
     if (!accountId || locked || syncing.current) return;
     syncing.current = true;
     try {
-      const engine = services.syncEngine(accountId, setSync);
+      const engine = services.syncEngine(accountId, (p) => {
+        setSync(p);
+        if (p.phase === 'done') setLastSyncedAt(Date.now());
+      });
       await engine.syncOnce();
       await refresh();
     } finally {
@@ -193,8 +199,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   }, [utxos]);
 
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, setAccount, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, lastSyncedAt, setAccount, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, lastSyncedAt, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
