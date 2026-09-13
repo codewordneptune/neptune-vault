@@ -65,5 +65,6 @@ export const theme = createTheme({
     Alert: { defaultProps: { radius: 'sm', variant: 'light' } },
     Code: { defaultProps: { radius: 'sm' } },
     Menu: { defaultProps: { radius: 'sm', shadow: 'lg' } },
+    Modal: { defaultProps: { radius: 'md', centered: true, overlayProps: { blur: 2 } } },
   },
 });
