@@ -66,8 +66,8 @@ export function Settings() {
           <Select label="Network" data={['main', 'testnet', 'regtest']} value={network} onChange={(v) => void changeNetwork(v)} />
           <TextInput label="Node URL" value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
           <Group>
-            <Button size="xs" onClick={() => void saveNode()}>Save</Button>
-            <Button size="xs" variant="light" onClick={() => void testNode()}>Test connection</Button>
+            <Button onClick={() => void saveNode()}>Save</Button>
+            <Button variant="light" onClick={() => void testNode()}>Test connection</Button>
           </Group>
           {probe && <Text size="sm">{probe}</Text>}
         </Stack>
@@ -80,8 +80,8 @@ export function Settings() {
             Persistent storage {services.persistent ? 'granted' : 'not granted'}. Clearing the browser's site data deletes this wallet; keep the phrase or a backup file.
           </Text>
           <Group>
-            <Button size="xs" leftSection={<IconDownload size={16} stroke={1.8} />} onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>
-            <Button size="xs" variant="light" leftSection={<IconEye size={16} stroke={1.8} />} onClick={() => void showPhrase()} disabled={!account}>Show seed phrase</Button>
+            <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>
+            <Button variant="light" leftSection={<IconEye size={16} stroke={1.8} />} onClick={() => void showPhrase()} disabled={!account}>Show seed phrase</Button>
           </Group>
           {phrase && <WordGrid words={phrase} />}
         </Stack>
@@ -91,7 +91,7 @@ export function Settings() {
         <Stack>
           <Title order={4}>Session</Title>
           <Text size="sm" c="dimmed">Locks after 5 minutes idle and when the app goes to the background.</Text>
-          <Button size="xs" variant="light" leftSection={<IconLock size={16} stroke={1.8} />} onClick={() => void services.accounts.lock()}>Lock now</Button>
+          <Button variant="light" leftSection={<IconLock size={16} stroke={1.8} />} onClick={() => void services.accounts.lock()}>Lock now</Button>
         </Stack>
       </Paper>
     </Stack>

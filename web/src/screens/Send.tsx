@@ -96,8 +96,8 @@ export function Send() {
           <Alert color="yellow" title="Lustration required">
             <Text size="sm">The chain currently requires lustration announcements for these inputs. Continue?</Text>
             <Group mt="xs">
-              <Button size="xs" onClick={() => void send(true)}>Continue</Button>
-              <Button size="xs" variant="subtle" onClick={() => setAskLustration(false)}>Cancel</Button>
+              <Button onClick={() => void send(true)}>Continue</Button>
+              <Button variant="subtle" onClick={() => setAskLustration(false)}>Cancel</Button>
             </Group>
           </Alert>
         )}
