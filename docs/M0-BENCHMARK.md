@@ -236,6 +236,10 @@ DEEP on the largest proof fell from 69.1 s to 6.6 s. Threads now give 7.1x
 over one thread on the same build. Peak memory 1024 MB. The production build
 (profiler off) is measured below.
 
+The inverse also helps natively: the round-trip test on 16 cores went from
+68.7 s to 43.1 s (removal records integrity 45.9 s to 29.0 s), and the
+consensus verifier still accepts the collection.
+
 ## Levers if the phone misses the budget
 
 1. No LDE cache (this build). Memory first, time second.

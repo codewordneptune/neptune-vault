@@ -48,10 +48,9 @@ wasm-opt = [
 
 [lib]
 name = "twenty_first"
-crate-type = [
-    "cdylib",
-    "rlib",
-]
+# Neptune Vault: rlib only. A path dependency's cdylib is written without a
+# hash in its file name and collides between build-script and normal builds.
+crate-type = ["rlib"]
 path = "src/lib.rs"
 
 [[test]]
