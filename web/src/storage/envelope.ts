@@ -14,14 +14,14 @@ export interface KdfParams {
 
 export const DEFAULT_KDF: KdfParams = { mKib: 64 * 1024, tCost: 3, pCost: 1 };
 
-/** Provided by the wasm wallet core: Argon2id returning 32 bytes. */
+/** Provided by the wasm wallet core (possibly in a worker): Argon2id, 32 bytes. */
 export type DeriveKey = (
   password: Uint8Array,
   salt: Uint8Array,
   mKib: number,
   tCost: number,
   pCost: number,
-) => Uint8Array;
+) => Uint8Array | Promise<Uint8Array>;
 
 // WebCrypto wants a plain ArrayBuffer view; copy out of any shared buffer.
 function ab(u8: Uint8Array): ArrayBuffer {
@@ -68,7 +68,7 @@ export async function sealSeed(
   kdf: KdfParams = DEFAULT_KDF,
 ): Promise<SeedEnvelope> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const wrapRaw = deriveKey(te.encode(password), salt, kdf.mKib, kdf.tCost, kdf.pCost);
+  const wrapRaw = await deriveKey(te.encode(password), salt, kdf.mKib, kdf.tCost, kdf.pCost);
   const contentRaw = crypto.getRandomValues(new Uint8Array(32));
   const wrapKey = await importAesKey(wrapRaw, ['encrypt']);
   const contentKey = await importAesKey(contentRaw, ['encrypt']);
@@ -97,7 +97,7 @@ export async function openSeed(envelope: SeedEnvelope, password: string, deriveK
     throw new Error(`unsupported envelope version ${envelope.version}`);
   }
   const { mKib, tCost, pCost, salt } = envelope.kdf;
-  const wrapRaw = deriveKey(te.encode(password), fromB64(salt), mKib, tCost, pCost);
+  const wrapRaw = await deriveKey(te.encode(password), fromB64(salt), mKib, tCost, pCost);
   const wrapKey = await importAesKey(wrapRaw, ['decrypt']);
   wrapRaw.fill(0);
   let contentRaw: Uint8Array;
@@ -120,7 +120,7 @@ export async function changePassword(
   deriveKey: DeriveKey,
   kdf: KdfParams = DEFAULT_KDF,
 ): Promise<SeedEnvelope> {
-  const oldRaw = deriveKey(te.encode(oldPassword), fromB64(envelope.kdf.salt), envelope.kdf.mKib, envelope.kdf.tCost, envelope.kdf.pCost);
+  const oldRaw = await deriveKey(te.encode(oldPassword), fromB64(envelope.kdf.salt), envelope.kdf.mKib, envelope.kdf.tCost, envelope.kdf.pCost);
   const oldKey = await importAesKey(oldRaw, ['decrypt']);
   oldRaw.fill(0);
   let contentRaw: Uint8Array;
@@ -130,7 +130,7 @@ export async function changePassword(
     throw new WrongPasswordError();
   }
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const newRaw = deriveKey(te.encode(newPassword), salt, kdf.mKib, kdf.tCost, kdf.pCost);
+  const newRaw = await deriveKey(te.encode(newPassword), salt, kdf.mKib, kdf.tCost, kdf.pCost);
   const newKey = await importAesKey(newRaw, ['encrypt']);
   const wrappedContentKey = await aesEncrypt(newKey, contentRaw);
   newRaw.fill(0);
