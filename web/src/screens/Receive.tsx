@@ -171,7 +171,7 @@ export function Receive() {
         <Modal opened={sharing} onClose={() => setSharing(false)} title="Share a payment link">
           <Stack>
             <TextInput
-              label="Amount to request (optional)"
+              label="Amount to request (NPT, optional)"
               description="Goes into the link and, where it fits, the QR code, so the payer's wallet fills it in."
               inputMode="decimal"
               value={requestAmount}
