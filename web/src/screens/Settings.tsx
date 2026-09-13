@@ -29,7 +29,7 @@ export function Settings() {
     await switchNetwork(next);
   };
 
-  // Saved on blur and tested at once; the result is kept per network.
+  // Saving is explicit; the test result is kept per network.
   const testNode = async () => {
     setProbe({ ok: true, text: 'Testing…' });
     let result: { ok: boolean; text: string; at: number };
@@ -44,11 +44,10 @@ export function Settings() {
     await services.updateSettings({ nodeProbe: { ...services.settings.nodeProbe, [network]: result } });
   };
 
+  const savedUrl = services.settings.nodeUrls[network] ?? '';
+  const dirty = nodeUrl.trim() !== savedUrl;
   const saveAndTestNode = async () => {
-    const url = nodeUrl.trim();
-    if (url !== (services.settings.nodeUrls[network] ?? '')) {
-      await services.updateSettings({ nodeUrls: { ...services.settings.nodeUrls, [network]: url } });
-    }
+    await services.updateSettings({ nodeUrls: { ...services.settings.nodeUrls, [network]: nodeUrl.trim() } });
     await testNode();
   };
 
@@ -82,14 +81,7 @@ export function Settings() {
         <Stack>
           <Title order={3}>Network and node</Title>
           <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} />
-          <TextInput
-            label="Node URL"
-            description="Saved and tested when you leave the field."
-            value={nodeUrl}
-            onChange={(e) => setNodeUrl(e.currentTarget.value)}
-            onBlur={() => void saveAndTestNode()}
-            placeholder="https://…"
-          />
+          <TextInput label="Node URL" value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
           {probe && (
             <Text size="sm" c={probe.ok ? 'dimmed' : 'red'}>
               {probe.text}
@@ -97,7 +89,12 @@ export function Settings() {
             </Text>
           )}
           <Group>
-            <Button variant="light" onClick={() => void testNode()}>Test again</Button>
+            <Button onClick={() => void saveAndTestNode()} disabled={!dirty}>
+              Save and test
+            </Button>
+            <Button variant="light" onClick={() => void testNode()} disabled={dirty}>
+              Test
+            </Button>
           </Group>
         </Stack>
       </Paper>
