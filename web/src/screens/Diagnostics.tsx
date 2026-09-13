@@ -12,7 +12,7 @@ export function Diagnostics() {
       <Stack gap="xs">
         <Row label="Cross-origin isolated" ok={isolated} text={isolated ? 'yes, threads available' : 'no, single-threaded'} />
         <Row label="Cores" ok text={String(cores)} />
-        <Row label="Installed as app" ok={installed} text={installed ? 'yes' : 'no, running in the browser'} />
+        <Row label="Running as" ok={installed} text={installed ? 'installed app' : 'browser tab'} />
         <Text size="xs" c="dimmed">
           {navigator.userAgent}
         </Text>

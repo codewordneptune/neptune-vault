@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 import { App } from './App';
+import { captureInstallPrompt } from './app/install';
 import { AppProvider } from './app/AppContext';
 import { createServices, type Services } from './app/services';
 import { theme } from './theme';
@@ -29,6 +30,9 @@ function Root() {
     </AppProvider>
   );
 }
+
+// Before the first render: Chrome may fire the install event immediately.
+captureInstallPrompt();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -1,10 +1,12 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Button, Group, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconDownload, IconEye, IconKey, IconLock } from '@tabler/icons-react';
-import { useState } from 'react';
+import { IconDeviceMobile, IconDownload, IconEye, IconKey, IconLock } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
+import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { WrongPasswordError } from '../storage/envelope';
 import { WordGrid } from '../components/WordGrid';
 import { NETWORK_OPTIONS } from '../util/network';
@@ -108,6 +110,19 @@ export function Settings() {
 
       <Paper>
         <Stack>
+          <Title order={3}>App</Title>
+          <InstallCard />
+          <Text size="sm" c="dimmed">
+            <Link to="/diagnostics" style={{ color: 'var(--v-accent-text)' }}>
+              Diagnostics
+            </Link>
+            : cores, threads and install state, useful when reporting a problem.
+          </Text>
+        </Stack>
+      </Paper>
+
+      <Paper>
+        <Stack>
           <Title order={3}>Session</Title>
           <Text size="sm" c="dimmed">Locks after 5 minutes idle and when the app goes to the background.</Text>
           <Button variant="light" leftSection={<IconLock size={16} stroke={1.8} />} onClick={() => void services.accounts.lock()}>Lock now</Button>
@@ -183,5 +198,54 @@ function ChangePassword() {
         </Group>
       </Stack>
     </form>
+  );
+}
+
+function InstallCard() {
+  const [state, setState] = useState<InstallState>(installState());
+  const [declined, setDeclined] = useState(false);
+  useEffect(() => onInstallChange(() => setState(installState())), []);
+
+  if (state.kind === 'installed') {
+    return (
+      <Text size="sm" c="dimmed">
+        Installed as an app on this device.
+      </Text>
+    );
+  }
+  if (state.kind === 'promptable') {
+    return (
+      <Stack gap="xs">
+        <Text size="sm" c="dimmed">
+          Install to the home screen for a full-screen app with its own icon. It keeps working offline for everything except talking to the node.
+        </Text>
+        <Group>
+          <Button
+            variant="light"
+            leftSection={<IconDeviceMobile size={16} stroke={1.8} />}
+            onClick={() => void promptInstall().then((ok) => setDeclined(!ok))}
+          >
+            Install app
+          </Button>
+        </Group>
+        {declined && (
+          <Text size="xs" c="dimmed">
+            Not installed. The option is also in the browser menu whenever you want it.
+          </Text>
+        )}
+      </Stack>
+    );
+  }
+  if (state.kind === 'ios-share') {
+    return (
+      <Text size="sm" c="dimmed">
+        To install on iPhone or iPad: tap Share in Safari, then "Add to Home Screen".
+      </Text>
+    );
+  }
+  return (
+    <Text size="sm" c="dimmed">
+      To install: open the browser menu and choose "Install app" or "Add to Home screen".
+    </Text>
   );
 }
