@@ -169,6 +169,15 @@ describe('sync engine', () => {
     expect(blocks.map((b) => b.hash)).toEqual(['hash-3', 'hash-4', 'hash-5', 'hash-6', 'fork-7', 'fork-8', 'fork-9']);
   });
 
+  it('sets an unknown start height to the tip at first sync', async () => {
+    const { node, engine } = await setup();
+    await db.put('accounts', { ...(await db.get('accounts', 'acc'))!, birthdayHeight: 0 });
+    node.extendTo(9);
+    await engine.syncOnce();
+    expect((await db.get('accounts', 'acc'))?.birthdayHeight).toBe(9);
+    expect(node.getBlocksCalls).toEqual([[9, 9]]);
+  });
+
   it('reports node errors without corrupting state', async () => {
     const { node, engine } = await setup();
     node.extendTo(5);

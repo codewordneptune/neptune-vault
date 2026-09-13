@@ -101,7 +101,7 @@ export class AccountService {
       id: crypto.randomUUID(),
       network,
       createdAt: Date.now(),
-      birthdayHeight: Math.max(1, birthdayHeight),
+      birthdayHeight: Math.max(0, birthdayHeight),
       envelope,
       address0,
       nextKeyIndices: FRESH_KEY_INDICES,
@@ -196,6 +196,24 @@ export class AccountService {
       exportedAt: Date.now(),
       contacts: contacts.map((c) => ({ name: c.name, address: c.address })),
     };
+  }
+
+  /**
+   * Start scanning again from `height`: local sync state, UTXOs, history
+   * and block records for the account are dropped and rebuilt from the
+   * chain. Funds are unaffected; only the local view is rebuilt.
+   */
+  async rescanFrom(accountId: string, height: number): Promise<void> {
+    const record = await this.db.get('accounts', accountId);
+    if (!record) throw new Error('account not found');
+    const tx = this.db.transaction(['accounts', 'syncState', 'utxos', 'history', 'blocks'], 'readwrite');
+    await tx.objectStore('accounts').put({ ...record, birthdayHeight: Math.max(0, Math.floor(height)), nextKeyIndices: FRESH_KEY_INDICES });
+    await tx.objectStore('syncState').delete(accountId);
+    for (const key of await tx.objectStore('utxos').index('byAccount').getAllKeys(accountId)) await tx.objectStore('utxos').delete(key);
+    for (const key of await tx.objectStore('history').index('byAccount').getAllKeys(accountId)) await tx.objectStore('history').delete(key);
+    const blockKeys = await tx.objectStore('blocks').index('byAccountHeight').getAllKeys(IDBKeyRange.bound([accountId, 0], [accountId, Number.MAX_SAFE_INTEGER]));
+    for (const key of blockKeys) await tx.objectStore('blocks').delete(key);
+    await tx.done;
   }
 
   /** Record that the export file was saved (R8), for the reminder and Settings. */

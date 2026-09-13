@@ -38,7 +38,9 @@ export class SyncEngine {
     private readonly accountId: string,
     options: SyncOptions = {},
   ) {
-    this.batchSize = options.batchSize ?? 100;
+    // Mainnet blocks are large (about 170 KB of JSON each); 25 keeps a
+    // batch under 5 MB on a phone.
+    this.batchSize = options.batchSize ?? 25;
     this.keepBlocks = options.keepBlocks ?? 1000;
     this.onProgress = options.onProgress ?? (() => {});
   }
@@ -52,6 +54,12 @@ export class SyncEngine {
       if (!account) throw new Error('account not found');
 
       const tip = await this.node.tipHeader();
+      // An account created while the node was unreachable has no start
+      // height yet; it starts at the tip seen now, tip block included.
+      if (account.birthdayHeight === 0) {
+        account.birthdayHeight = tip.height;
+        await this.db.put('accounts', account);
+      }
       let state = await this.db.get('syncState', this.accountId);
       if (!state) {
         state = { accountId: this.accountId, syncedHeight: account.birthdayHeight - 1, syncedHash: null, updatedAt: Date.now() };

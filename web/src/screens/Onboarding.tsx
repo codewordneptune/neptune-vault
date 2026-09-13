@@ -113,11 +113,13 @@ export function Onboarding() {
     try {
       let height = Number(birthday) || 1;
       if (!imported) {
-        // A fresh account has nothing before the current tip.
+        // A fresh account has nothing before the current tip. If the node
+        // cannot be reached now, 0 marks the height as unknown and the first
+        // successful sync starts at the tip it sees.
         try {
           height = Math.max(1, await services.node().probe());
         } catch {
-          height = 1;
+          height = 0;
         }
       }
       const record = await services.accounts.createAccount(phrase, password, network, height);

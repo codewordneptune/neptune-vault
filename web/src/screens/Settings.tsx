@@ -1,6 +1,6 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
-import { Alert, Anchor, Button, Group, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Modal, NumberInput, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { IconCopy, IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconFingerprint, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -98,6 +98,7 @@ export function Settings() {
               Test
             </Button>
           </Group>
+          <RescanCard />
         </Stack>
       </Paper>
 
@@ -397,5 +398,55 @@ function PasskeyCard() {
         </Group>
       </Stack>
     </form>
+  );
+}
+
+function RescanCard() {
+  const { services, account, refresh, syncNow } = useApp();
+  const [open, setOpen] = useState(false);
+  const [height, setHeight] = useState<number | string>(account?.birthdayHeight ?? 1);
+  const [busy, setBusy] = useState(false);
+  if (!account) return null;
+  const from = account.birthdayHeight === 0 ? 'the current tip (not set yet)' : `block ${account.birthdayHeight}`;
+
+  const rescan = async () => {
+    setBusy(true);
+    try {
+      await services.accounts.rescanFrom(account.id, Number(height) || 0);
+      setOpen(false);
+      await refresh();
+      void syncNow();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Stack gap="xs">
+      <Text size="sm" c="dimmed">
+        Scanning from {from}. Funds sent before that block are not seen; set an earlier block to find them.
+      </Text>
+      <Group>
+        <Button variant="light" onClick={() => { setHeight(account.birthdayHeight || 1); setOpen(true); }}>
+          Rescan from a block
+        </Button>
+      </Group>
+      <Modal opened={open} onClose={() => setOpen(false)} title="Rescan from a block">
+        <Stack>
+          <Text size="sm">
+            The local history and balance are rebuilt from the chain starting at this block. Your funds are not affected; older blocks take longer to fetch.
+          </Text>
+          <NumberInput label="Start block" min={1} value={height} onChange={setHeight} />
+          <Group grow>
+            <Button variant="default" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button loading={busy} onClick={() => void rescan()} disabled={!Number(height)}>
+              Rescan
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </Stack>
   );
 }

@@ -150,6 +150,19 @@ describe('account service', () => {
     expect(service.currentAccountId).toBe(record.id);
   });
 
+  it('rescans from a block by dropping the local view', async () => {
+    const { service } = await setup();
+    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 40);
+    await db.put('syncState', { accountId: record.id, syncedHeight: 50, syncedHash: 'h', updatedAt: 1 });
+    await db.put('history', { key: `${record.id}:recv:x`, accountId: record.id, kind: 'received', status: 'confirmed', txid: '', amountNau: '1', feeNau: null, timestampMs: 1, height: 45, inputHashes: [], recipient: null, error: null });
+    await db.put('blocks', { key: `${record.id}:45`, accountId: record.id, height: 45, hash: 'b', prevHash: 'a', timestampMs: 1 });
+    await service.rescanFrom(record.id, 44);
+    expect((await db.get('accounts', record.id))?.birthdayHeight).toBe(44);
+    expect(await db.get('syncState', record.id)).toBeUndefined();
+    expect(await db.getAllFromIndex('history', 'byAccount', record.id)).toEqual([]);
+    expect((await db.getAll('blocks')).filter((b) => b.accountId === record.id)).toEqual([]);
+  });
+
   it('records the last backup on export and on import', async () => {
     const { service } = await setup();
     const created = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);

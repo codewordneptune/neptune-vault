@@ -23,7 +23,8 @@ export interface AccountRecord {
   id: string;
   network: Network;
   createdAt: number;
-  /** First block height worth scanning for this account. */
+  /** First block height worth scanning for this account; 0 means unknown
+   * (the node was unreachable at creation) and becomes the tip at first sync. */
   birthdayHeight: number;
   envelope: SeedEnvelope;
   /** Address of key 0, so the receive screen works before unlocking. */
