@@ -152,9 +152,8 @@ h3.mantine-Title-root {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(17, 25, 35, 0.82);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--v-page);
+  border-bottom: 1px solid var(--v-surface-2);
 }
 .vault-brand {
   display: flex;
@@ -203,9 +202,8 @@ button.vault-network::before {
   right: 0;
   bottom: 0;
   z-index: 40;
-  background: rgba(17, 25, 35, 0.88);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--v-page-end);
+  border-top: 1px solid var(--v-surface-2);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .vault-tab {
