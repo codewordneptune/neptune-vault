@@ -21,7 +21,7 @@ which also maps `.wasm` to `application/wasm` and routes unknown paths to
    proof of concept; Standard adds a custom domain SLA). Deployment source:
    "Other", since our GitHub Actions workflow uploads a prebuilt `dist`.
 2. Copy its deployment token (Overview, "Manage deployment token") into the
-   GitHub repository secret `AZURE_STATIC_WEB_APPS_API_TOKEN`.
+   GitHub repository secret `AZURE_STATIC_WEB_APPS_API_TOKEN_DEV`.
 3. Custom domain: `vault.dev.useneptune.org` is configured (2026-09-13);
    Azure issues the TLS certificate itself.
 4. Tell the node operator the final origin so the node's CORS allow-list can
