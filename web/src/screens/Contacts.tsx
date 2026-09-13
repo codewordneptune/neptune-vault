@@ -10,6 +10,7 @@ import { useApp } from '../app/AppContext';
 import { QrScanner } from '../components/QrScanner';
 import type { ContactRecord } from '../storage/db';
 import { abbreviateAddress, parsePaymentText } from '../util/address';
+import { networkLabel } from '../util/network';
 
 export function Contacts() {
   const { services, account } = useApp();
@@ -154,18 +155,34 @@ export function ContactForm({
   const [name, setName] = useState('');
   const [address, setAddress] = useState(fixedAddress ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [addressError, setAddressError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { services } = useApp();
 
   useEffect(() => {
     if (opened) {
       setName('');
       setAddress(fixedAddress ?? '');
       setError(null);
+      setAddressError(null);
     }
   }, [opened, fixedAddress]);
 
+  // Same check as the Send screen: required, valid for the current network.
+  const checkAddress = async (): Promise<boolean> => {
+    const text = address.trim();
+    if (text === '') {
+      setAddressError('Enter the address');
+      return false;
+    }
+    const ok = await services.core.isValidAddress(text, services.networkName());
+    setAddressError(ok ? null : `Not a valid ${networkLabel(services.settings.network)} address`);
+    return ok;
+  };
+
   const save = async () => {
+    if (!fixedAddress && !(await checkAddress())) return;
     setBusy(true);
     setError(null);
     try {
@@ -204,7 +221,12 @@ export function ContactForm({
             <TextInput
               label="Address"
               value={address}
-              onChange={(e) => setAddress(e.currentTarget.value)}
+              onChange={(e) => {
+                setAddress(e.currentTarget.value);
+                setAddressError(null);
+              }}
+              onBlur={() => void checkAddress()}
+              error={addressError}
               rightSectionWidth={84}
               rightSection={
                 <Group gap={4} wrap="nowrap">
@@ -222,7 +244,7 @@ export function ContactForm({
             <Button variant="default" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" loading={busy} disabled={!name.trim() || !address.trim()}>
+            <Button type="submit" loading={busy} disabled={!name.trim() || !address.trim() || addressError !== null}>
               Save
             </Button>
           </Group>
