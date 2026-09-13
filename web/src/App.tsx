@@ -17,8 +17,8 @@ import { Unlock } from './screens/Unlock';
 
 const TABS = [
   { to: '/', label: 'Home', Icon: IconHome },
-  { to: '/receive', label: 'Receive', Icon: IconArrowDownLeft },
   { to: '/send', label: 'Send', Icon: IconArrowUpRight },
+  { to: '/receive', label: 'Receive', Icon: IconArrowDownLeft },
   { to: '/settings', label: 'Settings', Icon: IconSettings },
 ];
 
