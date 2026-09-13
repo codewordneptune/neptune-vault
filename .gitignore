@@ -147,3 +147,5 @@ target/
 web/prover-bench/pkg/
 web/prover-bench/certs/
 web/prover-bench/threads-test/
+web/src/wasm/
+web/dev-dist/
