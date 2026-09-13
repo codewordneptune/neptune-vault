@@ -4,7 +4,7 @@ members = ["crates/vault-prover", "crates/vault-core", "crates/vault-fixtures"]
 # Vendored crates are used through [patch.crates-io] below, not as members,
 # but they live inside the workspace tree and must be excluded explicitly so
 # `cargo test` can run inside them.
-exclude = ["crates/vendor/neptune-consensus", "crates/vendor/neptune-primitives", "crates/vendor/twenty-first"]
+exclude = ["crates/vendor/neptune-consensus", "crates/vendor/neptune-primitives", "crates/vendor/twenty-first", "crates/vendor/triton-vm"]
 
 # Vendored copies of the published 0.17.0 crates with wasm32 gating.
 # See crates/vendor/VENDOR.md for the exact changes.
@@ -12,14 +12,11 @@ exclude = ["crates/vendor/neptune-consensus", "crates/vendor/neptune-primitives"
 neptune-consensus = { path = "crates/vendor/neptune-consensus" }
 neptune-primitives = { path = "crates/vendor/neptune-primitives" }
 twenty-first = { path = "crates/vendor/twenty-first" }
+triton-vm = { path = "crates/vendor/triton-vm" }
 
 [profile.release]
 opt-level = 3
 debug = false
 
-# To get Triton VM's phase profiles from the bench page, build once with
-# debug assertions on for that crate (its `no_profile` feature is forced on
-# by dependents), then tick "phase profile" on the page:
-#
-#   [profile.release.package.triton-vm]
-#   debug-assertions = true
+# Triton VM's phase profiler is compiled in through the vendored crate
+# (see crates/vendor/VENDOR.md); tick "phase profile" on the bench page.

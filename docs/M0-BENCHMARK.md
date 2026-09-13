@@ -285,6 +285,96 @@ Threads on the phone are now the default for the PWA. Open question for
 later: whether the thread count should be capped below the core count on
 phones to leave headroom for the UI and to limit heat.
 
+## Where the remaining thread scaling goes
+
+Production-quality phase profiles (profiler compiled into the vendored
+triton-vm, no debug assertions), desktop Chrome, no LDE cache,
+removal_records_integrity:
+
+| Phase | 1 thread (s) | 16 threads (s) | Speed-up |
+|-------|-------------:|---------------:|---------:|
+| main tables: create | 10.9 | 2.4 | 4.5 |
+| main tables: Merkle leafs, LDE | 17.8 | 6.6 | 2.7 |
+| main tables: Merkle leafs, hash rows | 36.6 | 7.2 | 5.1 |
+| main tables: extend | 7.2 | 5.4 | 1.3 |
+| aux tables: LDE | 12.6 | 4.4 | 2.9 |
+| aux tables: hash rows | 25.8 | 5.1 | 5.1 |
+| quotient: poly evaluate | 24.1 | 6.6 | 3.7 |
+| quotient: trace randomizers | 24.0 | 6.5 | 3.7 |
+| quotient: AIR evaluation | 63.4 | 15.4 | 4.1 |
+| DEEP | 28.4 | 6.2 | 4.6 |
+| whole proof | 286.1 | 76.7 | 3.7 |
+
+Whole collection: 440.1 s on one thread, 121.7 s on sixteen.
+
+No phase is pathological any more; they all scale, but only 3x to 5x. Row
+hashing does not allocate at all and still stops at 5.1x, so the allocator
+is not the whole explanation. Two effects remain:
+
+- This laptop's CPU is hybrid, and the "16 cores" are hyperthreads plus
+  efficiency cores. The float loop used for the thread-pool sanity check
+  hides that (12x), an integer-heavy hashing kernel does not. Native on the
+  same machine reaches about 7x, so that is the realistic ceiling here.
+- Below that ceiling, the LDE phases (2.7x to 2.9x) are the worst, and they
+  are the ones allocating multi-megabyte buffers per column.
+
+The "extend" step (1.3x) is small and mostly sequential by construction.
+
+### NTT-per-column micro-benchmark, desktop Chrome
+
+96 NTTs of size 2^18 with twenty-first's `ntt`, either allocating a fresh
+buffer per column (as the prover's LDE does) or reusing one preallocated
+buffer per worker:
+
+| Threads | Alloc per column (ms) | Preallocated (ms) | Speed-up |
+|--------:|----------------------:|------------------:|---------:|
+| 1 | 2021 | 2005 | 1.0 |
+| 2 | 1089 | 1045 | 1.9 |
+| 4 | 552 | 570 | 3.6 |
+| 8 | 397 | 374 | 5.2 |
+| 16 | 396 | 399 | 5.1 |
+
+Allocation makes no difference, and the NTT kernel itself stops scaling at
+8 threads on this machine at about 5x. So the allocator is not worth
+replacing, and the LDE phases are bound by the memory system and the core
+mix, not by the code. The prover's LDE at 2.7x to 2.9x is below this 5x
+because its per-column work is larger (interpolation plus evaluation on a
+bigger domain) and streams more data. The same limits apply natively, which
+is why native also lands near 7x rather than 16x.
+
+Conclusion: after the inverse fix there is no further large thread-scaling
+win in wasm on this hardware. What remains are per-thread code-quality
+levers: wasm-opt (measured below), and possibly link-time optimisation.
+
+### wasm-opt -O3, desktop Chrome, 16 threads, no LDE cache
+
+Binaryen with threads, bulk memory, SIMD and mutable globals enabled. The
+pass takes 15 minutes on this laptop and shrinks the module from 5.6 MB to
+3.3 MB.
+
+| # | Sub-proof | Without wasm-opt (s) | With wasm-opt (s) |
+|---|-----------|---------------------:|------------------:|
+| 1 | removal_records_integrity | 76.7 | 73.1 |
+| 2 | collect_lock_scripts | 5.4 | 3.9 |
+| 3 | kernel_to_outputs | 9.9 | 7.4 |
+| 4 | collect_type_scripts | 10.1 | 7.4 |
+| 5 | lock_script_0 | 1.1 | 0.8 |
+| 6 | type_script_0 | 18.1 | 14.9 |
+| | Total | 121.7 | 107.9 |
+
+Eleven percent faster and a smaller download, so it stays on for release
+builds. Expected on the S24: about 120 s.
+
+### Summary of the prover work
+
+| Configuration | Desktop (s) | S24 (s) |
+|---------------|------------:|--------:|
+| Single thread, first build | 428 | 456 |
+| 16 / 10 threads, first threaded build | 350 | |
+| Threads plus allocation-free inverse | 138 | 134 |
+| Threads, inverse, wasm-opt | 108 | pending |
+| Native, 16 cores, for reference | 43 | |
+
 ## Levers if the phone misses the budget
 
 1. No LDE cache (this build). Memory first, time second.

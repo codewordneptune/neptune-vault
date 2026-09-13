@@ -34,5 +34,6 @@ proptest = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [package.metadata.wasm-pack.profile.release]
-# wasm-opt on a prover this size takes many minutes; enable once the build is stable.
-wasm-opt = false
+# Binaryen pass over the output. The thread and SIMD features must be enabled
+# explicitly or wasm-opt rejects the module.
+wasm-opt = ["-O3", "--enable-threads", "--enable-bulk-memory", "--enable-simd", "--enable-mutable-globals"]
