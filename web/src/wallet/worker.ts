@@ -30,8 +30,9 @@ let ready: Promise<void> | null = null;
 let account: Account | null = null;
 
 function ensureReady(): Promise<void> {
-  ready ??= init().then(() => undefined);
-  return ready;
+  const p = ready ?? init().then(() => undefined);
+  ready = p;
+  return p;
 }
 
 function requireAccount(): Account {
@@ -66,6 +67,8 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       return { result: null };
     case 'isUnlocked':
       return { result: account !== null };
+    case 'phrase':
+      return { result: requireAccount().phrase() };
     case 'address':
       return { result: requireAccount().address(BigInt(args[0] as number)) };
     case 'scanBlocks': {

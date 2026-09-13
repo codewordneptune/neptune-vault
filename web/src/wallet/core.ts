@@ -73,6 +73,8 @@ export interface WalletCore {
   lock(): Promise<void>;
   isUnlocked(): Promise<boolean>;
 
+  /** The unlocked account's phrase, for the backup screen. */
+  phrase(): Promise<string[]>;
   address(index: number): Promise<string>;
   scanBlocks(blocks: unknown[], unspent: StoredUtxo[], nextKeyIndex: number): Promise<ScanResult>;
   planInputs(unspent: StoredUtxo[], request: SendRequest, nowMs: number): Promise<InputPlan>;
