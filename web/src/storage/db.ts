@@ -112,8 +112,8 @@ export const DB_VERSION = 1;
 export const DEFAULT_NODE_URLS: Record<Network, string> = {
   main: 'https://wallet.neptunefundamentals.org',
   testnet: '',
-  // The dev server proxies /node to a local regtest node (vite.config.ts).
-  regtest: '/node',
+  // The dev server proxies /regtest-node to a local regtest node (vite.config.ts).
+  regtest: '/regtest-node',
 };
 
 export const DEFAULT_SETTINGS: SettingsRecord = {

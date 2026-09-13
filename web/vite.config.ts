@@ -41,7 +41,8 @@ export default defineConfig({
     // Same-origin path to a local regtest node, so development needs no CORS.
     // 9797 is the node's JSON-RPC listener (--listen-rpc); 9799 stays the
     // tarpc port used by neptune-cli.
-    proxy: { '/node': { target: 'http://127.0.0.1:9797', changeOrigin: true, rewrite: (p) => p.replace(/^\/node/, '') } },
+    // The key is a prefix match, so it must not collide with /node_modules.
+    proxy: { '/regtest-node': { target: 'http://127.0.0.1:9797', changeOrigin: true, rewrite: (p) => p.replace(/^\/regtest-node/, '') } },
   },
   preview: { headers: isolationHeaders, port: 4401 },
   worker: { format: 'es' },

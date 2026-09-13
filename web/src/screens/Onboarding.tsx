@@ -1,11 +1,12 @@
 // Account creation and import (F1 to F5): generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Button, Group, NumberInput, Paper, PasswordInput, SimpleGrid, Stack, Text, Textarea, Title } from '@mantine/core';
+import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Select, SimpleGrid, Stack, Text, Textarea, Title } from '@mantine/core';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
+import type { Network } from '../storage/db';
 import type { ExportFile } from '../storage/envelope';
 
 type Step = 'welcome' | 'show' | 'confirm' | 'password' | 'import';
@@ -14,6 +15,7 @@ export function Onboarding() {
   const { services, setAccount } = useApp();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('welcome');
+  const [network, setNetwork] = useState<Network>(services.settings.network);
   const [phrase, setPhrase] = useState<string[]>([]);
   const [imported, setImported] = useState(false);
   const [birthday, setBirthday] = useState<number | string>(1);
@@ -60,7 +62,7 @@ export function Onboarding() {
           height = 1;
         }
       }
-      const record = await services.accounts.createAccount(phrase, password, services.settings.network, height);
+      const record = await services.accounts.createAccount(phrase, password, network, height);
       if (!imported) await services.accounts.markBackupConfirmed(record.id);
       else await services.accounts.markBackupConfirmed(record.id);
       await services.updateSettings({ currentAccountId: record.id });
@@ -98,7 +100,16 @@ export function Onboarding() {
           <Stack>
             <Title order={3}>Welcome</Title>
             <Text>This wallet keeps your keys on this device only. Your seed phrase is the only backup.</Text>
-            <Text size="sm" c="dimmed">Network: {services.settings.network}</Text>
+            <Select
+              label="Network"
+              data={['main', 'testnet', 'regtest']}
+              value={network}
+              onChange={(v) => {
+                if (!v) return;
+                setNetwork(v as Network);
+                void services.updateSettings({ network: v as Network });
+              }}
+            />
             <Button onClick={startCreate} loading={busy}>Create a new account</Button>
             <Button variant="light" onClick={() => setStep('import')}>Import a phrase or backup file</Button>
           </Stack>
