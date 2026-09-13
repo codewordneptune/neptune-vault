@@ -44,7 +44,7 @@ it talks to a neptune-core node over its JSON-RPC API.
 | R8  | Export file | The user can export the encrypted seed as a file to device storage and import it later. |
 | R9  | Passkey backup | Optional: where the platform supports the WebAuthn PRF extension, the encrypted seed can additionally be wrapped with a passkey-derived key. Not required on iOS 17. |
 | R10 | Unlock | Password or PIN. Argon2id key derivation, AES-256-GCM encryption via WebCrypto. |
-| R11 | Auto-lock | The decrypted seed is held only while unlocked. Lock after an idle timeout and when the app goes to the background. Timeout value: OPEN. |
+| R11 | Auto-lock | The decrypted seed is held only while unlocked. Lock after 5 minutes idle and immediately when the app goes to the background (decided 2026-09-13). |
 | R12 | Address type | Generation addresses only. |
 | R13 | Send screen | One recipient, amount, and fee. |
 | R14 | Accounts | One account in the UI. All storage is keyed by an account id so more can be added later. |
@@ -61,7 +61,7 @@ it talks to a neptune-core node over its JSON-RPC API.
 | R25 | Repository | Monorepo: `crates/` for Rust, `web/` for the PWA. |
 | R26 | Licence | No licence file yet. |
 | R27 | Process | Requirements and architecture documents first, review, then implementation on feature branches with pull requests. |
-| R28 | Milestone 1 | Create account, receive, see balance, and send with an in-browser proof, end to end on the Galaxy S24 against a testnet node. |
+| R28 | Milestone 1 | Create account, receive, see balance, and send with an in-browser proof, end to end on the Galaxy S24 against a testnet node. Developed against a mock node in the repo until O1 and O2 are resolved; delivered as one pull request per component (decided 2026-09-13). |
 | R29 | Consensus version | Target the 0.17 neptune crates and a 0.17 or later node from the start, because the delta hardfork activates at block 55,000 (expected around 2026-09-24). |
 
 ## 5. Functional requirements
@@ -157,7 +157,6 @@ On the Galaxy S24, installed as a PWA, against a testnet node:
 |----|------|-----------|
 | O1 | Testnet node URL (R6) | Milestone 1 testing |
 | O2 | The default mainnet node does not send CORS headers, so a browser cannot call it directly today. See ARCHITECTURE.md section 3 for the options. | Any network access from the PWA |
-| O3 | Idle auto-lock timeout value (R11) | Lock screen implementation |
 | O4 | Default fee value (R19) | Send screen |
 | O5 | Azure host name (R24) | Hosting setup and CORS allow-list |
-| O6 | The 0.17 consensus and primitives crates do not build for wasm32 as published (tokio process, fs, and multi-thread features). The prover and mutator-set crates do. A fork with feature trims and target-gated modules is required; see ARCHITECTURE.md section 9. Decide: maintain a fork under Neptune-Crypto, or propose the change upstream first. | Project setup |
+| O6 | Resolved 2026-09-13: vendored copies in crates/vendor with the changes listed in VENDOR.md (consensus, primitives, twenty-first, triton-vm). Upstreaming remains desirable. | |
