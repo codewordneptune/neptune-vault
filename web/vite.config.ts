@@ -37,7 +37,10 @@ export default defineConfig({
     }),
   ],
   server: {
-    headers: isolationHeaders,
+    // no-store: a response cached without the isolation headers (for
+    // example from a dev server started with an older config) would make
+    // Chrome block the wallet worker script on every later load.
+    headers: { ...isolationHeaders, 'Cache-Control': 'no-store' },
     port: 4400,
     // Same-origin path to a local regtest node, so development needs no CORS.
     // 9797 is the node's JSON-RPC listener (--listen-rpc); 9799 stays the
