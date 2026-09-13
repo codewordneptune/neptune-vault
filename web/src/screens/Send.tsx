@@ -84,6 +84,22 @@ export function Send() {
     return amountMessage === null && feeMessage === null;
   };
 
+  // Everything spendable minus the current fee; the fee must parse first.
+  const sendAll = async () => {
+    const f = await parsePositive(fee, 'fee');
+    if ('message' in f) {
+      setFeeError(f.message);
+      return;
+    }
+    const max = balance.spendableNau - f.nau;
+    if (max <= 0n) {
+      setAmountError(`The fee alone exceeds the spendable balance of ${formatNau(balance.spendableNau)} NPT`);
+      return;
+    }
+    setAmount(formatNau(max));
+    setAmountError(null);
+  };
+
   const review = async () => {
     const [okAddress, okAmounts] = await Promise.all([checkRecipient(), checkAmounts()]);
     if (okAddress && okAmounts) setStep('review');
@@ -269,6 +285,7 @@ export function Send() {
             />
             <TextInput
               label="Amount (NPT)"
+              description={`Spendable ${formatNau(balance.spendableNau)} NPT`}
               inputMode="decimal"
               value={amount}
               onChange={(e) => {
@@ -277,6 +294,12 @@ export function Send() {
               }}
               onBlur={() => void checkAmounts()}
               error={amountError}
+              rightSectionWidth={64}
+              rightSection={
+                <Button variant="subtle" size="compact-sm" onClick={() => void sendAll()} disabled={balance.spendableNau <= 0n}>
+                  Max
+                </Button>
+              }
             />
             <div>
               <Text size="sm" fw={500} mb={6}>
@@ -307,9 +330,6 @@ export function Send() {
                 autoFocus
               />
             )}
-            <Text size="xs" c="dimmed">
-              Spendable: {formatNau(balance.spendableNau)} NPT. Proving takes a few minutes on a phone.
-            </Text>
             <Button type="submit" disabled={!recipient || !amount || !fee || Boolean(recipientError || amountError || feeError)}>
               Review
             </Button>
