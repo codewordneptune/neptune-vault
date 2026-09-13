@@ -5,6 +5,7 @@ import { NodeClient } from '../node/rpc';
 import { ProverClient } from '../prover/client';
 import { loadSettings, openVaultDb, requestPersistentStorage, saveSettings, type Network, type SettingsRecord, type VaultDb } from '../storage/db';
 import { WalletWorkerClient } from '../wallet/workerClient';
+import { ContactsService } from './contacts';
 import { SyncEngine, type SyncProgress } from '../wallet/sync';
 import { AccountService } from './accounts';
 import { SendService } from './send';
@@ -20,6 +21,7 @@ export interface Services {
   updateSettings(patch: Partial<SettingsRecord>): Promise<SettingsRecord>;
   syncEngine(accountId: string, onProgress: (p: SyncProgress) => void): SyncEngine;
   sendService(accountId: string): SendService;
+  contacts: ContactsService;
   networkName(): string;
 }
 
@@ -55,6 +57,7 @@ export async function createServices(): Promise<Services> {
     syncEngine(accountId, onProgress) {
       return new SyncEngine(db, services.node(), core, accountId, { onProgress });
     },
+    contacts: new ContactsService(db, core, () => coreNetworkName(services.settings.network)),
     sendService(accountId) {
       return new SendService(db, services.node(), core, prover, accountId, coreNetworkName(settings.network), ProverClient.defaultThreads(), settings.network === 'regtest');
     },

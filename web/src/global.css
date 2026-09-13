@@ -365,3 +365,13 @@ button.vault-network::before {
 .vault-review-row.total b {
   font-size: 1.125rem;
 }
+
+/* Picker rows are buttons spanning the row. */
+.vault-pick {
+  width: 100%;
+  text-align: left;
+  border-radius: var(--v-radius-xs);
+}
+.vault-pick:hover {
+  background: var(--v-surface-2);
+}

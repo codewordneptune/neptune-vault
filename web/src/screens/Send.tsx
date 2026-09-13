@@ -3,12 +3,15 @@
 // so it survives this screen being unmounted (backgrounding locks the app).
 
 import { ActionIcon, Alert, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
-import { IconClipboard, IconScan } from '@tabler/icons-react';
-import { useCallback, useState } from 'react';
+import { IconAddressBook, IconClipboard, IconScan } from '@tabler/icons-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { formatNau, useApp } from '../app/AppContext';
 import { RequiresLustrationError } from '../app/send';
+import { ContactPicker } from '../components/ContactPicker';
 import { QrScanner } from '../components/QrScanner';
+import { ContactForm } from './Contacts';
 import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
 import { networkLabel } from '../util/network';
 
@@ -28,8 +31,20 @@ type Step = 'form' | 'review';
 
 export function Send() {
   const { services, account, balance, sendJob, startSend, cancelSend, dismissSendJob } = useApp();
+  const location = useLocation();
+  const prefill = (location.state as { recipient?: string } | null)?.recipient;
   const [step, setStep] = useState<Step>('form');
-  const [recipient, setRecipient] = useState('');
+  const [recipient, setRecipient] = useState(prefill ?? '');
+  const [picking, setPicking] = useState(false);
+  // The last successfully sent recipient, offered for saving as a contact.
+  const [lastRecipient, setLastRecipient] = useState<string | null>(null);
+  const [savedName, setSavedName] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!account || !lastRecipient) return;
+    void services.contacts.findByAddress(account.id, lastRecipient).then((c) => setSavedName(c?.name ?? null));
+  }, [services, account, lastRecipient]);
   const [amount, setAmount] = useState('');
   const [fee, setFee] = useState(DEFAULT_FEE);
   const [feePreset, setFeePreset] = useState(DEFAULT_PRESET);
@@ -109,7 +124,9 @@ export function Send() {
     if (!account) return;
     setAskLustration(false);
     try {
+      const sentTo = recipient.trim().toLowerCase();
       await startSend({ recipient: recipient.trim(), amount: amount.trim(), fee: fee.trim(), accept_lustration: acceptLustration });
+      setLastRecipient(sentTo);
       setRecipient('');
       setAmount('');
       setStep('form');
@@ -249,6 +266,17 @@ export function Send() {
           <Alert color="green" title="Submitted" withCloseButton onClose={dismissSendJob}>
             {sendJob.request.amount} NPT is on its way. It shows as pending until the network includes it
             {sendJob.outcome.proving.seconds > 0 && `; the proof took ${sendJob.outcome.proving.seconds.toFixed(0)} s`}.
+            {lastRecipient && (
+              <div style={{ marginTop: 8 }}>
+                {savedName ? (
+                  <Text size="sm">Sent to {savedName}.</Text>
+                ) : (
+                  <Button size="compact-sm" variant="light" onClick={() => setSaving(true)}>
+                    Save recipient as a contact
+                  </Button>
+                )}
+              </div>
+            )}
           </Alert>
         )}
         {sendJob?.done && sendJob.error && (
@@ -272,9 +300,14 @@ export function Send() {
               }}
               onBlur={() => void checkRecipient()}
               error={recipientError ?? pasteError}
-              rightSectionWidth={84}
+              rightSectionWidth={118}
               rightSection={
                 <Group gap={4} wrap="nowrap">
+                  <Tooltip label="Saved recipients">
+                    <ActionIcon variant="subtle" aria-label="Choose a saved recipient" onClick={() => setPicking(true)}>
+                      <IconAddressBook size={18} stroke={1.8} />
+                    </ActionIcon>
+                  </Tooltip>
                   <Tooltip label="Paste">
                     <ActionIcon variant="subtle" aria-label="Paste address" onClick={() => void paste()}>
                       <IconClipboard size={18} stroke={1.8} />
@@ -341,6 +374,28 @@ export function Send() {
         </form>
       </Stack>
       <QrScanner opened={scanning} onClose={() => setScanning(false)} onResult={onScanned} />
+      <ContactPicker
+        opened={picking}
+        onClose={() => setPicking(false)}
+        onPick={(c) => {
+          setPicking(false);
+          setRecipient(c.address);
+          setRecipientError(null);
+        }}
+      />
+      {lastRecipient && (
+        <ContactForm
+          opened={saving}
+          onClose={() => setSaving(false)}
+          fixedAddress={lastRecipient}
+          onSave={async (name, address) => {
+            if (!account) return;
+            const c = await services.contacts.add(account.id, name, address);
+            setSavedName(c.name);
+            setSaving(false);
+          }}
+        />
+      )}
     </Paper>
   );
 }

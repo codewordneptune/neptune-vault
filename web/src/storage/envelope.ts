@@ -153,9 +153,11 @@ export async function changePassword(
 /** The export file (R8): the envelope plus what is needed to rescan. */
 export interface ExportFile {
   format: 'neptune-vault-backup';
-  version: 1;
+  /** 1: seed only; 2: adds contacts. */
+  version: 1 | 2;
   network: string;
   birthdayHeight: number;
   envelope: SeedEnvelope;
   exportedAt: number;
+  contacts?: { name: string; address: string }[];
 }

@@ -3,6 +3,7 @@
 
 import { FRESH_KEY_INDICES, type AccountRecord, type Network, type VaultDb } from '../storage/db';
 import { DEFAULT_KDF, openSeed, sealSeed, type DeriveKey, type ExportFile } from '../storage/envelope';
+import { addressKindLabel } from '../util/address';
 import type { WalletCore } from '../wallet/core';
 
 export type LockListener = (locked: boolean) => void;
@@ -124,19 +125,21 @@ export class AccountService {
   async exportFile(accountId: string): Promise<ExportFile> {
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
+    const contacts = await this.db.getAllFromIndex('contacts', 'byAccount', accountId);
     return {
       format: 'neptune-vault-backup',
-      version: 1,
+      version: 2,
       network: record.network,
       birthdayHeight: record.birthdayHeight,
       envelope: record.envelope,
       exportedAt: Date.now(),
+      contacts: contacts.map((c) => ({ name: c.name, address: c.address })),
     };
   }
 
   /** Import an export file. The password is checked by unlocking. */
   async importFile(file: ExportFile, password: string): Promise<AccountRecord> {
-    if (file.format !== 'neptune-vault-backup' || file.version !== 1) throw new Error('not a Neptune Vault backup file');
+    if (file.format !== 'neptune-vault-backup' || (file.version !== 1 && file.version !== 2)) throw new Error('not a Neptune Vault backup file');
     const network = file.network as Network;
     const phrase = await openSeed(file.envelope, password, this.derive);
     await this.core.unlock(phrase, network);
@@ -152,6 +155,13 @@ export class AccountService {
       backupConfirmed: true,
     };
     await this.db.put('accounts', record);
+    for (const c of file.contacts ?? []) {
+      const id = crypto.randomUUID();
+      const now = Date.now();
+      const address = c.address.trim().toLowerCase();
+      if (!(await this.core.isValidAddress(address, network))) continue;
+      await this.db.put('contacts', { key: `${record.id}:${id}`, id, accountId: record.id, name: c.name, address, kind: addressKindLabel(address), createdAt: now, updatedAt: now });
+    }
     this.setUnlocked(record.id);
     return record;
   }

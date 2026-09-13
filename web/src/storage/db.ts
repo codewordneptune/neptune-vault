@@ -96,8 +96,24 @@ export interface SettingsRecord {
   lockTimeoutMs: number;
 }
 
+/** A saved recipient (contact), per account. */
+export interface ContactRecord {
+  /** `${accountId}:${id}`. */
+  key: string;
+  id: string;
+  accountId: string;
+  name: string;
+  /** Full bech32m address, lower case. */
+  address: string;
+  /** Human label of the address kind, from its prefix. */
+  kind: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 interface VaultSchema extends DBSchema {
   accounts: { key: string; value: AccountRecord; indexes: { byNetwork: Network } };
+  contacts: { key: string; value: ContactRecord; indexes: { byAccount: string } };
   utxos: { key: string; value: UtxoRecord; indexes: { byAccount: string } };
   blocks: { key: string; value: BlockRecord; indexes: { byAccountHeight: [string, number] } };
   history: { key: string; value: HistoryRecord; indexes: { byAccount: string } };
@@ -108,7 +124,8 @@ interface VaultSchema extends DBSchema {
 export type VaultDb = IDBPDatabase<VaultSchema>;
 
 export const DB_NAME = 'neptune-vault';
-export const DB_VERSION = 1;
+// Version history: 1 initial; 2 adds the contacts store.
+export const DB_VERSION = 2;
 
 export const DEFAULT_NODE_URLS: Record<Network, string> = {
   main: 'https://wallet.neptunefundamentals.org',
@@ -127,17 +144,29 @@ export const DEFAULT_SETTINGS: SettingsRecord = {
 
 export async function openVaultDb(): Promise<VaultDb> {
   return openDB<VaultSchema>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      const accounts = db.createObjectStore('accounts', { keyPath: 'id' });
-      accounts.createIndex('byNetwork', 'network');
-      const utxos = db.createObjectStore('utxos', { keyPath: 'key' });
-      utxos.createIndex('byAccount', 'accountId');
-      const blocks = db.createObjectStore('blocks', { keyPath: 'key' });
-      blocks.createIndex('byAccountHeight', ['accountId', 'height']);
-      const history = db.createObjectStore('history', { keyPath: 'key' });
-      history.createIndex('byAccount', 'accountId');
-      db.createObjectStore('syncState', { keyPath: 'accountId' });
-      db.createObjectStore('settings', { keyPath: 'id' });
+    // Each step runs once, in order, inside the upgrade transaction; a
+    // store that exists is never recreated, so data is kept.
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        const accounts = db.createObjectStore('accounts', { keyPath: 'id' });
+        accounts.createIndex('byNetwork', 'network');
+        const utxos = db.createObjectStore('utxos', { keyPath: 'key' });
+        utxos.createIndex('byAccount', 'accountId');
+        const blocks = db.createObjectStore('blocks', { keyPath: 'key' });
+        blocks.createIndex('byAccountHeight', ['accountId', 'height']);
+        const history = db.createObjectStore('history', { keyPath: 'key' });
+        history.createIndex('byAccount', 'accountId');
+        db.createObjectStore('syncState', { keyPath: 'accountId' });
+        db.createObjectStore('settings', { keyPath: 'id' });
+      }
+      if (oldVersion < 2) {
+        const contacts = db.createObjectStore('contacts', { keyPath: 'key' });
+        contacts.createIndex('byAccount', 'accountId');
+      }
+    },
+    blocked() {
+      // Another tab or the installed app still holds the old version open.
+      alert('Neptune Vault is open in another tab or window. Close it and reload this one.');
     },
   });
 }

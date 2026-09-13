@@ -1,5 +1,5 @@
 import { Box, Container, Group, Loader } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
+import { IconAddressBook, IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
 import type { ReactElement } from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 
@@ -7,6 +7,7 @@ import { useApp } from './app/AppContext';
 import { Logo } from './components/Logo';
 import { NetworkMenu } from './components/NetworkMenu';
 import { SendStrip } from './components/SendStrip';
+import { Contacts } from './screens/Contacts';
 import { Diagnostics } from './screens/Diagnostics';
 import { Home } from './screens/Home';
 import { Onboarding } from './screens/Onboarding';
@@ -19,6 +20,7 @@ const TABS = [
   { to: '/', label: 'Home', Icon: IconHome },
   { to: '/send', label: 'Send', Icon: IconArrowUpRight },
   { to: '/receive', label: 'Receive', Icon: IconArrowDownLeft },
+  { to: '/contacts', label: 'Contacts', Icon: IconAddressBook },
   { to: '/settings', label: 'Settings', Icon: IconSettings },
 ];
 
@@ -60,6 +62,7 @@ export function App() {
           <Route path="/" element={gate(<Home />)} />
           <Route path="/receive" element={gate(<Receive />)} />
           <Route path="/send" element={gate(<Send />)} />
+          <Route path="/contacts" element={gate(<Contacts />)} />
           <Route path="/settings" element={gate(<Settings />)} />
           <Route path="/diagnostics" element={<Diagnostics />} />
           <Route path="*" element={<Navigate to="/" replace />} />
