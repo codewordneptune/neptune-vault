@@ -166,7 +166,7 @@ export function Settings() {
           </Text>
           <Group gap="md">
             <Anchor href={LINKS.project} target="_blank" rel="noreferrer" size="sm">
-              Project page
+              Community
             </Anchor>
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm">
               Report a problem
