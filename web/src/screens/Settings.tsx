@@ -1,9 +1,9 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Button, Group, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconDeviceMobile, IconDownload, IconEye, IconKey, IconLock } from '@tabler/icons-react';
+import { IconDeviceMobile, IconDownload, IconEye, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
@@ -14,6 +14,7 @@ import type { Network } from '../storage/db';
 
 export function Settings() {
   const { services, account, network, switchNetwork } = useApp();
+  const navigate = useNavigate();
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
   const [probe, setProbe] = useState<{ ok: boolean; text: string } | null>(null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
@@ -113,11 +114,13 @@ export function Settings() {
           <Title order={3}>App</Title>
           <InstallCard />
           <Text size="sm" c="dimmed">
-            <Link to="/diagnostics" style={{ color: 'var(--v-accent-text)' }}>
-              Diagnostics
-            </Link>
-            : cores, threads and install state, useful when reporting a problem.
+            Diagnostics show cores, threads and the install state, useful when reporting a problem.
           </Text>
+          <Group>
+            <Button variant="light" leftSection={<IconStethoscope size={16} stroke={1.8} />} onClick={() => navigate('/diagnostics')}>
+              Diagnostics
+            </Button>
+          </Group>
         </Stack>
       </Paper>
 
