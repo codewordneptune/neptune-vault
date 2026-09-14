@@ -222,18 +222,27 @@ button.vault-network::before {
   text-decoration: none;
   transition: color 160ms ease;
 }
-.vault-tab svg {
-  box-sizing: content-box;
-  padding: 3px 12px;
-  border-radius: 999px;
+/* The active tab: a thin accent line along its top edge, label semibold. */
+.vault-tab {
+  position: relative;
+}
+.vault-tab::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: transparent;
   transition: background-color 160ms ease;
 }
 .vault-tab.active {
   color: var(--v-accent-text);
   font-weight: 600;
 }
-.vault-tab.active svg {
-  background: var(--v-accent-soft);
+.vault-tab.active::before {
+  background: var(--v-accent);
 }
 .vault-tab:focus-visible {
   outline: 2px solid var(--v-accent);
