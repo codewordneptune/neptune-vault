@@ -368,7 +368,15 @@ export function Send() {
                   else if (v === 'custom') setFee(services.settings.feeCustom ?? '');
                   void services.updateSettings({ feePreset: v });
                 }}
-                data={FEE_PRESETS.map((x) => ({ value: x.value, label: x.fee ? `${x.label} ${x.fee}` : x.label }))}
+                data={FEE_PRESETS.map((x) => ({
+                  value: x.value,
+                  label: (
+                    <span className="vault-fee-seg">
+                      <span>{x.label}</span>
+                      <small>{x.fee || 'any'}</small>
+                    </span>
+                  ),
+                }))}
               />
             </div>
             {feePreset === 'custom' && (

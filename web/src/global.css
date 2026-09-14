@@ -465,3 +465,17 @@ button.vault-network::before {
   gap: 14px;
   flex-shrink: 0;
 }
+
+/* Fee levels: name over amount, so four fit a phone width. */
+.vault-fee-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.15;
+  padding: 2px 0;
+}
+.vault-fee-seg small {
+  font-size: var(--v-fs-xs);
+  font-weight: 500;
+  opacity: 0.8;
+}
