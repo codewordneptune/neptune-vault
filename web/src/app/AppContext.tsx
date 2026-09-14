@@ -158,7 +158,9 @@ export function AppProvider({ services, children }: { services: Services; childr
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, outcome } : job));
-        notifications.show({ color: 'green', title: 'Sent', message: `${request.amount} NPT submitted. It shows as pending until it is confirmed.` });
+        if (window.location.pathname !== '/send') {
+          notifications.show({ color: 'green', title: 'Sent', message: `${request.amount} NPT submitted. It shows as pending until it is confirmed.` });
+        }
         await refresh();
         return outcome;
       } catch (e) {
@@ -169,7 +171,7 @@ export function AppProvider({ services, children }: { services: Services; childr
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, error: message } : job));
-        if (message) notifications.show({ color: 'red', title: 'Not sent', message });
+        if (message && window.location.pathname !== '/send') notifications.show({ color: 'red', title: 'Not sent', message });
         throw e;
       } finally {
         await wake?.release();

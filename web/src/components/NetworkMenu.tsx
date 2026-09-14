@@ -63,7 +63,7 @@ export function NetworkMenu() {
             </Text>
             <Group grow>
               <Button variant="default" onClick={() => setPending(null)}>
-                Stay
+                Cancel
               </Button>
               <Button
                 onClick={() => {

@@ -20,9 +20,9 @@ const KIND_LABELS: Record<KeyKind, string> = {
   viewing: 'View-only',
 };
 const KIND_PROTOCOL: Record<KeyKind, string> = {
-  generation: 'Generation address',
-  ec_hybrid: 'EC hybrid address',
-  viewing: 'Viewing address',
+  generation: 'Generation',
+  ec_hybrid: 'EC hybrid',
+  viewing: 'Viewing',
 };
 
 // Same guidance as the desktop wallet gives on its addresses page.
@@ -141,17 +141,24 @@ export function Receive() {
   return (
     <Paper>
       <Stack>
-        <Title order={2}>Receive</Title>
+        <Title order={2} className="sr-only">
+          Receive
+        </Title>
         <SegmentedControl
           fullWidth
           value={kind}
           onChange={(v) => setKind(v as KeyKind)}
-          data={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))}
+          data={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({
+            value: k,
+            label: (
+              <span className="vault-fee-seg">
+                <span>{KIND_LABELS[k]}</span>
+                <small>{KIND_PROTOCOL[k]}</small>
+              </span>
+            ),
+          }))}
         />
         <Text size="sm" c="dimmed">
-          <Text component="span" size="sm" fw={500} c="var(--v-text-2)">
-            {KIND_PROTOCOL[kind]}.{' '}
-          </Text>
           {KIND_NOTES[kind]}
         </Text>
         {qrNote && (
@@ -201,7 +208,7 @@ export function Receive() {
             </Group>
           </Stack>
         </Modal>
-        <UnstyledButton onClick={() => setShowFull((v) => !v)} c="neptune.3" fz="sm" ta="center">
+        <UnstyledButton onClick={() => setShowFull((v) => !v)} c="var(--v-accent-text)" fz="sm" ta="center">
           {showFull ? 'Hide full address' : 'Show full address'}
         </UnstyledButton>
         {showFull && (
@@ -215,11 +222,11 @@ export function Receive() {
           </Text>
           <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
             {index > 0 && (
-              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="neptune.3" fz="xs">
+              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="xs">
                 Main address
               </UnstyledButton>
             )}
-            <UnstyledButton onClick={nextUnused} c="neptune.3" fz="xs">
+            <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="xs">
               Next unused
             </UnstyledButton>
           </Group>

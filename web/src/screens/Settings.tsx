@@ -1,7 +1,7 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Anchor, Button, Group, Modal, NumberInput, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconFingerprint, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCopy, IconDownload } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -140,7 +140,7 @@ export function Settings() {
           </Text>
           <Group>
             <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>
-            <Button variant="light" leftSection={phrase ? <IconEyeOff size={16} stroke={1.8} /> : <IconEye size={16} stroke={1.8} />} onClick={() => void togglePhrase()} disabled={!account}>
+            <Button variant="light" onClick={() => void togglePhrase()} disabled={!account}>
               {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
             </Button>
           </Group>
@@ -175,7 +175,7 @@ export function Settings() {
             Locks after 5 minutes idle and when the app goes to the background.
           </Text>
           <Group>
-            <Button variant="light" leftSection={<IconLock size={16} stroke={1.8} />} onClick={() => void services.accounts.lock()}>
+            <Button variant="light" onClick={() => void services.accounts.lock()}>
               Lock now
             </Button>
           </Group>
@@ -213,7 +213,7 @@ export function Settings() {
             Diagnostics show cores, threads and the install state, useful when reporting a problem.
           </Text>
           <Group>
-            <Button variant="light" leftSection={<IconStethoscope size={16} stroke={1.8} />} onClick={() => navigate('/diagnostics')}>
+            <Button variant="light" onClick={() => navigate('/diagnostics')}>
               Diagnostics
             </Button>
           </Group>
@@ -279,7 +279,7 @@ function ChangePassword() {
       <Stack>
         {done && <Alert color="green" withCloseButton onClose={() => setDone(false)}>Password changed. Export a new backup file if you keep one; the old file still opens with the old password.</Alert>}
         <Group>
-          <Button variant="light" leftSection={<IconKey size={16} stroke={1.8} />} disabled={!account} onClick={() => { setDone(false); setOpen(true); }}>
+          <Button variant="light" disabled={!account} onClick={() => { setDone(false); setOpen(true); }}>
             Change password
           </Button>
         </Group>
@@ -333,7 +333,7 @@ function InstallCard() {
         <Group>
           <Button
             variant="light"
-            leftSection={<IconDeviceMobile size={16} stroke={1.8} />}
+           
             onClick={() => void promptInstall().then((ok) => setDeclined(!ok))}
           >
             Install app
@@ -410,7 +410,7 @@ function PasskeyCard() {
           Passkey unlock is on: the wallet opens with your fingerprint, face or device PIN. The password still works and is what a backup file needs.
         </Text>
         <Group>
-          <Button variant="light" leftSection={<IconFingerprint size={16} stroke={1.8} />} onClick={() => void disable()}>
+          <Button variant="light" onClick={() => void disable()}>
             Turn off passkey unlock
           </Button>
         </Group>
@@ -424,7 +424,7 @@ function PasskeyCard() {
           Unlock with your fingerprint, face or device PIN instead of typing the password. The passkey stays on this device.
         </Text>
         <Group>
-          <Button variant="light" leftSection={<IconFingerprint size={16} stroke={1.8} />} disabled={!account || supported === null} onClick={() => setOpen(true)}>
+          <Button variant="light" disabled={!account || supported === null} onClick={() => setOpen(true)}>
             Set up passkey unlock
           </Button>
         </Group>

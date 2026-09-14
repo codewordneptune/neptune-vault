@@ -318,7 +318,9 @@ export function Send() {
       <Stack>
         <Group justify="space-between" align="center">
           <div>
-            <Title order={2}>Send</Title>
+            <Title order={2} className="sr-only">
+              Send
+            </Title>
             <Text size="sm" c="dimmed">
               Spendable {formatNau(balance.spendableNau)} NPT
             </Text>

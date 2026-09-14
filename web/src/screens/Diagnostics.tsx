@@ -1,12 +1,13 @@
-import { ActionIcon, Badge, Group, Paper, Stack, Text, Title } from '@mantine/core';
+// Facts for a bug report: whether this page can run the threaded prover,
+// what the device reports, the versions, and how the last proof went.
+
+import { ActionIcon, Paper, Stack, Text, Title } from '@mantine/core';
 import { IconChevronLeft } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 
-// Facts for a bug report: whether this page can run the threaded prover,
-// what the device reports, the versions, and how the last proof went.
 export function Diagnostics() {
   const navigate = useNavigate();
   const { services } = useApp();
@@ -22,41 +23,44 @@ export function Diagnostics() {
 
   return (
     <Paper>
-      <Stack gap="xs">
-        <Group gap="xs" align="center" wrap="nowrap">
+      <Stack>
+        <div className="vault-title-row">
           <ActionIcon variant="subtle" size="lg" aria-label="Back" onClick={() => navigate(-1)}>
             <IconChevronLeft size={22} stroke={1.8} />
           </ActionIcon>
           <Title order={2}>Diagnostics</Title>
-        </Group>
-        <Row label="Cross-origin isolated" ok={isolated} text={isolated ? 'yes, threads available' : 'no, single-threaded'} />
-        <Row label="Cores" ok text={String(cores)} />
-        <Row label="Memory (as reported)" ok={memoryGb === undefined || memoryGb >= 4} text={memoryGb === undefined ? 'not reported' : `${memoryGb} GB or more`} />
-        <Row label="Running as" ok={installed} text={installed ? 'installed app' : 'browser tab'} />
-        <Row label="App version" ok text={`${__APP_VERSION__} (${__APP_COMMIT__})`} />
-        <Row label="Built" ok text={new Date(__APP_BUILT_AT__).toLocaleString()} />
-        <Row label="Wallet core" ok text={coreVersion} />
-        <Title order={3} mt="sm">
-          Last proof on this device
-        </Title>
+        </div>
+        <Stack gap="sm">
+          <Fact label="Threads" value={isolated ? 'Available: the page is cross-origin isolated' : 'Not available: the page is not cross-origin isolated, so proving runs on one thread'} state={isolated ? 'ok' : 'warn'} />
+          <Fact label="Cores" value={String(cores)} />
+          <Fact label="Memory, as the browser reports it" value={memoryGb === undefined ? 'Not reported' : `${memoryGb} GB or more`} state={memoryGb === undefined ? undefined : memoryGb >= 4 ? 'ok' : 'warn'} />
+          <Fact label="Running as" value={installed ? 'Installed app' : 'Browser tab'} state={installed ? 'ok' : 'warn'} />
+          <Fact label="App version" value={`${__APP_VERSION__} (${__APP_COMMIT__}), built ${new Date(__APP_BUILT_AT__).toLocaleString()}`} />
+          <Fact label="Wallet core" value={coreVersion} />
+        </Stack>
+        <Title order={3}>Last proof on this device</Title>
         {last ? (
-          <Stack gap={2}>
-            <Text size="sm" c={last.error ? 'red' : undefined}>
-              {last.error
-                ? `Failed: ${last.error}`
-                : `${last.seconds.toFixed(0)} s, peak ${last.peakMb.toFixed(0)} MB, ${last.threads || 'single'} threads`}
-            </Text>
-            <Text size="xs" c="dimmed">
-              {last.claimVersion === 5 ? 'Pre-fork prover (claim version 5)' : `Prover for claim version ${last.claimVersion}`}
-              {last.peakMb > 0 && last.error ? `, ${last.peakMb.toFixed(0)} MB before it failed` : ''} · {new Date(last.at).toLocaleString()}
-            </Text>
+          <Stack gap="sm">
+            <Fact
+              label={new Date(last.at).toLocaleString()}
+              value={
+                last.error
+                  ? `Failed: ${last.error}`
+                  : `${last.seconds.toFixed(0)} s, peak ${last.peakMb.toFixed(0)} MB, ${last.threads || 'single'} threads`
+              }
+              state={last.error ? 'warn' : 'ok'}
+            />
+            <Fact
+              label="Prover"
+              value={`${last.claimVersion === 5 ? 'Pre-fork package, claim version 5' : `Claim version ${last.claimVersion}`}${last.error && last.peakMb > 0 ? `, ${last.peakMb.toFixed(0)} MB before it failed` : ''}`}
+            />
           </Stack>
         ) : (
           <Text size="sm" c="dimmed">
             No proof has run on this device yet.
           </Text>
         )}
-        <Text size="xs" c="dimmed">
+        <Text size="xs" c="dimmed" style={{ wordBreak: 'break-word' }}>
           {navigator.userAgent}
         </Text>
       </Stack>
@@ -64,13 +68,17 @@ export function Diagnostics() {
   );
 }
 
-function Row({ label, ok, text }: { label: string; ok: boolean; text: string }) {
+/** A label over its value; a dot marks the few rows that are a yes or a no. */
+function Fact({ label, value, state }: { label: string; value: string; state?: 'ok' | 'warn' }) {
   return (
-    <Group justify="space-between">
-      <Text>{label}</Text>
-      <Badge color={ok ? 'green' : 'yellow'} variant="light">
-        {text}
-      </Badge>
-    </Group>
+    <div className="vault-detail-row">
+      <Text size="xs" c="dimmed">
+        {label}
+      </Text>
+      <Text size="sm" className={state ? `vault-fact ${state}` : undefined}>
+        {state && <span className="vault-dot" aria-hidden />}
+        {value}
+      </Text>
+    </div>
   );
 }

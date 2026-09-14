@@ -542,3 +542,36 @@ button.vault-network::before {
   height: 22px;
   padding: 0 8px;
 }
+
+/* A stable gutter so the centred column does not shift by half a scrollbar
+   between a screen that scrolls and one that does not. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Sub-screen title with its back chevron. */
+.vault-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* A yes-or-no fact on Diagnostics: a dot in front of the value. */
+.vault-fact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vault-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--v-faint);
+}
+.vault-fact.ok .vault-dot {
+  background: #3fb950;
+}
+.vault-fact.warn .vault-dot {
+  background: #d9a52c;
+}

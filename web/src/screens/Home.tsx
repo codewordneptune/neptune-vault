@@ -174,10 +174,10 @@ export function Home() {
             </Text>
           )}
           <Group grow mt="sm">
-            <Button leftSection={<IconArrowUpRight size={18} stroke={1.8} />} onClick={() => navigate('/send')}>
+            <Button leftSection={<IconArrowUpRight size={16} stroke={1.8} />} onClick={() => navigate('/send')}>
               Send
             </Button>
-            <Button variant="light" leftSection={<IconArrowDownLeft size={18} stroke={1.8} />} onClick={() => navigate('/receive')}>
+            <Button variant="light" leftSection={<IconArrowDownLeft size={16} stroke={1.8} />} onClick={() => navigate('/receive')}>
               Receive
             </Button>
           </Group>
@@ -185,13 +185,17 @@ export function Home() {
       </Paper>
 
       <Paper>
-        <Title order={3} mb="sm">
-          History
-        </Title>
+        <Stack>
+        <Title order={3}>History</Title>
         {entries.length === 0 ? (
-          <Text c="dimmed" size="sm">
-            Nothing yet. Share a receiving address to get started.
-          </Text>
+          <Stack gap="xs" align="flex-start">
+            <Text c="dimmed" size="sm">
+              Nothing yet. Share a receiving address to get started.
+            </Text>
+            <Button size="compact-sm" variant="light" onClick={() => navigate('/receive')}>
+              Show my address
+            </Button>
+          </Stack>
         ) : (
           <div>
             {entries.slice(0, shown).map((e) => {
@@ -245,6 +249,7 @@ export function Home() {
             )}
           </div>
         )}
+        </Stack>
       </Paper>
 
       <Modal opened={detail !== null} onClose={() => setDetail(null)} title={detail ? titleOf(detail) : ''}>
