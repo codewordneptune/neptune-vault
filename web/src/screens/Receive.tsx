@@ -121,7 +121,7 @@ export function Receive() {
   // The system share sheet where it exists; otherwise the link is copied.
   const share = async () => {
     setSharing(false);
-    const text = linkAmount ? `Please send ${linkAmount} NPT to ${paymentLink}` : paymentLink;
+    const text = paymentLink;
     if (navigator.share) {
       try {
         await navigator.share({ text });
