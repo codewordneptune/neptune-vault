@@ -6,11 +6,17 @@
 // wasm-bindgen-rayon re-fetches its own helper script into blob workers,
 // and a dev-server transform would inject imports those cannot resolve.
 type ProverModule = typeof import('../../public/wasm/prover/vault_prover');
+// The pre-fork package (claim version 5, Triton VM 7) exports the same
+// functions; it is only fetched when the chain still asks for it.
+const PACKAGES = {
+  current: '/wasm/prover/vault_prover.js',
+  legacy: '/wasm/prover-legacy/vault_prover_legacy.js',
+} as const;
 let prover: ProverModule | null = null;
-async function loadProver(): Promise<ProverModule> {
+async function loadProver(legacy: boolean): Promise<ProverModule> {
   // An absolute URL keeps both TypeScript and Vite's dev-time import rewriting
   // (which appends a query to root-relative dynamic imports) out of the way.
-  const url = new URL('/wasm/prover/vault_prover.js', self.location.origin).href;
+  const url = new URL(legacy ? PACKAGES.legacy : PACKAGES.current, self.location.origin).href;
   prover ??= (await import(/* @vite-ignore */ url)) as ProverModule;
   return prover;
 }
@@ -20,6 +26,8 @@ export interface ProveRequest {
   network: string;
   blockHeight: number;
   threads: number;
+  /** Use the pre-fork prover package (claim version 5). */
+  legacy?: boolean;
 }
 
 export type ProveMessage =
@@ -32,9 +40,9 @@ export type ProveMessage =
 let ready: Promise<ProverModule> | null = null;
 let poolSize = 0;
 
-async function ensureReady(threads: number): Promise<ProverModule> {
+async function ensureReady(threads: number, legacy: boolean): Promise<ProverModule> {
   const p = ready ?? (async () => {
-    const m = await loadProver();
+    const m = await loadProver(legacy);
     await m.default();
     if (self.crossOriginIsolated && threads > 0) {
       try {
@@ -54,7 +62,7 @@ const post = (m: ProveMessage, transfer: Transferable[] = []) => (self as unknow
 
 self.onmessage = async ({ data }: MessageEvent<ProveRequest>) => {
   try {
-    const m = await ensureReady(data.threads);
+    const m = await ensureReady(data.threads, Boolean(data.legacy));
     const total = m.count_sub_proofs(data.witness);
     post({ kind: 'ready', total, threads: poolSize });
     const result = m.prove_proof_collection(data.witness, data.network, BigInt(data.blockHeight), false, false, (json: string) => {

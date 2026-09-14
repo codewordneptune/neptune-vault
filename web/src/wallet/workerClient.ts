@@ -64,6 +64,9 @@ export class WalletWorkerClient implements WalletCore {
   coreVersion() {
     return this.call<string>('coreVersion');
   }
+  claimVersion(network: string, blockHeight: number) {
+    return this.call<number>('claimVersion', [network, blockHeight]);
+  }
   generatePhrase() {
     return this.call<string[]>('generatePhrase');
   }

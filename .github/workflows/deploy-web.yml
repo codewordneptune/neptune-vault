@@ -33,7 +33,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: wasm-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', '.cargo/config.toml') }}
+          key: wasm-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'crates/legacy/Cargo.lock', 'rust-toolchain.toml', '.cargo/config.toml') }}
           restore-keys: wasm-${{ runner.os }}-
 
       - name: Install wasm-pack
@@ -44,6 +44,7 @@ jobs:
         run: |
           npm run wasm:core
           npm run wasm:prover
+          npm run wasm:prover-legacy
 
       - uses: actions/setup-node@v4
         with:

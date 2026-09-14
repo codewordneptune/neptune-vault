@@ -23,7 +23,7 @@ export interface SendOutcome {
 /** The prover as the send flow needs it; the real one is ProverClient. */
 export interface Prover {
   prove(
-    request: { witness: Uint8Array; network: string; blockHeight: number; threads: number },
+    request: { witness: Uint8Array; network: string; blockHeight: number; threads: number; legacy?: boolean },
     onProgress: (p: ProveProgress) => void,
   ): Promise<ProveOutcome>;
 }
@@ -77,10 +77,14 @@ export class SendService {
     }
 
     onProgress({ stage: 'proving' });
+    // Before the delta fork the rules want claim version 5, produced by the
+    // pre-fork prover package; after it, version 8 from the current one.
+    const version = (await this.core.claimVersion?.(this.network, tipHeader.height)) ?? 8;
+    if (version !== 5 && version !== 8) throw new Error(`This wallet cannot prove transactions for claim version ${version}`);
     const proving: ProveOutcome = this.useMockProofs
       ? { proofCollection: await this.core.mockProofCollection(built.witness), seconds: 0, memoryMb: 0, threads: 0 }
       : await this.prover.prove(
-          { witness: built.witness, network: this.network, blockHeight: tipHeader.height, threads: this.threads },
+          { witness: built.witness, network: this.network, blockHeight: tipHeader.height, threads: this.threads, legacy: version === 5 },
           (p) => onProgress({ stage: 'proving', proving: p }),
         );
 

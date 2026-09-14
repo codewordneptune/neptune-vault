@@ -76,6 +76,23 @@ mod wasm {
         amount::from_nau_string(nau).map(amount::format).map_err(js_err)
     }
 
+    /// The Triton VM claim version the consensus rules require for a
+    /// transaction confirmed against `block_height` on `network`: 5 before
+    /// the delta fork, 8 after. The app picks the prover package by it.
+    #[wasm_bindgen]
+    pub fn claim_version(network: &str, block_height: u64) -> Result<u32, JsError> {
+        use neptune_consensus::consensus_rule_set::ConsensusRuleSet;
+        use neptune_consensus::consensus_rule_set::TritonProofVersion;
+        let network = parse_network(network)?;
+        let rule_set = ConsensusRuleSet::infer_from(network, block_height.into());
+        Ok(match rule_set.triton_proof_version() {
+            TritonProofVersion::V0 => 0,
+            TritonProofVersion::V1 => 1,
+            TritonProofVersion::V5 => 5,
+            TritonProofVersion::V8 => 8,
+        })
+    }
+
     /// Whether `encoded` is a valid receiving address for `network`.
     #[wasm_bindgen]
     pub fn is_valid_address(encoded: &str, network: &str) -> Result<bool, JsError> {

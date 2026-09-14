@@ -76,6 +76,8 @@ export interface SendPlan {
 export interface WalletCore {
   /** Version of the wasm wallet core package. */
   coreVersion?(): Promise<string>;
+  /** Claim version the rules require at a height (5 before the fork, 8 after). */
+  claimVersion?(network: string, blockHeight: number): Promise<number>;
   generatePhrase(): Promise<string[]>;
   deriveKey(password: Uint8Array, salt: Uint8Array, mKib: number, tCost: number, pCost: number): Promise<Uint8Array>;
   parseAmount(text: string): Promise<string>;
