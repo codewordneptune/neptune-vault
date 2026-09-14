@@ -1,13 +1,20 @@
 # Neptune Vault
 
+**Proof of concept. Not for production use.** This wallet exists to show
+that a browser can hold Neptune Cash keys, sync against a node and prove
+transactions on a phone. It has had no security audit, its storage and
+recovery paths are days old, and it may lose funds through bugs. Use it
+only with amounts you can afford to lose, on testnet or regtest where you
+can, and keep your phrase somewhere safe.
+
 A wallet for [Neptune Cash](https://neptune.cash) that runs entirely in the
 browser, as an installable web app for Android and iOS. Keys never leave the
 device: the seed is generated in a WebAssembly build of Neptune's own wallet
 code, encrypted with a password (and optionally a passkey), and stored in the
 browser. Transactions are proven on the phone, in WebAssembly, with all cores.
 
-Live at <https://vault.dev.useneptune.org>. Early release: keep your phrase
-safe and expect changes.
+Demo at <https://vault.dev.useneptune.org>. Expect breaking changes, including
+to the stored data and the backup file format.
 
 ## What it does
 
