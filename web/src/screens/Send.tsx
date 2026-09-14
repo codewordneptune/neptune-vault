@@ -4,7 +4,7 @@
 
 import { ActionIcon, Alert, Badge, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { IconAddressBook, IconClipboard, IconScan } from '@tabler/icons-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { formatNau, useApp } from '../app/AppContext';
@@ -186,20 +186,16 @@ export function Send() {
   const p = sendJob?.progress.proving;
   const proving = sendJob?.progress.stage === 'proving';
   // The prover reports only between sub-proofs, which take minutes, so the
-  // elapsed time shown is the wall clock since proving started, ticking.
+  // elapsed time shown is the wall clock since proving started (kept on the
+  // job, so it survives leaving this screen), ticking.
   const [now, setNow] = useState(Date.now());
-  const provingSince = useRef<number | null>(null);
   useEffect(() => {
-    if (!proving) {
-      provingSince.current = null;
-      return;
-    }
-    provingSince.current ??= Date.now();
+    if (!proving) return;
     setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [proving]);
-  const provingSeconds = Math.max(0, Math.round((now - (provingSince.current ?? now)) / 1000));
+  const provingSeconds = sendJob?.provingSince ? Math.max(0, Math.round((now - sendJob.provingSince) / 1000)) : 0;
 
   if (running && sendJob) {
     return (

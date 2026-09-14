@@ -15,6 +15,8 @@ import type { Services } from './services';
 export interface SendJob {
   request: SendRequest;
   startedAt: number;
+  /** When proving began, so the elapsed time survives leaving the Send screen. */
+  provingSince: number | null;
   progress: SendProgress;
   done: boolean;
   outcome: SendOutcome | null;
@@ -134,7 +136,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         wake = null;
       }
       services.accounts.setLockDeferred(true);
-      setSendJob({ request, startedAt: Date.now(), progress: { stage: 'planning' }, done: false, outcome: null, error: null });
+      setSendJob({ request, startedAt: Date.now(), provingSince: null, progress: { stage: 'planning' }, done: false, outcome: null, error: null });
       // What Diagnostics shows about the last proof, whichever way it ends.
       let claimVersion = 0;
       let threads = 0;
@@ -150,7 +152,7 @@ export function AppProvider({ services, children }: { services: Services; childr
             threads = progress.proving.threads;
             peakMb = Math.max(peakMb, progress.proving.memoryMb);
           }
-          setSendJob((job) => (job ? { ...job, progress } : job));
+          setSendJob((job) => (job ? { ...job, progress, provingSince } : job));
         });
         if (outcome.proving.seconds > 0) {
           void services.updateSettings({
