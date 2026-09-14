@@ -1,6 +1,6 @@
 // Balance, sync status and history (F13, F14, R18).
 
-import { ActionIcon, Alert, Anchor, Badge, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Alert, Badge, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -321,11 +321,6 @@ function DetailRow({ label, value, mono, copy, href }: { label: string; value: s
           </ActionIcon>
         )}
       </Group>
-      {href && (
-        <Anchor href={href} target="_blank" rel="noreferrer" size="xs">
-          View in the explorer
-        </Anchor>
-      )}
     </div>
   );
 }
