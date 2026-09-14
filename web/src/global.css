@@ -232,8 +232,8 @@ button.vault-network::before {
   top: -1px;
   left: 16px;
   right: 16px;
-  height: 2px;
-  border-radius: 0 0 2px 2px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
   background: transparent;
   transition: background-color 160ms ease;
 }
@@ -243,6 +243,9 @@ button.vault-network::before {
 }
 .vault-tab.active::before {
   background: var(--v-accent);
+}
+.vault-tab.active svg {
+  stroke-width: 2.2;
 }
 .vault-tab:focus-visible {
   outline: 2px solid var(--v-accent);
