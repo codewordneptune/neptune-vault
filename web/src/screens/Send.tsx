@@ -42,6 +42,8 @@ export function Send() {
   // The last successfully sent recipient, offered for saving as a contact.
   const [lastRecipient, setLastRecipient] = useState<string | null>(null);
   const [savedName, setSavedName] = useState<string | null>(null);
+  // From a payment link: shown on the review step, never used for anything else.
+  const [linkMeta, setLinkMeta] = useState<{ label?: string; message?: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -157,6 +159,7 @@ export function Send() {
       setRecipient(parsed.address);
       setRecipientError(null);
       if (parsed.amount) setAmount(parsed.amount);
+      setLinkMeta(parsed.label || parsed.message ? { label: parsed.label, message: parsed.message } : null);
     },
     [],
   );
@@ -236,6 +239,16 @@ export function Send() {
               <Text size="xs" c="dimmed">
                 {kind} address
               </Text>
+              {linkMeta?.label && (
+                <Text size="sm" mt={4}>
+                  Payee named in the link: {linkMeta.label}
+                </Text>
+              )}
+              {linkMeta?.message && (
+                <Text size="sm" c="dimmed">
+                  Note from the link: {linkMeta.message}
+                </Text>
+              )}
             </div>
             <div className="vault-review-row">
               <span>Amount</span>
@@ -317,8 +330,15 @@ export function Send() {
               label="Recipient address"
               value={recipient}
               onChange={(e) => {
-                setRecipient(e.currentTarget.value);
-                setRecipientError(null);
+                const value = e.currentTarget.value;
+                // A payment link arriving by any route (keyboard paste, share)
+                // is split into its fields, the same as Paste and Scan do.
+                if (/^s*[a-z]+:/i.test(value) && value.includes('1')) applyText(value);
+                else {
+                  setRecipient(value);
+                  setRecipientError(null);
+                  setLinkMeta(null);
+                }
               }}
               onBlur={() => void checkRecipient()}
               error={recipientError ?? pasteError}
