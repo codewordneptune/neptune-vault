@@ -108,14 +108,21 @@ export function Home() {
       const c = coinOf(e.record);
       return c ? [{ commitment: c, label: 'Output' }] : [];
     }
+    const numbered = (list: { commitment: string; label: string }[]) => {
+      const changes = list.filter((o) => o.label === 'Change output').length;
+      let n = 0;
+      return list.map((o) => (o.label === 'Change output' && changes > 1 ? { ...o, label: `Change output ${++n}` } : o));
+    };
     const recorded = (e.record.outputs ?? []).map((o) => ({ commitment: o.commitment, label: o.role === 'recipient' ? `Output to ${e.kind === 'self' ? 'yourself' : 'the recipient'}` : 'Change output' }));
-    if (recorded.length > 0) return recorded;
+    if (recorded.length > 0) return numbered(recorded);
     // A send recorded before outputs were kept: the coins it brought back
     // are known once scanned, the recipient's output is not.
-    return e.folded.flatMap((row) => {
-      const c = coinOf(row);
-      return c ? [{ commitment: c, label: e.kind === 'self' && BigInt(row.amountNau) === BigInt(e.record.amountNau) ? 'Output to yourself' : 'Change output' }] : [];
-    });
+    return numbered(
+      e.folded.flatMap((row) => {
+        const c = coinOf(row);
+        return c ? [{ commitment: c, label: e.kind === 'self' && BigInt(row.amountNau) === BigInt(e.record.amountNau) ? 'Output to yourself' : 'Change output' }] : [];
+      }),
+    );
   };
   const explorer = account?.network === 'main' ? LINKS.explorerOutput : null;
 
@@ -145,11 +152,11 @@ export function Home() {
         {!busy && online && (
           <span className="vault-status-actions">
             {sync?.phase === 'error' && (
-              <UnstyledButton onClick={() => navigate('/settings')} fz="xs" c="var(--v-accent-text)">
+              <UnstyledButton onClick={() => navigate('/settings')} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
                 Settings
               </UnstyledButton>
             )}
-            <UnstyledButton onClick={() => void syncNow()} fz="xs" c="var(--v-accent-text)">
+            <UnstyledButton onClick={() => void syncNow()} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
               {sync?.phase === 'error' ? 'Retry' : 'Sync'}
             </UnstyledButton>
           </span>
@@ -159,7 +166,7 @@ export function Home() {
         <Stack gap="xs">
           <Group justify="space-between" align="center">
             <span className="vault-eyebrow">Spendable balance</span>
-            <ActionIcon variant="subtle" size="sm" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
+            <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
               {hidden ? <IconEyeOff size={16} stroke={1.8} /> : <IconEye size={16} stroke={1.8} />}
             </ActionIcon>
           </Group>
@@ -339,12 +346,12 @@ function DetailRow({ label, value, mono, copy, href, abbreviate }: { label: stri
         {(copy || href) && (
           <Group gap={2} wrap="nowrap">
             {copy && (
-              <ActionIcon variant="subtle" size="sm" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copyText(value, copy)}>
+              <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copyText(value, copy)}>
                 <IconCopy size={16} stroke={1.8} />
               </ActionIcon>
             )}
             {href && (
-              <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="sm" aria-label={`Open ${label.toLowerCase()} in the explorer`}>
+              <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="lg" className="vault-tap" aria-label={`Open ${label.toLowerCase()} in the explorer`}>
                 <IconExternalLink size={16} stroke={1.8} />
               </ActionIcon>
             )}
@@ -355,7 +362,7 @@ function DetailRow({ label, value, mono, copy, href, abbreviate }: { label: stri
         {shown}
       </Text>
       {abbreviate && (
-        <UnstyledButton onClick={() => setFull((v) => !v)} c="var(--v-accent-text)" fz="xs">
+        <UnstyledButton onClick={() => setFull((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link">
           {full ? 'Hide full address' : 'Show full address'}
         </UnstyledButton>
       )}

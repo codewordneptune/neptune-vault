@@ -25,7 +25,7 @@ export function Diagnostics() {
     <Paper>
       <Stack>
         <div className="vault-title-row">
-          <ActionIcon variant="subtle" size="lg" aria-label="Back" onClick={() => navigate(-1)}>
+          <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Back" onClick={() => navigate(-1)}>
             <IconChevronLeft size={22} stroke={1.8} />
           </ActionIcon>
           <Title order={2}>Diagnostics</Title>

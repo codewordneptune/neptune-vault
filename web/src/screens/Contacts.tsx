@@ -43,12 +43,12 @@ export function Contacts() {
         <Stack>
           <Group justify="space-between" align="center">
             <Group gap="xs" align="center" wrap="nowrap">
-              <ActionIcon variant="subtle" size="lg" aria-label="Back" onClick={() => navigate(-1)}>
+              <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Back" onClick={() => navigate(-1)}>
                 <IconChevronLeft size={22} stroke={1.8} />
               </ActionIcon>
               <Title order={2}>Contacts</Title>
             </Group>
-            <Button size="compact-md" variant="light" leftSection={<IconUserPlus size={16} stroke={1.8} />} onClick={() => setAdding(true)}>
+            <Button size="compact-md" variant="light" className="vault-tap" leftSection={<IconUserPlus size={16} stroke={1.8} />} onClick={() => setAdding(true)}>
               Add
             </Button>
           </Group>
@@ -74,13 +74,13 @@ export function Contacts() {
                   </div>
                   <Group gap={4} wrap="nowrap">
                     <Tooltip label="Send to this contact">
-                      <ActionIcon variant="light" aria-label={`Send to ${c.name}`} onClick={() => navigate('/send', { state: { recipient: c.address } })}>
+                      <ActionIcon variant="light" size="lg" className="vault-tap" aria-label={`Send to ${c.name}`} onClick={() => navigate('/send', { state: { recipient: c.address } })}>
                         <IconSend size={18} stroke={1.8} />
                       </ActionIcon>
                     </Tooltip>
                     <Menu position="bottom-end">
                       <Menu.Target>
-                        <ActionIcon variant="subtle" aria-label={`More for ${c.name}`}>
+                        <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`More for ${c.name}`}>
                           <IconDotsVertical size={18} stroke={1.8} />
                         </ActionIcon>
                       </Menu.Target>
@@ -234,13 +234,13 @@ export function ContactForm({
               }}
               onBlur={() => void checkAddress()}
               error={addressError}
-              rightSectionWidth={84}
+              rightSectionWidth={88}
               rightSection={
                 <Group gap={4} wrap="nowrap">
-                  <ActionIcon variant="subtle" aria-label="Paste address" onClick={() => void paste()}>
+                  <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Paste address" onClick={() => void paste()}>
                     <IconClipboard size={18} stroke={1.8} />
                   </ActionIcon>
-                  <ActionIcon variant="subtle" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
+                  <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
                     <IconScan size={18} stroke={1.8} />
                   </ActionIcon>
                 </Group>

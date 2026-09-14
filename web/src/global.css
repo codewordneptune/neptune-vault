@@ -613,3 +613,22 @@ html {
 .vault-amount-in {
   color: #3fb950;
 }
+
+/* Touch targets: at least 40 px to hit, drawn no larger than before. */
+.vault-tap {
+  min-width: 40px;
+  min-height: 40px;
+}
+.vault-tap-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  margin: -10px 0;
+  padding: 0 4px;
+}
+.mantine-Modal-close {
+  min-width: 40px;
+  min-height: 40px;
+}

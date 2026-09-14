@@ -321,7 +321,7 @@ export function Send() {
               Spendable {formatNau(balance.spendableNau)} NPT
             </Text>
           </div>
-          <Button size="compact-md" variant="light" leftSection={<IconAddressBook size={16} stroke={1.8} />} onClick={() => setPicking(true)}>
+          <Button size="compact-md" variant="light" className="vault-tap" leftSection={<IconAddressBook size={16} stroke={1.8} />} onClick={() => setPicking(true)}>
             Contacts
           </Button>
         </Group>
@@ -370,16 +370,16 @@ export function Send() {
               }}
               onBlur={() => void checkRecipient()}
               error={recipientError ?? pasteError}
-              rightSectionWidth={80}
+              rightSectionWidth={88}
               rightSection={
                 <Group gap={4} wrap="nowrap">
                   <Tooltip label="Paste">
-                    <ActionIcon variant="subtle" aria-label="Paste address" onClick={() => void paste()}>
+                    <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Paste address" onClick={() => void paste()}>
                       <IconClipboard size={18} stroke={1.8} />
                     </ActionIcon>
                   </Tooltip>
                   <Tooltip label="Scan QR code">
-                    <ActionIcon variant="subtle" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
+                    <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
                       <IconScan size={18} stroke={1.8} />
                     </ActionIcon>
                   </Tooltip>
@@ -398,7 +398,7 @@ export function Send() {
               error={amountError}
               rightSectionWidth={64}
               rightSection={
-                <Button variant="subtle" size="compact-sm" onClick={() => void sendAll()} disabled={balance.spendableNau <= 0n}>
+                <Button variant="subtle" size="compact-sm" className="vault-tap" onClick={() => void sendAll()} disabled={balance.spendableNau <= 0n}>
                   Max
                 </Button>
               }

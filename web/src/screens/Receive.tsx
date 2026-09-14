@@ -208,7 +208,7 @@ export function Receive() {
             </Group>
           </Stack>
         </Modal>
-        <UnstyledButton onClick={() => setShowFull((v) => !v)} c="var(--v-accent-text)" fz="sm" ta="center">
+        <UnstyledButton onClick={() => setShowFull((v) => !v)} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
           {showFull ? 'Hide full address' : 'Show full address'}
         </UnstyledButton>
         {showFull && (
@@ -222,11 +222,11 @@ export function Receive() {
           </Text>
           <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
             {index > 0 && (
-              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="xs">
+              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="xs" className="vault-tap-link">
                 Main address
               </UnstyledButton>
             )}
-            <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="xs">
+            <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="xs" className="vault-tap-link">
               Next unused
             </UnstyledButton>
           </Group>

@@ -124,7 +124,7 @@ export function Settings() {
                 The browser has not granted persistent storage, so it can delete this wallet's data when space runs low, without asking. Browsers grant it on their own once the app is installed or has been opened regularly. A backup file or the phrase restores everything.
               </Text>
               <Group mt="xs" gap="sm" align="center">
-                <Button size="compact-sm" variant="light" onClick={() => void requestPersistent()}>
+                <Button size="sm" variant="default" className="vault-tap" onClick={() => void requestPersistent()}>
                   Request again
                 </Button>
                 {persistAsked && (
@@ -227,13 +227,13 @@ export function Settings() {
             Neptune Vault is a wallet for Neptune Cash that runs entirely in your browser: keys never leave this device, and the app talks only to the node you choose. It is a proof of concept and not recommended for production use: no audit, breaking changes ahead, use only with amounts you can afford to lose.
           </Text>
           <Group gap="md">
-            <Anchor href={LINKS.project} target="_blank" rel="noreferrer" size="sm">
+            <Anchor href={LINKS.project} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               Community
             </Anchor>
-            <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm">
+            <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               Report a problem
             </Anchor>
-            <Anchor href={LINKS.neptune} target="_blank" rel="noreferrer" size="sm">
+            <Anchor href={LINKS.neptune} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               About Neptune Cash
             </Anchor>
           </Group>
@@ -500,7 +500,7 @@ function RescanCard() {
           <Text size="sm">
             The local history and balance are rebuilt from the chain starting at this block. Your funds are not affected; older blocks take longer to fetch. Sends made from this device lose their recipient and fee details, which the chain does not carry.
           </Text>
-          <NumberInput label="Start block" min={1} value={height} onChange={setHeight} error={rescanError} />
+          <NumberInput label="Start block" min={1} value={height} onChange={setHeight} error={rescanError} hideControls inputMode="numeric" />
           <Group grow>
             <Button variant="default" onClick={() => setOpen(false)}>
               Cancel

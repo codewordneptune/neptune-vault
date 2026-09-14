@@ -57,7 +57,7 @@ export const theme = createTheme({
     Button: { defaultProps: { radius: 'sm', size: 'md' } },
     Badge: { defaultProps: { radius: 'xl', variant: 'light', size: 'sm' } },
     TextInput: { defaultProps: { radius: 'sm', size: 'md' } },
-    PasswordInput: { defaultProps: { radius: 'sm', size: 'md' } },
+    PasswordInput: { defaultProps: { radius: 'sm', size: 'md', visibilityToggleButtonProps: { size: 'lg', className: 'vault-tap', 'aria-label': 'Show or hide the password' } } },
     NumberInput: { defaultProps: { radius: 'sm', size: 'md' } },
     Textarea: { defaultProps: { radius: 'sm', size: 'md' } },
     Select: { defaultProps: { radius: 'sm', size: 'md' } },
@@ -65,6 +65,6 @@ export const theme = createTheme({
     Alert: { defaultProps: { radius: 'sm', variant: 'light' } },
     Code: { defaultProps: { radius: 'sm' } },
     Menu: { defaultProps: { radius: 'sm', shadow: 'lg' } },
-    Modal: { defaultProps: { radius: 'md', centered: true, overlayProps: { blur: 2 } } },
+    Modal: { defaultProps: { radius: 'md', centered: true, overlayProps: { blur: 2 }, closeButtonProps: { 'aria-label': 'Close' } } },
   },
 });
