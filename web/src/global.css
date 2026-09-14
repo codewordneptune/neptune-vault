@@ -530,3 +530,12 @@ button.vault-network::before {
   justify-content: space-between;
   gap: 8px;
 }
+
+/* Address-kind tag beside an address: quiet, but visibly a property of it. */
+.vault-kind {
+  border-color: var(--v-faint);
+  color: var(--v-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}

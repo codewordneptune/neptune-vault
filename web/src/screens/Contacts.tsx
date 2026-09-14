@@ -1,7 +1,7 @@
 // Contacts: saved recipients for this account. Add by paste or scan, rename,
 // delete, and start a send to one.
 
-import { ActionIcon, Alert, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Alert, Badge, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { IconChevronLeft, IconClipboard, IconDotsVertical, IconPencil, IconScan, IconSend, IconTrash, IconUserPlus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -68,9 +68,9 @@ export function Contacts() {
                     <Text size="xs" c="dimmed" ff="monospace">
                       {abbreviateAddress(c.address)}
                     </Text>
-                    <Text size="xs" c="dimmed">
+                    <Badge size="xs" variant="outline" color="gray" mt={4} className="vault-kind">
                       {addressKindLabel(c.address)}
-                    </Text>
+                    </Badge>
                   </div>
                   <Group gap={4} wrap="nowrap">
                     <Tooltip label="Send to this contact">

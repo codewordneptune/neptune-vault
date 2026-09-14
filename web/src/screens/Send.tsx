@@ -2,7 +2,7 @@
 // before a review step; the proof itself runs as a job in the app context
 // so it survives this screen being unmounted (backgrounding locks the app).
 
-import { ActionIcon, Alert, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Alert, Badge, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { IconAddressBook, IconClipboard, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -267,9 +267,9 @@ export function Send() {
               <Text ff="monospace" size="sm" c={reviewName ? 'dimmed' : undefined}>
                 {abbreviateAddress(recipient)}
               </Text>
-              <Text size="xs" c="dimmed">
-                {kind} address
-              </Text>
+              <Badge size="xs" variant="outline" color="gray" mt={4} className="vault-kind">
+                {kind}
+              </Badge>
               {linkMeta?.label && (
                 <Text size="sm" mt={4}>
                   Payee named in the link: {linkMeta.label}
