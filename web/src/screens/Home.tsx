@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { formatNau, useApp } from '../app/AppContext';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
+import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { groupHistory, type HistoryEntry } from '../util/history';
@@ -93,6 +94,7 @@ export function Home() {
       <Title order={2} className="sr-only">
         Home
       </Title>
+      <PocNotice />
       <div className={`vault-status${sync?.phase === 'error' ? ' error' : ''}`}>
         <span className="vault-status-text">
           {!online && <IconWifiOff size={14} stroke={1.8} />}

@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
+import { PocNotice } from '../components/PocNotice';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
 import { NETWORK_OPTIONS } from '../util/network';
@@ -166,6 +167,7 @@ export function Onboarding() {
     <Stack gap="md">
       {error && <Alert color="red">{error}</Alert>}
 
+      {step === 'welcome' && <PocNotice />}
       {step === 'welcome' && (
         <Paper>
           <Stack>
