@@ -158,7 +158,7 @@ export function AppProvider({ services, children }: { services: Services; childr
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, outcome } : job));
-        notifications.show({ color: 'green', title: 'Sent', message: `${request.amount} NPT submitted. It shows as pending until the network includes it.` });
+        notifications.show({ color: 'green', title: 'Sent', message: `${request.amount} NPT submitted. It shows as pending until it is confirmed.` });
         await refresh();
         return outcome;
       } catch (e) {

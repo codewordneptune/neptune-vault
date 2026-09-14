@@ -295,7 +295,7 @@ export function Send() {
             </div>
           </div>
           <Text size="xs" c="dimmed">
-            Uses {used === 1 ? '1 coin' : `${used} coins`} of {formatNau(heldNau)} NPT, held until the network includes the send, usually within a few blocks. Spendable meanwhile: {formatNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {formatNau(balance.spendableNau - totalNau)} NPT.
+            Uses {used === 1 ? '1 coin' : `${used} coins`} of {formatNau(heldNau)} NPT, held until the transaction is confirmed, usually within a few blocks. Spendable meanwhile: {formatNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {formatNau(balance.spendableNau - totalNau)} NPT.
           </Text>
           {askLustration && (
             <Alert color="yellow" title="One more thing">
@@ -329,7 +329,7 @@ export function Send() {
         </Group>
         {sendJob?.done && sendJob.outcome && (
           <Alert color="green" title="Submitted" withCloseButton onClose={dismissSendJob}>
-            {sendJob.request.amount} NPT is on its way. It shows as pending until the network includes it
+            {sendJob.request.amount} NPT is on its way. It shows as pending until it is confirmed
             {sendJob.outcome.proving.seconds > 0 && `; the proof took ${sendJob.outcome.proving.seconds.toFixed(0)} s`}.
             {lastRecipient && (
               <div style={{ marginTop: 8 }}>

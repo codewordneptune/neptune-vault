@@ -170,7 +170,7 @@ export function Home() {
           {balance.reservedNau > 0n && (
             <Text size="sm" c="dimmed">
               {amount(balance.reservedNau)} NPT is held by {pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}
-              {pendingSends.length === 1 && `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee`}. Once the network includes {pendingSends.length === 1 ? 'it' : 'them'}, usually within a few blocks, {amount(afterPendingNau)} NPT is spendable.
+              {pendingSends.length === 1 && `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee`}. Once {pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, {amount(afterPendingNau)} NPT is spendable.
             </Text>
           )}
           <Group grow mt="sm">
@@ -299,7 +299,7 @@ export function Home() {
         {givingUp && (
           <Stack>
             <Text size="sm">
-              The coins held for it become spendable again. If the network includes the transaction anyway, it still goes through and shows up as sent.
+              The coins held for it become spendable again. If the transaction is confirmed anyway, it still goes through and shows up as sent.
             </Text>
             <Text size="sm" c="dimmed">
               This send: {formatNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${formatNau(BigInt(givingUp.feeNau))} NPT fee`}. Held for it: {formatNau(reservedFor(givingUp))} NPT, which becomes spendable again.
