@@ -1,8 +1,8 @@
 // Contacts: saved recipients for this account. Add by paste or scan, rename,
 // delete, and start a send to one.
 
-import { ActionIcon, Alert, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
-import { IconClipboard, IconDotsVertical, IconPencil, IconScan, IconSend, IconTrash, IconUserPlus } from '@tabler/icons-react';
+import { ActionIcon, Alert, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
+import { IconChevronLeft, IconClipboard, IconDotsVertical, IconPencil, IconScan, IconSend, IconTrash, IconUserPlus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -41,11 +41,11 @@ export function Contacts() {
     <Stack gap="md">
       <Paper>
         <Stack>
-          <Group justify="space-between" align="baseline">
-            <Group gap="xs" align="baseline">
-              <UnstyledButton onClick={() => navigate(-1)} c="var(--v-accent-text)" fz="sm">
-                Back
-              </UnstyledButton>
+          <Group justify="space-between" align="center">
+            <Group gap="xs" align="center" wrap="nowrap">
+              <ActionIcon variant="subtle" size="lg" aria-label="Back" onClick={() => navigate(-1)}>
+                <IconChevronLeft size={22} stroke={1.8} />
+              </ActionIcon>
               <Title order={2}>Contacts</Title>
             </Group>
             <Button size="compact-md" variant="light" leftSection={<IconUserPlus size={16} stroke={1.8} />} onClick={() => setAdding(true)}>

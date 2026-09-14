@@ -1,4 +1,5 @@
-import { Badge, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { ActionIcon, Badge, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { IconChevronLeft } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,7 +21,12 @@ export function Diagnostics() {
   return (
     <Paper>
       <Stack gap="xs">
-        <Title order={2}>Diagnostics</Title>
+        <Group gap="xs" align="center" wrap="nowrap">
+          <ActionIcon variant="subtle" size="lg" aria-label="Back" onClick={() => navigate(-1)}>
+            <IconChevronLeft size={22} stroke={1.8} />
+          </ActionIcon>
+          <Title order={2}>Diagnostics</Title>
+        </Group>
         <Row label="Cross-origin isolated" ok={isolated} text={isolated ? 'yes, threads available' : 'no, single-threaded'} />
         <Row label="Cores" ok text={String(cores)} />
         <Row label="Running as" ok={installed} text={installed ? 'installed app' : 'browser tab'} />
@@ -30,11 +36,6 @@ export function Diagnostics() {
         <Text size="xs" c="dimmed">
           {navigator.userAgent}
         </Text>
-        <Group>
-          <Button variant="default" onClick={() => navigate(-1)}>
-            Back
-          </Button>
-        </Group>
       </Stack>
     </Paper>
   );
