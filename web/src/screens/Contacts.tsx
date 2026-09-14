@@ -68,7 +68,7 @@ export function Contacts() {
                     <Text size="xs" c="dimmed" ff="monospace">
                       {abbreviateAddress(c.address)}
                     </Text>
-                    <Badge size="xs" variant="outline" color="gray" mt={4} className="vault-kind">
+                    <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
                       {addressKindLabel(c.address)}
                     </Badge>
                   </div>

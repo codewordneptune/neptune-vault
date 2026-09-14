@@ -538,4 +538,7 @@ button.vault-network::before {
   text-transform: none;
   letter-spacing: 0;
   font-weight: 500;
+  font-size: var(--v-fs-xs);
+  height: 22px;
+  padding: 0 8px;
 }

@@ -267,7 +267,7 @@ export function Send() {
               <Text ff="monospace" size="sm" c={reviewName ? 'dimmed' : undefined}>
                 {abbreviateAddress(recipient)}
               </Text>
-              <Badge size="xs" variant="outline" color="gray" mt={4} className="vault-kind">
+              <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
                 {kind}
               </Badge>
               {linkMeta?.label && (
