@@ -222,8 +222,23 @@ button.vault-network::before {
   text-decoration: none;
   transition: color 160ms ease;
 }
+.vault-tab svg {
+  box-sizing: content-box;
+  padding: 3px 12px;
+  border-radius: 999px;
+  transition: background-color 160ms ease;
+}
 .vault-tab.active {
   color: var(--v-accent-text);
+  font-weight: 600;
+}
+.vault-tab.active svg {
+  background: var(--v-accent-soft);
+}
+.vault-tab:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: -2px;
+  border-radius: var(--v-radius-xs);
 }
 
 /* Seed word cells. */
