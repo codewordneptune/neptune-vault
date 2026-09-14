@@ -48,7 +48,7 @@ export function NetworkMenu() {
             onClick={() => choose(n)}
             leftSection={n === network ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
             rightSection={
-              <span className="vault-network-hint">{withAccount.has(n) ? 'account' : 'no account'}</span>
+              <span className="vault-network-hint">{withAccount.has(n) ? 'wallet' : 'no wallet'}</span>
             }
           >
             {NETWORK_LABELS[n]}

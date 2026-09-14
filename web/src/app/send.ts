@@ -13,11 +13,14 @@ export type SendStage = 'planning' | 'membership-proofs' | 'building' | 'proving
 export interface SendProgress {
   stage: SendStage;
   proving?: ProveProgress;
+  /** With the first proving report: which prover the chain asked for. */
+  claimVersion?: number;
 }
 
 export interface SendOutcome {
   txid: string;
   proving: ProveOutcome;
+  claimVersion: number;
 }
 
 /** The prover as the send flow needs it; the real one is ProverClient. */
@@ -76,10 +79,10 @@ export class SendService {
       throw e;
     }
 
-    onProgress({ stage: 'proving' });
     // Before the delta fork the rules want claim version 5, produced by the
     // pre-fork prover package; after it, version 8 from the current one.
     const version = (await this.core.claimVersion?.(this.network, tipHeader.height)) ?? 8;
+    onProgress({ stage: 'proving', claimVersion: version });
     if (version !== 5 && version !== 8) throw new Error(`This wallet cannot prove transactions for claim version ${version}`);
     const proving: ProveOutcome = this.useMockProofs
       ? { proofCollection: await this.core.mockProofCollection(built.witness), seconds: 0, memoryMb: 0, threads: 0 }
@@ -95,7 +98,7 @@ export class SendService {
 
     await this.recordPending(built.summary.txid, request, built.summary.input_hashes, built.summary.amount_nau, built.summary.fee_nau, built.summary.change_nau, built.summary.output_commitments ?? []);
     onProgress({ stage: 'done' });
-    return { txid: built.summary.txid, proving };
+    return { txid: built.summary.txid, proving, claimVersion: version };
   }
 
   /** Mark the inputs reserved and add the pending history entry (R18). */

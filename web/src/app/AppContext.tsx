@@ -135,18 +135,39 @@ export function AppProvider({ services, children }: { services: Services; childr
       }
       services.accounts.setLockDeferred(true);
       setSendJob({ request, startedAt: Date.now(), progress: { stage: 'planning' }, done: false, outcome: null, error: null });
+      // What Diagnostics shows about the last proof, whichever way it ends.
+      let claimVersion = 0;
+      let threads = 0;
+      let peakMb = 0;
+      let provingSince: number | null = null;
       try {
         const outcome = await service.send(request, (progress) => {
           // The sub-proof name is for bug reports, not for the screen.
           if (progress.proving?.name) console.debug('proving', progress.proving.index + 1, 'of', progress.proving.total, progress.proving.name);
+          if (progress.claimVersion) claimVersion = progress.claimVersion;
+          if (progress.stage === 'proving') provingSince ??= Date.now();
+          if (progress.proving) {
+            threads = progress.proving.threads;
+            peakMb = Math.max(peakMb, progress.proving.memoryMb);
+          }
           setSendJob((job) => (job ? { ...job, progress } : job));
         });
+        if (outcome.proving.seconds > 0) {
+          void services.updateSettings({
+            lastProving: { at: Date.now(), claimVersion: outcome.claimVersion, threads: outcome.proving.threads, peakMb: outcome.proving.memoryMb, seconds: outcome.proving.seconds, error: null },
+          });
+        }
         setSendJob((job) => (job ? { ...job, done: true, outcome } : job));
         notifications.show({ color: 'green', title: 'Sent', message: `${request.amount} NPT submitted. It shows as pending until the network includes it.` });
         await refresh();
         return outcome;
       } catch (e) {
         const message = e instanceof RequiresLustrationError ? null : (e as Error).message;
+        if (message && provingSince !== null) {
+          void services.updateSettings({
+            lastProving: { at: Date.now(), claimVersion, threads, peakMb, seconds: (Date.now() - provingSince) / 1000, error: message },
+          });
+        }
         setSendJob((job) => (job ? { ...job, done: true, error: message } : job));
         if (message) notifications.show({ color: 'red', title: 'Not sent', message });
         throw e;

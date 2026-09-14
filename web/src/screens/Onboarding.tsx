@@ -1,7 +1,7 @@
 // Account creation and import (F1 to F5): generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Select, Stack, Text, Textarea, Title } from '@mantine/core';
+import { Alert, Button, Checkbox, Group, NumberInput, Paper, PasswordInput, Select, Stack, Text, Textarea, Title } from '@mantine/core';
 import { IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useRef } from 'react';
 import { useState } from 'react';
@@ -54,6 +54,8 @@ export function Onboarding() {
   const [phrase, setPhrase] = useState<string[]>(draft?.phrase ?? []);
   const [imported, setImported] = useState(draft?.imported ?? false);
   const [birthday, setBirthday] = useState<number | string>(draft?.birthday ?? 1);
+  // An imported phrase that never received funds starts at the tip (0 = unknown, resolved at first sync).
+  const [fromTip, setFromTip] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -112,8 +114,8 @@ export function Onboarding() {
     setBusy(true);
     setError(null);
     try {
-      let height = Number(birthday) || 1;
-      if (imported) {
+      let height = imported && fromTip ? 0 : Number(birthday) || 1;
+      if (imported && !fromTip) {
         // Refuse a start above the chain when the node can say where it is.
         try {
           const tip = await services.node().probe();
@@ -183,11 +185,11 @@ export function Onboarding() {
                 void switchNetwork(v as Network);
               }}
             />
-            <Button onClick={startCreate} loading={busy}>Create a new account</Button>
+            <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
             <Button variant="light" onClick={() => setStep('import')}>Import a phrase or backup file</Button>
             {draft && (
               <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>
-                Discard the unfinished account
+                Discard the unfinished wallet
               </Button>
             )}
           </Stack>
@@ -253,6 +255,8 @@ export function Onboarding() {
           busy={busy}
           birthday={birthday}
           setBirthday={setBirthday}
+          fromTip={fromTip}
+          setFromTip={setFromTip}
           onPhrase={(words) => {
             setPhrase(words);
             setImported(true);
@@ -309,6 +313,8 @@ function ImportStep({
   busy,
   birthday,
   setBirthday,
+  fromTip,
+  setFromTip,
   onPhrase,
   onFile,
   onBack,
@@ -316,6 +322,8 @@ function ImportStep({
   busy: boolean;
   birthday: number | string;
   setBirthday: (v: number | string) => void;
+  fromTip: boolean;
+  setFromTip: (v: boolean) => void;
   onPhrase: (words: string[]) => void;
   onFile: (file: File, password: string) => void;
   onBack: () => void;
@@ -331,7 +339,15 @@ function ImportStep({
         <span className="vault-eyebrow">Step 1 of 2</span>
         <Title order={2}>Import</Title>
         <Textarea label="Seed phrase (18 words)" autosize minRows={3} value={text} onChange={(e) => setText(e.currentTarget.value)} />
-        <NumberInput label="Scan from block height" description="The block your first funds arrived in, or 1 to scan everything (slow)." min={1} value={birthday} onChange={setBirthday} />
+        <NumberInput
+          label="Scan from block height"
+          description="The block your first funds arrived in. From block 1 on Mainnet the scan downloads about 8 to 10 GB; a later block you are sure of saves most of it."
+          min={1}
+          value={birthday}
+          onChange={setBirthday}
+          disabled={fromTip}
+        />
+        <Checkbox label="This phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
         <Button disabled={words.length !== 18} onClick={() => onPhrase(words.map((w) => w.toLowerCase()))}>Continue with this phrase</Button>
         <Text size="sm" c="dimmed">Or restore a backup file exported by this app:</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />

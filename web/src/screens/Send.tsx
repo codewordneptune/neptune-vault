@@ -5,7 +5,7 @@
 import { ActionIcon, Alert, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { IconAddressBook, IconClipboard, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 import { formatNau, useApp } from '../app/AppContext';
 import { RequiresLustrationError } from '../app/send';
@@ -32,9 +32,8 @@ const presetFee = (preset: string, custom: string | undefined) =>
 type Step = 'form' | 'review';
 
 export function Send() {
-  const { services, account, balance, sendJob, startSend, cancelSend, dismissSendJob } = useApp();
+  const { services, account, balance, utxos, online, sendJob, startSend, cancelSend, dismissSendJob } = useApp();
   const location = useLocation();
-  const navigate = useNavigate();
   const prefill = (location.state as { recipient?: string } | null)?.recipient;
   const [step, setStep] = useState<Step>('form');
   const [recipient, setRecipient] = useState(prefill ?? '');
@@ -233,6 +232,23 @@ export function Send() {
   if (step === 'review' && totals) {
     const totalNau = totals.amountNau + totals.feeNau;
     const kind = addressKindLabel(recipient);
+    // The coins the core will pick (largest first, then oldest), so the
+    // review can say what is held while the send is pending.
+    const nowMs = Date.now();
+    const coins = utxos
+      .filter((u) => u.spentHeight === null && u.pendingTxid === null && (u.releaseDateMs === null || u.releaseDateMs <= nowMs))
+      .sort((a, b) => {
+        const x = BigInt(a.amountNau);
+        const y = BigInt(b.amountNau);
+        return x === y ? a.confirmedHeight - b.confirmedHeight : y > x ? 1 : -1;
+      });
+    let heldNau = 0n;
+    let used = 0;
+    for (const c of coins) {
+      if (heldNau >= totalNau) break;
+      heldNau += BigInt(c.amountNau);
+      used += 1;
+    }
     return (
       <Paper>
         <Stack>
@@ -278,10 +294,23 @@ export function Send() {
               <b>{formatNau(totalNau)} NPT</b>
             </div>
             <div className="vault-review-row">
-              <span>Balance after</span>
+              <span>Coins used</span>
+              <b>
+                {used}, {formatNau(heldNau)} NPT
+              </b>
+            </div>
+            <div className="vault-review-row">
+              <span>Spendable while pending</span>
+              <b>{formatNau(balance.spendableNau - heldNau)} NPT</b>
+            </div>
+            <div className="vault-review-row">
+              <span>Spendable once confirmed</span>
               <b>{formatNau(balance.spendableNau - totalNau)} NPT</b>
             </div>
           </div>
+          <Text size="xs" c="dimmed">
+            The coins used are held until the network includes the send, usually within a few blocks; the change comes back then.
+          </Text>
           {askLustration && (
             <Alert color="yellow" title="One more thing">
               This transaction has to include an extra public announcement the network requires right now. It does not change the amount.
@@ -308,7 +337,7 @@ export function Send() {
               Spendable {formatNau(balance.spendableNau)} NPT
             </Text>
           </div>
-          <Button size="compact-md" variant="light" leftSection={<IconAddressBook size={16} stroke={1.8} />} onClick={() => navigate('/contacts')}>
+          <Button size="compact-md" variant="light" leftSection={<IconAddressBook size={16} stroke={1.8} />} onClick={() => setPicking(true)}>
             Contacts
           </Button>
         </Group>
@@ -357,14 +386,9 @@ export function Send() {
               }}
               onBlur={() => void checkRecipient()}
               error={recipientError ?? pasteError}
-              rightSectionWidth={118}
+              rightSectionWidth={80}
               rightSection={
                 <Group gap={4} wrap="nowrap">
-                  <Tooltip label="Saved recipients">
-                    <ActionIcon variant="subtle" aria-label="Choose a saved recipient" onClick={() => setPicking(true)}>
-                      <IconAddressBook size={18} stroke={1.8} />
-                    </ActionIcon>
-                  </Tooltip>
                   <Tooltip label="Paste">
                     <ActionIcon variant="subtle" aria-label="Paste address" onClick={() => void paste()}>
                       <IconClipboard size={18} stroke={1.8} />
@@ -435,7 +459,10 @@ export function Send() {
                 autoFocus
               />
             )}
-            <Button type="submit" disabled={!recipient || !amount || !fee || Boolean(recipientError || amountError || feeError)}>
+            {!online && (
+              <Alert color="yellow">You are offline. Sending needs the node; Review comes back when the connection does.</Alert>
+            )}
+            <Button type="submit" disabled={!online || !recipient || !amount || !fee || Boolean(recipientError || amountError || feeError)}>
               Review
             </Button>
           </Stack>

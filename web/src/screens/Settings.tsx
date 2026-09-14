@@ -113,29 +113,6 @@ export function Settings() {
       {message && <Alert color="green" onClose={() => setMessage(null)} withCloseButton>{message}</Alert>}
       <Paper>
         <Stack>
-          <Title order={3}>Network and node</Title>
-          <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} />
-          <TextInput label="Node URL" value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
-          {probe && (
-            <Text size="sm" c={probe.ok ? 'dimmed' : 'red'}>
-              {probe.text}
-              {probe.at && probe.text !== 'Testing…' ? ` · checked ${new Date(probe.at).toLocaleTimeString()}` : ''}
-            </Text>
-          )}
-          <Group>
-            <Button onClick={() => void saveAndTestNode()} disabled={!dirty}>
-              Save and test
-            </Button>
-            <Button variant="light" onClick={() => void testNode()} disabled={dirty}>
-              Test
-            </Button>
-          </Group>
-          <RescanCard />
-        </Stack>
-      </Paper>
-
-      <Paper>
-        <Stack>
           <Title order={3}>Backup</Title>
           {persistent ? (
             <Text size="sm" c="dimmed">
@@ -194,6 +171,37 @@ export function Settings() {
           </Text>
           <ChangePassword />
           <PasskeyCard />
+          <Text size="sm" c="dimmed">
+            Locks after 5 minutes idle and when the app goes to the background.
+          </Text>
+          <Group>
+            <Button variant="light" leftSection={<IconLock size={16} stroke={1.8} />} onClick={() => void services.accounts.lock()}>
+              Lock now
+            </Button>
+          </Group>
+        </Stack>
+      </Paper>
+
+      <Paper>
+        <Stack>
+          <Title order={3}>Network and node</Title>
+          <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} />
+          <TextInput label="Node URL" value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
+          {probe && (
+            <Text size="sm" c={probe.ok ? 'dimmed' : 'red'}>
+              {probe.text}
+              {probe.at && probe.text !== 'Testing…' ? ` · checked ${new Date(probe.at).toLocaleTimeString()}` : ''}
+            </Text>
+          )}
+          <Group>
+            <Button onClick={() => void saveAndTestNode()} disabled={!dirty}>
+              Save and test
+            </Button>
+            <Button variant="light" onClick={() => void testNode()} disabled={dirty}>
+              Test
+            </Button>
+          </Group>
+          <RescanCard />
         </Stack>
       </Paper>
 
@@ -229,14 +237,6 @@ export function Settings() {
               About Neptune Cash
             </Anchor>
           </Group>
-        </Stack>
-      </Paper>
-
-      <Paper>
-        <Stack>
-          <Title order={3}>Session</Title>
-          <Text size="sm" c="dimmed">Locks after 5 minutes idle and when the app goes to the background.</Text>
-          <Button variant="light" leftSection={<IconLock size={16} stroke={1.8} />} onClick={() => void services.accounts.lock()}>Lock now</Button>
         </Stack>
       </Paper>
     </Stack>
@@ -498,7 +498,7 @@ function RescanCard() {
       <Modal opened={open} onClose={() => setOpen(false)} title="Rescan from a block">
         <Stack>
           <Text size="sm">
-            The local history and balance are rebuilt from the chain starting at this block. Your funds are not affected; older blocks take longer to fetch.
+            The local history and balance are rebuilt from the chain starting at this block. Your funds are not affected; older blocks take longer to fetch. Sends made from this device lose their recipient and fee details, which the chain does not carry.
           </Text>
           <NumberInput label="Start block" min={1} value={height} onChange={setHeight} error={rescanError} />
           <Group grow>

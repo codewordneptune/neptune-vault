@@ -511,3 +511,18 @@ button.vault-network::before {
   font-weight: 500;
   opacity: 0.8;
 }
+
+/* The proof-of-concept notice collapses to its title after the first visit. */
+.vault-poc {
+  cursor: pointer;
+}
+.vault-poc:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 2px;
+}
+.vault-poc-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

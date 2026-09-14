@@ -191,9 +191,14 @@ export function Receive() {
             <Text size="xs" c="dimmed" ff="monospace" style={{ wordBreak: 'break-all' }}>
               {abbreviateAddress(paymentLink)}
             </Text>
-            <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={Boolean(amountError)}>
-              Share
-            </Button>
+            <Group grow>
+              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError)}>
+                Copy link
+              </Button>
+              <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={Boolean(amountError)}>
+                Share
+              </Button>
+            </Group>
           </Stack>
         </Modal>
         <UnstyledButton onClick={() => setShowFull((v) => !v)} c="neptune.3" fz="sm" ta="center">
@@ -206,11 +211,18 @@ export function Receive() {
         )}
         <Group justify="space-between" align="baseline">
           <Text size="xs" c="dimmed">
-            {KIND_LABELS[kind]} address {index}. Funds sent to any of your addresses are found by the sync.
+            {index === 0 ? `Your main ${KIND_LABELS[kind]} address` : `${KIND_LABELS[kind]} address ${index}`}. Funds sent to any of your addresses are found by the sync.
           </Text>
-          <UnstyledButton onClick={nextUnused} c="neptune.3" fz="xs" style={{ flexShrink: 0 }}>
-            Next unused
-          </UnstyledButton>
+          <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
+            {index > 0 && (
+              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="neptune.3" fz="xs">
+                Main address
+              </UnstyledButton>
+            )}
+            <UnstyledButton onClick={nextUnused} c="neptune.3" fz="xs">
+              Next unused
+            </UnstyledButton>
+          </Group>
         </Group>
       </Stack>
     </Paper>

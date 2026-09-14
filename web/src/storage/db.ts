@@ -117,6 +117,17 @@ export interface SettingsRecord {
   hideBalance?: boolean;
   /** Last connection test per network, kept so Settings shows it on return. */
   nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
+  /** How the last proof on this device went, for Diagnostics and bug reports. */
+  lastProving?: LastProving;
+}
+
+export interface LastProving {
+  at: number;
+  claimVersion: number;
+  threads: number;
+  peakMb: number;
+  seconds: number;
+  error: string | null;
 }
 
 /** A saved recipient (contact), per account. */

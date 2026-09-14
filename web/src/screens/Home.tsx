@@ -58,6 +58,8 @@ export function Home() {
   }, [services, account, history.length]);
   const contactFor = (address: string | null) => (address ? contacts.find((c) => c.address === address) : undefined);
   const [detail, setDetail] = useState<HistoryEntry | null>(null);
+  const PAGE = 50;
+  const [shown, setShown] = useState(PAGE);
 
   // Giving up on a pending send frees its reserved coins; confirmed first.
   const [givingUp, setGivingUp] = useState<HistoryRecord | null>(null);
@@ -91,7 +93,7 @@ export function Home() {
   const titleOf = (e: HistoryEntry) => {
     if (e.kind === 'received') return 'Received';
     if (e.kind === 'self') return 'Moved to yourself';
-    if (e.record.txid === '') return 'Sent from another device';
+    if (e.record.txid === '') return 'Sent · details not on this device';
     const c = contactFor(e.record.recipient);
     return `Sent to ${c ? c.name : e.record.recipient ? abbreviateAddress(e.record.recipient) : 'address'}`;
   };
@@ -192,7 +194,7 @@ export function Home() {
           </Text>
         ) : (
           <div>
-            {entries.map((e) => {
+            {entries.slice(0, shown).map((e) => {
               const h = e.record;
               const incoming = e.kind === 'received';
               return (
@@ -216,23 +218,31 @@ export function Home() {
                       {incoming ? '+' : '−'}
                       {amount(e.shownNau)}
                     </Text>
-                    {h.status !== 'confirmed' ? (
-                      <Badge size="xs" color={h.status === 'pending' ? 'yellow' : 'red'}>
-                        {h.status}
-                      </Badge>
-                    ) : e.kind === 'sent' && h.feeNau ? (
-                      <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        fee {amount(BigInt(h.feeNau))}
-                      </Text>
-                    ) : e.kind === 'self' ? (
-                      <Text size="xs" c="dimmed">
-                        fee only
-                      </Text>
-                    ) : null}
+                    <Group gap={6} justify="flex-end" wrap="nowrap">
+                      {h.status !== 'confirmed' && (
+                        <Badge size="xs" color={h.status === 'pending' ? 'yellow' : 'red'}>
+                          {h.status}
+                        </Badge>
+                      )}
+                      {e.kind === 'sent' && h.feeNau ? (
+                        <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          fee {amount(BigInt(h.feeNau))}
+                        </Text>
+                      ) : e.kind === 'self' ? (
+                        <Text size="xs" c="dimmed">
+                          fee only
+                        </Text>
+                      ) : null}
+                    </Group>
                   </div>
                 </UnstyledButton>
               );
             })}
+            {entries.length > shown && (
+              <Button variant="subtle" fullWidth mt="xs" onClick={() => setShown((n) => n + PAGE)}>
+                Show {Math.min(PAGE, entries.length - shown)} older
+              </Button>
+            )}
           </div>
         )}
       </Paper>
@@ -250,7 +260,7 @@ export function Home() {
             {detail.kind !== 'received' && (
               <>
                 {detail.kind === 'sent' && detail.record.txid === '' && (
-                  <DetailRow label="Built on" value="Another device with the same phrase. The recipient and the fee are only known there; the amount below includes the fee." />
+                  <DetailRow label="Details" value="Built on another device, or on this one before a rescan. The chain does not carry the recipient or the fee, so the amount below includes the fee." />
                 )}
                 {detail.kind === 'sent' && <DetailRow label={detail.record.txid === '' ? 'Amount plus fee' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />}
                 {detail.kind === 'self' && <DetailRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT, back to this wallet`} />}
