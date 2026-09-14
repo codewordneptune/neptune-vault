@@ -375,11 +375,15 @@ button.vault-network::before {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+/* The total is set off like a receipt: a stronger rule above, the label in
+   the text colour, a heavier weight, the same size as the rows it sums. */
 .vault-review-row.total {
-  font-size: var(--v-fs-md);
+  border-top: 1px solid var(--v-faint);
+  color: var(--v-text);
+  font-weight: 600;
 }
 .vault-review-row.total b {
-  font-size: 1.125rem;
+  font-weight: 700;
 }
 
 /* Picker rows are buttons spanning the row. The hover fill needs room

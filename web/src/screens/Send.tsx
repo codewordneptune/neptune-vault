@@ -295,7 +295,7 @@ export function Send() {
             </div>
           </div>
           <Text size="xs" c="dimmed">
-            Draws on {used === 1 ? '1 coin' : `${used} coins`} of {formatNau(heldNau)} NPT, held until the network includes the send, usually within a few blocks. Spendable meanwhile: {formatNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {formatNau(balance.spendableNau - totalNau)} NPT.
+            Uses {used === 1 ? '1 coin' : `${used} coins`} of {formatNau(heldNau)} NPT, held until the network includes the send, usually within a few blocks. Spendable meanwhile: {formatNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {formatNau(balance.spendableNau - totalNau)} NPT.
           </Text>
           {askLustration && (
             <Alert color="yellow" title="One more thing">
