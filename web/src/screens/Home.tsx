@@ -218,7 +218,7 @@ export function Home() {
                     </div>
                   </Group>
                   <div style={{ textAlign: 'right' }}>
-                    <Text size="sm" fw={600} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    <Text size="sm" fw={600} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
                       {incoming ? '+' : '−'}
                       {amount(e.shownNau)}
                     </Text>

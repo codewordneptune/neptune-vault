@@ -575,3 +575,8 @@ html {
 .vault-fact.warn .vault-dot {
   background: #d9a52c;
 }
+
+/* Incoming amounts in the history are green; outgoing stay in the text colour. */
+.vault-amount-in {
+  color: #3fb950;
+}
