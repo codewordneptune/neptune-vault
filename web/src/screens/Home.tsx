@@ -95,6 +95,14 @@ export function Home() {
         Home
       </Title>
       <PocNotice />
+      {showBackupNudge && (
+        <Alert color="yellow" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
+          <Text size="sm">Clearing the browser's site data deletes it. Save a backup file so you can restore the wallet and its contacts.</Text>
+          <Button size="compact-sm" variant="light" mt="xs" onClick={() => navigate('/settings')}>
+            Save a backup file
+          </Button>
+        </Alert>
+      )}
       <div className={`vault-status${sync?.phase === 'error' ? ' error' : ''}`}>
         <span className="vault-status-text">
           {!online && <IconWifiOff size={14} stroke={1.8} />}
@@ -114,14 +122,6 @@ export function Home() {
           </span>
         )}
       </div>
-      {showBackupNudge && (
-        <Alert color="yellow" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
-          <Text size="sm">Clearing the browser's site data deletes it. Save a backup file so you can restore the wallet and its contacts.</Text>
-          <Button size="compact-sm" variant="light" mt="xs" onClick={() => navigate('/settings')}>
-            Save a backup file
-          </Button>
-        </Alert>
-      )}
       <Paper>
         <Stack gap="xs">
           <Group justify="space-between" align="center">

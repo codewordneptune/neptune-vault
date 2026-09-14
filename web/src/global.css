@@ -287,12 +287,7 @@ button.vault-network::before {
 .vault-row > *:last-child {
   flex-shrink: 0;
 }
-/* History rows are buttons that open the detail sheet. */
-.vault-row-button {
-  width: 100%;
-  text-align: left;
-  border-radius: var(--v-radius-xs);
-}
+/* History rows are buttons that open the detail sheet (sized with .vault-pick). */
 .vault-row-button:focus-visible {
   outline: 2px solid var(--v-accent);
   outline-offset: 2px;
@@ -387,13 +382,21 @@ button.vault-network::before {
   font-size: 1.125rem;
 }
 
-/* Picker rows are buttons spanning the row. */
-.vault-pick {
-  width: 100%;
+/* Picker rows are buttons spanning the row. The hover fill needs room
+   around the text, so the row is widened by its own side padding and the
+   content stays aligned with the card. */
+.vault-pick,
+.vault-row-button {
+  width: calc(100% + 20px);
+  margin-left: -10px;
+  margin-right: -10px;
+  padding-left: 10px;
+  padding-right: 10px;
   text-align: left;
   border-radius: var(--v-radius-xs);
 }
-.vault-pick:hover {
+.vault-pick:hover,
+.vault-row-button:hover {
   background: var(--v-surface-2);
 }
 
