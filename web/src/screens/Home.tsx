@@ -276,6 +276,7 @@ export function Home() {
                     label={contactFor(detail.record.recipient) ? `Recipient · ${contactFor(detail.record.recipient)?.name}` : 'Recipient'}
                     value={detail.record.recipient}
                     mono
+                    abbreviate
                     copy="Address copied"
                   />
                 )}
@@ -324,7 +325,11 @@ export function Home() {
 }
 
 /** A label and its value in the detail sheet; long values wrap and can be copied. */
-function DetailRow({ label, value, mono, copy, href }: { label: string; value: string; mono?: boolean; copy?: string; href?: string }) {
+function DetailRow({ label, value, mono, copy, href, abbreviate }: { label: string; value: string; mono?: boolean; copy?: string; href?: string; abbreviate?: boolean }) {
+  // Long values (a generation address is about 3,500 characters) show
+  // abbreviated with a toggle; copying always takes the full value.
+  const [full, setFull] = useState(false);
+  const shown = abbreviate && !full ? abbreviateAddress(value) : value;
   return (
     <div className="vault-detail-row">
       <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
@@ -347,8 +352,13 @@ function DetailRow({ label, value, mono, copy, href }: { label: string; value: s
         )}
       </Group>
       <Text size="sm" className={mono ? 'vault-detail-mono' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
-        {value}
+        {shown}
       </Text>
+      {abbreviate && (
+        <UnstyledButton onClick={() => setFull((v) => !v)} c="var(--v-accent-text)" fz="xs">
+          {full ? 'Hide full address' : 'Show full address'}
+        </UnstyledButton>
+      )}
     </div>
   );
 }
