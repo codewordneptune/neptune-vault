@@ -1,0 +1,91 @@
+# Neptune Vault
+
+A wallet for [Neptune Cash](https://neptune.cash) that runs entirely in the
+browser, as an installable web app for Android and iOS. Keys never leave the
+device: the seed is generated in a WebAssembly build of Neptune's own wallet
+code, encrypted with a password (and optionally a passkey), and stored in the
+browser. Transactions are proven on the phone, in WebAssembly, with all cores.
+
+Live at <https://vault.dev.useneptune.org>. Early release: keep your phrase
+safe and expect changes.
+
+## What it does
+
+- Create an account from a fresh 18-word phrase, or import one, or restore a
+  backup file. The phrase is confirmed by tapping words into place.
+- Receive to generation, EC hybrid or viewing addresses, with a QR code and a
+  NIP-002 payment link that can carry an amount.
+- Sync directly against a Neptune node over JSON-RPC and show balance and
+  history; incoming payments to any of the account's keys are found by
+  scanning blocks in the browser.
+- Send with a review step, fee presets, saved contacts, QR scanning of the
+  recipient, and a proof produced in the browser (ProofCollection, a few
+  minutes on a phone). Sends survive the app being backgrounded.
+- Encrypted seed at rest (Argon2id, AES-256-GCM), auto-lock, password change,
+  passkey unlock, export and import of a backup file with contacts.
+
+Requirements and decisions are in [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md);
+the design in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); the current state,
+the regtest procedure and the facts learned along the way in
+[docs/M1-STATUS.md](docs/M1-STATUS.md); hosting in [docs/HOSTING.md](docs/HOSTING.md);
+prover measurements in [docs/M0-BENCHMARK.md](docs/M0-BENCHMARK.md).
+
+## Layout
+
+```
+crates/vault-core      wallet core (keys, scanning, transaction building), Rust -> wasm
+crates/vault-prover    ProofCollection prover, Rust -> wasm with threads
+crates/vault-fixtures  deterministic witnesses for prover tests
+crates/vendor          neptune-consensus, neptune-primitives, triton-vm, twenty-first
+                       with the small patches the browser build needs (see VENDOR.md)
+web/                   the app: Vite, React, Mantine; wasm packages under public/wasm
+docs/                  requirements, architecture, status, hosting, benchmarks
+```
+
+## Running it locally
+
+Prerequisites: Node 22, Rust nightly as pinned in `rust-toolchain.toml` (with
+`rust-src` and the `wasm32-unknown-unknown` target), and `wasm-pack`.
+
+```bash
+cd web
+npm ci
+npm run wasm:core      # builds crates/vault-core   -> web/public/wasm/core
+npm run wasm:prover    # builds crates/vault-prover -> web/public/wasm/prover
+npm run dev            # http://localhost:4400
+```
+
+The wasm builds are slow the first time (the standard library is rebuilt
+with atomics for threads) and fast after that. The dev server sets the
+cross-origin isolation headers the threaded prover needs and proxies
+`/regtest-node` to a local regtest node; see docs/M1-STATUS.md for the node
+command line and the regtest walkthrough.
+
+Tests:
+
+```bash
+cd web && npm test                                   # web app (vitest)
+cargo test -p vault-core                             # wallet core, native
+cargo test --release -p vault-prover -- --ignored    # full proof round trip, minutes
+```
+
+## Networks
+
+The app switches between Mainnet, Testnet and Regtest; an account belongs to
+one network. The node it talks to is set in Settings and must send CORS
+headers, since the browser calls it directly. The public mainnet node does.
+Regtest nodes accept only mock proofs, so the app skips the prover there.
+
+Until mainnet block 55,000 the network requires transaction proofs of an
+older format; see docs/M1-STATUS.md for where that stands.
+
+## Deploying
+
+Pushes to `main` that touch the app or the crates build the wasm packages,
+run the tests, and deploy to Azure Static Web Apps; the deployment token
+lives in a repository secret. docs/HOSTING.md has the details and the
+manual alternative.
+
+## Licence
+
+Not decided yet.
