@@ -30,6 +30,8 @@ export interface ScanResult {
 /** Opaque to the app except for the fields it displays or indexes. */
 export interface StoredUtxo {
   hash: string;
+  /** Canonical commitment (explorer key); empty on records scanned before it was kept. */
+  commitment?: string;
   amount_nau: string;
   amount: string;
   key_kind: KeyKind;
@@ -60,6 +62,8 @@ export interface SendSummary {
   amount_nau: string;
   fee_nau: string;
   change_nau: string | null;
+  /** Output commitments in kernel order: recipient first, change last if any. */
+  output_commitments: string[];
   timestamp_ms: number;
   built_against_height: number;
   built_against_hash: string;

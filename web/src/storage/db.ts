@@ -87,6 +87,13 @@ export interface HistoryRecord {
   error: string | null;
   /** For sends: the change that comes back, so history can fold it in. Absent on rows from before it was kept. */
   changeNau?: string | null;
+  /** For sends: the outputs' canonical commitments, the explorer's keys. Absent on rows from before it was kept. */
+  outputs?: HistoryOutput[];
+}
+
+export interface HistoryOutput {
+  commitment: string;
+  role: 'recipient' | 'change';
 }
 
 export interface SyncStateRecord {

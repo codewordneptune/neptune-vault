@@ -27,7 +27,8 @@ class FakeCore implements Partial<WalletCore> {
     return {
       witness: new Uint8Array([1, 2, 3]),
       kernel: new Uint8Array([4]),
-      summary: { txid: 'tx-abc', input_hashes: inputs.map((u) => u.hash), amount_nau: '5', fee_nau: '1', change_nau: null, timestamp_ms: 0, built_against_height: 10, built_against_hash: 'h', requires_lustration: this.lustration },
+      summary: { txid: 'tx-abc', input_hashes: inputs.map((u) => u.hash), amount_nau: '5', fee_nau: '1', change_nau: null,
+      output_commitments: [], timestamp_ms: 0, built_against_height: 10, built_against_hash: 'h', requires_lustration: this.lustration },
     };
   }
   async assembleSubmission(kernel: Uint8Array, proof: Uint8Array) {

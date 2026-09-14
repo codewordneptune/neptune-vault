@@ -78,6 +78,9 @@ pub struct SendSummary {
     pub amount_nau: String,
     pub fee_nau: String,
     pub change_nau: Option<String>,
+    /// Canonical commitments of the outputs, in kernel order: the recipient's
+    /// first, the change last when there is any. The explorer's keys.
+    pub output_commitments: Vec<String>,
     pub timestamp_ms: u64,
     pub built_against_height: u64,
     pub built_against_hash: String,
@@ -278,6 +281,11 @@ pub fn build_send(
             amount_nau: amount::to_nau_string(amount),
             fee_nau: amount::to_nau_string(fee),
             change_nau,
+            output_commitments: kernel
+                .outputs
+                .iter()
+                .map(|record| record.canonical_commitment.to_hex())
+                .collect(),
             timestamp_ms: now_ms,
             built_against_height: tip_height,
             built_against_hash: synced_hash.to_hex(),

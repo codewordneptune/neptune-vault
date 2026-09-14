@@ -244,6 +244,7 @@ export class SyncEngine {
           recipient: null,
           error: null,
           changeNau: change > 0n ? change.toString() : null,
+          outputs: block.incoming.filter((u) => u.commitment).map((u) => ({ commitment: u.commitment as string, role: 'change' as const })),
         };
         await historyStore.put(elsewhereRow);
       }

@@ -1,11 +1,13 @@
 // Balance, sync status and history (F13, F14, R18).
 
-import { ActionIcon, Alert, Badge, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCopy, IconEye, IconEyeOff, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
+import { ActionIcon, Alert, Anchor, Badge, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { formatNau, useApp } from '../app/AppContext';
+import { LINKS } from '../app/links';
+import type { StoredUtxo } from '../wallet/core';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress } from '../util/address';
@@ -93,6 +95,18 @@ export function Home() {
     const c = contactFor(e.record.recipient);
     return `Sent to ${c ? c.name : e.record.recipient ? abbreviateAddress(e.record.recipient) : 'address'}`;
   };
+  // Outputs of an entry, as the explorer knows them. A received row's coin
+  // carries its own commitment once scanned with a core that keeps it.
+  const outputsOf = (e: HistoryEntry): { commitment: string; label: string }[] => {
+    if (e.kind === 'received') {
+      const hash = e.record.key.slice(e.record.key.lastIndexOf(':') + 1);
+      const c = (utxos.find((u) => u.hash === hash)?.stored as StoredUtxo | undefined)?.commitment;
+      return c ? [{ commitment: c, label: 'Output' }] : [];
+    }
+    return (e.record.outputs ?? []).map((o) => ({ commitment: o.commitment, label: o.role === 'recipient' ? `Output to ${e.kind === 'self' ? 'yourself' : 'the recipient'}` : 'Change output' }));
+  };
+  const explorer = account?.network === 'main' ? LINKS.explorerOutput : null;
+
   const statusOf = (h: HistoryRecord) =>
     h.status === 'confirmed' ? (h.height !== null ? `Confirmed in block ${h.height}` : 'Confirmed') : h.status === 'pending' ? 'Pending, waiting for the network' : 'Failed';
 
@@ -220,6 +234,9 @@ export function Home() {
             {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
             <DetailRow label="When" value={new Date(detail.record.timestampMs).toLocaleString()} />
             {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
+            {outputsOf(detail).map((o) => (
+              <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Commitment copied" href={explorer ? explorer + o.commitment : undefined} />
+            ))}
             {detail.kind !== 'received' && (
               <>
                 {detail.kind === 'sent' && detail.record.txid === '' && (
@@ -238,7 +255,6 @@ export function Home() {
                     copy="Address copied"
                   />
                 )}
-                {detail.record.txid && <DetailRow label="Transaction id" value={detail.record.txid} mono copy="Transaction id copied" />}
               </>
             )}
             {detail.kind !== 'received' && detail.record.status === 'pending' && (
@@ -284,7 +300,7 @@ export function Home() {
 }
 
 /** A label and its value in the detail sheet; long values wrap and can be copied. */
-function DetailRow({ label, value, mono, copy }: { label: string; value: string; mono?: boolean; copy?: string }) {
+function DetailRow({ label, value, mono, copy, href }: { label: string; value: string; mono?: boolean; copy?: string; href?: string }) {
   return (
     <div className="vault-detail-row">
       <Text size="xs" c="dimmed" className="vault-detail-label">
@@ -299,7 +315,17 @@ function DetailRow({ label, value, mono, copy }: { label: string; value: string;
             <IconCopy size={16} stroke={1.8} />
           </ActionIcon>
         )}
+        {href && (
+          <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="sm" aria-label={`Open ${label.toLowerCase()} in the explorer`}>
+            <IconExternalLink size={16} stroke={1.8} />
+          </ActionIcon>
+        )}
       </Group>
+      {href && (
+        <Anchor href={href} target="_blank" rel="noreferrer" size="xs">
+          View in the explorer
+        </Anchor>
+      )}
     </div>
   );
 }

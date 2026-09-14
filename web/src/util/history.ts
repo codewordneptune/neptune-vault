@@ -50,14 +50,24 @@ export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): Histor
     if (sent.height !== null) {
       // Change and a self-payment both land in the block that confirms the send.
       const sameBlock = rows.filter((r) => r.kind === 'received' && r.height === sent.height);
-      if (change !== null && change > 0n) {
+      if (sent.txid === '') {
+        // A spend recorded from the chain alone: its change is, by
+        // construction, everything that arrived in that block.
+        if (change !== null && change > 0n) {
+          for (const r of sameBlock) {
+            if (claimed.has(r.key)) continue;
+            claimed.add(r.key);
+            folded.push(r);
+          }
+        }
+      } else if (change !== null && change > 0n) {
         const c = sameBlock.find((r) => !claimed.has(r.key) && BigInt(r.amountNau) === change);
         if (c) {
           claimed.add(c.key);
           folded.push(c);
         }
       }
-      const self = sameBlock.find((r) => !claimed.has(r.key) && BigInt(r.amountNau) === BigInt(sent.amountNau));
+      const self = sent.txid === '' ? undefined : sameBlock.find((r) => !claimed.has(r.key) && BigInt(r.amountNau) === BigInt(sent.amountNau));
       if (self) {
         claimed.add(self.key);
         folded.push(self);

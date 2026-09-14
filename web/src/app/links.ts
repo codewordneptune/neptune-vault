@@ -5,4 +5,6 @@ export const LINKS = {
   project: 'https://useneptune.org',
   issues: 'https://github.com/codewordneptune/neptune-vault/issues',
   neptune: 'https://neptune.cash',
+  /** Explorer page for an output, by canonical commitment; mainnet only. */
+  explorerOutput: 'https://neptunefundamentals.org/output/',
 };

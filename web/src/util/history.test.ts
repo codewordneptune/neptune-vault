@@ -94,6 +94,18 @@ describe('groupHistory', () => {
     expect(entries.map((e) => e.kind)).toEqual(['sent', 'received']);
   });
 
+  it('folds everything that arrived in the block into a spend recorded from the chain', () => {
+    const elsewhere = sent({ key: `${A}:spent:42`, txid: '', feeNau: null, recipient: null, amountNau: '3000', changeNau: '7000' });
+    const rows = [elsewhere, received('a', '6000'), received('b', '1000'), received('later', '5', 43)];
+    const entries = groupHistory(rows, []);
+    expect(entries.map((e) => [e.kind, e.record.key])).toEqual([
+      ['sent', `${A}:spent:42`],
+      ['received', `${A}:recv:later`],
+    ]);
+    expect(entries[0].folded).toHaveLength(2);
+    expect(entries[0].shownNau).toBe(3000n);
+  });
+
   it('does not fold anything into a pending send', () => {
     const rows = [sent({ status: 'pending', height: null, changeNau: '4700' }), received('x', '4700', 50)];
     expect(groupHistory(rows, []).map((e) => e.kind)).toEqual(['sent', 'received']);

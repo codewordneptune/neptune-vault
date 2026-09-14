@@ -31,6 +31,11 @@ use crate::amount;
 pub struct StoredUtxo {
     /// Hex of `Tip5::hash(utxo)`, the app's primary key for the UTXO.
     pub hash: String,
+    /// Hex of the addition record's canonical commitment: what the block
+    /// carries and what the explorer indexes an output by. Empty on records
+    /// from before it was kept (a rescan fills it).
+    #[serde(default)]
+    pub commitment: String,
     pub recovery: IncomingUtxoRecoveryData,
     /// Amount in nau as a decimal string (JavaScript uses BigInt on it).
     pub amount_nau: String,
@@ -208,6 +213,7 @@ pub fn scan_kernel(
         };
         incoming.push(StoredUtxo {
             hash: Tip5::hash(&found.utxo).to_hex(),
+            commitment: addition_record.canonical_commitment.to_hex(),
             recovery,
             amount_nau: amount::to_nau_string(native_amount),
             amount: amount::format(native_amount),
