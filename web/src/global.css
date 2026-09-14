@@ -443,6 +443,11 @@ button.vault-network::before {
   background: var(--v-surface);
   border-radius: var(--v-radius-md);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  /* The content box is also a Paper and would take the card padding; it is
+     the scroll container, and a sticky header inside a padded scroll
+     container leaves the padding band above it uncovered. The Paper default
+     arrives as an inline style, hence the override. */
+  padding: 0 !important;
 }
 .mantine-Modal-content[data-full-screen] {
   border-radius: 0;
