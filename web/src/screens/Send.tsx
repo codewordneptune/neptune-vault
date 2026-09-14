@@ -5,7 +5,7 @@
 import { ActionIcon, Alert, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { IconAddressBook, IconClipboard, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { formatNau, useApp } from '../app/AppContext';
 import { RequiresLustrationError } from '../app/send';
@@ -34,6 +34,7 @@ type Step = 'form' | 'review';
 export function Send() {
   const { services, account, balance, sendJob, startSend, cancelSend, dismissSendJob } = useApp();
   const location = useLocation();
+  const navigate = useNavigate();
   const prefill = (location.state as { recipient?: string } | null)?.recipient;
   const [step, setStep] = useState<Step>('form');
   const [recipient, setRecipient] = useState(prefill ?? '');
@@ -272,11 +273,16 @@ export function Send() {
   return (
     <Paper>
       <Stack>
-        <Group justify="space-between" align="baseline">
-          <Title order={2}>Send</Title>
-          <Text size="sm" c="dimmed">
-            Spendable {formatNau(balance.spendableNau)} NPT
-          </Text>
+        <Group justify="space-between" align="center">
+          <div>
+            <Title order={2}>Send</Title>
+            <Text size="sm" c="dimmed">
+              Spendable {formatNau(balance.spendableNau)} NPT
+            </Text>
+          </div>
+          <Button size="compact-md" variant="light" leftSection={<IconAddressBook size={16} stroke={1.8} />} onClick={() => navigate('/contacts')}>
+            Contacts
+          </Button>
         </Group>
         {sendJob?.done && sendJob.outcome && (
           <Alert color="green" title="Submitted" withCloseButton onClose={dismissSendJob}>
