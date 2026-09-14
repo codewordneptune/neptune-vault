@@ -20,6 +20,11 @@
 <h1>Neptune Vault prover benchmark (milestone 0)</h1>
 <p id="device"></p>
 <p>
+  <label>Prover <select id="pkg">
+    <option value="current">current (web/public/wasm/prover)</option>
+    <option value="legacy">legacy, claim version 5 (web/public/wasm/prover-legacy)</option>
+    <option value="pkg">local build (prover-bench/pkg)</option>
+  </select></label>
   <label>Witness <select id="fixture">
     <option value="witness_1in_2out.bin">1 input, 2 outputs</option>
     <option value="witness_2in_2out.bin">2 inputs, 2 outputs</option>
@@ -121,6 +126,7 @@ $('run').onclick = async () => {
   worker.onerror = (e) => { log(`worker error: ${e.message}`, 'err'); $('status').textContent = 'failed'; finish(); };
   log(`LDE trace cache: ${$('cache').checked ? 'on' : 'off'}, requested threads: ${$('threads').value}`);
   worker.postMessage({
+    pkg: $('pkg').value,
     witness, network: $('network').value, height: Number($('height').value),
     cacheLde: $('cache').checked, threads: Number($('threads').value), profile: $('profile').checked,
   }, [witness]);

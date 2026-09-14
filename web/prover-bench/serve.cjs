@@ -2,8 +2,8 @@
 // Serves the repository root so /web/prover-bench/ and /fixtures/ are reachable,
 // binds all interfaces so a phone on the same network can open it.
 //
-//   node web/prover-bench/serve.js [port]          plain http
-//   node web/prover-bench/serve.js [port] --https  https with certs/ (see README)
+//   node web/prover-bench/serve.cjs [port]          plain http
+//   node web/prover-bench/serve.cjs [port] --https  https with certs/ (see README)
 //
 // wasm threads need a cross-origin isolated page, which needs a secure
 // context: http://localhost works on the PC, but the phone needs https. With

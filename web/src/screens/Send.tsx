@@ -4,7 +4,7 @@
 
 import { ActionIcon, Alert, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { IconAddressBook, IconClipboard, IconScan } from '@tabler/icons-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { formatNau, useApp } from '../app/AppContext';
@@ -186,6 +186,21 @@ export function Send() {
   const running = Boolean(sendJob && !sendJob.done);
   const p = sendJob?.progress.proving;
   const proving = sendJob?.progress.stage === 'proving';
+  // The prover reports only between sub-proofs, which take minutes, so the
+  // elapsed time shown is the wall clock since proving started, ticking.
+  const [now, setNow] = useState(Date.now());
+  const provingSince = useRef<number | null>(null);
+  useEffect(() => {
+    if (!proving) {
+      provingSince.current = null;
+      return;
+    }
+    provingSince.current ??= Date.now();
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [proving]);
+  const provingSeconds = Math.max(0, Math.round((now - (provingSince.current ?? now)) / 1000));
 
   if (running && sendJob) {
     return (
@@ -202,7 +217,7 @@ export function Send() {
           {proving && p && <Progress value={(100 * p.index) / p.total} animated />}
           {proving && p && (
             <Text size="xs" c="dimmed">
-              {p.elapsedSeconds.toFixed(0)} s so far, {p.threads || 'single'} threads{p.memoryMb ? `, ${p.memoryMb.toFixed(0)} MB` : ''}. You can switch apps; the proof continues and the app tells you when it is submitted.
+              {provingSeconds} s so far, {p.threads || 'single'} threads{p.memoryMb ? `, ${p.memoryMb.toFixed(0)} MB` : ''}. You can switch apps; the proof continues and the app tells you when it is submitted.
             </Text>
           )}
           {proving && (

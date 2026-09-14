@@ -3,11 +3,20 @@
 // the posted witness and reports one message per progress event with the
 // wasm memory size after it.
 
-import init, { initThreadPool, prove_proof_collection, count_sub_proofs, prover_version, wasm_memory_bytes } from './pkg/vault_prover.js';
+// The package under test: the app's current prover or the pre-fork one, as
+// served by the app (web/public/wasm), or a local build in ./pkg.
+const PACKAGES = {
+  current: '../public/wasm/prover/vault_prover.js',
+  legacy: '../public/wasm/prover-legacy/vault_prover_legacy.js',
+  pkg: './pkg/vault_prover.js',
+};
 
 self.onmessage = async ({ data }) => {
-  const { witness, network, height, cacheLde, threads, profile } = data;
+  const { witness, network, height, cacheLde, threads, profile, pkg } = data;
+  let init, initThreadPool, prove_proof_collection, count_sub_proofs, prover_version, wasm_memory_bytes;
   try {
+    const m = await import(new URL(PACKAGES[pkg ?? 'pkg'], import.meta.url).href);
+    ({ default: init, initThreadPool, prove_proof_collection, count_sub_proofs, prover_version, wasm_memory_bytes } = m);
     await init();
   } catch (e) {
     self.postMessage({ kind: 'error', message: `wasm init failed: ${e.message ?? e}` });

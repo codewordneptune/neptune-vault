@@ -149,3 +149,4 @@ web/prover-bench/certs/
 web/prover-bench/threads-test/
 web/public/wasm/
 web/dev-dist/
+web/public/bench/

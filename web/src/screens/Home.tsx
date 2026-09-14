@@ -68,6 +68,12 @@ export function Home() {
   // Exactly what is held: the inputs reserved for that transaction.
   const reservedFor = (h: HistoryRecord) => utxos.filter((u) => u.pendingTxid === h.txid).reduce((sum, u) => sum + BigInt(u.amountNau), 0n);
 
+  // What the balance becomes once every pending send is included: the held
+  // coins minus what leaves in those sends (amount plus fee) comes back.
+  const pendingSends = history.filter((h) => h.kind === 'sent' && h.status === 'pending');
+  const leavingNau = pendingSends.reduce((sum, h) => sum + BigInt(h.amountNau) + BigInt(h.feeNau ?? '0'), 0n);
+  const afterPendingNau = balance.spendableNau + balance.reservedNau - leavingNau;
+
   const busy = sync?.phase === 'checking' || sync?.phase === 'scanning';
   const syncText =
     sync === null
@@ -83,6 +89,7 @@ export function Home() {
   const titleOf = (e: HistoryEntry) => {
     if (e.kind === 'received') return 'Received';
     if (e.kind === 'self') return 'Moved to yourself';
+    if (e.record.txid === '') return 'Sent from another device';
     const c = contactFor(e.record.recipient);
     return `Sent to ${c ? c.name : e.record.recipient ? abbreviateAddress(e.record.recipient) : 'address'}`;
   };
@@ -136,7 +143,8 @@ export function Home() {
           </div>
           {balance.reservedNau > 0n && (
             <Text size="sm" c="dimmed">
-              {amount(balance.reservedNau)} NPT is held by a pending send. It stays held until the network includes the transaction, usually within a few blocks; then the change comes back as spendable.
+              {amount(balance.reservedNau)} NPT is held by {pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}
+              {pendingSends.length === 1 && `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee`}. Once the network includes {pendingSends.length === 1 ? 'it' : 'them'}, usually within a few blocks, {amount(afterPendingNau)} NPT is spendable.
             </Text>
           )}
           <Group grow mt="sm">
@@ -214,7 +222,10 @@ export function Home() {
             {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
             {detail.kind !== 'received' && (
               <>
-                {detail.kind === 'sent' && <DetailRow label="Amount" value={`${amount(BigInt(detail.record.amountNau))} NPT`} />}
+                {detail.kind === 'sent' && detail.record.txid === '' && (
+                  <DetailRow label="Built on" value="Another device with the same phrase. The recipient and the fee are only known there; the amount below includes the fee." />
+                )}
+                {detail.kind === 'sent' && <DetailRow label={detail.record.txid === '' ? 'Amount plus fee' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />}
                 {detail.kind === 'self' && <DetailRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT, back to this wallet`} />}
                 {detail.record.feeNau && <DetailRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
                 {detail.changeNau !== null && detail.kind === 'sent' && <DetailRow label="Change returned" value={`${amount(detail.changeNau)} NPT`} />}

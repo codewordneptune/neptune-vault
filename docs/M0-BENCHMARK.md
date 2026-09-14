@@ -383,3 +383,17 @@ builds. Expected on the S24: about 120 s.
 3. wasm SIMD for Tip5 hashing.
 4. Reduce the number of sub-proofs per send: one input per transaction is
    already the minimum; batching outputs does not change the count.
+
+### Pre-fork prover and a second input (2026-09-14, desktop, 16 threads, no LDE cache)
+
+Measured with the benchmark page against the packages the app ships, while
+other builds loaded the machine (times are inflated, memory is not).
+
+| Prover | Witness | removal_records_integrity (s) | Peak wasm memory (MB) |
+|--------|---------|------------------------------:|----------------------:|
+| legacy (claim version 5, Triton VM 7) | 1 input, 2 outputs | 139 | 1026 |
+| current (claim version 8, Triton VM 8) | 2 inputs, 2 outputs | 182 | 1055 |
+
+The pre-fork prover needs the same memory as the current one, and a second
+input adds three percent, so neither explains a phone running out of memory
+on a one-input send; the memory free on the device at the time does.

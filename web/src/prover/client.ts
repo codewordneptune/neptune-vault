@@ -35,6 +35,9 @@ export class ProverClient {
     const started = performance.now();
     let threads = 0;
     let elapsedMs = 0;
+    // For the crash message: which sub-proof was running and the last memory reading.
+    let current = { name: '', index: 0, total: 0 };
+    let lastMemoryMb = 0;
 
     return new Promise<ProveOutcome>((resolve, reject) => {
       const finish = () => {
@@ -48,10 +51,12 @@ export class ProverClient {
             onProgress({ index: 0, total: data.total, name: '', elapsedSeconds: 0, memoryMb: 0, threads });
             break;
           case 'started':
+            current = { name: data.name, index: data.index, total: data.total };
             onProgress({ index: data.index, total: data.total, name: data.name, elapsedSeconds: elapsedMs / 1000, memoryMb: 0, threads });
             break;
           case 'finished':
             elapsedMs += data.millis;
+            lastMemoryMb = data.memoryBytes / 1048576;
             onProgress({ index: data.index + 1, total: data.total, name: data.name, elapsedSeconds: elapsedMs / 1000, memoryMb: data.memoryBytes / 1048576, threads });
             break;
           case 'done':
@@ -66,7 +71,10 @@ export class ProverClient {
       };
       worker.onerror = (e) => {
         finish();
-        reject(new Error(e.message || 'prover worker crashed, probably out of memory'));
+        const where = current.name ? ` during ${current.name} (step ${current.index + 1} of ${current.total})` : ' before the first step';
+        const memory = lastMemoryMb ? `, memory was ${Math.round(lastMemoryMb)} MB after the previous step` : '';
+        const seconds = Math.round((performance.now() - started) / 1000);
+        reject(new Error(`The prover crashed${where} after ${seconds} s${memory}. This usually means the device ran out of memory; a send with fewer coins as inputs needs less.${e.message ? ` (${e.message}${e.filename ? ` at ${e.filename.split('/').pop()}:${e.lineno}` : ''})` : ''}`));
       };
       worker.postMessage(request, [request.witness.buffer]);
     });

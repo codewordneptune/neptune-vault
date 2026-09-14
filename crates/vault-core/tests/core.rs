@@ -187,7 +187,7 @@ fn scan_finds_payments_to_ec_hybrid_and_viewing_addresses() {
 }
 
 #[test]
-fn input_planning_picks_oldest_first_and_reports_shortfall() {
+fn input_planning_picks_largest_first_and_reports_shortfall() {
     let mut account = account();
     let mut unspent = Vec::new();
     for (i, coins) in ["2", "1", "5"].iter().enumerate() {
@@ -214,11 +214,14 @@ fn input_planning_picks_oldest_first_and_reports_shortfall() {
         accept_lustration: false,
     };
     let plan = plan_inputs(&unspent, &request, 0).unwrap();
-    // Oldest (lowest aocl index) first: 2 then 1 covers 2.6.
-    assert_eq!(plan.inputs.len(), 2);
-    assert_eq!(plan.inputs[0].amount, "2");
-    assert_eq!(plan.inputs[1].amount, "1");
-    assert_eq!(plan.absolute_index_sets.len(), 2);
+    // Largest first: 5 alone covers 2.6, so one input, one lock-script proof.
+    assert_eq!(plan.inputs.len(), 1);
+    assert_eq!(plan.inputs[0].amount, "5");
+    assert_eq!(plan.absolute_index_sets.len(), 1);
+
+    let more = SendRequest { amount: "5.5".into(), ..request.clone() };
+    let plan = plan_inputs(&unspent, &more, 0).unwrap();
+    assert_eq!(plan.inputs.iter().map(|u| u.amount.as_str()).collect::<Vec<_>>(), ["5", "2"]);
 
     let too_much = SendRequest { amount: "100".into(), ..request };
     let err = plan_inputs(&unspent, &too_much, 0).unwrap_err().to_string();

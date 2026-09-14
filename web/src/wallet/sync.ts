@@ -157,7 +157,8 @@ export class SyncEngine {
     const history = await tx.objectStore('history').index('byAccount').getAll(this.accountId);
     for (const h of history) {
       if (h.height !== null && h.height > height) {
-        if (h.kind === 'received') await tx.objectStore('history').delete(h.key);
+        // Rows the chain produced go; a send this device built goes back to pending.
+        if (h.kind === 'received' || h.txid === '') await tx.objectStore('history').delete(h.key);
         else await tx.objectStore('history').put({ ...h, status: 'pending', height: null });
       }
     }
@@ -205,6 +206,10 @@ export class SyncEngine {
         await historyStore.put(received);
       }
 
+      // Inputs spent by a transaction this device did not build, such as a
+      // send from another device with the same phrase.
+      const elsewhere: string[] = [];
+      let spentNau = 0n;
       for (const hash of block.spent) {
         const key = `${this.accountId}:${hash}`;
         const existing = await utxoStore.get(key);
@@ -215,7 +220,32 @@ export class SyncEngine {
           if (sent && sent.status === 'pending') {
             await historyStore.put({ ...sent, status: 'confirmed', height: block.height });
           }
+        } else {
+          elsewhere.push(hash);
+          spentNau += BigInt(existing.amountNau);
         }
+      }
+      if (elsewhere.length > 0) {
+        // One "sent" row for the block. The recipient and the fee are not
+        // known here; what came back in the same block is taken as change.
+        const backNau = block.incoming.reduce((sum, u) => sum + BigInt(u.amount_nau), 0n);
+        const change = backNau <= spentNau ? backNau : 0n;
+        const elsewhereRow: HistoryRecord = {
+          key: `${this.accountId}:spent:${block.height}`,
+          accountId: this.accountId,
+          kind: 'sent',
+          status: 'confirmed',
+          txid: '',
+          amountNau: (spentNau - change).toString(),
+          feeNau: null,
+          timestampMs: block.timestamp_ms,
+          height: block.height,
+          inputHashes: elsewhere,
+          recipient: null,
+          error: null,
+          changeNau: change > 0n ? change.toString() : null,
+        };
+        await historyStore.put(elsewhereRow);
       }
 
       await tx.objectStore('blocks').put({

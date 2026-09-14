@@ -149,6 +149,29 @@ describe('sync engine', () => {
     expect(sent.height).toBe(8);
   });
 
+  it('records a spend made elsewhere as a send, with what came back as change', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(6);
+    core.incoming.set(4, [utxo('u1', 4, '5')]);
+    await engine.syncOnce();
+
+    node.extendTo(8);
+    core.spent.set(8, ['u1']);
+    core.incoming.set(8, [utxo('change', 8, '4')]);
+    await engine.syncOnce();
+    const sent = (await db.get('history', 'acc:spent:8'))!;
+    expect(sent.kind).toBe('sent');
+    expect(sent.txid).toBe('');
+    expect(sent.height).toBe(8);
+    expect(BigInt(sent.amountNau)).toBe(BigInt(utxo('u1', 4, '5').amount_nau) - BigInt(utxo('change', 8, '4').amount_nau));
+    expect(sent.changeNau).toBe(utxo('change', 8, '4').amount_nau);
+    expect(sent.inputHashes).toEqual(['u1']);
+
+    // A rewind below the block drops the row again.
+    await engine.rollBack(7, null);
+    expect(await db.get('history', 'acc:spent:8')).toBeUndefined();
+  });
+
   it('rolls back to the last canonical block after a reorg and rescans', async () => {
     const { node, core, engine } = await setup();
     node.extendTo(8);

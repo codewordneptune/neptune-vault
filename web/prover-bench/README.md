@@ -26,7 +26,7 @@ cargo run --release -p vault-fixtures -- fixtures/witness_1in_2out.bin 1 2
 Plain http, fine for single-threaded runs and for `http://localhost` on the PC:
 
 ```
-node web/prover-bench/serve.js 4390
+node web/prover-bench/serve.cjs 4390
 ```
 
 https, needed for threads on a phone (a secure context is required for
@@ -36,7 +36,7 @@ LAN address in the subject alternative names:
 ```
 mkdir web\prover-bench\certs
 openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj "/CN=neptune-vault-bench" -addext "subjectAltName=IP:192.168.50.15,DNS:localhost" -keyout web/prover-bench/certs/key.pem -out web/prover-bench/certs/cert.pem
-node web/prover-bench/serve.js 4443 --https
+node web/prover-bench/serve.cjs 4443 --https
 ```
 
 Then open `https://<pc-ip>:4443/web/prover-bench/` on the phone. Chrome warns

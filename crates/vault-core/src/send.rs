@@ -84,7 +84,7 @@ pub struct SendSummary {
     pub requires_lustration: bool,
 }
 
-/// Pick inputs oldest first until they cover amount plus fee, skipping
+/// Pick inputs largest first until they cover amount plus fee, skipping
 /// time-locked UTXOs. `now_ms` is the wall clock for the time-lock check.
 pub fn plan_inputs(unspent: &[StoredUtxo], request: &SendRequest, now_ms: u64) -> Result<InputPlan> {
     let amount = amount::parse(&request.amount)?;
@@ -97,7 +97,16 @@ pub fn plan_inputs(unspent: &[StoredUtxo], request: &SendRequest, now_ms: u64) -
         .iter()
         .filter(|u| u.release_date_ms.is_none_or(|release| release <= now_ms))
         .collect();
-    candidates.sort_by_key(|u| u.recovery.aocl_index);
+    // Largest first: every input adds a lock-script proof and grows the
+    // removal-records-integrity table, which sets the prover's memory peak;
+    // a phone can only prove a transaction with few inputs. Ties by age.
+    candidates.sort_by(|a, b| {
+        b.recovery
+            .utxo
+            .get_native_currency_amount()
+            .cmp(&a.recovery.utxo.get_native_currency_amount())
+            .then(a.recovery.aocl_index.cmp(&b.recovery.aocl_index))
+    });
 
     let mut chosen = Vec::new();
     let mut total = NativeCurrencyAmount::zero();
