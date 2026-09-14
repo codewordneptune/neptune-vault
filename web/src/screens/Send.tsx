@@ -293,23 +293,9 @@ export function Send() {
               <span>Total</span>
               <b>{formatNau(totalNau)} NPT</b>
             </div>
-            <div className="vault-review-row">
-              <span>Held while pending</span>
-              <b>
-                {formatNau(heldNau)} NPT ({used === 1 ? '1 coin' : `${used} coins`})
-              </b>
-            </div>
-            <div className="vault-review-row">
-              <span>Spendable while pending</span>
-              <b>{formatNau(balance.spendableNau - heldNau)} NPT</b>
-            </div>
-            <div className="vault-review-row">
-              <span>Spendable once confirmed</span>
-              <b>{formatNau(balance.spendableNau - totalNau)} NPT</b>
-            </div>
           </div>
           <Text size="xs" c="dimmed">
-            The coins the send draws on are held until the network includes it, usually within a few blocks; the change comes back then.
+            Draws on {used === 1 ? '1 coin' : `${used} coins`} of {formatNau(heldNau)} NPT, held until the network includes the send, usually within a few blocks. Spendable meanwhile: {formatNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {formatNau(balance.spendableNau - totalNau)} NPT.
           </Text>
           {askLustration && (
             <Alert color="yellow" title="One more thing">
