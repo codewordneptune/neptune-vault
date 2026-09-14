@@ -327,24 +327,28 @@ export function Home() {
 function DetailRow({ label, value, mono, copy, href }: { label: string; value: string; mono?: boolean; copy?: string; href?: string }) {
   return (
     <div className="vault-detail-row">
-      <Text size="xs" c="dimmed" className="vault-detail-label">
-        {label}
-      </Text>
-      <Group gap="xs" wrap="nowrap" align="flex-start">
-        <Text size="sm" className={mono ? 'vault-detail-mono' : undefined} style={{ fontVariantNumeric: 'tabular-nums', flex: 1, minWidth: 0 }}>
-          {value}
+      <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
+        <Text size="xs" c="dimmed" className="vault-detail-label">
+          {label}
         </Text>
-        {copy && (
-          <ActionIcon variant="subtle" size="sm" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copyText(value, copy)}>
-            <IconCopy size={16} stroke={1.8} />
-          </ActionIcon>
-        )}
-        {href && (
-          <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="sm" aria-label={`Open ${label.toLowerCase()} in the explorer`}>
-            <IconExternalLink size={16} stroke={1.8} />
-          </ActionIcon>
+        {(copy || href) && (
+          <Group gap={2} wrap="nowrap">
+            {copy && (
+              <ActionIcon variant="subtle" size="sm" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copyText(value, copy)}>
+                <IconCopy size={16} stroke={1.8} />
+              </ActionIcon>
+            )}
+            {href && (
+              <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="sm" aria-label={`Open ${label.toLowerCase()} in the explorer`}>
+                <IconExternalLink size={16} stroke={1.8} />
+              </ActionIcon>
+            )}
+          </Group>
         )}
       </Group>
+      <Text size="sm" className={mono ? 'vault-detail-mono' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
+        {value}
+      </Text>
     </div>
   );
 }
