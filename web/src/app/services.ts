@@ -7,6 +7,7 @@ import { loadSettings, openVaultDb, requestPersistentStorage, saveSettings, type
 import { WalletWorkerClient } from '../wallet/workerClient';
 import { ContactsService } from './contacts';
 import { WebAuthnPasskeys } from './passkey';
+import { MempoolWatcher } from '../wallet/mempool';
 import { SyncEngine, type SyncProgress } from '../wallet/sync';
 import { AccountService } from './accounts';
 import { SendService } from './send';
@@ -22,6 +23,7 @@ export interface Services {
   updateSettings(patch: Partial<SettingsRecord>): Promise<SettingsRecord>;
   syncEngine(accountId: string, onProgress: (p: SyncProgress) => void): SyncEngine;
   sendService(accountId: string): SendService;
+  mempoolWatcher(accountId: string): MempoolWatcher;
   contacts: ContactsService;
   networkName(): string;
 }
@@ -32,6 +34,7 @@ export function coreNetworkName(network: Network): string {
 }
 
 export async function createServices(): Promise<Services> {
+  const watchers = new Map<string, MempoolWatcher>();
   const db = await openVaultDb();
   const persistent = await requestPersistentStorage();
   let settings = await loadSettings(db);
@@ -59,6 +62,15 @@ export async function createServices(): Promise<Services> {
       return new SyncEngine(db, services.node(), core, accountId, { onProgress });
     },
     contacts: new ContactsService(db, core, () => coreNetworkName(services.settings.network)),
+    mempoolWatcher(accountId) {
+      const key = `${accountId}:${settings.nodeUrls[settings.network]}`;
+      let w = watchers.get(key);
+      if (!w) {
+        w = new MempoolWatcher(db, services.node(), core, accountId);
+        watchers.set(key, w);
+      }
+      return w;
+    },
     sendService(accountId) {
       return new SendService(db, services.node(), core, prover, accountId, coreNetworkName(settings.network), ProverClient.defaultThreads(), settings.network === 'regtest');
     },

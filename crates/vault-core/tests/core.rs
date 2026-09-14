@@ -229,6 +229,27 @@ fn input_planning_picks_largest_first_and_reports_shortfall() {
 }
 
 #[test]
+fn mempool_kernel_reports_an_output_for_this_wallet() {
+    let mut other = account();
+    let mut account = account();
+    let (proxy, _) = kernel_paying(&mut account, 2, "3.5");
+    let kernel = proxy.into_kernel();
+    let scan = scan::scan_mempool_kernel(&mut account, &kernel, &[], NextKeyIndices::default());
+    assert_eq!(scan.incoming.len(), 1);
+    assert_eq!(scan.incoming[0].amount, "3.5");
+    assert_eq!(scan.incoming[0].key_kind, KeyKind::Generation);
+    assert_eq!(scan.incoming[0].key_index, 2);
+    assert_eq!(scan.incoming[0].commitment.len(), 80);
+    assert_eq!(scan.incoming[0].commitment, kernel.outputs[0].canonical_commitment.to_hex());
+    assert!(scan.spent.is_empty());
+
+    // Not for us: a kernel paying a different wallet.
+    let (proxy, _) = kernel_paying(&mut other, 0, "1");
+    let scan = scan::scan_mempool_kernel(&mut account, &proxy.into_kernel(), &[], NextKeyIndices::default());
+    assert!(scan.incoming.is_empty());
+}
+
+#[test]
 fn key_derivation_is_deterministic_and_salted() {
     let a = vault_core::kdf::derive_key(b"pw", b"0123456789abcdef", 8 * 1024, 1, 1).unwrap();
     let b = vault_core::kdf::derive_key(b"pw", b"0123456789abcdef", 8 * 1024, 1, 1).unwrap();

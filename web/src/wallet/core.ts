@@ -27,6 +27,23 @@ export interface ScanResult {
   next_key_indices: NextKeyIndices;
 }
 
+/** An output of an unmined transaction that belongs to this wallet. */
+export interface PendingIncoming {
+  commitment: string;
+  amount_nau: string;
+  amount: string;
+  key_kind: KeyKind;
+  key_index: number;
+}
+
+/** What one mempool transaction means for this wallet. */
+export interface MempoolScan {
+  incoming: PendingIncoming[];
+  /** Hashes of this wallet's unspent UTXOs the transaction spends. */
+  spent: string[];
+  timestamp_ms: number;
+}
+
 /** Opaque to the app except for the fields it displays or indexes. */
 export interface StoredUtxo {
   hash: string;
@@ -98,6 +115,8 @@ export interface WalletCore {
   address(kind: KeyKind, index: number): Promise<string>;
   /** `blocksResponse` is the node's raw JSON-RPC response text for wallet_getBlocks. */
   scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices): Promise<ScanResult>;
+  /** `kernelResponse` is the raw JSON-RPC response text of mempool_getTransactionKernel. */
+  scanMempoolKernel(kernelResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices): Promise<MempoolScan>;
   planInputs(unspent: StoredUtxo[], request: SendRequest, nowMs: number): Promise<InputPlan>;
   /** `snapshotResponse` and `tipHeaderResponse` are raw JSON-RPC response texts. */
   buildSend(

@@ -154,6 +154,33 @@ mod wasm {
             serde_json::to_string(&result).map_err(|e| JsError::new(&e.to_string()))
         }
 
+        /// Scan one unmined transaction. `kernel_response` is the node's raw
+        /// JSON-RPC response text for `mempool_getTransactionKernel`; the other
+        /// arguments are as for `scan_blocks`. Returns a `MempoolScan` as JSON,
+        /// empty when the node no longer has the transaction.
+        pub fn scan_mempool_kernel(
+            &mut self,
+            kernel_response: &str,
+            unspent_json: &str,
+            next_key_indices_json: &str,
+        ) -> Result<String, JsError> {
+            let envelope: Envelope<neptune_rpc_api::model::message::GetTransactionKernelResponse> =
+                serde_json::from_str(kernel_response)
+                    .map_err(|e| JsError::new(&format!("cannot decode mempool kernel: {e}")))?;
+            let result = match envelope.result.kernel {
+                None => scan::MempoolScan::default(),
+                Some(kernel) => {
+                    let kernel: neptune_consensus::transaction::transaction_kernel::TransactionKernel = kernel.into();
+                    let unspent: Vec<scan::StoredUtxo> = serde_json::from_str(unspent_json)
+                        .map_err(|e| JsError::new(&format!("cannot decode unspent utxos: {e}")))?;
+                    let next_key_indices = serde_json::from_str(next_key_indices_json)
+                        .map_err(|e| JsError::new(&format!("cannot decode next key indices: {e}")))?;
+                    scan::scan_mempool_kernel(&mut self.0, &kernel, &unspent, next_key_indices)
+                }
+            };
+            serde_json::to_string(&result).map_err(|e| JsError::new(&e.to_string()))
+        }
+
         /// Choose inputs for a send. Returns an `InputPlan` as JSON, whose
         /// `absolute_index_sets` is the parameter of `wallet_restoreMembershipProof`.
         pub fn plan_inputs(

@@ -39,7 +39,7 @@ third-party proof upgrading (without the last two, transactions never leave
 the mempool on regtest):
 
 ```
-neptune-core --network regtest --data-dir C:/nvregtest --listen-rpc 127.0.0.1:9797 --rpc-modules node,chain,wallet,archival --rpc-port 9799 --peer-port 9798 --max-num-peers 0 --disable-cookie-hint --tx-proving-capability=singleproof --tx-proof-upgrading
+neptune-core --network regtest --data-dir C:/nvregtest --listen-rpc 127.0.0.1:9797 --rpc-modules node,chain,wallet,archival,mempool --rpc-port 9799 --peer-port 9798 --max-num-peers 0 --disable-cookie-hint --tx-proving-capability=singleproof --tx-proof-upgrading
 ```
 
 Fund the node wallet and read its address:
@@ -87,3 +87,20 @@ produced a single proof for it (seconds on regtest); mine after the log says
 - Generation addresses are about 3500 characters; they fit a QR code only
   in upper-case alphanumeric mode at error-correction level L.
 - Pre-fork proofs (2026-09-14). Until mainnet block 55,000 the consensus rules ask for Triton VM claim version 5, which the 0.17 crates and triton-vm 8 cannot produce; the node rejected the first mainnet send with "claim version 5 needs the pre-delta prover". A second wasm package, vault-prover-legacy in crates/legacy (its own workspace: vendored neptune-consensus 0.15.0, neptune-primitives 0.15.0, triton-vm 7.0.0, sharing the vendored twenty-first), has the same exports as vault-prover; the app asks the core for the claim version at the tip height (`claim_version(network, height)`: 5 before the fork, 8 after) and the prover worker loads /wasm/prover-legacy or /wasm/prover accordingly. PrimitiveWitness serialises identically in 0.15 and 0.17, so the witness built by the 0.17 core feeds the 0.15 prover unchanged. Verified: native round trip (a one-input ProofCollection with version 5 claims verifies under the pre-fork mainnet rule set, 62 s), and the package loads in the browser with a thread pool. Package size 3.2 MB, build about 40 minutes cold. Verified 2026-09-14 (later the same day): a real mainnet send from the Galaxy S24, proven in the browser with the pre-fork package and accepted by the network. An earlier attempt on the same phone had crashed the prover worker; the same build and the same kind of transaction succeeded afterwards, so that was the device's free memory at the time, not the package. Diagnostics now keeps the last proof's numbers for the next such case. The package and crates/legacy go away once the fork has activated.
+- Incoming payments before they are mined (2026-09-14). The node's `mempool`
+  namespace (on by default on the public mainnet node; `mempool` must be in
+  `--rpc-modules` on your own) lists transaction ids and hands out kernels.
+  The core's `scan_mempool_kernel` runs the announcement scan over one kernel
+  and reports outputs for this wallet by commitment, plus any of the wallet's
+  coins it spends. The app's MempoolWatcher (web/src/wallet/mempool.ts) polls
+  after every sync and every 30 s while unlocked and visible, fetches at most
+  30 unseen kernels per poll, writes a pending received row keyed by output
+  commitment (kernel ids change as the node rewrites transactions; the
+  commitment does not), drops the row when the transaction has been gone for
+  two polls, and marks the wallet's own pending sends with whether the node
+  still holds them. The block scan deletes the pending row when the coin
+  arrives. Verified on regtest: a node-wallet send showed as "Incoming +0.7"
+  within seconds and became "Received · block 14" after mining. A node
+  without the namespace answers "Method not found" once and the watcher
+  switches itself off. What would make it cheap at scale is a receiver
+  identifier filter on the node (proposal sent to Thorkil).

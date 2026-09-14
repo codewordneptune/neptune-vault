@@ -204,6 +204,8 @@ export class SyncEngine {
           error: null,
         };
         await historyStore.put(received);
+        // The same output was perhaps seen in the mempool first.
+        if (u.commitment) await historyStore.delete(`${this.accountId}:incoming:${u.commitment}`);
       }
 
       // Inputs spent by a transaction this device did not build, such as a

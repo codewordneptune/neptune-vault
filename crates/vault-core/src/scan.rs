@@ -249,3 +249,84 @@ pub fn scan_kernel(
 pub fn digest_hex(d: Digest) -> String {
     d.to_hex()
 }
+
+/// An output of an unmined transaction that belongs to this wallet. Not
+/// spendable: it has no mutator-set index until a block carries it, and the
+/// block scan produces the real `StoredUtxo` then. The commitment is what
+/// ties the two together.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PendingIncoming {
+    /// Hex of the addition record's canonical commitment.
+    pub commitment: String,
+    pub amount_nau: String,
+    pub amount: String,
+    pub key_kind: KeyKind,
+    pub key_index: u64,
+}
+
+/// What one mempool transaction means for this wallet.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct MempoolScan {
+    pub incoming: Vec<PendingIncoming>,
+    /// Hashes of this wallet's unspent UTXOs the transaction spends.
+    pub spent: Vec<String>,
+    pub timestamp_ms: u64,
+}
+
+/// Scan an unmined transaction: announcements addressed to this wallet's keys
+/// (up to the lookahead) whose addition record the transaction really
+/// carries, and inputs that are this wallet's coins. Key indices are not
+/// advanced; the block scan does that when the output is confirmed.
+pub fn scan_mempool_kernel(
+    account: &mut Account,
+    tx_kernel: &TransactionKernel,
+    unspent: &[StoredUtxo],
+    next_key_indices: NextKeyIndices,
+) -> MempoolScan {
+    let mut keys = Vec::new();
+    for kind in KeyKind::ALL {
+        keys.extend(account.keys_up_to(kind, next_key_indices.get(kind) + KEY_LOOKAHEAD));
+    }
+    let announced = SpendingKey::scan_announcements_for_keys(&tx_kernel.announcements, keys);
+
+    let mut incoming = Vec::new();
+    for found in announced {
+        let addition_record = found.addition_record();
+        if !tx_kernel.outputs.contains(&addition_record) {
+            continue;
+        }
+        if !found.utxo.all_type_script_states_are_valid() {
+            continue;
+        }
+        let Some((key_kind, key_index)) =
+            account.key_for_lock_script_hash(found.utxo.lock_script_hash())
+        else {
+            continue;
+        };
+        let native_amount = found.utxo.get_native_currency_amount();
+        incoming.push(PendingIncoming {
+            commitment: addition_record.canonical_commitment.to_hex(),
+            amount_nau: amount::to_nau_string(native_amount),
+            amount: amount::format(native_amount),
+            key_kind,
+            key_index,
+        });
+    }
+
+    let consumed: HashSet<AbsoluteIndexSet> = tx_kernel
+        .inputs
+        .iter()
+        .map(|rr| rr.absolute_indices)
+        .collect();
+    let spent = unspent
+        .iter()
+        .filter(|u| consumed.contains(&u.absolute_index_set()))
+        .map(|u| u.hash.clone())
+        .collect();
+
+    MempoolScan {
+        incoming,
+        spent,
+        timestamp_ms: tx_kernel.timestamp.0.value(),
+    }
+}

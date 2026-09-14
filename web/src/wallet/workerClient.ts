@@ -1,7 +1,7 @@
 // Main-thread proxy for the wallet worker. Implements WalletCore by posting
 // one request per call and resolving on the matching reply.
 
-import type { InputPlan, KeyKind, NextKeyIndices, ScanResult, SendPlan, SendRequest, StoredUtxo, WalletCore } from './core';
+import type { InputPlan, KeyKind, NextKeyIndices, ScanResult, SendPlan, SendRequest, StoredUtxo, WalletCore, MempoolScan } from './core';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
 export class WalletWorkerClient implements WalletCore {
@@ -99,6 +99,9 @@ export class WalletWorkerClient implements WalletCore {
   }
   scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices) {
     return this.call<ScanResult>('scanBlocks', [blocksResponse, unspent, nextKeyIndices]);
+  }
+  scanMempoolKernel(kernelResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices) {
+    return this.call<MempoolScan>('scanMempoolKernel', [kernelResponse, unspent, nextKeyIndices]);
   }
   planInputs(unspent: StoredUtxo[], request: SendRequest, nowMs: number) {
     return this.call<InputPlan>('planInputs', [unspent, request, nowMs]);

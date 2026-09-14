@@ -90,8 +90,9 @@ export function Home() {
             ? `Up to date · block ${sync.syncedHeight}${lastSyncedAt ? ` · ${ago(lastSyncedAt)}` : ''}`
             : sync.message ?? 'Sync failed';
 
+  const incomingNau = history.filter((h) => h.kind === 'received' && h.status === 'pending').reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
   const titleOf = (e: HistoryEntry) => {
-    if (e.kind === 'received') return 'Received';
+    if (e.kind === 'received') return e.record.status === 'pending' ? 'Incoming' : 'Received';
     if (e.kind === 'self') return 'Moved to yourself';
     if (e.record.txid === '') return 'Sent · details not on this device';
     const c = contactFor(e.record.recipient);
@@ -105,7 +106,7 @@ export function Home() {
       return (utxos.find((u) => u.hash === hash)?.stored as StoredUtxo | undefined)?.commitment;
     };
     if (e.kind === 'received') {
-      const c = coinOf(e.record);
+      const c = coinOf(e.record) ?? e.record.outputs?.[0]?.commitment;
       return c ? [{ commitment: c, label: 'Output' }] : [];
     }
     const numbered = (list: { commitment: string; label: string }[]) => {
@@ -127,7 +128,11 @@ export function Home() {
   const explorer = account?.network === 'main' ? LINKS.explorerOutput : null;
 
   const statusOf = (h: HistoryRecord) =>
-    h.status === 'confirmed' ? (h.height !== null ? `Confirmed in block ${h.height}` : 'Confirmed') : h.status === 'pending' ? 'Pending, waiting for the network' : 'Failed';
+    h.status === 'confirmed' ? (h.height !== null ? `Confirmed in block ${h.height}` : 'Confirmed') : h.status === 'pending' ? 'Pending, waiting for a block' : 'Failed';
+  const nodeStatusOf = (h: HistoryRecord) => {
+    if (h.kind !== 'sent' || h.status !== 'pending' || !h.mempoolCheckedAt) return null;
+    return h.mempoolSeenAt ? `In the node's mempool, checked ${formatWhen(h.mempoolCheckedAt)}` : 'Not seen in the node\'s mempool yet';
+  };
 
   return (
     <Stack gap="md">
@@ -174,6 +179,11 @@ export function Home() {
             {amount(balance.spendableNau)}
             <small> NPT</small>
           </div>
+          {incomingNau > 0n && (
+            <Text size="sm" c="dimmed">
+              {amount(incomingNau)} NPT incoming, spendable once confirmed.
+            </Text>
+          )}
           {balance.reservedNau > 0n && (
             <Text size="sm" c="dimmed">
               {amount(balance.reservedNau)} NPT is held by {pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}
@@ -235,11 +245,11 @@ export function Home() {
                           {h.status}
                         </Badge>
                       )}
-                      {e.kind === 'sent' && h.feeNau ? (
+                      {e.kind === 'sent' && h.feeNau && !hidden ? (
                         <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
                           fee {amount(BigInt(h.feeNau))}
                         </Text>
-                      ) : e.kind === 'self' ? (
+                      ) : e.kind === 'self' && !hidden ? (
                         <Text size="xs" c="dimmed">
                           fee only
                         </Text>
@@ -263,6 +273,7 @@ export function Home() {
         {detail && (
           <Stack gap="sm">
             <DetailRow label="Status" value={statusOf(detail.record)} />
+            {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
             {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
             <DetailRow label="When" value={new Date(detail.record.timestampMs).toLocaleString()} />
             {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}

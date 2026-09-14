@@ -194,6 +194,23 @@ export function AppProvider({ services, children }: { services: Services; childr
     void refresh();
   }, [refresh]);
 
+  // Incoming payments show before they are mined: the mempool is scanned
+  // after every sync and on its own timer. Failures are quiet; the block
+  // sync is the source of truth.
+  const watching = useRef(false);
+  const watchMempool = useCallback(async () => {
+    if (!accountId || locked || watching.current || !navigator.onLine) return;
+    watching.current = true;
+    try {
+      await services.mempoolWatcher(accountId).poll();
+      await refresh();
+    } catch (e) {
+      console.debug('mempool watch', (e as Error).message);
+    } finally {
+      watching.current = false;
+    }
+  }, [services, accountId, locked, refresh]);
+
   const syncNow = useCallback(async () => {
     if (!accountId || locked || syncing.current) return;
     if (!navigator.onLine) {
@@ -209,10 +226,11 @@ export function AppProvider({ services, children }: { services: Services; childr
       });
       await engine.syncOnce();
       await refresh();
+      await watchMempool();
     } finally {
       syncing.current = false;
     }
-  }, [services, accountId, locked, refresh]);
+  }, [services, accountId, locked, refresh, watchMempool]);
 
   // Follow the connection: mark offline at once, sync again when it returns.
   useEffect(() => {
@@ -231,6 +249,15 @@ export function AppProvider({ services, children }: { services: Services; childr
       window.removeEventListener('offline', goOffline);
     };
   }, [syncNow]);
+
+  // Watch the mempool while unlocked and visible.
+  useEffect(() => {
+    if (!accountId || locked) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void watchMempool();
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [accountId, locked, watchMempool]);
 
   // Poll the node while unlocked and visible.
   useEffect(() => {

@@ -86,6 +86,11 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       const json = requireAccount().scan_blocks(blocksResponse, JSON.stringify(unspent), JSON.stringify(nextKeyIndices));
       return { result: JSON.parse(json) };
     }
+    case 'scanMempoolKernel': {
+      const [kernelResponse, unspent, nextKeyIndices] = args as [string, unknown[], unknown];
+      const json = requireAccount().scan_mempool_kernel(kernelResponse, JSON.stringify(unspent), JSON.stringify(nextKeyIndices));
+      return { result: JSON.parse(json) };
+    }
     case 'planInputs': {
       const [unspent, request, nowMs] = args as [unknown[], unknown, number];
       const json = requireAccount().plan_inputs(JSON.stringify(unspent), JSON.stringify(request), nowMs);

@@ -169,6 +169,27 @@ export class NodeClient {
   }
 
   /** True when the node accepted the transaction into its mempool. */
+  /** Ids of the transactions in the node's mempool, fee-density order. */
+  async mempoolTransactions(): Promise<string[]> {
+    const r = await this.call<{ transactions: string[] }>('mempool_transactions');
+    return r.transactions;
+  }
+
+  /** Raw response text for one mempool kernel (kept as text for the wasm core). */
+  async mempoolKernelRaw(id: string): Promise<string> {
+    return this.callRaw('mempool_getTransactionKernel', [id]);
+  }
+
+  /** Which of these output commitments the mempool currently carries. */
+  async mempoolHasOutputs(commitments: string[]): Promise<Set<string>> {
+    if (commitments.length === 0) return new Set();
+    const r = await this.call<{ transactions: { kernel: { outputs: string[] } }[] }>('mempool_getTransactionsByAdditionRecords', [commitments]);
+    const wanted = new Set(commitments);
+    const present = new Set<string>();
+    for (const t of r.transactions) for (const o of t.kernel.outputs) if (wanted.has(o)) present.add(o);
+    return present;
+  }
+
   async submitTransaction(transaction: unknown): Promise<boolean> {
     const r = await this.call<{ success: boolean }>('wallet_submitTransaction', [transaction], this.timeoutMs * 4);
     return r.success;
