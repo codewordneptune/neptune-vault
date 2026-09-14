@@ -294,9 +294,9 @@ export function Send() {
               <b>{formatNau(totalNau)} NPT</b>
             </div>
             <div className="vault-review-row">
-              <span>Coins used</span>
+              <span>Held while pending</span>
               <b>
-                {used}, {formatNau(heldNau)} NPT
+                {formatNau(heldNau)} NPT ({used === 1 ? '1 coin' : `${used} coins`})
               </b>
             </div>
             <div className="vault-review-row">
@@ -309,7 +309,7 @@ export function Send() {
             </div>
           </div>
           <Text size="xs" c="dimmed">
-            The coins used are held until the network includes the send, usually within a few blocks; the change comes back then.
+            The coins the send draws on are held until the network includes it, usually within a few blocks; the change comes back then.
           </Text>
           {askLustration && (
             <Alert color="yellow" title="One more thing">
