@@ -1,7 +1,7 @@
 // Balance, sync status and history (F13, F14, R18).
 
-import { Alert, Badge, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconRefresh, IconShieldCheck } from '@tabler/icons-react';
+import { ActionIcon, Alert, Badge, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { IconArrowDownLeft, IconArrowUpRight, IconEye, IconEyeOff, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
 import { formatWhen } from '../util/time';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +10,15 @@ import type { HistoryRecord } from '../storage/db';
 import { formatNau, useApp } from '../app/AppContext';
 
 export function Home() {
-  const { balance, sync, history, utxos, syncNow, lastSyncedAt, services, refresh, account } = useApp();
+  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account } = useApp();
+  // Masked amounts for reading the app in public; remembered across visits.
+  const [hidden, setHidden] = useState<boolean>(services.settings.hideBalance ?? false);
+  const toggleHidden = () => {
+    const next = !hidden;
+    setHidden(next);
+    void services.updateSettings({ hideBalance: next });
+  };
+  const amount = (nau: bigint) => (hidden ? '••••' : formatNau(nau));
   // Re-render every 30 s so "2 min ago" stays right.
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -65,10 +73,11 @@ export function Home() {
       </Title>
       <div className={`vault-status${sync?.phase === 'error' ? ' error' : ''}`}>
         <span className="vault-status-text">
+          {!online && <IconWifiOff size={14} stroke={1.8} />}
           {busy && <IconRefresh size={14} stroke={1.8} className="vault-spin" />}
           {syncText}
         </span>
-        {!busy && (
+        {!busy && online && (
           <span className="vault-status-actions">
             {sync?.phase === 'error' && (
               <UnstyledButton onClick={() => navigate('/settings')} fz="xs" c="var(--v-accent-text)">
@@ -91,14 +100,19 @@ export function Home() {
       )}
       <Paper>
         <Stack gap="xs">
-          <span className="vault-eyebrow">Spendable balance</span>
-          <div className="vault-balance">
-            {formatNau(balance.spendableNau)}
-            <small>NPT</small>
+          <Group justify="space-between" align="center">
+            <span className="vault-eyebrow">Spendable balance</span>
+            <ActionIcon variant="subtle" size="sm" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
+              {hidden ? <IconEyeOff size={16} stroke={1.8} /> : <IconEye size={16} stroke={1.8} />}
+            </ActionIcon>
+          </Group>
+          <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${formatNau(balance.spendableNau)} NPT`}>
+            {amount(balance.spendableNau)}
+            <small> NPT</small>
           </div>
           {balance.reservedNau > 0n && (
             <Text size="sm" c="dimmed">
-              {formatNau(balance.reservedNau)} NPT is held by a pending send. It stays held until the network includes the transaction, usually within a few blocks; then the change comes back as spendable.
+              {amount(balance.reservedNau)} NPT is held by a pending send. It stays held until the network includes the transaction, usually within a few blocks; then the change comes back as spendable.
             </Text>
           )}
           <Group grow mt="sm">
@@ -143,7 +157,7 @@ export function Home() {
                   <div style={{ textAlign: 'right' }}>
                     <Text size="sm" fw={600} style={{ fontVariantNumeric: 'tabular-nums' }}>
                       {received ? '+' : '−'}
-                      {formatNau(BigInt(h.amountNau))}
+                      {amount(BigInt(h.amountNau))}
                     </Text>
                     <Group gap={6} justify="flex-end">
                       <Badge size="xs" color={h.status === 'confirmed' ? 'green' : h.status === 'pending' ? 'yellow' : 'red'}>

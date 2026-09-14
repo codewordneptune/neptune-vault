@@ -104,6 +104,8 @@ export interface SettingsRecord {
   /** Last fee preset chosen on Send, and the custom value if any. */
   feePreset?: string;
   feeCustom?: string;
+  /** Balance and amounts masked on Home (an eye toggle). */
+  hideBalance?: boolean;
   /** Last connection test per network, kept so Settings shows it on return. */
   nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
 }

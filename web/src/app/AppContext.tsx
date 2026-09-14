@@ -44,6 +44,8 @@ export interface AppState {
   syncNow: () => Promise<void>;
   /** When the last sync pass finished without error. */
   lastSyncedAt: number | null;
+  /** The browser's own view of connectivity. */
+  online: boolean;
   setAccount: (account: AccountRecord | null) => void;
   /** The selected network; accounts are bound to one. */
   network: Network;
@@ -77,6 +79,7 @@ export function AppProvider({ services, children }: { services: Services; childr
   const [network, setNetwork] = useState<Network>(services.settings.network);
   const [sendJob, setSendJob] = useState<SendJob | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  const [online, setOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
   const syncing = useRef(false);
 
   const switchNetwork = useCallback(
@@ -133,7 +136,11 @@ export function AppProvider({ services, children }: { services: Services; childr
       services.accounts.setLockDeferred(true);
       setSendJob({ request, startedAt: Date.now(), progress: { stage: 'planning' }, done: false, outcome: null, error: null });
       try {
-        const outcome = await service.send(request, (progress) => setSendJob((job) => (job ? { ...job, progress } : job)));
+        const outcome = await service.send(request, (progress) => {
+          // The sub-proof name is for bug reports, not for the screen.
+          if (progress.proving?.name) console.debug('proving', progress.proving.index + 1, 'of', progress.proving.total, progress.proving.name);
+          setSendJob((job) => (job ? { ...job, progress } : job));
+        });
         setSendJob((job) => (job ? { ...job, done: true, outcome } : job));
         notifications.show({ color: 'green', title: 'Sent', message: `${request.amount} NPT submitted. It shows as pending until the network includes it.` });
         await refresh();
@@ -164,6 +171,11 @@ export function AppProvider({ services, children }: { services: Services; childr
 
   const syncNow = useCallback(async () => {
     if (!accountId || locked || syncing.current) return;
+    if (!navigator.onLine) {
+      // No point asking the node; the online event below retries.
+      setSync((prev) => ({ phase: 'error', syncedHeight: prev?.syncedHeight ?? 0, tipHeight: prev?.tipHeight ?? 0, message: 'You are offline. The balance shown is from the last sync.' }));
+      return;
+    }
     syncing.current = true;
     try {
       const engine = services.syncEngine(accountId, (p) => {
@@ -176,6 +188,24 @@ export function AppProvider({ services, children }: { services: Services; childr
       syncing.current = false;
     }
   }, [services, accountId, locked, refresh]);
+
+  // Follow the connection: mark offline at once, sync again when it returns.
+  useEffect(() => {
+    const goOnline = () => {
+      setOnline(true);
+      void syncNow();
+    };
+    const goOffline = () => {
+      setOnline(false);
+      setSync((prev) => ({ phase: 'error', syncedHeight: prev?.syncedHeight ?? 0, tipHeight: prev?.tipHeight ?? 0, message: 'You are offline. The balance shown is from the last sync.' }));
+    };
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, [syncNow]);
 
   // Poll the node while unlocked and visible.
   useEffect(() => {
@@ -199,8 +229,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   }, [utxos]);
 
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, lastSyncedAt, setAccount, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, lastSyncedAt, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, lastSyncedAt, online, setAccount, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, lastSyncedAt, online, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

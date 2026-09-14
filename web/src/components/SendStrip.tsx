@@ -32,7 +32,7 @@ export function SendStrip() {
 
   const p = sendJob.progress.proving;
   const stage = STAGE_TEXT[sendJob.progress.stage] ?? sendJob.progress.stage;
-  const detail = p ? `proof ${Math.min(p.index + 1, p.total)} of ${p.total}` : stage;
+  const detail = p ? `step ${Math.min(p.index + 1, p.total)} of ${p.total}` : stage;
   const elapsed = Math.round((Date.now() - sendJob.startedAt) / 1000);
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const ss = String(elapsed % 60).padStart(2, '0');

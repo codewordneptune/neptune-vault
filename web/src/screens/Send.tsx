@@ -196,7 +196,7 @@ export function Send() {
             {sendJob.progress.stage === 'planning' && 'Choosing inputs…'}
             {sendJob.progress.stage === 'membership-proofs' && 'Fetching membership proofs…'}
             {sendJob.progress.stage === 'building' && 'Building the transaction…'}
-            {proving && (p ? `Proving ${Math.min(p.index + 1, p.total)} of ${p.total}${p.name ? `: ${p.name}` : ''}` : 'Starting the prover…')}
+            {proving && (p ? `Proving, step ${Math.min(p.index + 1, p.total)} of ${p.total}` : 'Starting the prover…')}
             {sendJob.progress.stage === 'submitting' && 'Submitting to the node…'}
           </Text>
           {proving && p && <Progress value={(100 * p.index) / p.total} animated />}
