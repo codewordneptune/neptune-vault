@@ -151,7 +151,7 @@ function cameraProblem(e: unknown): string {
   const name = (e as { name?: string }).name ?? '';
   const message = (e as Error).message ?? String(e);
   if (name === 'NotAllowedError' || /denied/i.test(message)) {
-    return 'Camera access is blocked for this site. Allow it in the browser\x27s site settings (the lock icon by the address, or the app\x27s permissions on the phone), then try again, or paste the address instead.';
+    return "Camera access is blocked for this site. Allow it in the browser's site settings (the lock icon by the address, or the app's permissions on the phone), then try again, or paste the address instead.";
   }
   if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'No camera was found on this device. Paste the address instead.';
   if (name === 'NotReadableError') return 'The camera is in use by another app. Close it and try again, or paste the address instead.';
