@@ -271,7 +271,6 @@ export function Home() {
                 {detail.kind === 'self' && <DetailRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT, back to this wallet`} />}
                 {detail.record.feeNau && <DetailRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
                 {detail.changeNau !== null && detail.kind === 'sent' && <DetailRow label="Change returned" value={`${amount(detail.changeNau)} NPT`} />}
-                <DetailRow label="Taken from balance" value={`${amount(-detail.netNau)} NPT`} />
                 {detail.record.recipient && (
                   <DetailRow
                     label={contactFor(detail.record.recipient) ? `Recipient · ${contactFor(detail.record.recipient)?.name}` : 'Recipient'}
