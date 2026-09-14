@@ -21,6 +21,9 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<MediaStreamTrack | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Bumped by "Try again": a dismissed permission prompt asks again; a
+  // blocked one refuses at once, and the message says where to allow it.
+  const [attempt, setAttempt] = useState(0);
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
 
@@ -102,7 +105,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
       stream?.getTracks().forEach((t) => t.stop());
       trackRef.current = null;
     };
-  }, [opened, onResult]);
+  }, [opened, onResult, attempt]);
 
   return (
     <Modal opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md">
@@ -121,6 +124,17 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
+          {error && (
+            <Button
+              variant="light"
+              onClick={() => {
+                setError(null);
+                setAttempt((n) => n + 1);
+              }}
+            >
+              Try again
+            </Button>
+          )}
           {torchAvailable && (
             <Button variant="light" leftSection={torchOn ? <IconBulbOff size={16} stroke={1.8} /> : <IconBulb size={16} stroke={1.8} />} onClick={() => void toggleTorch()}>
               {torchOn ? 'Torch off' : 'Torch on'}
