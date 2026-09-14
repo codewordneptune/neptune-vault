@@ -89,13 +89,13 @@ export class SendService {
     const accepted = await this.node.submitTransaction(transaction);
     if (!accepted) throw new Error('the node did not accept the transaction');
 
-    await this.recordPending(built.summary.txid, request, built.summary.input_hashes, built.summary.amount_nau, built.summary.fee_nau);
+    await this.recordPending(built.summary.txid, request, built.summary.input_hashes, built.summary.amount_nau, built.summary.fee_nau, built.summary.change_nau);
     onProgress({ stage: 'done' });
     return { txid: built.summary.txid, proving };
   }
 
   /** Mark the inputs reserved and add the pending history entry (R18). */
-  private async recordPending(txid: string, request: SendRequest, inputHashes: string[], amountNau: string, feeNau: string): Promise<void> {
+  private async recordPending(txid: string, request: SendRequest, inputHashes: string[], amountNau: string, feeNau: string, changeNau: string | null): Promise<void> {
     const tx = this.db.transaction(['utxos', 'history'], 'readwrite');
     for (const hash of inputHashes) {
       const key = `${this.accountId}:${hash}`;
@@ -115,6 +115,7 @@ export class SendService {
       inputHashes,
       recipient: request.recipient,
       error: null,
+      changeNau,
     };
     await tx.objectStore('history').put(entry);
     await tx.done;

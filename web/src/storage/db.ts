@@ -85,6 +85,8 @@ export interface HistoryRecord {
   inputHashes: string[];
   recipient: string | null;
   error: string | null;
+  /** For sends: the change that comes back, so history can fold it in. Absent on rows from before it was kept. */
+  changeNau?: string | null;
 }
 
 export interface SyncStateRecord {

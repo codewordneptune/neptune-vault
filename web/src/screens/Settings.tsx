@@ -1,13 +1,14 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Anchor, Button, Group, Modal, NumberInput, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconCopy, IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconFingerprint, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconFingerprint, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
+import { requestPersistentStorage } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
@@ -68,9 +69,40 @@ export function Settings() {
   };
 
   // The phrase lives only in the worker while unlocked; it is fetched on
-  // show and dropped from this screen on hide.
+  // show and dropped from this screen on hide, after a minute at most, and
+  // as soon as the app goes to the background or this screen is left.
+  const PHRASE_SECONDS = 60;
+  const [phraseLeft, setPhraseLeft] = useState(PHRASE_SECONDS);
   const togglePhrase = async () => {
     setPhrase(phrase ? null : await services.core.phrase());
+  };
+  useEffect(() => {
+    if (!phrase) return;
+    setPhraseLeft(PHRASE_SECONDS);
+    const tick = setInterval(() => setPhraseLeft((n) => n - 1), 1000);
+    const onVisibility = () => {
+      if (document.hidden) setPhrase(null);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(tick);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [phrase]);
+  useEffect(() => {
+    if (phrase && phraseLeft <= 0) setPhrase(null);
+  }, [phrase, phraseLeft]);
+
+  // Without persistent storage the browser may evict the wallet's data when
+  // space runs low. The first request happens at start-up; this one is the
+  // person's, which browsers weigh more.
+  const [persistent, setPersistent] = useState(services.persistent);
+  const [persistAsked, setPersistAsked] = useState(false);
+  const requestPersistent = async () => {
+    const granted = await requestPersistentStorage();
+    services.persistent = granted;
+    setPersistent(granted);
+    setPersistAsked(true);
   };
 
   return (
@@ -105,9 +137,27 @@ export function Settings() {
       <Paper>
         <Stack>
           <Title order={3}>Backup</Title>
-          <Text size="sm" c="dimmed">
-            Persistent storage {services.persistent ? 'granted' : 'not granted'}. Clearing the browser's site data deletes this wallet and its contacts; keep the phrase or a backup file.
-          </Text>
+          {persistent ? (
+            <Text size="sm" c="dimmed">
+              Persistent storage is granted, so the browser will not evict this wallet's data on its own. Clearing the browser's site data still deletes it; keep the phrase or a backup file.
+            </Text>
+          ) : (
+            <Alert color="yellow" icon={<IconAlertTriangle size={18} />} title="The browser may evict this wallet">
+              <Text size="sm">
+                The browser has not granted persistent storage, so it can delete this wallet's data when space runs low, without asking. Browsers grant it on their own once the app is installed or has been opened regularly. A backup file or the phrase restores everything.
+              </Text>
+              <Group mt="xs" gap="sm" align="center">
+                <Button size="compact-sm" variant="light" onClick={() => void requestPersistent()}>
+                  Request again
+                </Button>
+                {persistAsked && (
+                  <Text size="xs" c="dimmed">
+                    Still not granted.
+                  </Text>
+                )}
+              </Group>
+            </Alert>
+          )}
           <Text size="sm" c={account?.lastBackupAt ? 'dimmed' : 'yellow'}>
             Last backup file: {lastBackup}
           </Text>
@@ -128,6 +178,9 @@ export function Settings() {
                   Other apps can read the clipboard; clear it afterwards.
                 </Text>
               </Group>
+              <Text size="xs" c="dimmed" aria-live="off">
+                Hidden again in {Math.max(0, phraseLeft)} s, or when you leave this screen.
+              </Text>
             </Stack>
           )}
         </Stack>

@@ -1,13 +1,16 @@
 // Balance, sync status and history (F13, F14, R18).
 
 import { ActionIcon, Alert, Badge, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconEye, IconEyeOff, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
-import { formatWhen } from '../util/time';
+import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCopy, IconEye, IconEyeOff, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { HistoryRecord } from '../storage/db';
 
 import { formatNau, useApp } from '../app/AppContext';
+import type { ContactRecord, HistoryRecord } from '../storage/db';
+import { abbreviateAddress } from '../util/address';
+import { copyText } from '../util/clipboard';
+import { groupHistory, type HistoryEntry } from '../util/history';
+import { formatWhen } from '../util/time';
 
 export function Home() {
   const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account } = useApp();
@@ -43,6 +46,16 @@ export function Home() {
     await refresh();
   };
 
+  // One entry per transaction, with the recipient named when it is a contact.
+  const entries = groupHistory(history, utxos);
+  const [contacts, setContacts] = useState<ContactRecord[]>([]);
+  useEffect(() => {
+    if (!account) return;
+    void services.contacts.list(account.id).then(setContacts);
+  }, [services, account, history.length]);
+  const contactFor = (address: string | null) => (address ? contacts.find((c) => c.address === address) : undefined);
+  const [detail, setDetail] = useState<HistoryEntry | null>(null);
+
   // Giving up on a pending send frees its reserved coins; confirmed first.
   const [givingUp, setGivingUp] = useState<HistoryRecord | null>(null);
   const giveUp = async () => {
@@ -65,6 +78,15 @@ export function Home() {
           : sync.phase === 'done'
             ? `Up to date · block ${sync.syncedHeight}${lastSyncedAt ? ` · ${ago(lastSyncedAt)}` : ''}`
             : sync.message ?? 'Sync failed';
+
+  const titleOf = (e: HistoryEntry) => {
+    if (e.kind === 'received') return 'Received';
+    if (e.kind === 'self') return 'Moved to yourself';
+    const c = contactFor(e.record.recipient);
+    return `Sent to ${c ? c.name : e.record.recipient ? abbreviateAddress(e.record.recipient) : 'address'}`;
+  };
+  const statusOf = (h: HistoryRecord) =>
+    h.status === 'confirmed' ? (h.height !== null ? `Confirmed in block ${h.height}` : 'Confirmed') : h.status === 'pending' ? 'Pending, waiting for the network' : 'Failed';
 
   return (
     <Stack gap="md">
@@ -130,23 +152,24 @@ export function Home() {
         <Title order={3} mb="sm">
           History
         </Title>
-        {history.length === 0 ? (
+        {entries.length === 0 ? (
           <Text c="dimmed" size="sm">
             Nothing yet. Share a receiving address to get started.
           </Text>
         ) : (
           <div>
-            {history.map((h) => {
-              const received = h.kind === 'received';
+            {entries.map((e) => {
+              const h = e.record;
+              const incoming = e.kind === 'received';
               return (
-                <div className="vault-row" key={h.key}>
-                  <Group gap="sm" wrap="nowrap">
-                    <span className={`vault-row-icon${received ? '' : ' out'}`}>
-                      {received ? <IconArrowDownLeft size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />}
+                <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={`${titleOf(e)}, details`}>
+                  <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+                    <span className={`vault-row-icon${incoming ? '' : ' out'}`}>
+                      {incoming ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />}
                     </span>
-                    <div>
-                      <Text size="sm" fw={500}>
-                        {received ? 'Received' : 'Sent'}
+                    <div style={{ minWidth: 0 }}>
+                      <Text size="sm" fw={500} truncate>
+                        {titleOf(e)}
                       </Text>
                       <Text size="xs" c="dimmed">
                         {formatWhen(h.timestampMs)}
@@ -156,26 +179,72 @@ export function Home() {
                   </Group>
                   <div style={{ textAlign: 'right' }}>
                     <Text size="sm" fw={600} style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {received ? '+' : '−'}
-                      {amount(BigInt(h.amountNau))}
+                      {incoming ? '+' : '−'}
+                      {amount(e.shownNau)}
                     </Text>
-                    <Group gap={6} justify="flex-end">
-                      <Badge size="xs" color={h.status === 'confirmed' ? 'green' : h.status === 'pending' ? 'yellow' : 'red'}>
+                    {h.status !== 'confirmed' ? (
+                      <Badge size="xs" color={h.status === 'pending' ? 'yellow' : 'red'}>
                         {h.status}
                       </Badge>
-                      {h.kind === 'sent' && h.status === 'pending' && (
-                        <Button size="compact-xs" variant="subtle" onClick={() => setGivingUp(h)}>
-                          Give up
-                        </Button>
-                      )}
-                    </Group>
+                    ) : e.kind === 'sent' && h.feeNau ? (
+                      <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        fee {amount(BigInt(h.feeNau))}
+                      </Text>
+                    ) : e.kind === 'self' ? (
+                      <Text size="xs" c="dimmed">
+                        fee only
+                      </Text>
+                    ) : null}
                   </div>
-                </div>
+                </UnstyledButton>
               );
             })}
           </div>
         )}
       </Paper>
+
+      <Modal opened={detail !== null} onClose={() => setDetail(null)} title={detail ? titleOf(detail) : ''}>
+        {detail && (
+          <Stack gap="sm">
+            <DetailRow label="Status" value={statusOf(detail.record)} />
+            {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
+            <DetailRow label="When" value={new Date(detail.record.timestampMs).toLocaleString()} />
+            {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
+            {detail.kind !== 'received' && (
+              <>
+                {detail.kind === 'sent' && <DetailRow label="Amount" value={`${amount(BigInt(detail.record.amountNau))} NPT`} />}
+                {detail.kind === 'self' && <DetailRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT, back to this wallet`} />}
+                {detail.record.feeNau && <DetailRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
+                {detail.changeNau !== null && detail.kind === 'sent' && <DetailRow label="Change returned" value={`${amount(detail.changeNau)} NPT`} />}
+                <DetailRow label="Taken from balance" value={`${amount(-detail.netNau)} NPT`} />
+                {detail.record.recipient && (
+                  <DetailRow
+                    label={contactFor(detail.record.recipient) ? `Recipient · ${contactFor(detail.record.recipient)?.name}` : 'Recipient'}
+                    value={detail.record.recipient}
+                    mono
+                    copy="Address copied"
+                  />
+                )}
+                {detail.record.txid && <DetailRow label="Transaction id" value={detail.record.txid} mono copy="Transaction id copied" />}
+              </>
+            )}
+            {detail.kind !== 'received' && detail.record.status === 'pending' && (
+              <Group justify="flex-end" mt="xs">
+                <Button
+                  variant="light"
+                  color="red"
+                  onClick={() => {
+                    setGivingUp(detail.record);
+                    setDetail(null);
+                  }}
+                >
+                  Give up on this send
+                </Button>
+              </Group>
+            )}
+          </Stack>
+        )}
+      </Modal>
 
       <Modal opened={givingUp !== null} onClose={() => setGivingUp(null)} title="Give up on this send?">
         {givingUp && (
@@ -198,5 +267,26 @@ export function Home() {
         )}
       </Modal>
     </Stack>
+  );
+}
+
+/** A label and its value in the detail sheet; long values wrap and can be copied. */
+function DetailRow({ label, value, mono, copy }: { label: string; value: string; mono?: boolean; copy?: string }) {
+  return (
+    <div className="vault-detail-row">
+      <Text size="xs" c="dimmed" className="vault-detail-label">
+        {label}
+      </Text>
+      <Group gap="xs" wrap="nowrap" align="flex-start">
+        <Text size="sm" className={mono ? 'vault-detail-mono' : undefined} style={{ fontVariantNumeric: 'tabular-nums', flex: 1, minWidth: 0 }}>
+          {value}
+        </Text>
+        {copy && (
+          <ActionIcon variant="subtle" size="sm" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copyText(value, copy)}>
+            <IconCopy size={16} stroke={1.8} />
+          </ActionIcon>
+        )}
+      </Group>
+    </div>
   );
 }

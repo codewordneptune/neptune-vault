@@ -67,9 +67,12 @@ h3.mantine-Title-root {
 .mantine-Button-root[data-variant='filled']:hover {
   background: linear-gradient(135deg, var(--v-accent-deep), #144c9f);
 }
-.mantine-Button-root[data-variant='filled']:disabled,
-.mantine-Button-root[data-variant='filled'][data-disabled] {
-  background: var(--v-surface-2);
+/* Mantine drops data-variant on disabled buttons, so one quiet look serves
+   every variant; it has to stand off the card, which the plain surface did not. */
+.mantine-Button-root:disabled,
+.mantine-Button-root[data-disabled] {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: none;
   color: var(--v-faint);
 }
@@ -283,6 +286,26 @@ button.vault-network::before {
 }
 .vault-row > *:last-child {
   flex-shrink: 0;
+}
+/* History rows are buttons that open the detail sheet. */
+.vault-row-button {
+  width: 100%;
+  text-align: left;
+  border-radius: var(--v-radius-xs);
+}
+.vault-row-button:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 2px;
+}
+.vault-detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vault-detail-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
 }
 .vault-row-icon {
   width: 36px;
