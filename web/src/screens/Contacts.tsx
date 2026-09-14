@@ -1,7 +1,7 @@
 // Contacts: saved recipients for this account. Add by paste or scan, rename,
 // delete, and start a send to one.
 
-import { ActionIcon, Alert, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Alert, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { IconClipboard, IconDotsVertical, IconPencil, IconScan, IconSend, IconTrash, IconUserPlus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -42,7 +42,12 @@ export function Contacts() {
       <Paper>
         <Stack>
           <Group justify="space-between" align="baseline">
-            <Title order={2}>Contacts</Title>
+            <Group gap="xs" align="baseline">
+              <UnstyledButton onClick={() => navigate(-1)} c="var(--v-accent-text)" fz="sm">
+                Back
+              </UnstyledButton>
+              <Title order={2}>Contacts</Title>
+            </Group>
             <Button size="compact-md" variant="light" leftSection={<IconUserPlus size={16} stroke={1.8} />} onClick={() => setAdding(true)}>
               Add
             </Button>
@@ -50,7 +55,7 @@ export function Contacts() {
           {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
           {contacts.length === 0 ? (
             <Text size="sm" c="dimmed">
-              No saved recipients yet. Add one here, or save a recipient after sending.
+              No saved recipients yet. Add one here, or save a recipient after sending. Contacts are also offered when you choose a recipient on Send.
             </Text>
           ) : (
             <div>

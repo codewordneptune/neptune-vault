@@ -96,7 +96,7 @@ it talks to a neptune-core node over its JSON-RPC API.
   can produce the next unused address of that kind.
 - F12. The app syncs from the account's birthday block (creation height) and
   detects incoming UTXOs addressed to any of the account's keys (R12, R17).
-- F19. Contacts (added 2026-09-13): a Contacts tab lists saved recipients per
+- F19. Contacts (added 2026-09-13, moved off the tab bar 2026-09-14): a Contacts screen, reached from the recipient picker on Send and from Settings, lists saved recipients per
   account (name, full address, kind); add by paste or scan, rename, delete,
   start a send. Send offers saved recipients and saving the recipient after
   a send. Contacts are included in the export file (format version 2).

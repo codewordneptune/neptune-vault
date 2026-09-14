@@ -1,7 +1,7 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Anchor, Button, Group, Modal, NumberInput, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconCopy, IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconFingerprint, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
+import { IconAddressBook, IconCopy, IconDeviceMobile, IconDownload, IconEye, IconEyeOff, IconFingerprint, IconKey, IconLock, IconStethoscope } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -99,6 +99,20 @@ export function Settings() {
             </Button>
           </Group>
           <RescanCard />
+        </Stack>
+      </Paper>
+
+      <Paper>
+        <Stack>
+          <Title order={3}>Contacts</Title>
+          <Text size="sm" c="dimmed">
+            Saved recipients, also offered when you choose a recipient on Send.
+          </Text>
+          <Group>
+            <Button variant="light" leftSection={<IconAddressBook size={16} stroke={1.8} />} onClick={() => navigate('/contacts')}>
+              Manage contacts
+            </Button>
+          </Group>
         </Stack>
       </Paper>
 

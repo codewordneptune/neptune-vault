@@ -1,5 +1,5 @@
 import { Box, Container, Group, Loader } from '@mantine/core';
-import { IconAddressBook, IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
+import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
 import type { ReactElement } from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 
@@ -20,7 +20,6 @@ const TABS = [
   { to: '/', label: 'Home', Icon: IconHome },
   { to: '/send', label: 'Send', Icon: IconArrowUpRight },
   { to: '/receive', label: 'Receive', Icon: IconArrowDownLeft },
-  { to: '/contacts', label: 'Contacts', Icon: IconAddressBook },
   { to: '/settings', label: 'Settings', Icon: IconSettings },
 ];
 

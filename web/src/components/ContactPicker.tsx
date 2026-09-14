@@ -1,7 +1,9 @@
 // Pick a saved recipient for the Send screen.
 
-import { Modal, Stack, Text, UnstyledButton } from '@mantine/core';
+import { Button, Modal, Stack, Text, UnstyledButton } from '@mantine/core';
+import { IconAddressBook } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 import type { ContactRecord } from '../storage/db';
@@ -9,6 +11,7 @@ import { abbreviateAddress, addressKind } from '../util/address';
 
 export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; onClose: () => void; onPick: (c: ContactRecord) => void }) {
   const { services, account } = useApp();
+  const navigate = useNavigate();
   const [contacts, setContacts] = useState<ContactRecord[]>([]);
 
   useEffect(() => {
@@ -21,7 +24,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
       <Stack gap={0}>
         {contacts.length === 0 && (
           <Text size="sm" c="dimmed">
-            No saved recipients yet. You can save one after sending, or on the Contacts tab.
+            No saved recipients yet. You can save one after sending, or add one in Contacts.
           </Text>
         )}
         {contacts.map((c) => (
@@ -39,6 +42,17 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
             </Text>
           </UnstyledButton>
         ))}
+        <Button
+          variant="subtle"
+          mt="sm"
+          leftSection={<IconAddressBook size={16} stroke={1.8} />}
+          onClick={() => {
+            onClose();
+            navigate('/contacts');
+          }}
+        >
+          Manage contacts
+        </Button>
       </Stack>
     </Modal>
   );
