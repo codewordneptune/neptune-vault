@@ -1,0 +1,21 @@
+# Pre-fork prover: the 0.15 generation of the consensus crates and Triton VM 7,
+# which produce the claim-version-5 proofs mainnet requires below block
+# 55,000. A separate workspace so the two generations never share a
+# dependency graph. Delete this directory a week after the fork.
+
+[workspace]
+resolver = "2"
+members = ["vault-prover-legacy"]
+exclude = ["vendor/neptune-consensus", "vendor/neptune-primitives", "vendor/triton-vm"]
+
+[patch.crates-io]
+neptune-consensus = { path = "vendor/neptune-consensus" }
+neptune-primitives = { path = "vendor/neptune-primitives" }
+triton-vm = { path = "vendor/triton-vm" }
+# Same version as the main workspace: the browser patches (allocation-free
+# inverse, rlib only) apply unchanged.
+twenty-first = { path = "../vendor/twenty-first" }
+
+[profile.release]
+opt-level = 3
+debug = false

@@ -62,7 +62,7 @@ it talks to a neptune-core node over its JSON-RPC API.
 | R26 | Licence | No licence file yet. |
 | R27 | Process | Requirements and architecture documents first, review, then implementation on feature branches with pull requests. |
 | R28 | Milestone 1 | Create account, receive, see balance, and send with an in-browser proof, end to end on the Galaxy S24 against a testnet node. Developed against a mock node in the repo until O1 and O2 are resolved; delivered as one pull request per component (decided 2026-09-13). |
-| R29 | Consensus version | Target the 0.17 neptune crates and a 0.17 or later node from the start, because the delta hardfork activates at block 55,000 (expected around 2026-09-24). |
+| R29 | Consensus version | Target the 0.17 neptune crates and a 0.17 or later node from the start, because the delta hardfork activates at block 55,000 (expected around 2026-09-24). Until then mainnet requires claim version 5 proofs, which a second wasm package built from the 0.15 crates (crates/legacy, vault-prover-legacy) produces; the app picks the package by the claim version the core reports for the tip height. The legacy package is deleted once the fork has activated. |
 
 ## 5. Functional requirements
 

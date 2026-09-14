@@ -45,6 +45,8 @@ crates/vault-prover    ProofCollection prover, Rust -> wasm with threads
 crates/vault-fixtures  deterministic witnesses for prover tests
 crates/vendor          neptune-consensus, neptune-primitives, triton-vm, twenty-first
                        with the small patches the browser build needs (see VENDOR.md)
+crates/legacy          pre-fork prover (claim version 5) with its own vendored 0.15 crates;
+                       temporary, until mainnet block 55,000
 web/                   the app: Vite, React, Mantine; wasm packages under public/wasm
 docs/                  requirements, architecture, status, hosting, benchmarks
 ```
@@ -84,7 +86,11 @@ headers, since the browser calls it directly. The public mainnet node does.
 Regtest nodes accept only mock proofs, so the app skips the prover there.
 
 Until mainnet block 55,000 the network requires transaction proofs of an
-older format; see docs/M1-STATUS.md for where that stands.
+older format (claim version 5). A second prover package built from the 0.15
+crates covers that period: `npm run wasm:prover-legacy` builds
+`crates/legacy/vault-prover-legacy` into `web/public/wasm/prover-legacy`, and
+the app picks the package by the claim version the chain requires at the
+tip. It goes away once the fork has activated; see docs/M1-STATUS.md.
 
 ## Deploying
 

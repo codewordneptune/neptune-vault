@@ -50,6 +50,8 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       return { result: true };
     case 'coreVersion':
       return { result: m.core_version() };
+    case 'claimVersion':
+      return { result: m.claim_version(args[0] as string, BigInt(args[1] as number)) };
     case 'generatePhrase':
       return { result: m.generate_phrase() };
     case 'deriveKey': {
