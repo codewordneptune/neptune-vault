@@ -98,12 +98,22 @@ export function Home() {
   // Outputs of an entry, as the explorer knows them. A received row's coin
   // carries its own commitment once scanned with a core that keeps it.
   const outputsOf = (e: HistoryEntry): { commitment: string; label: string }[] => {
+    const coinOf = (row: HistoryRecord) => {
+      const hash = row.key.slice(row.key.lastIndexOf(':') + 1);
+      return (utxos.find((u) => u.hash === hash)?.stored as StoredUtxo | undefined)?.commitment;
+    };
     if (e.kind === 'received') {
-      const hash = e.record.key.slice(e.record.key.lastIndexOf(':') + 1);
-      const c = (utxos.find((u) => u.hash === hash)?.stored as StoredUtxo | undefined)?.commitment;
+      const c = coinOf(e.record);
       return c ? [{ commitment: c, label: 'Output' }] : [];
     }
-    return (e.record.outputs ?? []).map((o) => ({ commitment: o.commitment, label: o.role === 'recipient' ? `Output to ${e.kind === 'self' ? 'yourself' : 'the recipient'}` : 'Change output' }));
+    const recorded = (e.record.outputs ?? []).map((o) => ({ commitment: o.commitment, label: o.role === 'recipient' ? `Output to ${e.kind === 'self' ? 'yourself' : 'the recipient'}` : 'Change output' }));
+    if (recorded.length > 0) return recorded;
+    // A send recorded before outputs were kept: the coins it brought back
+    // are known once scanned, the recipient's output is not.
+    return e.folded.flatMap((row) => {
+      const c = coinOf(row);
+      return c ? [{ commitment: c, label: e.kind === 'self' && BigInt(row.amountNau) === BigInt(e.record.amountNau) ? 'Output to yourself' : 'Change output' }] : [];
+    });
   };
   const explorer = account?.network === 'main' ? LINKS.explorerOutput : null;
 
