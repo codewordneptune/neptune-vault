@@ -387,13 +387,19 @@ button.vault-network::before {
    content stays aligned with the card. */
 .vault-pick,
 .vault-row-button {
-  width: calc(100% + 20px);
-  margin-left: -10px;
-  margin-right: -10px;
-  padding-left: 10px;
-  padding-right: 10px;
+  width: calc(100% + 24px);
+  margin-left: -12px;
+  margin-right: -12px;
+  padding: 12px;
   text-align: left;
   border-radius: var(--v-radius-xs);
+}
+/* The first row keeps its full padding for a balanced hover fill and is
+   pulled up by the same amount so the list starts where it did. */
+.vault-pick:first-child,
+.vault-row-button:first-child {
+  padding-top: 12px;
+  margin-top: -12px;
 }
 .vault-pick:hover,
 .vault-row-button:hover {
