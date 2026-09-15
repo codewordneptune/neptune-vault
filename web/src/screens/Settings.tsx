@@ -12,7 +12,6 @@ import { requestPersistentStorage } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
-import { metaProblem } from '../util/address';
 import { NETWORK_OPTIONS } from '../util/network';
 import type { Network } from '../storage/db';
 
@@ -222,7 +221,6 @@ export function Settings() {
             App
           </Title>
           <InstallCard />
-          <RequestNameField />
           <Text size="sm" c="dimmed">
             Diagnostics show cores, threads and the install state, useful when reporting a problem.
           </Text>
@@ -326,25 +324,6 @@ function ChangePassword() {
         </Group>
       </Stack>
     </form>
-  );
-}
-
-function RequestNameField() {
-  const { services } = useApp();
-  const [name, setName] = useState(services.settings.requestLabel ?? '');
-  const problem = name.trim() ? metaProblem(name.trim()) : null;
-  return (
-    <TextInput
-      label="Your name in payment requests (optional)"
-      description="Goes into shared payment links and codes as their label. The payer's wallet shows it as unverified."
-      value={name}
-      onChange={(e) => {
-        setName(e.currentTarget.value);
-        if (!metaProblem(e.currentTarget.value.trim())) void services.updateSettings({ requestLabel: e.currentTarget.value.trim() });
-      }}
-      error={problem}
-      maxLength={255}
-    />
   );
 }
 

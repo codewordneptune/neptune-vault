@@ -54,9 +54,9 @@ export function Receive() {
   // screen and kept with their send; it never reaches this wallet.
   const [requestNote, setRequestNote] = useState('');
   const noteError = requestNote.trim() ? metaProblem(requestNote.trim()) : null;
-  // The name the payer sees as the link's label comes from Settings; the
-  // dialog holds nothing between requests.
-  const requestLabel = services.settings.requestLabel ?? '';
+  // The name the payer sees as the link's label. Like the amount and the
+  // note it belongs to one request and is cleared with the dialog.
+  const [requestLabel, setRequestLabel] = useState('');
   const labelError = requestLabel.trim() ? metaProblem(requestLabel.trim()) : null;
   const linkNote = noteError ? undefined : requestNote.trim() || undefined;
   const linkLabel = labelError ? undefined : requestLabel.trim() || undefined;
@@ -222,9 +222,10 @@ export function Receive() {
         <Modal
           opened={sharing}
           onClose={() => {
-            // A request lives and dies with its dialog; the name stays.
+            // A request lives and dies with its dialog.
             setSharing(false);
             setRequestAmount('');
+            setRequestLabel('');
             setRequestNote('');
           }}
           title="Request a payment"
@@ -239,9 +240,14 @@ export function Receive() {
               error={amountError}
               autoFocus
             />
-            <Text size="xs" c="dimmed">
-              {linkLabel ? `The link names you as "${linkLabel}"` : 'The link carries no name'}; set in Settings under App.
-            </Text>
+            <TextInput
+              label="Your name, as the payer will see it (optional)"
+              description="Goes into the link as its label; the payer's wallet shows it as unverified."
+              value={requestLabel}
+              onChange={(e) => setRequestLabel(e.currentTarget.value)}
+              error={labelError}
+              maxLength={255}
+            />
             <TextInput
               label="Note for the payer (optional)"
               description="Shown to the payer only; it does not reach you."

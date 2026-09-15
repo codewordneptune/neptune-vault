@@ -122,8 +122,6 @@ export interface SettingsRecord {
   hideBalance?: boolean;
   /** Last connection test per network, kept so Settings shows it on return. */
   nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
-  /** The name put into shared payment links as the label, as the payer will see it. */
-  requestLabel?: string;
   /** How the last proof on this device went, for Diagnostics and bug reports. */
   lastProving?: LastProving;
 }
