@@ -56,6 +56,7 @@ describe('payment URI generation', () => {
     expect(paymentUri('nolgam1abc')).toBe('neptunecash:nolgam1abc');
     expect(paymentQrPayload('nolgam1abc')).toBe('NEPTUNECASH:NOLGAM1ABC');
     expect(paymentQrPayload('nolgam1abc', '2')).toBe('NEPTUNECASH:NOLGAM1ABC?amount=2');
+    expect(paymentQrPayload('nolgam1abc', '2', 'lunch', 'Esa J')).toBe('NEPTUNECASH:NOLGAM1ABC?amount=2&label=Esa%20J&message=lunch');
   });
 });
 

@@ -57,7 +57,9 @@ export function Receive() {
   // The name the payer sees as the link's label; remembered, since it rarely changes.
   const [requestLabel, setRequestLabel] = useState(services.settings.requestLabel ?? '');
   const labelError = requestLabel.trim() ? metaProblem(requestLabel.trim()) : null;
-  const paymentLink = paymentUri(address, linkAmount, noteError ? undefined : requestNote.trim() || undefined, labelError ? undefined : requestLabel.trim() || undefined);
+  const linkNote = noteError ? undefined : requestNote.trim() || undefined;
+  const linkLabel = labelError ? undefined : requestLabel.trim() || undefined;
+  const paymentLink = paymentUri(address, linkAmount, linkNote, linkLabel);
 
   // Validate the request amount through the wallet core and normalise it.
   useEffect(() => {
@@ -109,22 +111,30 @@ export function Receive() {
       const render = async (payload: string) => {
         setQr(await QRCode.toDataURL(payload, { type: 'image/png', width: 1200, margin: 2, errorCorrectionLevel: 'L' }));
       };
+      // The code carries the whole link when it fits; otherwise as much of
+      // it as fits, with a note saying what the shared link still carries.
+      const withText = Boolean(linkNote || linkLabel);
       try {
-        await render(paymentQrPayload(a, linkAmount));
+        await render(paymentQrPayload(a, linkAmount, linkNote, linkLabel));
         setQrNote(null);
       } catch {
         try {
-          await render(paymentQrPayload(a));
-          setQrNote(linkAmount ? 'The amount does not fit in the code for this address; the shared link carries it.' : null);
+          await render(paymentQrPayload(a, linkAmount));
+          setQrNote(withText ? 'The name and note do not fit in the code for this address; the shared link carries them.' : null);
         } catch {
-          setQr('');
+          try {
+            await render(paymentQrPayload(a));
+            setQrNote(linkAmount || withText ? 'The amount, name and note do not fit in the code for this address; the shared link carries them.' : null);
+          } catch {
+            setQr('');
+          }
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [kind, index, account, services, linkAmount]);
+  }, [kind, index, account, services, linkAmount, linkNote, linkLabel]);
 
   const copy = () => void copyText(address, 'Address copied');
 
@@ -224,11 +234,6 @@ export function Receive() {
               error={noteError}
               maxLength={255}
             />
-            {((requestLabel.trim() && !labelError) || (requestNote.trim() && !noteError)) && (
-              <Text size="xs" c="dimmed">
-                Your name and the note travel in the link only; the QR code carries the address{linkAmount ? ' and the amount' : ''}.
-              </Text>
-            )}
             <Group grow>
               <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError || noteError || labelError)}>
                 Copy link
