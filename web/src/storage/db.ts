@@ -89,6 +89,8 @@ export interface HistoryRecord {
   changeNau?: string | null;
   /** For sends: the outputs' canonical commitments, the explorer's keys. Absent on rows from before it was kept. */
   outputs?: HistoryOutput[];
+  /** For sends made from a payment link: the link's message, kept for the payer; never sent anywhere. */
+  note?: string | null;
   /** For pending sends: when the node's mempool was last seen holding it, and when that was last checked. */
   mempoolSeenAt?: number | null;
   mempoolCheckedAt?: number | null;

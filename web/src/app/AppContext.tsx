@@ -56,7 +56,8 @@ export interface AppState {
   /** The running or last send. */
   sendJob: SendJob | null;
   /** Run a send as a job: wake lock held, auto-lock deferred, toast at the end. */
-  startSend: (request: SendRequest) => Promise<SendOutcome>;
+  /** `note` is the payment link's message, kept with the send for the payer's own record. */
+  startSend: (request: SendRequest, note?: string | null) => Promise<SendOutcome>;
   cancelSend: () => void;
   dismissSendJob: () => void;
 }
@@ -126,7 +127,7 @@ export function AppProvider({ services, children }: { services: Services; childr
   }, [services, accountId]);
 
   const startSend = useCallback(
-    async (request: SendRequest): Promise<SendOutcome> => {
+    async (request: SendRequest, note: string | null = null): Promise<SendOutcome> => {
       if (!accountId) throw new Error('no account');
       const service = services.sendService(accountId);
       let wake: WakeLockSentinel | null = null;
@@ -143,7 +144,9 @@ export function AppProvider({ services, children }: { services: Services; childr
       let peakMb = 0;
       let provingSince: number | null = null;
       try {
-        const outcome = await service.send(request, (progress) => {
+        const outcome = await service.send(
+          request,
+          (progress) => {
           // The sub-proof name is for bug reports, not for the screen.
           if (progress.proving?.name) console.debug('proving', progress.proving.index + 1, 'of', progress.proving.total, progress.proving.name);
           if (progress.claimVersion) claimVersion = progress.claimVersion;
@@ -153,7 +156,9 @@ export function AppProvider({ services, children }: { services: Services; childr
             peakMb = Math.max(peakMb, progress.proving.memoryMb);
           }
           setSendJob((job) => (job ? { ...job, progress, provingSince } : job));
-        });
+          },
+          note,
+        );
         if (outcome.proving.seconds > 0) {
           void services.updateSettings({
             lastProving: { at: Date.now(), claimVersion: outcome.claimVersion, threads: outcome.proving.threads, peakMb: outcome.proving.memoryMb, seconds: outcome.proving.seconds, error: null },

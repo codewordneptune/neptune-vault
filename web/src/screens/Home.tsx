@@ -94,7 +94,7 @@ export function Home() {
   const titleOf = (e: HistoryEntry) => {
     if (e.kind === 'received') return e.record.status === 'pending' ? 'Incoming' : 'Received';
     if (e.kind === 'self') return 'Moved to yourself';
-    if (e.record.txid === '') return 'Sent · details not on this device';
+    if (e.record.txid === '' || e.record.recipient === null) return 'Sent · details not on this device';
     const c = contactFor(e.record.recipient);
     return `Sent to ${c ? c.name : e.record.recipient ? abbreviateAddress(e.record.recipient) : 'address'}`;
   };
@@ -275,6 +275,7 @@ export function Home() {
             <DetailRow label="Status" value={statusOf(detail.record)} />
             {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
             {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
+            {detail.record.note && <DetailRow label="Note from the link" value={detail.record.note} isolate />}
             <DetailRow label="When" value={new Date(detail.record.timestampMs).toLocaleString()} />
             {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
             {outputsOf(detail).map((o) => (
@@ -282,10 +283,10 @@ export function Home() {
             ))}
             {detail.kind !== 'received' && (
               <>
-                {detail.kind === 'sent' && detail.record.txid === '' && (
+                {detail.kind === 'sent' && (detail.record.txid === '' || detail.record.recipient === null) && (
                   <DetailRow label="Details" value="Built on another device, or on this one before a rescan. The chain does not carry the recipient or the fee, so the amount below includes the fee." />
                 )}
-                {detail.kind === 'sent' && <DetailRow label={detail.record.txid === '' ? 'Amount plus fee' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />}
+                {detail.kind === 'sent' && <DetailRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />}
                 {detail.kind === 'self' && <DetailRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT, back to this wallet`} />}
                 {detail.record.feeNau && <DetailRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
                 {detail.changeNau !== null && detail.kind === 'sent' && <DetailRow label="Change returned" value={`${amount(detail.changeNau)} NPT`} />}
@@ -343,7 +344,7 @@ export function Home() {
 }
 
 /** A label and its value in the detail sheet; long values wrap and can be copied. */
-function DetailRow({ label, value, mono, copy, href, abbreviate }: { label: string; value: string; mono?: boolean; copy?: string; href?: string; abbreviate?: boolean }) {
+function DetailRow({ label, value, mono, copy, href, abbreviate, isolate }: { label: string; value: string; mono?: boolean; copy?: string; href?: string; abbreviate?: boolean; isolate?: boolean }) {
   // Long values (a generation address is about 3,500 characters) show
   // abbreviated with a toggle; copying always takes the full value.
   const [full, setFull] = useState(false);
@@ -369,7 +370,7 @@ function DetailRow({ label, value, mono, copy, href, abbreviate }: { label: stri
           </Group>
         )}
       </Group>
-      <Text size="sm" className={mono ? 'vault-detail-mono' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
+      <Text size="sm" className={mono ? 'vault-detail-mono' : isolate ? 'vault-bidi' : undefined} dir={isolate ? 'auto' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
         {shown}
       </Text>
       {abbreviate && (

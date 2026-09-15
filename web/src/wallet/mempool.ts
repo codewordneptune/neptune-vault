@@ -28,6 +28,9 @@ export interface MempoolWatcherOptions {
 
 export const INCOMING_KEY_PREFIX = 'incoming:';
 export const incomingKey = (accountId: string, commitment: string) => `${accountId}:${INCOMING_KEY_PREFIX}${commitment}`;
+/** A pending spend of this wallet's coins by a transaction it did not build (another device, same phrase). */
+export const OUTGOING_KEY_PREFIX = 'outgoing:';
+export const outgoingKey = (accountId: string, firstInputHash: string) => `${accountId}:${OUTGOING_KEY_PREFIX}${firstInputHash}`;
 
 export class MempoolWatcher {
   private readonly seenIds = new Set<string>();
@@ -76,12 +79,59 @@ export class MempoolWatcher {
     // Unseen kernels, a batch at a time so a busy mempool never means one
     // long burst of downloads; the rest are picked up by the next polls.
     const fresh = ids.filter((id) => !this.seenIds.has(id)).slice(0, this.batchSize);
+    // Outputs of this wallet's own pending sends (their change, or a payment
+    // to itself) are addressed to this wallet too, and are not incoming.
+    const allHistory = await this.db.getAllFromIndex('history', 'byAccount', this.accountId);
+    const ownOutputs = new Set(
+      allHistory.filter((h) => h.kind === 'sent' && h.status === 'pending' && h.recipient !== null).flatMap((h) => (h.outputs ?? []).map((o) => o.commitment)),
+    );
+    const amountOf = new Map(utxoRows.map((r) => [r.hash, BigInt(r.amountNau)] as const));
     let incoming = 0;
     for (const id of fresh) {
       const raw = await this.node.mempoolKernelRaw(id);
       const scan = await this.core.scanMempoolKernel(raw, unspent, nextKeyIndices);
       this.seenIds.add(id);
-      for (const out of scan.incoming) {
+      const ownSend = scan.incoming.some((o) => ownOutputs.has(o.commitment));
+      const arriving = scan.incoming.filter((o) => !ownOutputs.has(o.commitment));
+      const timestampMs = scan.timestamp_ms || this.now();
+
+      if (scan.spent.length > 0 && !ownSend) {
+        // This wallet's coins, spent by a transaction it did not build: one
+        // pending "sent" row, what comes back counted as change, and the
+        // coins held so the balance does not offer them again.
+        const spentHashes = [...scan.spent].sort();
+        const key = outgoingKey(this.accountId, spentHashes[0]);
+        for (const o of arriving) this.lastSeen.set(o.commitment, this.polls);
+        if (!(await this.db.get('history', key))) {
+          const spentNau = spentHashes.reduce((sum, h) => sum + (amountOf.get(h) ?? 0n), 0n);
+          const backNau = arriving.reduce((sum, o) => sum + BigInt(o.amount_nau), 0n);
+          const change = backNau <= spentNau ? backNau : 0n;
+          const row: HistoryRecord = {
+            key,
+            accountId: this.accountId,
+            kind: 'sent',
+            status: 'pending',
+            txid: id,
+            amountNau: (spentNau - change).toString(),
+            feeNau: null,
+            timestampMs,
+            height: null,
+            inputHashes: spentHashes,
+            recipient: null,
+            error: null,
+            changeNau: change > 0n ? change.toString() : null,
+            outputs: arriving.map((o) => ({ commitment: o.commitment, role: 'change' as const })),
+          };
+          await this.db.put('history', row);
+          for (const h of spentHashes) {
+            const coin = await this.db.get('utxos', `${this.accountId}:${h}`);
+            if (coin && coin.pendingTxid === null) await this.db.put('utxos', { ...coin, pendingTxid: id });
+          }
+        }
+        continue;
+      }
+
+      for (const out of arriving) {
         this.lastSeen.set(out.commitment, this.polls);
         const key = incomingKey(this.accountId, out.commitment);
         if (await this.db.get('history', key)) continue;
@@ -93,7 +143,7 @@ export class MempoolWatcher {
           txid: id,
           amountNau: out.amount_nau,
           feeNau: null,
-          timestampMs: scan.timestamp_ms || this.now(),
+          timestampMs,
           height: null,
           inputHashes: [],
           recipient: null,
@@ -112,18 +162,30 @@ export class MempoolWatcher {
     // A pending row whose transaction the node no longer holds, and which
     // no block confirmed, goes after a little patience.
     const pending = (await this.db.getAllFromIndex('history', 'byAccount', this.accountId)).filter(
-      (h) => h.kind === 'received' && h.status === 'pending' && h.key.includes(`:${INCOMING_KEY_PREFIX}`),
+      (h) => h.status === 'pending' && (h.key.includes(`:${INCOMING_KEY_PREFIX}`) || h.key.includes(`:${OUTGOING_KEY_PREFIX}`)),
     );
     for (const row of pending) {
-      const commitment = row.outputs?.[0]?.commitment ?? '';
-      if (current.has(row.txid)) {
-        this.lastSeen.set(commitment, this.polls);
+      const marker = row.outputs?.[0]?.commitment ?? row.key;
+      // An "incoming" row for this wallet's own change (written before own
+      // sends were recognised) goes at once.
+      if (row.kind === 'received' && ownOutputs.has(marker)) {
+        await this.db.delete('history', row.key);
+        this.lastSeen.delete(marker);
         continue;
       }
-      const seen = this.lastSeen.get(commitment) ?? this.polls;
+      if (current.has(row.txid)) {
+        this.lastSeen.set(marker, this.polls);
+        continue;
+      }
+      const seen = this.lastSeen.get(marker) ?? this.polls;
       if (this.polls - seen >= this.patience) {
         await this.db.delete('history', row.key);
-        this.lastSeen.delete(commitment);
+        this.lastSeen.delete(marker);
+        // Coins held for a spend that went away are offered again.
+        for (const h of row.inputHashes) {
+          const coin = await this.db.get('utxos', `${this.accountId}:${h}`);
+          if (coin && coin.pendingTxid === row.txid && coin.spentHeight === null) await this.db.put('utxos', { ...coin, pendingTxid: null });
+        }
       }
     }
 

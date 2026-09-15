@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 
 import { formatNau, useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
-import { abbreviateAddress, paymentQrPayload, paymentUri } from '../util/address';
+import { abbreviateAddress, metaProblem, paymentQrPayload, paymentUri } from '../util/address';
 import { copyText } from '../util/clipboard';
 import type { KeyKind } from '../wallet/core';
 
@@ -50,7 +50,11 @@ export function Receive() {
   // The requested amount as a conforming NIP-002 decimal (from nau, so
   // "1,5" or ".5" never reach the link), or undefined when none is asked.
   const [linkAmount, setLinkAmount] = useState<string | undefined>(undefined);
-  const paymentLink = paymentUri(address, linkAmount);
+  // A note for the payer: the link's message. It is shown on their review
+  // screen and kept with their send; it never reaches this wallet.
+  const [requestNote, setRequestNote] = useState('');
+  const noteError = requestNote.trim() ? metaProblem(requestNote.trim()) : null;
+  const paymentLink = paymentUri(address, linkAmount, noteError ? undefined : requestNote.trim() || undefined);
 
   // Validate the request amount through the wallet core and normalise it.
   useEffect(() => {
@@ -198,14 +202,22 @@ export function Receive() {
               error={amountError}
               autoFocus
             />
+            <TextInput
+              label="Note for the payer (optional)"
+              description="Shown on the payer's screen and kept with their send. It does not reach you."
+              value={requestNote}
+              onChange={(e) => setRequestNote(e.currentTarget.value)}
+              error={noteError}
+              maxLength={255}
+            />
             <Text size="xs" c="dimmed" ff="monospace" style={{ wordBreak: 'break-all' }}>
               {abbreviateAddress(paymentLink)}
             </Text>
             <Group grow>
-              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError)}>
+              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError || noteError)}>
                 Copy link
               </Button>
-              <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={Boolean(amountError)}>
+              <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={Boolean(amountError || noteError)}>
                 Share
               </Button>
             </Group>

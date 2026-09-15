@@ -136,7 +136,7 @@ export function Send() {
     setAskLustration(false);
     try {
       const sentTo = recipient.trim().toLowerCase();
-      await startSend({ recipient: recipient.trim(), amount: amount.trim(), fee: fee.trim(), accept_lustration: acceptLustration });
+      await startSend({ recipient: recipient.trim(), amount: amount.trim(), fee: fee.trim(), accept_lustration: acceptLustration }, linkMeta?.message ?? null);
       setLastRecipient(sentTo);
       setRecipient('');
       setAmount('');
@@ -268,16 +268,6 @@ export function Send() {
               <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
                 {kind}
               </Badge>
-              {linkMeta?.label && (
-                <Text size="sm" mt={4}>
-                  Payee named in the link: {linkMeta.label}
-                </Text>
-              )}
-              {linkMeta?.message && (
-                <Text size="sm" c="dimmed">
-                  Note from the link: {linkMeta.message}
-                </Text>
-              )}
             </div>
             <div className="vault-review-row">
               <span>Amount</span>
@@ -292,6 +282,30 @@ export function Send() {
               <b>{formatNau(totalNau)} NPT</b>
             </div>
           </div>
+          {(linkMeta?.label || linkMeta?.message) && (
+            <div className="vault-link-meta">
+              {linkMeta.label && (
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Payee named in the link, unverified
+                  </Text>
+                  <Text size="sm" truncate dir="auto" className="vault-bidi">
+                    {linkMeta.label}
+                  </Text>
+                </div>
+              )}
+              {linkMeta.message && (
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Note from the link, kept with this send
+                  </Text>
+                  <Text size="sm" truncate dir="auto" className="vault-bidi">
+                    {linkMeta.message}
+                  </Text>
+                </div>
+              )}
+            </div>
+          )}
           <Text size="xs" c="dimmed">
             Uses {used === 1 ? '1 coin' : `${used} coins`} of {formatNau(heldNau)} NPT, held until the transaction is confirmed, usually within a few blocks. Spendable meanwhile: {formatNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {formatNau(balance.spendableNau - totalNau)} NPT.
           </Text>

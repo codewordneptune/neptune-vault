@@ -217,12 +217,12 @@ export class SyncEngine {
         const existing = await utxoStore.get(key);
         if (!existing) continue;
         await utxoStore.put({ ...existing, spentHeight: block.height, spentTxid: existing.pendingTxid });
-        if (existing.pendingTxid) {
-          const sent = await historyStore.get(`${this.accountId}:sent:${existing.pendingTxid}`);
-          if (sent && sent.status === 'pending') {
-            await historyStore.put({ ...sent, status: 'confirmed', height: block.height });
-          }
+        const sent = existing.pendingTxid ? await historyStore.get(`${this.accountId}:sent:${existing.pendingTxid}`) : undefined;
+        if (sent) {
+          if (sent.status === 'pending') await historyStore.put({ ...sent, status: 'confirmed', height: block.height });
         } else {
+          // Not a send this device built (a coin the mempool watcher held
+          // for a transaction seen elsewhere lands here too).
           elsewhere.push(hash);
           spentNau += BigInt(existing.amountNau);
         }
@@ -249,6 +249,12 @@ export class SyncEngine {
           outputs: block.incoming.filter((u) => u.commitment).map((u) => ({ commitment: u.commitment as string, role: 'change' as const })),
         };
         await historyStore.put(elsewhereRow);
+        // The watcher's pending row for the same spend, if any.
+        const spentSet = new Set(elsewhere);
+        const rows = await historyStore.index('byAccount').getAll(this.accountId);
+        for (const r of rows) {
+          if (r.status === 'pending' && r.key.includes(':outgoing:') && r.inputHashes.some((h) => spentSet.has(h))) await historyStore.delete(r.key);
+        }
       }
 
       await tx.objectStore('blocks').put({

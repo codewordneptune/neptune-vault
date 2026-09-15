@@ -59,7 +59,7 @@ export class SendService {
       .map((r) => r.stored as StoredUtxo);
   }
 
-  async send(request: SendRequest, onProgress: (p: SendProgress) => void): Promise<SendOutcome> {
+  async send(request: SendRequest, onProgress: (p: SendProgress) => void, note: string | null = null): Promise<SendOutcome> {
     const now = Date.now();
     onProgress({ stage: 'planning' });
     const plan = await this.core.planInputs(await this.spendable(now), request, now);
@@ -96,13 +96,13 @@ export class SendService {
     const accepted = await this.node.submitTransaction(transaction);
     if (!accepted) throw new Error('the node did not accept the transaction');
 
-    await this.recordPending(built.summary.txid, request, built.summary.input_hashes, built.summary.amount_nau, built.summary.fee_nau, built.summary.change_nau, built.summary.output_commitments ?? []);
+    await this.recordPending(built.summary.txid, request, built.summary.input_hashes, built.summary.amount_nau, built.summary.fee_nau, built.summary.change_nau, built.summary.output_commitments ?? [], note);
     onProgress({ stage: 'done' });
     return { txid: built.summary.txid, proving, claimVersion: version };
   }
 
   /** Mark the inputs reserved and add the pending history entry (R18). */
-  private async recordPending(txid: string, request: SendRequest, inputHashes: string[], amountNau: string, feeNau: string, changeNau: string | null, commitments: string[]): Promise<void> {
+  private async recordPending(txid: string, request: SendRequest, inputHashes: string[], amountNau: string, feeNau: string, changeNau: string | null, commitments: string[], note: string | null): Promise<void> {
     const tx = this.db.transaction(['utxos', 'history'], 'readwrite');
     for (const hash of inputHashes) {
       const key = `${this.accountId}:${hash}`;
@@ -125,6 +125,7 @@ export class SendService {
       changeNau,
       // Kernel order: the recipient's output first, the change last.
       outputs: commitments.map((commitment, i) => ({ commitment, role: i === 0 ? 'recipient' : 'change' })),
+      note,
     };
     await tx.objectStore('history').put(entry);
     await tx.done;

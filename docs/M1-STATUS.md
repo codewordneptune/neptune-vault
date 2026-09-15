@@ -98,8 +98,12 @@ produced a single proof for it (seconds on regtest); mine after the log says
   commitment (kernel ids change as the node rewrites transactions; the
   commitment does not), drops the row when the transaction has been gone for
   two polls, and marks the wallet's own pending sends with whether the node
-  still holds them. The block scan deletes the pending row when the coin
-  arrives. Verified on regtest: a node-wallet send showed as "Incoming +0.7"
+  still holds them. Outputs of the wallet's own pending sends (change, a
+  payment to itself) are not incoming and are skipped; a transaction that
+  spends this wallet's coins without being one of its sends (another device,
+  same phrase) becomes one pending "sent" row and holds those coins, and
+  the block scan turns it into the confirmed row. The block scan deletes the
+  pending row when the coin arrives. Verified on regtest: a node-wallet send showed as "Incoming +0.7"
   within seconds and became "Received · block 14" after mining. A node
   without the namespace answers "Method not found" once and the watcher
   switches itself off. What would make it cheap at scale is a receiver

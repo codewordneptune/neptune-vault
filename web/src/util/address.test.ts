@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { abbreviateAddress, addressKindLabel, parsePaymentText, paymentQrPayload, paymentUri } from './address';
+import { abbreviateAddress, addressKindLabel, parsePaymentText, paymentQrPayload, paymentUri, metaProblem } from './address';
 
 describe('abbreviateAddress', () => {
   it('keeps the prefix plus eight characters and the last eight', () => {
@@ -65,5 +65,27 @@ describe('addressKindLabel', () => {
     expect(addressKindLabel('NECHM1ABC')).toBe('Short (EC hybrid)');
     expect(addressKindLabel('nviewt1abc')).toBe('View-only (Viewing)');
     expect(addressKindLabel('hello')).toBe('Unknown kind');
+  });
+});
+
+describe('label and message', () => {
+  const addr = 'nolgar1' + 'q'.repeat(20);
+  it('drops a label or message that is only whitespace', () => {
+    const parsed = parsePaymentText(`neptunecash:${addr}?label=%20%20&message=%20Invoice%2042%20`);
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.label).toBeUndefined();
+    expect(parsed.message).toBe('Invoice 42');
+  });
+  it('puts a note into a link percent-encoded, with a space as %20', () => {
+    expect(paymentUri(addr, '1.5', 'for the tickets & more')).toBe(`neptunecash:${addr}?amount=1.5&message=for%20the%20tickets%20%26%20more`);
+    expect(paymentUri(addr, undefined, 'Café')).toBe(`neptunecash:${addr}?message=Caf%C3%A9`);
+    expect(parsePaymentText(paymentUri(addr, '1.5', 'for the tickets & more')).message).toBe('for the tickets & more');
+  });
+  it('refuses notes the spec forbids', () => {
+    expect(metaProblem('Invoice 42')).toBeNull();
+    expect(metaProblem('a'.repeat(255))).toBeNull();
+    expect(metaProblem('a'.repeat(256))).toMatch(/255/);
+    expect(metaProblem('line\nbreak')).toMatch(/not allowed/);
+    expect(metaProblem('x\u202Ey')).toMatch(/not allowed/);
   });
 });
