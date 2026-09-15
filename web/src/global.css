@@ -699,3 +699,10 @@ html {
   font-weight: 600;
   border-color: var(--v-accent);
 }
+.vault-link-meta-form > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.vault-link-meta-form > div > div + div {
+  margin-top: 6px;
+}

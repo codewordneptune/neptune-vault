@@ -299,24 +299,24 @@ export function Send() {
               <IconLink size={16} stroke={1.8} aria-hidden />
               <div style={{ minWidth: 0 }}>
                 {linkMeta.label && (
-                  <Text size="sm" truncate>
-                    <Text component="span" size="xs" c="dimmed">
-                      Name in the link, unverified:{' '}
+                  <div style={{ minWidth: 0 }}>
+                    <Text size="xs" c="dimmed">
+                      Name in the link (unverified)
                     </Text>
-                    <span dir="auto" className="vault-bidi">
+                    <Text size="sm" truncate dir="auto" className="vault-bidi">
                       {linkMeta.label}
-                    </span>
-                  </Text>
+                    </Text>
+                  </div>
                 )}
                 {linkMeta.message && (
-                  <Text size="sm" truncate>
-                    <Text component="span" size="xs" c="dimmed">
-                      Note from the link, kept with this send:{' '}
+                  <div style={{ minWidth: 0 }}>
+                    <Text size="xs" c="dimmed">
+                      Note from the link, kept with this send
                     </Text>
-                    <span dir="auto" className="vault-bidi">
+                    <Text size="sm" truncate dir="auto" className="vault-bidi">
                       {linkMeta.message}
-                    </span>
-                  </Text>
+                    </Text>
+                  </div>
                 )}
               </div>
             </div>
@@ -423,24 +423,24 @@ export function Send() {
                 <IconLink size={16} stroke={1.8} aria-hidden />
                 <div style={{ minWidth: 0 }}>
                   {linkMeta.label && (
-                    <Text size="sm" truncate>
-                      <Text component="span" size="xs" c="dimmed">
-                        Name in the link, unverified:{' '}
+                    <div style={{ minWidth: 0 }}>
+                      <Text size="xs" c="dimmed">
+                        Name in the link (unverified)
                       </Text>
-                      <span dir="auto" className="vault-bidi">
+                      <Text size="sm" truncate dir="auto" className="vault-bidi">
                         {linkMeta.label}
-                      </span>
-                    </Text>
+                      </Text>
+                    </div>
                   )}
                   {linkMeta.message && (
-                    <Text size="sm" truncate>
-                      <Text component="span" size="xs" c="dimmed">
-                        Note from the link:{' '}
+                    <div style={{ minWidth: 0 }}>
+                      <Text size="xs" c="dimmed">
+                        Note from the link
                       </Text>
-                      <span dir="auto" className="vault-bidi">
+                      <Text size="sm" truncate dir="auto" className="vault-bidi">
                         {linkMeta.message}
-                      </span>
-                    </Text>
+                      </Text>
+                    </div>
                   )}
                 </div>
               </div>
