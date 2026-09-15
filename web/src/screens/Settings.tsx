@@ -1,6 +1,6 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
-import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconWallet } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -575,6 +575,7 @@ function RescanCard() {
   const from = account.birthdayHeight === 0 ? 'the current tip (not set yet)' : `block ${showBlock(account.birthdayHeight)}`;
 
   const [rescanError, setRescanError] = useState<string | null>(null);
+  const [fast, setFast] = useState(true);
   const rescan = async (fast: boolean) => {
     setBusy(true);
     setRescanError(null);
@@ -612,26 +613,30 @@ function RescanCard() {
           <Text size="sm">
             The local history and balance are rebuilt from the chain. Your funds are not affected. Sends made from this device lose their recipient and fee details, which the chain does not carry.
           </Text>
-          <Text size="sm" fw={600}>Fast</Text>
-          <Text size="sm" c="dimmed">
-            The node's coin index says which blocks hold payments to you, and only those are fetched: seconds. The node learns which coins are yours.
-          </Text>
-          <Button loading={busy} onClick={() => void rescan(true)}>
-            Fast rescan
+          <SegmentedControl
+            fullWidth
+            value={fast ? 'fast' : 'private'}
+            onChange={(v) => setFast(v === 'fast')}
+            data={[
+              { value: 'fast', label: 'Fast rescan' },
+              { value: 'private', label: 'Private rescan' },
+            ]}
+          />
+          {fast ? (
+            <Text size="sm" c="dimmed">
+              The node's coin index says which blocks hold payments to you, and only those are fetched: seconds. The node learns which coins are yours, though not the amounts.
+            </Text>
+          ) : (
+            <>
+              <Text size="sm" c="dimmed">
+                Every block from the one you choose is downloaded and scanned here. The node learns nothing about your coins; older blocks take longer.
+              </Text>
+              <StartBlockPicker value={height} onChange={setHeight} node={() => services.node()} error={rescanError} />
+            </>
+          )}
+          <Button loading={busy} onClick={() => void rescan(fast)} disabled={!fast && !Number(height)}>
+            Rescan
           </Button>
-          <Text size="sm" fw={600}>Private, from a block</Text>
-          <Text size="sm" c="dimmed">
-            Every block from the one you choose is downloaded and scanned here. The node learns nothing about your coins; older blocks take longer.
-          </Text>
-          <StartBlockPicker value={height} onChange={setHeight} node={() => services.node()} error={rescanError} />
-          <Group grow>
-            <Button variant="default" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="light" loading={busy} onClick={() => void rescan(false)} disabled={!Number(height)}>
-              Rescan from this block
-            </Button>
-          </Group>
         </Stack>
       </Modal>
     </Stack>
