@@ -1,7 +1,7 @@
 import { Box, Container, Group, Loader } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
-import type { ReactElement } from 'react';
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import { useEffect, type ReactElement } from 'react';
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 
 import { useApp } from './app/AppContext';
 import { Logo } from './components/Logo';
@@ -26,6 +26,11 @@ const TABS = [
 
 export function App() {
   const { ready, account, locked, services } = useApp();
+  // A new screen starts at its top; the router alone keeps the old scroll position.
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
 
   // Do not route until the stored account has been looked up, or a reload
   // would bounce an existing account to onboarding.
