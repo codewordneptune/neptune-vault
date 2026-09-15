@@ -120,6 +120,9 @@ export function Settings() {
             <IconShieldCheck size={18} stroke={1.8} aria-hidden />
             Backup
           </Title>
+          <Text size="sm">
+            The backup file and the seed phrase below are for {account ? walletName(account) : 'this wallet'} only. Each wallet on this device has its own.
+          </Text>
           {persistent ? (
             <Text size="sm" c="dimmed">
               Persistent storage is granted, so the browser will not evict this wallet's data on its own. Clearing the browser's site data still deletes it; keep the seed phrase or a backup file.
@@ -142,7 +145,7 @@ export function Settings() {
             </Alert>
           )}
           <Text size="sm" c={account?.lastBackupAt ? 'dimmed' : 'yellow'}>
-            Last backup file: {lastBackup}
+            Last backup file of {account ? walletName(account) : 'this wallet'}: {lastBackup}
           </Text>
           <Group>
             <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>
