@@ -8,7 +8,7 @@
     "Cross-Origin-Embedder-Policy": "require-corp",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
+    "Permissions-Policy": "camera=(self), microphone=(), geolocation=()"
   },
   "mimeTypes": {
     ".wasm": "application/wasm",
