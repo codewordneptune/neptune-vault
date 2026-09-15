@@ -5,7 +5,7 @@ import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconInfoCi
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { useApp } from '../app/AppContext';
+import { showBlock, useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
 import { requestPersistentStorage } from '../storage/db';
@@ -39,7 +39,7 @@ export function Settings() {
     try {
       const { NodeClient } = await import('../node/rpc');
       const height = await new NodeClient(nodeUrl.trim()).probe();
-      result = { ok: true, text: `Reachable, tip height ${height}`, at: Date.now() };
+      result = { ok: true, text: `Reachable, tip height ${showBlock(height)}`, at: Date.now() };
     } catch (e) {
       result = { ok: false, text: (e as Error).message, at: Date.now() };
     }
@@ -478,7 +478,7 @@ function RescanCard() {
   const [height, setHeight] = useState<number | string>(account?.birthdayHeight ?? 1);
   const [busy, setBusy] = useState(false);
   if (!account) return null;
-  const from = account.birthdayHeight === 0 ? 'the current tip (not set yet)' : `block ${account.birthdayHeight}`;
+  const from = account.birthdayHeight === 0 ? 'the current tip (not set yet)' : `block ${showBlock(account.birthdayHeight)}`;
 
   const [rescanError, setRescanError] = useState<string | null>(null);
   const rescan = async () => {
@@ -488,7 +488,7 @@ function RescanCard() {
       try {
         const tip = await services.node().probe();
         if (Number(height) > tip) {
-          setRescanError(`The chain is only at block ${tip}; enter that or a lower block.`);
+          setRescanError(`The chain is only at block ${showBlock(tip)}; enter that or a lower block.`);
           return;
         }
       } catch {

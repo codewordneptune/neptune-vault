@@ -65,7 +65,7 @@ export function Receive() {
   // Validate the request amount through the wallet core and normalise it.
   useEffect(() => {
     let cancelled = false;
-    const text = requestAmount.trim();
+    const text = requestAmount.replace(/[s  ]/g, '');
     if (text === '') {
       setLinkAmount(undefined);
       setAmountError(null);

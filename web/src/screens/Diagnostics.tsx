@@ -6,6 +6,7 @@ import { IconChevronLeft } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
+import { showInt } from '../util/format';
 
 export function Diagnostics() {
   const navigate = useNavigate();
@@ -40,13 +41,13 @@ export function Diagnostics() {
               value={
                 last.error
                   ? `Failed: ${last.error}`
-                  : `${last.seconds.toFixed(0)} s, peak ${last.peakMb.toFixed(0)} MB, ${last.threads || 'single'} threads`
+                  : `${showInt(last.seconds)} s, peak ${showInt(last.peakMb)} MB, ${last.threads || 'single'} threads`
               }
               state={last.error ? 'warn' : 'ok'}
             />
             <Fact
               label="Prover"
-              value={`${last.claimVersion === 5 ? 'Pre-fork package, claim version 5' : `Claim version ${last.claimVersion}`}${last.error && last.peakMb > 0 ? `, ${last.peakMb.toFixed(0)} MB before it failed` : ''}`}
+              value={`${last.claimVersion === 5 ? 'Pre-fork package, claim version 5' : `Claim version ${last.claimVersion}`}${last.error && last.peakMb > 0 ? `, ${showInt(last.peakMb)} MB before it failed` : ''}`}
             />
           </Stack>
         ) : (

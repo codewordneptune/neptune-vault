@@ -7,12 +7,13 @@ import { IconAddressBook, IconClipboard, IconLink, IconScan } from '@tabler/icon
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { formatNau, useApp } from '../app/AppContext';
+import { formatNau, showNau, useApp } from '../app/AppContext';
 import { RequiresLustrationError } from '../app/send';
 import { ContactPicker } from '../components/ContactPicker';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
 import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
+import { showInt } from '../util/format';
 import { networkLabel } from '../util/network';
 
 // Fee presets (R19). Every level clears the default proof-upgrader floor of
@@ -66,7 +67,9 @@ export function Send() {
 
   // Field checks run on blur and again on submit. A value in nau, or the
   // message explaining why there is none.
-  const parsePositive = async (text: string, what: string): Promise<{ nau: bigint } | { message: string }> => {
+  const parsePositive = async (raw: string, what: string): Promise<{ nau: bigint } | { message: string }> => {
+    // A pasted "1 234.5" is fine; spaces (including the narrow ones the app shows) are grouping.
+    const text = raw.replace(/[s  ]/g, '');
     if (text.trim() === '') return { message: `Enter the ${what}` };
     if (text.trim().startsWith('-')) return { message: `The ${what} must be greater than zero` };
     let nau: bigint;
@@ -97,7 +100,7 @@ export function Send() {
     const feeMessage = 'message' in f ? f.message : null;
     if ('nau' in a && 'nau' in f) {
       if (a.nau + f.nau > balance.spendableNau) {
-        amountMessage = `Amount plus fee exceeds the spendable balance of ${formatNau(balance.spendableNau)} NPT`;
+        amountMessage = `Amount plus fee exceeds the spendable balance of ${showNau(balance.spendableNau)} NPT`;
       } else {
         setTotals({ amountNau: a.nau, feeNau: f.nau });
       }
@@ -116,7 +119,7 @@ export function Send() {
     }
     const max = balance.spendableNau - f.nau;
     if (max <= 0n) {
-      setAmountError(`The fee alone exceeds the spendable balance of ${formatNau(balance.spendableNau)} NPT`);
+      setAmountError(`The fee alone exceeds the spendable balance of ${showNau(balance.spendableNau)} NPT`);
       return;
     }
     setAmount(formatNau(max));
@@ -223,7 +226,7 @@ export function Send() {
           {proving && p && <Progress value={(100 * p.index) / p.total} animated />}
           {proving && p && (
             <Text size="xs" c="dimmed">
-              {provingSeconds} s so far, {p.threads || 'single'} threads{p.memoryMb ? `, ${p.memoryMb.toFixed(0)} MB` : ''}. You can switch apps; the proof continues and the app tells you when it is submitted.
+              {showInt(provingSeconds)} s so far, {p.threads || 'single'} threads{p.memoryMb ? `, ${showInt(p.memoryMb)} MB` : ''}. You can switch apps; the proof continues and the app tells you when it is submitted.
             </Text>
           )}
           {proving && (
@@ -280,15 +283,15 @@ export function Send() {
             </div>
             <div className="vault-review-row">
               <span>Amount</span>
-              <b>{formatNau(totals.amountNau)} NPT</b>
+              <b>{showNau(totals.amountNau)} NPT</b>
             </div>
             <div className="vault-review-row">
               <span>Fee</span>
-              <b>{formatNau(totals.feeNau)} NPT</b>
+              <b>{showNau(totals.feeNau)} NPT</b>
             </div>
             <div className="vault-review-row total">
               <span>Total</span>
-              <b>{formatNau(totalNau)} NPT</b>
+              <b>{showNau(totalNau)} NPT</b>
             </div>
           </div>
           {(linkMeta?.label || linkMeta?.message) && (
@@ -319,7 +322,7 @@ export function Send() {
             </div>
           )}
           <Text size="xs" c="dimmed">
-            Uses {used === 1 ? '1 coin' : `${used} coins`} of {formatNau(heldNau)} NPT, held until the transaction is confirmed, usually within a few blocks. Spendable meanwhile: {formatNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {formatNau(balance.spendableNau - totalNau)} NPT.
+            Uses {used === 1 ? '1 coin' : `${used} coins`} of {showNau(heldNau)} NPT, held until the transaction is confirmed, usually within a few blocks. Spendable meanwhile: {showNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {showNau(balance.spendableNau - totalNau)} NPT.
           </Text>
           {askLustration && (
             <Alert color="yellow" title="One more thing">
@@ -346,7 +349,7 @@ export function Send() {
               Send
             </Title>
             <Text size="sm" c="dimmed">
-              Spendable {formatNau(balance.spendableNau)} NPT
+              Spendable {showNau(balance.spendableNau)} NPT
             </Text>
           </div>
           <Button size="compact-md" variant="light" className="vault-tap" leftSection={<IconAddressBook size={16} stroke={1.8} />} onClick={() => setPicking(true)}>

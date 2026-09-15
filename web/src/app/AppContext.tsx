@@ -2,6 +2,7 @@
 // progress, and the derived balance and history. Screens subscribe here.
 
 import { notifications } from '@mantine/notifications';
+import { groupDigits, showInt } from '../util/format';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { AccountRecord, HistoryRecord, Network, UtxoRecord } from '../storage/db';
@@ -314,4 +315,18 @@ export function formatNau(nau: bigint): string {
   let text = whole.toString();
   if (frac > 0n) text += '.' + frac.toString().padStart(8, '0').replace(/0+$/, '');
   return (negative ? '-' : '') + text;
+}
+
+/**
+ * An amount for people to read: the plain form with the whole part grouped
+ * in threes by a narrow no-break space (locale-neutral, never wraps). Links
+ * and inputs keep the plain form, which NIP-002 requires.
+ */
+export function showNau(nau: bigint): string {
+  return groupDigits(formatNau(nau));
+}
+
+/** A block height for people to read, grouped like an amount. */
+export function showBlock(height: number): string {
+  return showInt(height);
 }

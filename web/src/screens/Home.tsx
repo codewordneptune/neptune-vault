@@ -5,7 +5,7 @@ import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCopy, Icon
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { formatNau, useApp } from '../app/AppContext';
+import { showBlock, showNau, useApp } from '../app/AppContext';
 import { LINKS } from '../app/links';
 import type { StoredUtxo } from '../wallet/core';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
@@ -24,7 +24,7 @@ export function Home() {
     setHidden(next);
     void services.updateSettings({ hideBalance: next });
   };
-  const amount = (nau: bigint) => (hidden ? '••••' : formatNau(nau));
+  const amount = (nau: bigint) => (hidden ? '••••' : showNau(nau));
   // Re-render every 30 s so "2 min ago" stays right.
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -85,9 +85,9 @@ export function Home() {
       : sync.phase === 'checking'
         ? 'Checking the chain'
         : sync.phase === 'scanning'
-          ? `Scanning block ${sync.syncedHeight} of ${sync.tipHeight}`
+          ? `Scanning block ${showBlock(sync.syncedHeight)} of ${showBlock(sync.tipHeight)}`
           : sync.phase === 'done'
-            ? `Up to date · block ${sync.syncedHeight}${lastSyncedAt ? ` · ${ago(lastSyncedAt)}` : ''}`
+            ? `Up to date · block ${showBlock(sync.syncedHeight)}${lastSyncedAt ? ` · ${ago(lastSyncedAt)}` : ''}`
             : sync.message ?? 'Sync failed';
 
   const incomingNau = history.filter((h) => h.kind === 'received' && h.status === 'pending').reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
@@ -128,7 +128,7 @@ export function Home() {
   const explorer = account?.network === 'main' ? LINKS.explorerOutput : null;
 
   const statusOf = (h: HistoryRecord) =>
-    h.status === 'confirmed' ? (h.height !== null ? `Confirmed in block ${h.height}` : 'Confirmed') : h.status === 'pending' ? 'Pending, waiting for a block' : 'Failed';
+    h.status === 'confirmed' ? (h.height !== null ? `Confirmed in block ${showBlock(h.height)}` : 'Confirmed') : h.status === 'pending' ? 'Pending, waiting for a block' : 'Failed';
   const nodeStatusOf = (h: HistoryRecord) => {
     if (h.kind !== 'sent' || h.status !== 'pending' || !h.mempoolCheckedAt) return null;
     return h.mempoolSeenAt ? `In the node's mempool, checked ${formatWhen(h.mempoolCheckedAt)}` : 'Not seen in the node\'s mempool yet';
@@ -175,7 +175,7 @@ export function Home() {
               {hidden ? <IconEyeOff size={16} stroke={1.8} /> : <IconEye size={16} stroke={1.8} />}
             </ActionIcon>
           </Group>
-          <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${formatNau(balance.spendableNau)} NPT`}>
+          <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${showNau(balance.spendableNau)} NPT`}>
             {amount(balance.spendableNau)}
             <small> NPT</small>
           </div>
@@ -230,7 +230,7 @@ export function Home() {
                       </Text>
                       <Text size="xs" c="dimmed">
                         {formatWhen(h.timestampMs)}
-                        {h.height !== null && ` · block ${h.height}`}
+                        {h.height !== null && ` · block ${showBlock(h.height)}`}
                       </Text>
                     </div>
                   </Group>
@@ -328,7 +328,7 @@ export function Home() {
                   : 'The coins held for it become spendable again. If the transaction is confirmed anyway, it still goes through and shows up as sent.'}
             </Text>
             <Text size="sm" c="dimmed">
-              This send: {formatNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${formatNau(BigInt(givingUp.feeNau))} NPT fee`}. Held for it: {formatNau(reservedFor(givingUp))} NPT, which becomes spendable again.
+              This send: {showNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee`}. Held for it: {showNau(reservedFor(givingUp))} NPT, which becomes spendable again.
             </Text>
             <Group grow>
               <Button variant="default" onClick={() => setGivingUp(null)}>

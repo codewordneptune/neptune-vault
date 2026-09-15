@@ -7,7 +7,7 @@ import { useRef } from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { useApp } from '../app/AppContext';
+import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
@@ -119,7 +119,7 @@ export function Onboarding() {
         // Refuse a start above the chain when the node can say where it is.
         try {
           const tip = await services.node().probe();
-          if (height > tip) throw new Error(`The chain is only at block ${tip}; enter that or a lower block`);
+          if (height > tip) throw new Error(`The chain is only at block ${showBlock(tip)}; enter that or a lower block`);
         } catch (e) {
           if ((e as Error).message.startsWith('The chain is only')) throw e;
           // Node unreachable: the sync clamps the height on first contact.

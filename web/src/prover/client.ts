@@ -2,6 +2,7 @@
 // worker per proof so a cancelled or failed run frees its memory.
 
 import type { ProveMessage, ProveRequest } from './worker';
+import { showInt } from '../util/format';
 
 export interface ProveProgress {
   index: number;
@@ -72,8 +73,8 @@ export class ProverClient {
       worker.onerror = (e) => {
         finish();
         const where = current.name ? ` during ${current.name} (step ${current.index + 1} of ${current.total})` : ' before the first step';
-        const memory = lastMemoryMb ? `, memory was ${Math.round(lastMemoryMb)} MB after the previous step` : '';
-        const seconds = Math.round((performance.now() - started) / 1000);
+        const memory = lastMemoryMb ? `, memory was ${showInt(lastMemoryMb)} MB after the previous step` : '';
+        const seconds = showInt((performance.now() - started) / 1000);
         reject(new Error(`The prover crashed${where} after ${seconds} s${memory}. This usually means the device ran out of memory; a send with fewer coins as inputs needs less.${e.message ? ` (${e.message}${e.filename ? ` at ${e.filename.split('/').pop()}:${e.lineno}` : ''})` : ''}`));
       };
       worker.postMessage(request, [request.witness.buffer]);
