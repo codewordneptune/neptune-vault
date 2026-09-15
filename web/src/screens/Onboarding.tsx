@@ -436,7 +436,7 @@ function ImportStep({
             <Checkbox label="This phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
           </>
         )}
-        <Button disabled={words.length !== 18} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this phrase</Button>
+        <Button disabled={words.length !== 18} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this seed</Button>
         <Text size="sm" c="dimmed">Or restore a backup file exported by this app:</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">
