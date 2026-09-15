@@ -75,6 +75,9 @@ export class MempoolWatcher {
     const utxoRows = await this.db.getAllFromIndex('utxos', 'byAccount', this.accountId);
     const unspent = utxoRows.filter((r) => r.spentHeight === null).map((r) => r.stored as StoredUtxo);
     const nextKeyIndices: NextKeyIndices = account ? nextKeyIndicesOf(account) : { generation: 0, ec_hybrid: 0, viewing: 0 };
+    // The core recognises this seed's own outputs against the tip it last
+    // synced to (and a little below); the window inside is generous.
+    const tipHeight = (await this.db.get('syncState', this.accountId))?.syncedHeight ?? 0;
 
     // Unseen kernels, a batch at a time so a busy mempool never means one
     // long burst of downloads; the rest are picked up by the next polls.
@@ -90,22 +93,28 @@ export class MempoolWatcher {
     let incomingNau = 0n;
     for (const id of fresh) {
       const raw = await this.node.mempoolKernelRaw(id);
-      const scan = await this.core.scanMempoolKernel(raw, unspent, nextKeyIndices);
+      const scan = await this.core.scanMempoolKernel(raw, unspent, nextKeyIndices, tipHeight);
       this.seenIds.add(id);
-      const ownSend = scan.incoming.some((o) => ownOutputs.has(o.commitment));
-      const arriving = scan.incoming.filter((o) => !ownOutputs.has(o.commitment));
+      // Three kinds of output can be addressed to this wallet: one of a send
+      // this device recorded (nothing to add), one this seed built elsewhere
+      // (change of a spend made from another device), and a payment from
+      // someone else. The keys tell the second from the third exactly; the
+      // recorded outputs cover sends from before the keys were consulted.
+      const recorded = scan.incoming.some((o) => ownOutputs.has(o.commitment));
+      const ownBack = scan.incoming.filter((o) => o.own && !ownOutputs.has(o.commitment));
+      const arriving = scan.incoming.filter((o) => !o.own && !ownOutputs.has(o.commitment));
       const timestampMs = scan.timestamp_ms || this.now();
 
-      if (scan.spent.length > 0 && !ownSend) {
+      if (scan.spent.length > 0 && !recorded) {
         // This wallet's coins, spent by a transaction it did not build: one
-        // pending "sent" row, what comes back counted as change, and the
-        // coins held so the balance does not offer them again.
+        // pending "sent" row, what this seed built counted as change, and
+        // the coins held so the balance does not offer them again.
         const spentHashes = [...scan.spent].sort();
         const key = outgoingKey(this.accountId, spentHashes[0]);
-        for (const o of arriving) this.lastSeen.set(o.commitment, this.polls);
+        for (const o of ownBack) this.lastSeen.set(o.commitment, this.polls);
         if (!(await this.db.get('history', key))) {
           const spentNau = spentHashes.reduce((sum, h) => sum + (amountOf.get(h) ?? 0n), 0n);
-          const backNau = arriving.reduce((sum, o) => sum + BigInt(o.amount_nau), 0n);
+          const backNau = ownBack.reduce((sum, o) => sum + BigInt(o.amount_nau), 0n);
           const change = backNau <= spentNau ? backNau : 0n;
           const row: HistoryRecord = {
             key,
@@ -121,7 +130,7 @@ export class MempoolWatcher {
             recipient: null,
             error: null,
             changeNau: change > 0n ? change.toString() : null,
-            outputs: arriving.map((o) => ({ commitment: o.commitment, role: 'change' as const })),
+            outputs: ownBack.map((o) => ({ commitment: o.commitment, role: 'change' as const })),
           };
           await this.db.put('history', row);
           for (const h of spentHashes) {
@@ -129,7 +138,6 @@ export class MempoolWatcher {
             if (coin && coin.pendingTxid === null) await this.db.put('utxos', { ...coin, pendingTxid: id });
           }
         }
-        continue;
       }
 
       for (const out of arriving) {

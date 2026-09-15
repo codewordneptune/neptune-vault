@@ -36,13 +36,13 @@ class FakeNode implements MempoolNode {
 class FakeCore {
   /** kernel id -> what the scan finds. */
   scans = new Map<string, MempoolScan>();
-  async scanMempoolKernel(raw: string, _unspent: StoredUtxo[], _next: NextKeyIndices): Promise<MempoolScan> {
+  async scanMempoolKernel(raw: string, _unspent: StoredUtxo[], _next: NextKeyIndices, _tip: number): Promise<MempoolScan> {
     return this.scans.get(raw.replace('kernel:', '')) ?? { incoming: [], spent: [], timestamp_ms: 0 };
   }
 }
 
 const payment = (commitment: string, amount: string, ts = 5000): MempoolScan => ({
-  incoming: [{ commitment, amount_nau: `${amount}000000000000000000000000000000`, amount, key_kind: 'generation', key_index: 0 }],
+  incoming: [{ commitment, amount_nau: `${amount}000000000000000000000000000000`, amount, key_kind: 'generation', key_index: 0, own: false }],
   spent: [],
   timestamp_ms: ts,
 });
@@ -149,7 +149,7 @@ describe('MempoolWatcher', () => {
       inputHashes: ['u1'], recipient: 'r', error: null, outputs: [{ commitment: 'pay', role: 'recipient' }, { commitment: 'chg', role: 'change' }],
     });
     node.ids = ['tx9'];
-    core.scans.set('tx9', { incoming: [{ commitment: 'chg', amount_nau: '5', amount: '5', key_kind: 'generation', key_index: 0 }], spent: ['u1'], timestamp_ms: 1 });
+    core.scans.set('tx9', { incoming: [{ commitment: 'chg', amount_nau: '5', amount: '5', key_kind: 'generation', key_index: 0, own: false }], spent: ['u1'], timestamp_ms: 1 });
     expect((await watcher.poll()).incoming).toBe(0);
     const rows = (await db.getAllFromIndex('history', 'byAccount', 'acc')).filter((h) => h.kind === 'received');
     expect(rows).toHaveLength(0);
@@ -159,7 +159,7 @@ describe('MempoolWatcher', () => {
     const { node, core, watcher } = await setup();
     await db.put('utxos', { key: 'acc:u1', accountId: 'acc', hash: 'u1', stored: {}, amountNau: '5000', amount: '5', confirmedHeight: 1, confirmedTimestampMs: 0, releaseDateMs: null, spentHeight: null, spentTxid: null, pendingTxid: null });
     node.ids = ['tz'];
-    core.scans.set('tz', { incoming: [{ commitment: 'back', amount_nau: '4300', amount: '4.3', key_kind: 'generation', key_index: 0 }], spent: ['u1'], timestamp_ms: 7 });
+    core.scans.set('tz', { incoming: [{ commitment: 'back', amount_nau: '4300', amount: '4.3', key_kind: 'generation', key_index: 0, own: true }], spent: ['u1'], timestamp_ms: 7 });
     expect((await watcher.poll()).incoming).toBe(0);
     const row = (await db.get('history', outgoingKey('acc', 'u1')))!;
     expect(row.kind).toBe('sent');
@@ -176,6 +176,14 @@ describe('MempoolWatcher', () => {
     await watcher.poll();
     expect(await db.get('history', outgoingKey('acc', 'u1'))).toBeUndefined();
     expect((await db.get('utxos', 'acc:u1'))!.pendingTxid).toBeNull();
+  });
+
+  it('never reports an output this seed built as incoming, even with no send recorded', async () => {
+    const { node, core, watcher } = await setup();
+    node.ids = ['own'];
+    core.scans.set('own', { incoming: [{ commitment: 'c9', amount_nau: '5', amount: '5', key_kind: 'generation', key_index: 0, own: true }], spent: [], timestamp_ms: 1 });
+    expect((await watcher.poll()).incoming).toBe(0);
+    expect(await db.get('history', incomingKey('acc', 'c9'))).toBeUndefined();
   });
 
   it('switches itself off when the node has no mempool namespace', async () => {

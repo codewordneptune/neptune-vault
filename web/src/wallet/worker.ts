@@ -87,8 +87,8 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       return { result: JSON.parse(json) };
     }
     case 'scanMempoolKernel': {
-      const [kernelResponse, unspent, nextKeyIndices] = args as [string, unknown[], unknown];
-      const json = requireAccount().scan_mempool_kernel(kernelResponse, JSON.stringify(unspent), JSON.stringify(nextKeyIndices));
+      const [kernelResponse, unspent, nextKeyIndices, tipHeight] = args as [string, unknown[], unknown, number];
+      const json = requireAccount().scan_mempool_kernel(kernelResponse, JSON.stringify(unspent), JSON.stringify(nextKeyIndices), tipHeight);
       return { result: JSON.parse(json) };
     }
     case 'planInputs': {

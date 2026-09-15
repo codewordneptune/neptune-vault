@@ -230,7 +230,10 @@ export class SyncEngine {
       if (elsewhere.length > 0) {
         // One "sent" row for the block. The recipient and the fee are not
         // known here; what came back in the same block is taken as change.
-        const backNau = block.incoming.reduce((sum, u) => sum + BigInt(u.amount_nau), 0n);
+        // Outputs this seed built (change, a payment to itself) come back;
+        // a third party's payment in the same block is a receipt.
+        const back = block.incoming.filter((u) => u.own_build_height !== null && u.own_build_height !== undefined);
+        const backNau = back.reduce((sum, u) => sum + BigInt(u.amount_nau), 0n);
         const change = backNau <= spentNau ? backNau : 0n;
         const elsewhereRow: HistoryRecord = {
           key: `${this.accountId}:spent:${block.height}`,
@@ -246,7 +249,7 @@ export class SyncEngine {
           recipient: null,
           error: null,
           changeNau: change > 0n ? change.toString() : null,
-          outputs: block.incoming.filter((u) => u.commitment).map((u) => ({ commitment: u.commitment as string, role: 'change' as const })),
+          outputs: back.filter((u) => u.commitment).map((u) => ({ commitment: u.commitment as string, role: 'change' as const })),
         };
         await historyStore.put(elsewhereRow);
         // The watcher's pending row for the same spend, if any.

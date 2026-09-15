@@ -51,6 +51,38 @@ pub struct StoredUtxo {
     pub confirmed_height: u64,
     pub confirmed_block: String,
     pub confirmed_timestamp_ms: u64,
+    /// The block height a transaction built from this seed was built against
+    /// when it created this coin, or None when someone else created it. This
+    /// seed derives every output's sender randomness from the build height
+    /// and the receiving address, so its own outputs (change, payments to
+    /// itself) are recognisable exactly, on any device and after a rescan.
+    /// Absent on records scanned before it was kept (a rescan fills it).
+    #[serde(default)]
+    pub own_build_height: Option<u64>,
+}
+
+/// How far back from a coin's confirmation height to look for the height
+/// its transaction was built against. A transaction waits at most hours
+/// in practice; a thousand blocks is about a week.
+pub const OWN_OUTPUT_WINDOW: u64 = 1000;
+
+/// The height a transaction built from this seed was built against when it
+/// created an output with `sender_randomness` for the key at
+/// (`kind`, `index`), searching `latest` and the window below it; None
+/// when no height matches, meaning another wallet created the output.
+pub fn own_build_height(
+    account: &mut Account,
+    kind: KeyKind,
+    index: u64,
+    sender_randomness: Digest,
+    latest: u64,
+) -> Option<u64> {
+    let privacy_digest = account.key(kind, index).to_address().privacy_digest();
+    let entropy = account.entropy();
+    let lowest = latest.saturating_sub(OWN_OUTPUT_WINDOW);
+    (lowest..=latest)
+        .rev()
+        .find(|&h| entropy.generate_sender_randomness(h.into(), privacy_digest) == sender_randomness)
 }
 
 impl StoredUtxo {
@@ -203,6 +235,7 @@ pub fn scan_kernel(
             continue;
         };
         next_key_indices.mark_used(key_kind, key_index);
+        let own_build_height = own_build_height(account, key_kind, key_index, found.sender_randomness, height);
 
         let native_amount = found.utxo.get_native_currency_amount();
         let recovery = IncomingUtxoRecoveryData {
@@ -223,6 +256,7 @@ pub fn scan_kernel(
             confirmed_height: height,
             confirmed_block: block_hash_hex.to_string(),
             confirmed_timestamp_ms: timestamp_ms,
+            own_build_height,
         });
     }
 
@@ -262,6 +296,9 @@ pub struct PendingIncoming {
     pub amount: String,
     pub key_kind: KeyKind,
     pub key_index: u64,
+    /// Created by a transaction built from this seed (change, or a payment
+    /// to itself): not incoming.
+    pub own: bool,
 }
 
 /// What one mempool transaction means for this wallet.
@@ -282,6 +319,7 @@ pub fn scan_mempool_kernel(
     tx_kernel: &TransactionKernel,
     unspent: &[StoredUtxo],
     next_key_indices: NextKeyIndices,
+    tip_height: u64,
 ) -> MempoolScan {
     let mut keys = Vec::new();
     for kind in KeyKind::ALL {
@@ -304,12 +342,16 @@ pub fn scan_mempool_kernel(
             continue;
         };
         let native_amount = found.utxo.get_native_currency_amount();
+        // Built against the tip or a little below it; the next block is
+        // allowed for a node slightly ahead of this wallet.
+        let own = own_build_height(account, key_kind, key_index, found.sender_randomness, tip_height + 1).is_some();
         incoming.push(PendingIncoming {
             commitment: addition_record.canonical_commitment.to_hex(),
             amount_nau: amount::to_nau_string(native_amount),
             amount: amount::format(native_amount),
             key_kind,
             key_index,
+            own,
         });
     }
 

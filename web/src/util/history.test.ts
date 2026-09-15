@@ -37,12 +37,12 @@ function received(hash: string, amountNau: string, height: number | null = 42): 
     error: null,
   };
 }
-function utxo(hash: string, amountNau: string): UtxoRecord {
+function utxo(hash: string, amountNau: string, own?: number | null): UtxoRecord {
   return {
     key: `${A}:${hash}`,
     accountId: A,
     hash,
-    stored: {} as UtxoRecord['stored'],
+    stored: (own === undefined ? {} : { own_build_height: own }) as UtxoRecord['stored'],
     amountNau,
     amount: '',
     confirmedHeight: 1,
@@ -109,6 +109,25 @@ describe('groupHistory', () => {
   it('does not fold anything into a pending send', () => {
     const rows = [sent({ status: 'pending', height: null, changeNau: '4700' }), received('x', '4700', 50)];
     expect(groupHistory(rows, []).map((e) => e.kind)).toEqual(['sent', 'received']);
+  });
+
+  it('folds a coin this seed built whatever its amount, and never one someone else built', () => {
+    const rows = [sent({ changeNau: '4700', outputs: [{ commitment: 'pay', role: 'recipient' }, { commitment: 'chg', role: 'change' }] }), received('mine', '999'), received('theirs', '5000')];
+    const coins = [utxo('mine', '999', 40), utxo('theirs', '5000', null)];
+    const entries = groupHistory(rows, coins);
+    expect(entries.map((e) => [e.kind, e.record.key])).toEqual([
+      ['sent', `${A}:sent:tx1`],
+      ['received', `${A}:recv:theirs`],
+    ]);
+    expect(entries[0].folded.map((r) => r.key)).toEqual([`${A}:recv:mine`]);
+  });
+
+  it('calls a send to yourself by the recipient output this seed built', () => {
+    const rows = [sent({ changeNau: '4700', outputs: [{ commitment: 'pay', role: 'recipient' }, { commitment: 'chg', role: 'change' }] }), received('a', '4700'), received('b', '5000')];
+    const coins = [{ ...utxo('a', '4700', 40), stored: { own_build_height: 40, commitment: 'chg' } as UtxoRecord['stored'] }, { ...utxo('b', '5000', 40), stored: { own_build_height: 40, commitment: 'pay' } as UtxoRecord['stored'] }];
+    const [entry] = groupHistory(rows, coins);
+    expect(entry.kind).toBe('self');
+    expect(entry.folded).toHaveLength(2);
   });
 
   it('keeps the input order', () => {

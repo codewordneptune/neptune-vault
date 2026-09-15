@@ -163,6 +163,7 @@ mod wasm {
             kernel_response: &str,
             unspent_json: &str,
             next_key_indices_json: &str,
+            tip_height: f64,
         ) -> Result<String, JsError> {
             let envelope: Envelope<neptune_rpc_api::model::message::GetTransactionKernelResponse> =
                 serde_json::from_str(kernel_response)
@@ -175,7 +176,7 @@ mod wasm {
                         .map_err(|e| JsError::new(&format!("cannot decode unspent utxos: {e}")))?;
                     let next_key_indices = serde_json::from_str(next_key_indices_json)
                         .map_err(|e| JsError::new(&format!("cannot decode next key indices: {e}")))?;
-                    scan::scan_mempool_kernel(&mut self.0, &kernel, &unspent, next_key_indices)
+                    scan::scan_mempool_kernel(&mut self.0, &kernel, &unspent, next_key_indices, tip_height as u64)
                 }
             };
             serde_json::to_string(&result).map_err(|e| JsError::new(&e.to_string()))

@@ -108,3 +108,16 @@ produced a single proof for it (seconds on regtest); mine after the log says
   without the namespace answers "Method not found" once and the watcher
   switches itself off. What would make it cheap at scale is a receiver
   identifier filter on the node (proposal sent to Thorkil).
+- Own outputs recognised by the keys (2026-09-15). This seed derives every
+  output's sender randomness from the build height and the receiving
+  address (neptune-core's rule), so a coin created by a transaction built
+  from this seed, on any device, is recognisable exactly: the core recomputes
+  the value for the confirmation height and the thousand heights below it
+  and stores the matching height as `own_build_height` (null for a coin
+  someone else created). The history folds change and self-payments by that
+  flag, the mempool watcher never reports an own output as incoming, and a
+  spend seen from the chain alone counts only own outputs as change; the
+  amount rules survive only for coins scanned before the flag existed. Coins
+  already stored get the flag on a rescan. Verified on regtest after a rescan:
+  every coin from the node's wallet flagged null, every change and
+  self-payment flagged with the height it was built against.

@@ -9,9 +9,10 @@ import { SyncEngine } from './sync';
 
 // A chain the fake node serves and a fake core that "finds" what we tell it.
 
-function utxo(hash: string, height: number, amount: string): StoredUtxo {
+function utxo(hash: string, height: number, amount: string, own: number | null = null): StoredUtxo {
   return {
     hash,
+    own_build_height: own,
     amount_nau: `${amount}000000000000000000000000000000`,
     amount,
     key_kind: 'generation',
@@ -157,7 +158,7 @@ describe('sync engine', () => {
 
     node.extendTo(8);
     core.spent.set(8, ['u1']);
-    core.incoming.set(8, [utxo('change', 8, '4')]);
+    core.incoming.set(8, [utxo('change', 8, '4', 7), utxo('gift', 8, '9')]);
     await engine.syncOnce();
     const sent = (await db.get('history', 'acc:spent:8'))!;
     expect(sent.kind).toBe('sent');
@@ -165,6 +166,7 @@ describe('sync engine', () => {
     expect(sent.height).toBe(8);
     expect(BigInt(sent.amountNau)).toBe(BigInt(utxo('u1', 4, '5').amount_nau) - BigInt(utxo('change', 8, '4').amount_nau));
     expect(sent.changeNau).toBe(utxo('change', 8, '4').amount_nau);
+    expect(sent.outputs?.map((o) => o.commitment)).toEqual([]);
     expect(sent.inputHashes).toEqual(['u1']);
 
     // A rewind below the block drops the row again.

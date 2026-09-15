@@ -34,6 +34,8 @@ export interface PendingIncoming {
   amount: string;
   key_kind: KeyKind;
   key_index: number;
+  /** Created by a transaction built from this seed: not incoming. */
+  own: boolean;
 }
 
 /** What one mempool transaction means for this wallet. */
@@ -49,6 +51,12 @@ export interface StoredUtxo {
   hash: string;
   /** Canonical commitment (explorer key); empty on records scanned before it was kept. */
   commitment?: string;
+  /**
+   * The height a transaction built from this seed was built against when it
+   * created this coin (change, or a payment to itself); null when another
+   * wallet created it; absent on records scanned before it was kept.
+   */
+  own_build_height?: number | null;
   amount_nau: string;
   amount: string;
   key_kind: KeyKind;
@@ -116,7 +124,7 @@ export interface WalletCore {
   /** `blocksResponse` is the node's raw JSON-RPC response text for wallet_getBlocks. */
   scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices): Promise<ScanResult>;
   /** `kernelResponse` is the raw JSON-RPC response text of mempool_getTransactionKernel. */
-  scanMempoolKernel(kernelResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices): Promise<MempoolScan>;
+  scanMempoolKernel(kernelResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices, tipHeight: number): Promise<MempoolScan>;
   planInputs(unspent: StoredUtxo[], request: SendRequest, nowMs: number): Promise<InputPlan>;
   /** `snapshotResponse` and `tipHeaderResponse` are raw JSON-RPC response texts. */
   buildSend(

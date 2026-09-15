@@ -75,6 +75,32 @@ fn kernel_paying(account: &mut Account, key_index: u64, coins: &str) -> (Transac
     kernel_paying_kind(account, KeyKind::Generation, key_index, coins)
 }
 
+/// A kernel whose output this seed built: sender randomness derived the way
+/// the wallet's own sends derive it, for `build_height`.
+fn kernel_paying_from_self(account: &mut Account, key_index: u64, coins: &str, build_height: u64) -> (TransactionKernelProxy, Digest) {
+    let key = account.key(KeyKind::Generation, key_index).clone();
+    let address = key.to_address();
+    let amount = amount::parse(coins).unwrap();
+    let utxo = Utxo::new_native_currency(address.lock_script_hash(), amount);
+    let sender_randomness = account
+        .entropy()
+        .generate_sender_randomness(build_height.into(), address.privacy_digest());
+    let payload = UtxoNotificationPayload::new(utxo.clone(), sender_randomness);
+    let announcement: Announcement = address.generate_announcement(payload);
+    let addition_record = commit(Tip5::hash(&utxo), sender_randomness, address.privacy_digest());
+    let proxy = TransactionKernelProxy {
+        inputs: vec![],
+        outputs: vec![addition_record],
+        announcements: vec![announcement],
+        fee: NativeCurrencyAmount::zero(),
+        coinbase: None,
+        timestamp: Timestamp::now(),
+        mutator_set_hash: Digest::default(),
+        merge_bit: false,
+    };
+    (proxy, Tip5::hash(&utxo))
+}
+
 fn kernel_paying_kind(
     account: &mut Account,
     kind: KeyKind,
@@ -234,7 +260,7 @@ fn mempool_kernel_reports_an_output_for_this_wallet() {
     let mut account = account();
     let (proxy, _) = kernel_paying(&mut account, 2, "3.5");
     let kernel = proxy.into_kernel();
-    let scan = scan::scan_mempool_kernel(&mut account, &kernel, &[], NextKeyIndices::default());
+    let scan = scan::scan_mempool_kernel(&mut account, &kernel, &[], NextKeyIndices::default(), 0);
     assert_eq!(scan.incoming.len(), 1);
     assert_eq!(scan.incoming[0].amount, "3.5");
     assert_eq!(scan.incoming[0].key_kind, KeyKind::Generation);
@@ -245,8 +271,35 @@ fn mempool_kernel_reports_an_output_for_this_wallet() {
 
     // Not for us: a kernel paying a different wallet.
     let (proxy, _) = kernel_paying(&mut other, 0, "1");
-    let scan = scan::scan_mempool_kernel(&mut account, &proxy.into_kernel(), &[], NextKeyIndices::default());
+    let scan = scan::scan_mempool_kernel(&mut account, &proxy.into_kernel(), &[], NextKeyIndices::default(), 0);
     assert!(scan.incoming.is_empty());
+}
+
+#[test]
+fn own_outputs_are_recognised_by_their_sender_randomness() {
+    let mut account = account();
+    // Built against height 120, confirmed at 123: found within the window.
+    let (proxy, _) = kernel_paying_from_self(&mut account, 1, "2", 120);
+    let kernel = proxy.into_kernel();
+    let records = kernel.outputs.clone();
+    let (incoming, _, _) = scan::scan_kernel(&mut account, &kernel, &records, 0, &[], NextKeyIndices::default(), 123, "00", 0);
+    assert_eq!(incoming.len(), 1);
+    assert_eq!(incoming[0].own_build_height, Some(120));
+
+    // Someone else's payment: no height matches.
+    let (proxy, _) = kernel_paying(&mut account, 1, "2");
+    let kernel = proxy.into_kernel();
+    let records = kernel.outputs.clone();
+    let (incoming, _, _) = scan::scan_kernel(&mut account, &kernel, &records, 0, &[], NextKeyIndices::default(), 123, "00", 0);
+    assert_eq!(incoming[0].own_build_height, None);
+
+    // The same in the mempool, against the current tip.
+    let (proxy, _) = kernel_paying_from_self(&mut account, 1, "2", 500);
+    let scan = scan::scan_mempool_kernel(&mut account, &proxy.into_kernel(), &[], NextKeyIndices::default(), 500);
+    assert!(scan.incoming[0].own);
+    let (proxy, _) = kernel_paying(&mut account, 1, "2");
+    let scan = scan::scan_mempool_kernel(&mut account, &proxy.into_kernel(), &[], NextKeyIndices::default(), 500);
+    assert!(!scan.incoming[0].own);
 }
 
 #[test]

@@ -38,6 +38,14 @@ export function changeOf(sent: HistoryRecord, utxos: UtxoRecord[]): bigint | nul
   return change >= 0n ? change : null;
 }
 
+/** Whether a received row's coin was created by a transaction built from this seed: true, false, or undefined when the coin predates the flag. */
+function ownership(row: HistoryRecord, utxos: UtxoRecord[]): boolean | undefined {
+  const hash = row.key.slice(row.key.lastIndexOf(':') + 1);
+  const coin = utxos.find((u) => u.hash === hash);
+  const h = (coin?.stored as { own_build_height?: number | null } | undefined)?.own_build_height;
+  return h === undefined ? undefined : h !== null;
+}
+
 export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): HistoryEntry[] {
   const claimed = new Set<string>();
   const sends = new Map<string, HistoryEntry>();
@@ -48,30 +56,44 @@ export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): Histor
     const folded: HistoryRecord[] = [];
     let kind: EntryKind = 'sent';
     if (sent.height !== null) {
-      // Change and a self-payment both land in the block that confirms the send.
-      const sameBlock = rows.filter((r) => r.kind === 'received' && r.height === sent.height);
-      if (sent.txid === '') {
-        // A spend recorded from the chain alone: its change is, by
-        // construction, everything that arrived in that block.
-        if (change !== null && change > 0n) {
-          for (const r of sameBlock) {
-            if (claimed.has(r.key)) continue;
-            claimed.add(r.key);
-            folded.push(r);
-          }
-        }
-      } else if (change !== null && change > 0n) {
-        const c = sameBlock.find((r) => !claimed.has(r.key) && BigInt(r.amountNau) === change);
-        if (c) {
-          claimed.add(c.key);
-          folded.push(c);
+      // What a send brought back lands in the block that confirms it. A coin
+      // this seed built (by its sender randomness) belongs to the send; a
+      // coin scanned before that fact was kept falls back to amount matching;
+      // a coin someone else built is a receipt whatever its amount.
+      const sameBlock = rows.filter((r) => r.kind === 'received' && r.height === sent.height && !claimed.has(r.key));
+      const recipientOutput = (sent.outputs ?? []).find((o) => o.role === 'recipient')?.commitment;
+      const commitmentOf = (r: HistoryRecord) => {
+        const hash = r.key.slice(r.key.lastIndexOf(':') + 1);
+        return (utxos.find((u) => u.hash === hash)?.stored as { commitment?: string } | undefined)?.commitment;
+      };
+      const claim = (r: HistoryRecord) => {
+        claimed.add(r.key);
+        folded.push(r);
+      };
+      for (const r of sameBlock) {
+        const own = ownership(r, utxos);
+        if (own === true) {
+          claim(r);
+          if (recipientOutput && commitmentOf(r) === recipientOutput) kind = 'self';
+          else if (!recipientOutput && sent.recipient !== null && BigInt(r.amountNau) === BigInt(sent.amountNau)) kind = 'self';
         }
       }
-      const self = sent.txid === '' ? undefined : sameBlock.find((r) => !claimed.has(r.key) && BigInt(r.amountNau) === BigInt(sent.amountNau));
-      if (self) {
-        claimed.add(self.key);
-        folded.push(self);
-        kind = 'self';
+      if (folded.length === 0) {
+        // Older coins, without the flag: the amount rules of before.
+        const unknown = sameBlock.filter((r) => ownership(r, utxos) === undefined);
+        if (sent.txid === '') {
+          if (change !== null && change > 0n) for (const r of unknown) claim(r);
+        } else {
+          if (change !== null && change > 0n) {
+            const c = unknown.find((r) => !claimed.has(r.key) && BigInt(r.amountNau) === change);
+            if (c) claim(c);
+          }
+          const self = unknown.find((r) => !claimed.has(r.key) && BigInt(r.amountNau) === BigInt(sent.amountNau));
+          if (self) {
+            claim(self);
+            kind = 'self';
+          }
+        }
       }
     }
     const fee = BigInt(sent.feeNau ?? '0');

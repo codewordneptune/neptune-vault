@@ -100,8 +100,8 @@ export class WalletWorkerClient implements WalletCore {
   scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices) {
     return this.call<ScanResult>('scanBlocks', [blocksResponse, unspent, nextKeyIndices]);
   }
-  scanMempoolKernel(kernelResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices) {
-    return this.call<MempoolScan>('scanMempoolKernel', [kernelResponse, unspent, nextKeyIndices]);
+  scanMempoolKernel(kernelResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices, tipHeight: number) {
+    return this.call<MempoolScan>('scanMempoolKernel', [kernelResponse, unspent, nextKeyIndices, tipHeight]);
   }
   planInputs(unspent: StoredUtxo[], request: SendRequest, nowMs: number) {
     return this.call<InputPlan>('planInputs', [unspent, request, nowMs]);
