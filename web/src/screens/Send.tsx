@@ -2,7 +2,7 @@
 // before a review step; the proof itself runs as a job in the app context
 // so it survives this screen being unmounted (backgrounding locks the app).
 
-import { ActionIcon, Alert, Badge, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Alert, Badge, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { IconAddressBook, IconClipboard, IconLink, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -365,9 +365,11 @@ export function Send() {
                 {savedName ? (
                   <Text size="sm">Sent to {savedName}.</Text>
                 ) : (
-                  <Button size="compact-sm" variant="light" onClick={() => setSaving(true)}>
-                    Save recipient as a contact
-                  </Button>
+                  <Text size="sm">
+                    <UnstyledButton onClick={() => setSaving(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+                      Save recipient as a contact
+                    </UnstyledButton>
+                  </Text>
                 )}
               </div>
             )}

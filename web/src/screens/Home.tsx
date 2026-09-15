@@ -143,9 +143,11 @@ export function Home() {
       {showBackupNudge && (
         <Alert color="yellow" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
           <Text size="sm">Clearing the browser's site data deletes it. Save a backup file so you can restore the wallet and its contacts.</Text>
-          <Button size="compact-sm" variant="light" mt="xs" onClick={() => navigate('/settings')}>
-            Save a backup file
-          </Button>
+          <Text size="sm" mt="xs">
+            <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+              Save a backup file
+            </UnstyledButton>
+          </Text>
         </Alert>
       )}
       <div className={`vault-status${sync?.phase === 'error' ? ' error' : ''}`}>
@@ -205,14 +207,13 @@ export function Home() {
         <Stack>
         <Title order={3}>History</Title>
         {entries.length === 0 ? (
-          <Stack gap="xs" align="flex-start">
-            <Text c="dimmed" size="sm">
-              Nothing yet. Share a receiving address to get started.
-            </Text>
-            <Button size="compact-sm" variant="light" onClick={() => navigate('/receive')}>
-              Show my address
-            </Button>
-          </Stack>
+          <Text c="dimmed" size="sm">
+            Nothing yet.{' '}
+            <UnstyledButton onClick={() => navigate('/receive')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+              Share your receiving address
+            </UnstyledButton>{' '}
+            to get started.
+          </Text>
         ) : (
           <div>
             {entries.slice(0, shown).map((e) => {
