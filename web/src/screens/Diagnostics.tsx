@@ -3,7 +3,6 @@
 
 import { ActionIcon, Paper, Stack, Text, Title } from '@mantine/core';
 import { IconChevronLeft } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
@@ -11,10 +10,6 @@ import { useApp } from '../app/AppContext';
 export function Diagnostics() {
   const navigate = useNavigate();
   const { services } = useApp();
-  const [coreVersion, setCoreVersion] = useState<string>('…');
-  useEffect(() => {
-    void services.core.coreVersion?.().then(setCoreVersion, () => setCoreVersion('unavailable'));
-  }, [services]);
   const isolated = self.crossOriginIsolated;
   const cores = navigator.hardwareConcurrency ?? 1;
   const installed = matchMedia('(display-mode: standalone)').matches;
@@ -36,7 +31,6 @@ export function Diagnostics() {
           <Fact label="Memory, as the browser reports it" value={memoryGb === undefined ? 'Not reported' : `${memoryGb} GB or more`} state={memoryGb === undefined ? undefined : memoryGb >= 4 ? 'ok' : 'warn'} />
           <Fact label="Running as" value={installed ? 'Installed app' : 'Browser tab'} state={installed ? 'ok' : 'warn'} />
           <Fact label="App version" value={`${__APP_VERSION__} (${__APP_COMMIT__}), built ${new Date(__APP_BUILT_AT__).toLocaleString()}`} />
-          <Fact label="Wallet core" value={coreVersion} />
         </Stack>
         <Title order={3}>Last proof on this device</Title>
         {last ? (
