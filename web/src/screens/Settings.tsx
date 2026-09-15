@@ -242,11 +242,11 @@ export function Settings() {
             Neptune Vault is a wallet for Neptune Cash that runs entirely in your browser: keys never leave this device, and the app talks only to the node you choose. It is a proof of concept and not recommended for production use: no audit, breaking changes ahead, use only with amounts you can afford to lose.
           </Text>
           <Group gap="md">
-            <Anchor href={LINKS.project} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-              Community
-            </Anchor>
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               Report a problem
+            </Anchor>
+            <Anchor href={LINKS.project} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
+              Community
             </Anchor>
             <Anchor href={LINKS.neptune} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               About Neptune Cash
