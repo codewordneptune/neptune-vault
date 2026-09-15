@@ -1,7 +1,7 @@
 // Account creation and import (F1 to F5): generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Button, Checkbox, Group, NumberInput, Paper, PasswordInput, Select, Stack, Text, Textarea, Title } from '@mantine/core';
+import { Alert, Button, Checkbox, Group, Paper, PasswordInput, Select, Stack, Text, Textarea, Title } from '@mantine/core';
 import { IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useRef } from 'react';
 import { useState } from 'react';
@@ -9,9 +9,11 @@ import { useNavigate } from 'react-router-dom';
 
 import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
+import { StartBlockPicker } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
 import { NETWORK_OPTIONS } from '../util/network';
+import type { NodeClient } from '../node/rpc';
 import type { Network } from '../storage/db';
 import type { ExportFile } from '../storage/envelope';
 
@@ -257,6 +259,7 @@ export function Onboarding() {
           setBirthday={setBirthday}
           fromTip={fromTip}
           setFromTip={setFromTip}
+          node={() => services.node()}
           onPhrase={(words) => {
             setPhrase(words);
             setImported(true);
@@ -315,6 +318,7 @@ function ImportStep({
   setBirthday,
   fromTip,
   setFromTip,
+  node,
   onPhrase,
   onFile,
   onBack,
@@ -324,6 +328,7 @@ function ImportStep({
   setBirthday: (v: number | string) => void;
   fromTip: boolean;
   setFromTip: (v: boolean) => void;
+  node: () => NodeClient;
   onPhrase: (words: string[]) => void;
   onFile: (file: File, password: string) => void;
   onBack: () => void;
@@ -339,13 +344,12 @@ function ImportStep({
         <span className="vault-eyebrow">Step 1 of 2</span>
         <Title order={2}>Import</Title>
         <Textarea label="Seed phrase (18 words)" autosize minRows={3} value={text} onChange={(e) => setText(e.currentTarget.value)} />
-        <NumberInput
-          label="Scan from block height"
-          description="The block your first funds arrived in. From block 1 on Mainnet the scan downloads about 8 to 10 GB; a later block you are sure of saves most of it."
-          min={1}
+        <StartBlockPicker
           value={birthday}
           onChange={setBirthday}
+          node={node}
           disabled={fromTip}
+          description="The block your first funds arrived in, or earlier. From block 1 on Mainnet the scan downloads about 8 to 10 GB; a later block saves most of it."
         />
         <Checkbox label="This phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
         <Button disabled={words.length !== 18} onClick={() => onPhrase(words.map((w) => w.toLowerCase()))}>Continue with this phrase</Button>

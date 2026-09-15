@@ -121,3 +121,9 @@ produced a single proof for it (seconds on regtest); mine after the log says
   already stored get the flag on a rescan. Verified on regtest after a rescan:
   every coin from the node's wallet flagged null, every change and
   self-payment flagged with the height it was built against.
+- Scan from a date (2026-09-15). Import and the rescan dialog have a date
+  field beside the block field; `NodeClient.heightForDate` binary-searches
+  block headers (`archival_getBlockHeader`) for the first block at or after
+  the day's start in the device's time zone, sixteen requests on mainnet.
+  Verified against the public node: the first block of 1 September 2026
+  (UTC+3) is 51 485, with the neighbouring timestamps straddling midnight.

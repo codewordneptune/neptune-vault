@@ -6,6 +6,8 @@
 // result JSON directly (its types are the node's own), so this layer only
 // types the handful of fields the app itself looks at.
 
+import { findHeightForDate } from '../util/blockdate';
+
 export interface RpcBlockHeader {
   height: number;
   prevBlockDigest: string;
@@ -169,6 +171,12 @@ export class NodeClient {
   }
 
   /** True when the node accepted the transaction into its mempool. */
+  /** The first block timestamped at or after `dateMs`, by binary search over headers. */
+  async heightForDate(dateMs: number): Promise<number> {
+    const tip = await this.probe();
+    return findHeightForDate(async (h) => (await this.blockHeaderAt(h))?.timestamp ?? null, tip, dateMs);
+  }
+
   /** Ids of the transactions in the node's mempool, fee-density order. */
   async mempoolTransactions(): Promise<string[]> {
     const r = await this.call<{ transactions: string[] }>('mempool_transactions');

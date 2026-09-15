@@ -128,6 +128,7 @@ it talks to a neptune-core node over its JSON-RPC API.
 - F22. Backup actions: show seed phrase (after unlock), export encrypted file,
   set up passkey wrapping where available.
 - F30. Incoming, unconfirmed (added 2026-09-14): a payment addressed to this wallet shows as "Incoming, pending" from the moment the node's mempool holds it, with the amount and the output commitment, and becomes the received row when a block confirms it. Own pending sends say whether the node still holds them. Depends on the node exposing the mempool namespace; the watcher switches itself off otherwise.
+- F31. Scan from a date (added 2026-09-15): import and rescan accept a calendar day as well as a block height; the app asks the node for block headers (a binary search, about sixteen requests on mainnet) and fills in the first block of that day. Needs the node's archival namespace; without it the field says to enter a block number.
 
 ## 6. Non-functional requirements
 

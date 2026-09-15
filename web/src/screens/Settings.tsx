@@ -1,6 +1,6 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
-import { Alert, Anchor, Button, Group, Modal, NumberInput, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Modal, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { installState, onInstallChange, promptInstall, type InstallState } from 
 import { LINKS } from '../app/links';
 import { requestPersistentStorage } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
+import { StartBlockPicker } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
 import { NETWORK_OPTIONS } from '../util/network';
@@ -521,7 +522,7 @@ function RescanCard() {
           <Text size="sm">
             The local history and balance are rebuilt from the chain starting at this block. Your funds are not affected; older blocks take longer to fetch. Sends made from this device lose their recipient and fee details, which the chain does not carry.
           </Text>
-          <NumberInput label="Start block" min={1} value={height} onChange={setHeight} error={rescanError} hideControls inputMode="numeric" />
+          <StartBlockPicker value={height} onChange={setHeight} node={() => services.node()} error={rescanError} />
           <Group grow>
             <Button variant="default" onClick={() => setOpen(false)}>
               Cancel
