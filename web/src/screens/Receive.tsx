@@ -7,7 +7,7 @@
 import { Button, Code, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { IconCopy, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { formatNau, useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
@@ -44,9 +44,6 @@ const QR_OPTIONS = { type: 'image/png' as const, width: 1200, margin: 2, errorCo
 export function Receive() {
   const { services, account } = useApp();
   const [tab, setTab] = useState<Tab>('address');
-  // Choosing the Request tab is an intent to type; the amount takes focus
-  // then, never on a page load.
-  const amountRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<KeyKind>('generation');
   const [indices, setIndices] = useState<Record<KeyKind, number>>({ generation: 0, ec_hybrid: 0, viewing: 0 });
   const [address, setAddress] = useState<string>(account?.address0 ?? '');
@@ -206,16 +203,7 @@ export function Receive() {
             ),
           }))}
         />
-        <Tabs
-          value={tab}
-          onChange={(v) => {
-            const next = (v as Tab) ?? 'address';
-            setTab(next);
-            if (next === 'request') setTimeout(() => amountRef.current?.focus(), 0);
-          }}
-          className="vault-tabs"
-          keepMounted={false}
-        >
+        <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
           <Tabs.List grow>
             <Tabs.Tab value="address">Address</Tabs.Tab>
             <Tabs.Tab value="request">Request payment</Tabs.Tab>
@@ -254,7 +242,6 @@ export function Receive() {
               value={requestAmount}
               onChange={(e) => setRequestAmount(e.currentTarget.value)}
               error={amountError}
-              ref={amountRef}
             />
             <TextInput
               label="Your name, shown to the sender (optional)"
