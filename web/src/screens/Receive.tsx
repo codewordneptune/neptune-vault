@@ -224,13 +224,9 @@ export function Receive() {
               error={noteError}
               maxLength={255}
             />
-            {(linkAmount || (requestLabel.trim() && !labelError) || (requestNote.trim() && !noteError)) && (
+            {((requestLabel.trim() && !labelError) || (requestNote.trim() && !noteError)) && (
               <Text size="xs" c="dimmed">
-                The link carries your address
-                {linkAmount ? `, ${linkAmount} NPT` : ''}
-                {requestLabel.trim() && !labelError ? ', your name' : ''}
-                {requestNote.trim() && !noteError ? ' and the note' : ''}.
-                {(requestLabel.trim() && !labelError) || (requestNote.trim() && !noteError) ? ' The QR code holds only the address' + (linkAmount ? ' and the amount' : '') + '.' : ''}
+                Your name and the note travel in the link only; the QR code carries the address{linkAmount ? ' and the amount' : ''}.
               </Text>
             )}
             <Group grow>
