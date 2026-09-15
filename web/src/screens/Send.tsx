@@ -3,7 +3,7 @@
 // so it survives this screen being unmounted (backgrounding locks the app).
 
 import { ActionIcon, Alert, Badge, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
-import { IconAddressBook, IconClipboard, IconScan } from '@tabler/icons-react';
+import { IconAddressBook, IconClipboard, IconLink, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -413,23 +413,30 @@ export function Send() {
               }
             />
             {linkMeta && (linkMeta.label || linkMeta.message) && (
-              <div className="vault-link-meta vault-link-meta-form">
-                {linkMeta.label && (
-                  <Text size="xs" c="dimmed" truncate>
-                    Payee named in the link, unverified:{' '}
-                    <span dir="auto" className="vault-bidi">
-                      {linkMeta.label}
-                    </span>
-                  </Text>
-                )}
-                {linkMeta.message && (
-                  <Text size="xs" c="dimmed" truncate>
-                    Note from the link:{' '}
-                    <span dir="auto" className="vault-bidi">
-                      {linkMeta.message}
-                    </span>
-                  </Text>
-                )}
+              <div className="vault-link-meta-form">
+                <IconLink size={16} stroke={1.8} aria-hidden />
+                <div style={{ minWidth: 0 }}>
+                  {linkMeta.label && (
+                    <Text size="sm" truncate>
+                      <Text component="span" size="xs" c="dimmed">
+                        Payee named in the link, unverified:{' '}
+                      </Text>
+                      <span dir="auto" className="vault-bidi">
+                        {linkMeta.label}
+                      </span>
+                    </Text>
+                  )}
+                  {linkMeta.message && (
+                    <Text size="sm" truncate>
+                      <Text component="span" size="xs" c="dimmed">
+                        Note from the link:{' '}
+                      </Text>
+                      <span dir="auto" className="vault-bidi">
+                        {linkMeta.message}
+                      </span>
+                    </Text>
+                  )}
+                </div>
               </div>
             )}
             <TextInput

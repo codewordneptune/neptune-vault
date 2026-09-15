@@ -667,9 +667,19 @@ html {
 .vault-bidi {
   unicode-bidi: isolate;
 }
+/* What a pasted payment link brought along, shown on the Send form as a
+   quiet box so it is noticed before the review. */
 .vault-link-meta-form {
-  gap: 2px;
-  padding-top: 0;
-  border-top: 0;
-  margin-top: -8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--v-radius-xs);
+  background: var(--v-surface-2);
+  margin-top: -6px;
+}
+.vault-link-meta-form > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--v-accent-text);
 }
