@@ -92,6 +92,14 @@ crates covers that period: `npm run wasm:prover-legacy` builds
 the app picks the package by the claim version the chain requires at the
 tip. It goes away once the fork has activated; see docs/M1-STATUS.md.
 
+## Versions
+
+The app has one version, the `version` field in `web/package.json`, shown
+under About in Settings and on Diagnostics together with the commit and the
+build time. Every release bumps it and tags the commit `v<version>`, so a
+quoted version maps to exact code. The wasm crates carry their own crate
+versions, which only change when their interfaces do.
+
 ## Deploying
 
 Pushes to `main` that touch the app or the crates build the wasm packages,

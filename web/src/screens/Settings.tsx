@@ -252,6 +252,9 @@ export function Settings() {
               About Neptune Cash
             </Anchor>
           </Group>
+          <Text size="xs" c="dimmed">
+            Version {__APP_VERSION__} ({__APP_COMMIT__}), built {new Date(__APP_BUILT_AT__).toLocaleDateString()}. Quote the version when reporting a problem.
+          </Text>
         </Stack>
       </Paper>
     </Stack>
