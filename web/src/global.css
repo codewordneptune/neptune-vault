@@ -643,3 +643,15 @@ html {
   overflow-wrap: anywhere;
   line-height: 1.3;
 }
+
+/* Settings section headings carry a small muted icon as a landmark on a
+   long page; other screens have too few sections to need one. */
+.vault-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vault-section-title svg {
+  color: var(--v-muted);
+  flex-shrink: 0;
+}

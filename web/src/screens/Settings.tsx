@@ -1,7 +1,7 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Anchor, Button, Group, Modal, NumberInput, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconAlertTriangle, IconCopy, IconDownload } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -113,7 +113,10 @@ export function Settings() {
       {message && <Alert color="green" onClose={() => setMessage(null)} withCloseButton>{message}</Alert>}
       <Paper>
         <Stack>
-          <Title order={3}>Backup</Title>
+          <Title order={3} className="vault-section-title">
+            <IconShieldCheck size={16} stroke={1.8} aria-hidden />
+            Backup
+          </Title>
           {persistent ? (
             <Text size="sm" c="dimmed">
               Persistent storage is granted, so the browser will not evict this wallet's data on its own. Clearing the browser's site data still deletes it; keep the phrase or a backup file.
@@ -165,7 +168,10 @@ export function Settings() {
 
       <Paper>
         <Stack>
-          <Title order={3}>Security</Title>
+          <Title order={3} className="vault-section-title">
+            <IconLock size={16} stroke={1.8} aria-hidden />
+            Security
+          </Title>
           <Text size="sm" c="dimmed">
             The password encrypts your phrase on this device and is asked for on every unlock. Changing it does not change the phrase or the backup file's contents beyond the new wrapping.
           </Text>
@@ -184,7 +190,10 @@ export function Settings() {
 
       <Paper>
         <Stack>
-          <Title order={3}>Network and node</Title>
+          <Title order={3} className="vault-section-title">
+            <IconPlugConnected size={16} stroke={1.8} aria-hidden />
+            Network and node
+          </Title>
           <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} />
           <TextInput label="Node URL" value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
           {probe && (
@@ -207,7 +216,10 @@ export function Settings() {
 
       <Paper>
         <Stack>
-          <Title order={3}>App</Title>
+          <Title order={3} className="vault-section-title">
+            <IconDeviceMobile size={16} stroke={1.8} aria-hidden />
+            App
+          </Title>
           <InstallCard />
           <Text size="sm" c="dimmed">
             Diagnostics show cores, threads and the install state, useful when reporting a problem.
@@ -222,7 +234,10 @@ export function Settings() {
 
       <Paper>
         <Stack>
-          <Title order={3}>About</Title>
+          <Title order={3} className="vault-section-title">
+            <IconInfoCircle size={16} stroke={1.8} aria-hidden />
+            About
+          </Title>
           <Text size="sm" c="dimmed">
             Neptune Vault is a wallet for Neptune Cash that runs entirely in your browser: keys never leave this device, and the app talks only to the node you choose. It is a proof of concept and not recommended for production use: no audit, breaking changes ahead, use only with amounts you can afford to lose.
           </Text>
