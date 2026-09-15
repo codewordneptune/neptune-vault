@@ -3,7 +3,7 @@
 // key of that kind.
 
 import { Button, Code, Group, Modal, Paper, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconCopy, IconShare } from '@tabler/icons-react';
+import { IconCopy, IconReceipt, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
@@ -100,33 +100,52 @@ export function Receive() {
       const a = kind === 'generation' && index === 0 && account ? account.address0 : await services.core.address(kind, index);
       if (cancelled) return;
       setAddress(a);
-      // The QR carries the complete NIP-002 URI. Scheme and address are
-      // upper-cased for the alphanumeric mode a generation address needs;
-      // a query needs byte mode, and when the amount does not fit the code
-      // falls back to the address-only URI and the link carries the amount.
-      // A PNG, not an SVG: a long press on a phone saves the image, and
+      // Scheme and address are upper-cased for the alphanumeric mode a
+      // generation address needs. A PNG, not an SVG: a long press on a phone saves the image, and
       // galleries and downloaders handle PNG everywhere while an SVG data
       // URL often arrives as a broken file. 1200 px keeps a version-40 code
       // (177 modules) at about 7 px per module, more than any screen shows.
       const render = async (payload: string) => {
         setQr(await QRCode.toDataURL(payload, { type: 'image/png', width: 1200, margin: 2, errorCorrectionLevel: 'L' }));
       };
-      // The code carries the whole link when it fits; otherwise as much of
-      // it as fits, with a note saying what the shared link still carries.
+      // The page shows the address alone; a request with amount, name or
+      // note has its own code inside the request dialog.
+      try {
+        await render(paymentQrPayload(a));
+      } catch {
+        setQr('');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, index, account, services]);
+
+  // The request dialog's code carries the whole link when it fits; otherwise
+  // as much as fits, with a line saying what the shared link still carries.
+  const [requestQr, setRequestQr] = useState('');
+  useEffect(() => {
+    if (!sharing || !address) return;
+    let cancelled = false;
+    void (async () => {
+      const render = async (payload: string) => {
+        const url = await QRCode.toDataURL(payload, { type: 'image/png', width: 1200, margin: 2, errorCorrectionLevel: 'L' });
+        if (!cancelled) setRequestQr(url);
+      };
       const withText = Boolean(linkNote || linkLabel);
       try {
-        await render(paymentQrPayload(a, linkAmount, linkNote, linkLabel));
+        await render(paymentQrPayload(address, linkAmount, linkNote, linkLabel));
         setQrNote(null);
       } catch {
         try {
-          await render(paymentQrPayload(a, linkAmount));
-          setQrNote(withText ? 'The name and note do not fit in the code for this address; the shared link carries them.' : null);
+          await render(paymentQrPayload(address, linkAmount));
+          setQrNote(withText ? 'The name and note do not fit in the code for this address; the link carries them.' : null);
         } catch {
           try {
-            await render(paymentQrPayload(a));
-            setQrNote(linkAmount || withText ? 'The amount, name and note do not fit in the code for this address; the shared link carries them.' : null);
+            await render(paymentQrPayload(address));
+            setQrNote(linkAmount || withText ? 'The amount, name and note do not fit in the code for this address; the link carries them.' : null);
           } catch {
-            setQr('');
+            setRequestQr('');
           }
         }
       }
@@ -134,7 +153,7 @@ export function Receive() {
     return () => {
       cancelled = true;
     };
-  }, [kind, index, account, services, linkAmount, linkNote, linkLabel]);
+  }, [sharing, address, linkAmount, linkNote, linkLabel]);
 
   const copy = () => void copyText(address, 'Address copied');
 
@@ -181,11 +200,6 @@ export function Receive() {
         <Text size="sm" c="dimmed">
           {KIND_NOTES[kind]}
         </Text>
-        {qrNote && (
-          <Text size="xs" c="dimmed">
-            {qrNote}
-          </Text>
-        )}
         {qr && (
           <img
             src={qr}
@@ -200,11 +214,20 @@ export function Receive() {
           <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy}>
             Copy
           </Button>
-          <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => setSharing(true)}>
-            Share
+          <Button variant="light" leftSection={<IconReceipt size={16} stroke={1.8} />} onClick={() => setSharing(true)}>
+            Request payment
           </Button>
         </Group>
-        <Modal opened={sharing} onClose={() => setSharing(false)} title="Share a payment link">
+        <Modal
+          opened={sharing}
+          onClose={() => {
+            // A request lives and dies with its dialog; the name stays.
+            setSharing(false);
+            setRequestAmount('');
+            setRequestNote('');
+          }}
+          title="Request a payment"
+        >
           <Stack>
             <TextInput
               label="Amount to request (NPT, optional)"
@@ -234,6 +257,14 @@ export function Receive() {
               error={noteError}
               maxLength={255}
             />
+            {requestQr && (
+              <img src={requestQr} alt="Payment request QR code" style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
+            )}
+            {qrNote && (
+              <Text size="xs" c="dimmed">
+                {qrNote}
+              </Text>
+            )}
             <Group grow>
               <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError || noteError || labelError)}>
                 Copy link
