@@ -222,13 +222,6 @@ export function Receive() {
             <Text ff="monospace" size="sm" ta="center" style={{ wordBreak: 'break-all' }}>
               {abbreviateAddress(address)}
             </Text>
-            <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} fullWidth>
-              Copy address
-            </Button>
-            <Text size="sm" c="dimmed">
-              {KIND_NOTES[kind]}
-              {CODE_HINTS[kind] ? ` ${CODE_HINTS[kind]}` : ''}
-            </Text>
             <UnstyledButton onClick={() => setShowFull((v) => !v)} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
               {showFull ? 'Hide full address' : 'Show full address'}
             </UnstyledButton>
@@ -237,6 +230,13 @@ export function Receive() {
                 {address}
               </Code>
             )}
+            <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} fullWidth>
+              Copy address
+            </Button>
+            <Text size="sm" c="dimmed">
+              {KIND_NOTES[kind]}
+              {CODE_HINTS[kind] ? ` ${CODE_HINTS[kind]}` : ''}
+            </Text>
           </>
         )}
 
