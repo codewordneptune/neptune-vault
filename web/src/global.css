@@ -712,10 +712,40 @@ html {
 .vault-updatestrip {
   background: var(--v-accent-soft);
   border-bottom: 1px solid var(--v-surface-2);
-  padding: 8px 16px;
+  padding: 10px 16px;
   color: var(--v-text);
 }
-.vault-updatestrip svg {
+.vault-updatestrip-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 540px;
+  margin: 0 auto;
+}
+.vault-updatestrip-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.vault-updatestrip-body svg {
   color: var(--v-accent-text);
   flex-shrink: 0;
+}
+.vault-updatestrip-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+@media (min-width: 640px) {
+  .vault-updatestrip-inner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .vault-updatestrip-actions {
+    gap: 12px;
+  }
 }

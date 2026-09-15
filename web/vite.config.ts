@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 let commit = 'unknown';
@@ -12,6 +12,28 @@ try {
 }
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const builtAt = new Date().toISOString();
+
+// The build's identity as a file next to its assets, so a running app can
+// read which build is waiting for it (components/UpdateStrip). It is never
+// precached (json is not in the service worker's glob) and is fetched with
+// no-store, so what comes back is always the build the host serves now.
+function versionJson(): Plugin {
+  const body = JSON.stringify({ version: pkg.version, commit, builtAt });
+  return {
+    name: 'vault-version-json',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: body });
+    },
+    configureServer(server) {
+      server.middlewares.use('/version.json', (_req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(body);
+      });
+    },
+  };
+}
 
 // Cross-origin isolation is required for SharedArrayBuffer, which the
 // threaded prover needs. Production hosting must send the same two headers.
@@ -24,10 +46,11 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_COMMIT__: JSON.stringify(commit),
-    __APP_BUILT_AT__: JSON.stringify(new Date().toISOString()),
+    __APP_BUILT_AT__: JSON.stringify(builtAt),
   },
   plugins: [
     react(),
+    versionJson(),
     VitePWA({
       // A new build is downloaded and offered, never applied on its own: the
       // wallet runs the code its owner accepted (see components/UpdateStrip).

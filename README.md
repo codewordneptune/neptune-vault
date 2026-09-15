@@ -98,9 +98,14 @@ tip. It goes away once the fork has activated; see docs/M1-STATUS.md.
 ## Updates
 
 An installed app never replaces its own code on its own. A new build is
-downloaded and offered in a strip under the header, with the version you
-are on; it takes effect when you tap Update, and never while a send is
-running. What runs is what you accepted, and About says which build that is.
+downloaded and offered in a strip under the header: the version that is
+waiting, the version you are on, and a "What changed" link to the commits
+between the two on GitHub. It takes effect when you tap Update, and never
+while a send is running. What runs is what you accepted, and About says
+which build that is.
+
+Each build ships a `version.json` (version, commit, build time) next to its
+assets; the running app reads it to name the build that is waiting.
 
 ## Versions
 
