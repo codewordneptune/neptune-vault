@@ -236,16 +236,15 @@ export function Receive() {
         {tab === 'request' && (
           <>
             <TextInput
-              label="Amount to request (NPT, optional)"
-              description="The sender's wallet fills it in."
+              label="Amount (NPT, optional)"
               inputMode="decimal"
               value={requestAmount}
               onChange={(e) => setRequestAmount(e.currentTarget.value)}
               error={amountError}
             />
             <TextInput
-              label="Your name, shown to the sender (optional)"
-              description="Travels in the link; the sender's wallet shows it as an unverified name."
+              label="Your name (optional)"
+              description="Shown to the sender as an unverified name."
               value={requestLabel}
               onChange={(e) => setRequestLabel(e.currentTarget.value)}
               error={labelError}
