@@ -210,8 +210,10 @@ export function Receive() {
               error={noteError}
               maxLength={255}
             />
-            <Text size="xs" c="dimmed" ff="monospace" style={{ wordBreak: 'break-all' }}>
-              {abbreviateAddress(paymentLink)}
+            <Text size="xs" c="dimmed">
+              The link carries your {KIND_LABELS[kind]} address
+              {linkAmount ? `, ${linkAmount} NPT` : ''}
+              {requestNote.trim() && !noteError ? ' and the note' : ''}.
             </Text>
             <Group grow>
               <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError || noteError)}>
