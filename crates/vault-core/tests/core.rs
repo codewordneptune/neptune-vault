@@ -27,6 +27,18 @@ fn account() -> Account {
 }
 
 #[test]
+fn announcement_flags_cover_every_key_up_to_the_lookahead() {
+    let mut account = account();
+    let flags = scan::announcement_flags(&mut account, &NextKeyIndices::default());
+    assert_eq!(flags.len(), 3 * (vault_core::account::KEY_LOOKAHEAD as usize + 1));
+    let json = serde_json::to_string(&flags).unwrap();
+    assert!(json.starts_with("[{\"flag\":"), "{json}");
+    assert!(json.contains("\"receiver_id\":"), "{json}");
+    let ids: std::collections::HashSet<u64> = flags.iter().map(|f| f.receiver_id.value()).collect();
+    assert_eq!(ids.len(), flags.len(), "every key has its own identifier");
+}
+
+#[test]
 fn phrase_round_trips_and_has_18_words() {
     let words = Account::generate_phrase();
     assert_eq!(words.len(), 18);

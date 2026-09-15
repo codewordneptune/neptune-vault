@@ -125,6 +125,10 @@ export interface WalletCore {
   address(kind: KeyKind, index: number): Promise<string>;
   /** `blocksResponse` is the node's raw JSON-RPC response text for wallet_getBlocks. */
   scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices): Promise<ScanResult>;
+  /** The announcement flags of the keys a scan would try, as the JSON text of the index request. */
+  announcementFlags(nextKeyIndices: NextKeyIndices): Promise<string>;
+  /** The absolute index sets of these coins, as the JSON text of the index request. */
+  absoluteIndexSets(unspent: StoredUtxo[]): Promise<string>;
   /** `kernelResponse` is the raw JSON-RPC response text of mempool_getTransactionKernel. */
   scanMempoolKernel(kernelResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices, tipHeight: number): Promise<MempoolScan>;
   planInputs(unspent: StoredUtxo[], request: SendRequest, nowMs: number): Promise<InputPlan>;

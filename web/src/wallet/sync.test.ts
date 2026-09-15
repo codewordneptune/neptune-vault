@@ -29,6 +29,21 @@ class FakeNode {
   tip = 0;
   canonical = new Set<string>();
   getBlocksCalls: Array<[number, number]> = [];
+  /** The coin index: heights flagged for this wallet, and spend heights per coin hash. */
+  flagHeights: number[] = [];
+  spendHeights = new Map<string, number[]>();
+  noIndex = false;
+  async tipDigest() {
+    return this.hashAt(this.tip);
+  }
+  async blockHeightsByFlags(_flagsJson: string): Promise<number[]> {
+    if (this.noIndex) throw new Error("utxoindex_blockHeightsByFlags: Method not found");
+    return [...this.flagHeights];
+  }
+  async blockHeightsBySpends(indexSetsJson: string): Promise<number[]> {
+    const hashes = JSON.parse(indexSetsJson) as string[];
+    return hashes.flatMap((h) => this.spendHeights.get(h) ?? []);
+  }
   extendTo(height: number) {
     for (let h = this.tip + 1; h <= height; h++) this.canonical.add(`hash-${h}`);
     this.tip = height;
@@ -67,6 +82,12 @@ class FakeCore implements Partial<WalletCore> {
   incoming = new Map<number, StoredUtxo[]>();
   spent = new Map<number, string[]>();
   nextKeyIndexAfter = 1;
+  async announcementFlags() {
+    return "[]";
+  }
+  async absoluteIndexSets(unspent: StoredUtxo[]) {
+    return JSON.stringify(unspent.map((u) => u.hash));
+  }
   async scanBlocks(blocksResponse: string, _unspent: StoredUtxo[], _next: NextKeyIndices): Promise<ScanResult> {
     const blocks = (JSON.parse(blocksResponse) as { result: { blocks: unknown[] } }).result.blocks;
     const out = (blocks as RpcWalletBlock[]).map((b) => ({
@@ -211,6 +232,49 @@ describe('sync engine', () => {
     expect((await db.get('accounts', 'acc'))?.birthdayHeight).toBe(9);
     expect(result.syncedHeight).toBe(9);
     expect(node.getBlocksCalls).toEqual([[9, 9]]);
+  });
+
+  it('fast restore scans the flagged blocks, then the blocks that spent what it found', async () => {
+    const { node, core, engine } = await setup();
+    await db.put('accounts', { ...account, birthdayHeight: 0, restore: 'fast' });
+    node.extendTo(20);
+    core.incoming.set(5, [utxo('a', 5, '10')]);
+    core.incoming.set(12, [utxo('b', 12, '3')]);
+    core.spent.set(15, ['a']);
+    node.flagHeights = [12, 5];
+    node.spendHeights.set('a', [15]);
+
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('done');
+    // Round one: the flagged blocks in order. Round two: where coin a was spent. Then nothing new.
+    expect(node.getBlocksCalls).toEqual([
+      [5, 5],
+      [12, 12],
+      [15, 15],
+    ]);
+    expect((await db.get('utxos', 'acc:a'))?.spentHeight).toBe(15);
+    expect((await db.get('utxos', 'acc:b'))?.spentHeight).toBeNull();
+    expect((await db.get('syncState', 'acc'))?.syncedHeight).toBe(20);
+    const after = await db.get('accounts', 'acc');
+    expect(after?.restore).toBeUndefined();
+    expect(after?.birthdayHeight).toBe(5);
+
+    // The ordinary pass takes over from the tip.
+    node.extendTo(22);
+    await engine.syncOnce();
+    expect(node.getBlocksCalls.slice(3)).toEqual([[21, 22]]);
+  });
+
+  it('fast restore says so on a node without the index, and stays pending', async () => {
+    const { node, engine } = await setup();
+    await db.put('accounts', { ...account, birthdayHeight: 0, restore: 'fast' });
+    node.extendTo(5);
+    node.noIndex = true;
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('error');
+    expect(result.message).toMatch(/coin index/);
+    expect((await db.get('accounts', 'acc'))?.restore).toBe('fast');
+    expect(node.getBlocksCalls).toEqual([]);
   });
 
   it('stops after the batch in flight, leaving that batch unwritten', async () => {

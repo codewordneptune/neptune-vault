@@ -128,6 +128,7 @@ it talks to a neptune-core node over its JSON-RPC API.
 - F22. Backup actions: show seed phrase (after unlock), export encrypted file,
   set up passkey wrapping where available.
 - F30. Incoming, unconfirmed (added 2026-09-14): a payment addressed to this wallet shows as "Incoming, pending" from the moment the node's mempool holds it, with the amount and the output commitment, and becomes the received row when a block confirms it. Own pending sends say whether the node still holds them. Depends on the node exposing the mempool namespace; the watcher switches itself off otherwise.
+- F32. Fast restore (added 2026-09-16): import and rescan can ask the node's coin index (the `utxoindex` namespace, `--utxo-index` on the node) which blocks carry announcements for the wallet's keys and where its coins were spent, and scan only those blocks: seconds instead of hours, at the price of the node learning the wallet's address identifiers and coins. The default on import, stated in one line next to the private alternative; a node without the index says so and the private restore from a block or date remains.
 - F31. Scan from a date (added 2026-09-15): import and rescan accept a calendar day as well as a block height; the app asks the node for block headers (a binary search, about sixteen requests on mainnet) and fills in the first block of that day. Needs the node's archival namespace; without it the field says to enter a block number.
 
 ## 6. Non-functional requirements

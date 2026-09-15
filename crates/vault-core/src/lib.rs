@@ -188,6 +188,25 @@ mod wasm {
             serde_json::to_string(&result).map_err(|e| JsError::new(&e.to_string()))
         }
 
+        /// The announcement flags of this wallet's keys up to the lookahead, as
+        /// the JSON parameter of `utxoindex_blockHeightsByFlags`. Kept as text:
+        /// the identifiers are 64-bit values JavaScript numbers cannot hold.
+        pub fn announcement_flags(&mut self, next_key_indices_json: &str) -> Result<String, JsError> {
+            let next_key_indices = serde_json::from_str(next_key_indices_json)
+                .map_err(|e| JsError::new(&format!("cannot decode next key indices: {e}")))?;
+            let flags = scan::announcement_flags(&mut self.0, &next_key_indices);
+            serde_json::to_string(&flags).map_err(|e| JsError::new(&e.to_string()))
+        }
+
+        /// The absolute index sets of `unspent_json`, as the JSON parameter of
+        /// `utxoindex_blockHeightsByAbsoluteIndexSets` (and of the
+        /// membership-proof request). Kept as text for the same reason.
+        pub fn absolute_index_sets(&self, unspent_json: &str) -> Result<String, JsError> {
+            let unspent: Vec<scan::StoredUtxo> = serde_json::from_str(unspent_json)
+                .map_err(|e| JsError::new(&format!("cannot decode unspent utxos: {e}")))?;
+            serde_json::to_string(&scan::absolute_index_sets(&unspent)).map_err(|e| JsError::new(&e.to_string()))
+        }
+
         /// Choose inputs for a send. Returns an `InputPlan` as JSON, whose
         /// `absolute_index_sets` is the parameter of `wallet_restoreMembershipProof`.
         pub fn plan_inputs(

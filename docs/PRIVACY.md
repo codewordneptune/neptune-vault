@@ -19,15 +19,20 @@ file is the only way back.
 ## What leaves your device, and to whom
 
 **The node you chose in Settings.** The app talks only to that node, over its
-JSON-RPC interface, and only for four things: fetching blocks to scan, asking
+JSON-RPC interface, and only for five things: fetching blocks to scan, asking
 which transactions are waiting in the mempool and fetching the ones it has
-not seen, asking for membership proofs of the coins it is about to spend, and
-submitting a transaction you sent. The node sees your network address and
-everything you ask it. From what you ask, it can learn which blocks you scan
-from (roughly when your wallet was created), which coins you own (the
-membership-proof request names them), and the transactions you send. It does
-not receive your phrase, your password, your addresses as such, your
-contacts, or the notes and names in payment links.
+not seen, asking for membership proofs of the coins it is about to spend,
+submitting a transaction you sent, and, in a fast restore, asking its coin
+index which blocks hold payments to your addresses and where your coins were
+spent. The node sees your network address and everything you ask it. From
+what you ask, it can learn which blocks you scan from (roughly when your
+wallet was created), which coins you own (the membership-proof request names
+them), and the transactions you send. A fast restore tells it more: the
+identifiers of your addresses, and with them every payment you have received
+and every coin you have spent, though not the amounts. The private restore,
+which downloads the chain, tells it none of that. It does not receive your
+phrase, your password, your addresses as such, your contacts, or the notes
+and names in payment links.
 
 **The host serving the app.** Opening or updating the app fetches its files
 from the site it is installed from. Like any web host, it can log the

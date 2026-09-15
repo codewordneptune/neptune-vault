@@ -34,12 +34,12 @@ Build the node once (about 25 minutes cold, see the memory notes for the
 Windows recipe): worktree of neptune-core at tag `v0.17.0`, then
 `cargo +stable build --release --bin neptune-core --bin neptune-cli`.
 
-Start the node with the JSON-RPC listener, single-proof capability and
-third-party proof upgrading (without the last two, transactions never leave
-the mempool on regtest):
+Start the node with the JSON-RPC listener, the UTXO index (for the fast
+restore), single-proof capability and third-party proof upgrading (without
+the last two, transactions never leave the mempool on regtest):
 
 ```
-neptune-core --network regtest --data-dir C:/nvregtest --listen-rpc 127.0.0.1:9797 --rpc-modules node,chain,wallet,archival,mempool --rpc-port 9799 --peer-port 9798 --max-num-peers 0 --disable-cookie-hint --tx-proving-capability=singleproof --tx-proof-upgrading
+neptune-core --network regtest --data-dir C:/nvregtest --listen-rpc 127.0.0.1:9797 --rpc-modules node,chain,wallet,archival,mempool,utxoindex --utxo-index --rpc-port 9799 --peer-port 9798 --max-num-peers 0 --disable-cookie-hint --tx-proving-capability=singleproof --tx-proof-upgrading
 ```
 
 Fund the node wallet and read its address:
@@ -62,6 +62,19 @@ produced a single proof for it (seconds on regtest); mine after the log says
 `single proof: Done`. Restarting the node empties the mempool.
 
 ## Facts learned that shape later work
+
+- The node's UTXO index (`--utxo-index`, RPC namespace `utxoindex`, in
+  neptune-rpc-api 0.17) answers `blockHeightsByFlags` with every height
+  whose announcements carry a given (purpose, receiver identifier) pair,
+  and `blockHeightsByAbsoluteIndexSets` with the canonical heights that
+  spent given coins. The public mainnet node has it enabled. Measured
+  2026-09-16: the flag lookup takes 0.15 s; a block kernel is 17 to 107 KB;
+  a very busy receiver had 3528 candidate blocks. The flag carries the full
+  64-bit identifier, so the node learns exactly which identifiers a wallet
+  asks about. The fast restore (F32) is built on these two calls plus the
+  ordinary block scan over the sparse set of heights; the JSON must be
+  produced by the core and spliced into the request as text, since the
+  identifiers exceed 2^53.
 
 - Node JSON must never pass through JavaScript objects on its way to the
   wasm core. Mainnet blocks carry `u64::MAX` in every removal record's

@@ -50,7 +50,7 @@ export interface AppState {
    * local view is rebuilt from the new start and not from where the old
    * pass happened to be.
    */
-  rescan: (height: number) => Promise<void>;
+  rescan: (height: number, fast?: boolean) => Promise<void>;
   /** When the last sync pass finished without error. */
   lastSyncedAt: number | null;
   /** The browser's own view of connectivity. */
@@ -269,10 +269,10 @@ export function AppProvider({ services, children }: { services: Services; childr
   }, [services, accountId, locked, refresh, watchMempool]);
 
   const rescan = useCallback(
-    async (height: number) => {
+    async (height: number, fast = false) => {
       if (!accountId) return;
       await stopSync();
-      await services.accounts.rescanFrom(accountId, height);
+      await services.accounts.rescanFrom(accountId, height, fast);
       await refresh();
       void syncNow();
     },

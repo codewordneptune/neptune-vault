@@ -485,20 +485,22 @@ function RescanCard() {
   const from = account.birthdayHeight === 0 ? 'the current tip (not set yet)' : `block ${showBlock(account.birthdayHeight)}`;
 
   const [rescanError, setRescanError] = useState<string | null>(null);
-  const rescan = async () => {
+  const rescan = async (fast: boolean) => {
     setBusy(true);
     setRescanError(null);
     try {
-      try {
-        const tip = await services.node().probe();
-        if (Number(height) > tip) {
-          setRescanError(`The chain is only at block ${showBlock(tip)}; enter that or a lower block.`);
-          return;
+      if (!fast) {
+        try {
+          const tip = await services.node().probe();
+          if (Number(height) > tip) {
+            setRescanError(`The chain is only at block ${showBlock(tip)}; enter that or a lower block.`);
+            return;
+          }
+        } catch {
+          // Node unreachable: the sync clamps the height on first contact.
         }
-      } catch {
-        // Node unreachable: the sync clamps the height on first contact.
       }
-      await rescanFrom(Number(height) || 0);
+      await rescanFrom(fast ? 0 : Number(height) || 0, fast);
       setOpen(false);
     } finally {
       setBusy(false);
@@ -512,21 +514,32 @@ function RescanCard() {
       </Text>
       <Group>
         <Button variant="light" onClick={() => { setHeight(account.birthdayHeight || 1); setOpen(true); }}>
-          Rescan from a block
+          Rescan
         </Button>
       </Group>
-      <Modal opened={open} onClose={() => setOpen(false)} title="Rescan from a block">
+      <Modal opened={open} onClose={() => setOpen(false)} title="Rescan">
         <Stack>
           <Text size="sm">
-            The local history and balance are rebuilt from the chain starting at this block. Your funds are not affected; older blocks take longer to fetch. Sends made from this device lose their recipient and fee details, which the chain does not carry.
+            The local history and balance are rebuilt from the chain. Your funds are not affected. Sends made from this device lose their recipient and fee details, which the chain does not carry.
+          </Text>
+          <Text size="sm" fw={600}>Fast</Text>
+          <Text size="sm" c="dimmed">
+            The node's coin index says which blocks hold payments to you, and only those are fetched: seconds. The node learns which coins are yours.
+          </Text>
+          <Button loading={busy} onClick={() => void rescan(true)}>
+            Fast rescan
+          </Button>
+          <Text size="sm" fw={600}>Private, from a block</Text>
+          <Text size="sm" c="dimmed">
+            Every block from the one you choose is downloaded and scanned here. The node learns nothing about your coins; older blocks take longer.
           </Text>
           <StartBlockPicker value={height} onChange={setHeight} node={() => services.node()} error={rescanError} />
           <Group grow>
             <Button variant="default" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button loading={busy} onClick={() => void rescan()} disabled={!Number(height)}>
-              Rescan
+            <Button variant="light" loading={busy} onClick={() => void rescan(false)} disabled={!Number(height)}>
+              Rescan from this block
             </Button>
           </Group>
         </Stack>

@@ -77,16 +77,22 @@ export class NodeClient {
    * 2^53), so whatever the wasm core will read must stay as text and never
    * pass through JSON.parse and JSON.stringify.
    */
-  async callRaw(method: string, params: unknown[] = [], timeoutMs = this.timeoutMs): Promise<string> {
+  async callRaw(method: string, params: unknown[] = [], timeoutMs = this.timeoutMs, paramsText?: string): Promise<string> {
     const id = this.nextId++;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    // `paramsText` is a parameter already serialised by the core, spliced in
+    // as the single positional parameter so its big integers survive.
+    const requestBody =
+      paramsText === undefined
+        ? JSON.stringify({ jsonrpc: '2.0', method, params, id })
+        : '{"jsonrpc":"2.0","method":' + JSON.stringify(method) + ',"params":[' + paramsText + '],"id":' + id + '}';
     let response: Response;
     try {
       response = await this.fetchImpl(this.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', method, params, id }),
+        body: requestBody,
         signal: controller.signal,
       });
     } catch (e) {
@@ -150,6 +156,23 @@ export class NodeClient {
   async getBlocksRaw(from: number, to: number): Promise<string> {
     if (from < 1) throw new Error('getBlocks: heights start at 1');
     return this.callRaw('wallet_getBlocks', [from, to], this.timeoutMs * 4);
+  }
+
+  /**
+   * Heights of the blocks whose announcements carry any of the flags,
+   * from the node's UTXO index. `flagsJson` is the core's text (the
+   * identifiers are 64-bit). May include orphaned blocks. Fails with
+   * "Method not found" on a node without the index.
+   */
+  async blockHeightsByFlags(flagsJson: string): Promise<number[]> {
+    const text = await this.callRaw('utxoindex_blockHeightsByFlags', [], this.timeoutMs, flagsJson);
+    return (JSON.parse(text) as { result: { blockHeights: number[] } }).result.blockHeights;
+  }
+
+  /** Canonical heights of the blocks that spent any of the index sets (the core's text). */
+  async blockHeightsBySpends(indexSetsJson: string): Promise<number[]> {
+    const text = await this.callRaw('utxoindex_blockHeightsByAbsoluteIndexSets', [], this.timeoutMs, indexSetsJson);
+    return (JSON.parse(text) as { result: { blockHeights: number[] } }).result.blockHeights;
   }
 
   /** The tip header as raw response text, plus its height for the app. */

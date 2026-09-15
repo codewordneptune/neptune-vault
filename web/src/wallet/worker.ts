@@ -82,6 +82,10 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       return { result: requireAccount().phrase() };
     case 'address':
       return { result: requireAccount().address(args[0] as string, BigInt(args[1] as number)) };
+    case 'announcementFlags':
+      return { result: requireAccount().announcement_flags(JSON.stringify(args[0])) };
+    case 'absoluteIndexSets':
+      return { result: requireAccount().absolute_index_sets(JSON.stringify(args[0])) };
     case 'scanBlocks': {
       // The blocks arrive as the node's raw response text: big integers survive.
       const [blocksResponse, unspent, nextKeyIndices] = args as [string, unknown[], unknown];

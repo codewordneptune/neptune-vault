@@ -100,6 +100,12 @@ export class WalletWorkerClient implements WalletCore {
   address(kind: KeyKind, index: number) {
     return this.call<string>('address', [kind, index]);
   }
+  announcementFlags(nextKeyIndices: NextKeyIndices) {
+    return this.call<string>('announcementFlags', [nextKeyIndices]);
+  }
+  absoluteIndexSets(unspent: StoredUtxo[]) {
+    return this.call<string>('absoluteIndexSets', [unspent]);
+  }
   scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices) {
     return this.call<ScanResult>('scanBlocks', [blocksResponse, unspent, nextKeyIndices]);
   }

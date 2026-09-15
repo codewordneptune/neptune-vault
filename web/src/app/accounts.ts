@@ -93,7 +93,7 @@ export class AccountService {
    * `birthdayHeight` is where scanning starts: the current tip for a fresh
    * account, a user-supplied height (or 1) for an import.
    */
-  async createAccount(phrase: string[], password: string, network: Network, birthdayHeight: number): Promise<AccountRecord> {
+  async createAccount(phrase: string[], password: string, network: Network, birthdayHeight: number, options: { fastRestore?: boolean } = {}): Promise<AccountRecord> {
     const envelope = await sealSeed(phrase, password, this.derive, DEFAULT_KDF);
     await this.core.unlock(phrase, network);
     const address0 = await this.core.address('generation', 0);
@@ -106,6 +106,7 @@ export class AccountService {
       address0,
       nextKeyIndices: FRESH_KEY_INDICES,
       backupConfirmed: false,
+      ...(options.fastRestore ? { restore: 'fast' as const } : {}),
     };
     await this.db.put('accounts', record);
     this.setUnlocked(record.id);
@@ -203,11 +204,12 @@ export class AccountService {
    * and block records for the account are dropped and rebuilt from the
    * chain. Funds are unaffected; only the local view is rebuilt.
    */
-  async rescanFrom(accountId: string, height: number): Promise<void> {
+  async rescanFrom(accountId: string, height: number, fast = false): Promise<void> {
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
     const tx = this.db.transaction(['accounts', 'syncState', 'utxos', 'history', 'blocks'], 'readwrite');
-    await tx.objectStore('accounts').put({ ...record, birthdayHeight: Math.max(0, Math.floor(height)), nextKeyIndices: FRESH_KEY_INDICES });
+    const { restore: _previous, ...rest } = record;
+    await tx.objectStore('accounts').put({ ...rest, birthdayHeight: Math.max(0, Math.floor(height)), nextKeyIndices: FRESH_KEY_INDICES, ...(fast ? { restore: 'fast' as const } : {}) });
     await tx.objectStore('syncState').delete(accountId);
     for (const key of await tx.objectStore('utxos').index('byAccount').getAllKeys(accountId)) await tx.objectStore('utxos').delete(key);
     for (const key of await tx.objectStore('history').index('byAccount').getAllKeys(accountId)) await tx.objectStore('history').delete(key);

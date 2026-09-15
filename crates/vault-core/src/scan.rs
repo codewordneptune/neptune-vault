@@ -12,6 +12,8 @@ use neptune_consensus::block::block_kernel::BlockKernel;
 use neptune_consensus::transaction::transaction_kernel::TransactionKernel;
 use neptune_mutator_set::addition_record::AdditionRecord;
 use neptune_mutator_set::removal_record::absolute_index_set::AbsoluteIndexSet;
+use neptune_primitives::announcement_flag::AnnouncementFlag;
+use neptune_rpc_api::model::block::transaction_kernel::RpcAbsoluteIndexSet;
 use neptune_rpc_api::model::wallet::block::RpcWalletBlock;
 use neptune_wallet::address::SpendingKey;
 use neptune_wallet::incoming_utxo::IncomingUtxoRecoveryData;
@@ -83,6 +85,25 @@ pub fn own_build_height(
     (lowest..=latest)
         .rev()
         .find(|&h| entropy.generate_sender_randomness(h.into(), privacy_digest) == sender_randomness)
+}
+
+/// What a fast restore asks the node's index for: the announcement flag
+/// (purpose, receiver identifier) of every key the scan would try, the
+/// same keys up to the lookahead per kind. The node learns these.
+pub fn announcement_flags(account: &mut Account, next_key_indices: &NextKeyIndices) -> Vec<AnnouncementFlag> {
+    let mut flags = Vec::new();
+    for kind in KeyKind::ALL {
+        for key in account.keys_up_to(kind, next_key_indices.get(kind) + KEY_LOOKAHEAD) {
+            flags.push(AnnouncementFlag::from(&key.to_address()));
+        }
+    }
+    flags
+}
+
+/// The index sets the node's index is asked about to learn where these
+/// coins were spent; the same values the membership-proof request carries.
+pub fn absolute_index_sets(unspent: &[StoredUtxo]) -> Vec<RpcAbsoluteIndexSet> {
+    unspent.iter().map(|u| u.absolute_index_set().into()).collect()
 }
 
 impl StoredUtxo {

@@ -33,6 +33,12 @@ export interface AccountRecord {
   nextKeyIndices: NextKeyIndices;
   /** True once the user confirmed the seed phrase (F3). */
   backupConfirmed: boolean;
+  /**
+   * A fast restore is pending: the next sync asks the node's coin index
+   * which blocks are this wallet's and scans only those, instead of every
+   * block from the start height. Cleared when it has run.
+   */
+  restore?: 'fast';
   /** When an export file was last saved, or the file's date for an imported account. Absent: never. */
   lastBackupAt?: number;
   /** When the Home backup reminder was last dismissed; it returns after a week. */

@@ -1,7 +1,7 @@
 // Account creation and import (F1 to F5): generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Button, Checkbox, Group, Paper, PasswordInput, Select, Stack, Text, Textarea, Title } from '@mantine/core';
+import { Alert, Button, Checkbox, Group, Paper, PasswordInput, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
 import { IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useRef } from 'react';
 import { useState } from 'react';
@@ -29,6 +29,8 @@ interface Draft {
   network: Network;
   imported: boolean;
   birthday: number | string;
+  /** Imported with the fast restore (the node's coin index) rather than a scan from a block. */
+  fast?: boolean;
 }
 function loadDraft(): Draft | null {
   try {
@@ -58,6 +60,7 @@ export function Onboarding() {
   const [birthday, setBirthday] = useState<number | string>(draft?.birthday ?? 1);
   // An imported phrase that never received funds starts at the tip (0 = unknown, resolved at first sync).
   const [fromTip, setFromTip] = useState(false);
+  const [fast, setFast] = useState(draft?.fast ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -116,8 +119,9 @@ export function Onboarding() {
     setBusy(true);
     setError(null);
     try {
-      let height = imported && fromTip ? 0 : Number(birthday) || 1;
-      if (imported && !fromTip) {
+      const fastRestore = imported && fast;
+      let height = imported && (fromTip || fastRestore) ? 0 : Number(birthday) || 1;
+      if (imported && !fromTip && !fastRestore) {
         // Refuse a start above the chain when the node can say where it is.
         try {
           const tip = await services.node().probe();
@@ -137,7 +141,7 @@ export function Onboarding() {
           height = 0;
         }
       }
-      const record = await services.accounts.createAccount(phrase, password, network, height);
+      const record = await services.accounts.createAccount(phrase, password, network, height, { fastRestore });
       saveDraft(null);
       await services.accounts.markBackupConfirmed(record.id);
       await services.updateSettings({ currentAccountId: record.id });
@@ -261,13 +265,15 @@ export function Onboarding() {
           setBirthday={setBirthday}
           fromTip={fromTip}
           setFromTip={setFromTip}
+          fast={fast}
+          setFast={setFast}
           node={() => services.node()}
           initialText={imported ? phrase.join(' ') : ''}
           checkPhrase={(words) => services.core.phraseProblem(words)}
           onPhrase={(words) => {
             setPhrase(words);
             setImported(true);
-            saveDraft({ phrase: words, network, imported: true, birthday });
+            saveDraft({ phrase: words, network, imported: true, birthday, fast });
             setStep('password');
           }}
           onFile={importFile}
@@ -323,6 +329,8 @@ function ImportStep({
   setBirthday,
   fromTip,
   setFromTip,
+  fast,
+  setFast,
   node,
   initialText,
   checkPhrase,
@@ -335,6 +343,8 @@ function ImportStep({
   setBirthday: (v: number | string) => void;
   fromTip: boolean;
   setFromTip: (v: boolean) => void;
+  fast: boolean;
+  setFast: (v: boolean) => void;
   node: () => NodeClient;
   /** The phrase typed before, when coming back from the password step. */
   initialText: string;
@@ -381,14 +391,34 @@ function ImportStep({
             setPhraseError(null);
           }}
         />
-        <StartBlockPicker
-          value={birthday}
-          onChange={setBirthday}
-          node={node}
-          disabled={fromTip}
-          description="The block your first funds arrived in, or earlier. From block 1 on Mainnet the scan downloads about 8 to 10 GB; a later block saves most of it."
+        <SegmentedControl
+          fullWidth
+          value={fast ? 'fast' : 'private'}
+          onChange={(v) => setFast(v === 'fast')}
+          data={[
+            { value: 'fast', label: 'Fast restore' },
+            { value: 'private', label: 'Private restore' },
+          ]}
         />
-        <Checkbox label="This phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
+        {fast ? (
+          <Text size="sm" c="dimmed">
+            The node's coin index says which blocks hold payments to you, and only those are fetched: seconds, not hours. The node learns which coins are yours, though not the amounts.
+          </Text>
+        ) : (
+          <>
+            <Text size="sm" c="dimmed">
+              Every block from the one you choose is downloaded and scanned on this device. The node learns nothing about your coins.
+            </Text>
+            <StartBlockPicker
+              value={birthday}
+              onChange={setBirthday}
+              node={node}
+              disabled={fromTip}
+              description="The block your first funds arrived in, or earlier. From block 1 on Mainnet the scan downloads about 8 to 10 GB; a later block saves most of it."
+            />
+            <Checkbox label="This phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
+          </>
+        )}
         <Button disabled={words.length !== 18} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this phrase</Button>
         <Text size="sm" c="dimmed">Or restore a backup file exported by this app:</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />

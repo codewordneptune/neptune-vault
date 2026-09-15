@@ -78,13 +78,15 @@ export function Home() {
   const leavingNau = pendingSends.reduce((sum, h) => sum + BigInt(h.amountNau) + BigInt(h.feeNau ?? '0'), 0n);
   const afterPendingNau = balance.spendableNau + balance.reservedNau - leavingNau;
 
-  const busy = sync?.phase === 'checking' || sync?.phase === 'scanning';
+  const busy = sync?.phase === 'checking' || sync?.phase === 'restoring' || sync?.phase === 'scanning';
   const syncText =
     sync === null
       ? 'Not synced yet'
       : sync.phase === 'checking'
         ? 'Checking the chain'
-        : sync.phase === 'scanning'
+        : sync.phase === 'restoring'
+          ? (sync.message ?? 'Fast restore')
+          : sync.phase === 'scanning'
           ? `Scanning block ${showBlock(sync.syncedHeight)} of ${showBlock(sync.tipHeight)}`
           : sync.phase === 'done'
             ? `Up to date · block ${showBlock(sync.syncedHeight)}${lastSyncedAt ? ` · ${ago(lastSyncedAt)}` : ''}`

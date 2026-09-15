@@ -7,12 +7,12 @@
 // bookkeeping (UTXO records, block records, history, sync state).
 
 import type { NodeClient } from '../node/rpc';
-import type { BlockRecord, HistoryRecord, UtxoRecord, VaultDb } from '../storage/db';
+import type { AccountRecord, BlockRecord, HistoryRecord, UtxoRecord, VaultDb } from '../storage/db';
 import { nextKeyIndicesOf } from '../storage/db';
 import type { NextKeyIndices, ScannedBlock, StoredUtxo, WalletCore } from './core';
 
 export interface SyncProgress {
-  phase: 'checking' | 'scanning' | 'done' | 'error';
+  phase: 'checking' | 'restoring' | 'scanning' | 'done' | 'error';
   syncedHeight: number;
   tipHeight: number;
   message?: string;
@@ -23,6 +23,11 @@ export interface SyncOptions {
   /** How many recent block records to keep for reorg detection. */
   keepBlocks?: number;
   onProgress?: (p: SyncProgress) => void;
+}
+
+function isMethodNotFound(e: unknown): boolean {
+  const message = e instanceof Error ? e.message : String(e);
+  return /method not found|-32601/i.test(message);
 }
 
 export class SyncEngine {
@@ -73,10 +78,16 @@ export class SyncEngine {
 
   private async pass(): Promise<SyncProgress> {
     try {
-      const account = await this.db.get('accounts', this.accountId);
+      let account = await this.db.get('accounts', this.accountId);
       if (!account) throw new Error('account not found');
 
       const tip = await this.node.tipHeader();
+      if (account.restore === 'fast') {
+        const outcome = await this.restoreFast(account, tip.height);
+        if (outcome === 'stopped') return { phase: 'restoring', syncedHeight: 0, tipHeight: tip.height };
+        if (outcome !== 'done') return this.progress('error', 0, tip.height, outcome);
+        account = (await this.db.get('accounts', this.accountId)) ?? account;
+      }
       // An account created while the node was unreachable has no start
       // height yet; it starts at the tip seen now, tip block included.
       // A start height above the chain (a typo at import, or a rescan aimed
@@ -121,6 +132,52 @@ export class SyncEngine {
       const message = e instanceof Error ? e.message : String(e);
       return this.progress('error', await this.syncedHeight(), 0, message);
     }
+  }
+
+  /**
+   * Restore from the node's coin index instead of the chain: ask which
+   * blocks carry announcements for this wallet's keys, scan only those,
+   * ask where the coins found were spent, scan those blocks too, and go
+   * round again while new keys or coins turn up. Ends with the sync
+   * position at the tip seen at the start, so the ordinary pass takes
+   * over from there. The node learns the wallet's identifiers and coins.
+   * Returns 'done', 'stopped', or the reason it could not run.
+   */
+  private async restoreFast(account: AccountRecord, tipHeight: number): Promise<'done' | 'stopped' | string> {
+    const tipHash = await this.node.tipDigest();
+    const scanned = new Set<number>();
+    let nextKeyIndices = nextKeyIndicesOf(account);
+    let lowest = tipHeight;
+    for (let round = 0; round < 12; round++) {
+      this.progress('restoring', scanned.size, tipHeight, 'Asking the node which blocks are yours');
+      let heights: number[];
+      try {
+        heights = await this.node.blockHeightsByFlags(await this.core.announcementFlags(nextKeyIndices));
+      } catch (e) {
+        if (isMethodNotFound(e)) return 'This node has no coin index, so a fast restore cannot run here. Rescan from a block or a date instead, or choose another node in Settings.';
+        throw e;
+      }
+      const unspent = await this.unspentStored();
+      if (unspent.length > 0) heights.push(...(await this.node.blockHeightsBySpends(await this.core.absoluteIndexSets(unspent))));
+      const todo = [...new Set(heights)].filter((h) => h >= 1 && h <= tipHeight && !scanned.has(h)).sort((a, b) => a - b);
+      if (todo.length === 0) break;
+      for (const [i, height] of todo.entries()) {
+        if (this.stopRequested) return 'stopped';
+        this.progress('restoring', scanned.size, tipHeight, 'Fast restore: block ' + (i + 1) + ' of ' + todo.length);
+        const blocksResponse = await this.node.getBlocksRaw(height, height);
+        if (this.stopRequested) return 'stopped';
+        const result = await this.core.scanBlocks(blocksResponse, await this.unspentStored(), nextKeyIndices);
+        scanned.add(height);
+        if (result.blocks.length === 0) continue;
+        nextKeyIndices = result.next_key_indices;
+        await this.persist(result.blocks, nextKeyIndices);
+        lowest = Math.min(lowest, height);
+      }
+    }
+    await this.db.put('syncState', { accountId: this.accountId, syncedHeight: tipHeight, syncedHash: tipHash, updatedAt: Date.now() });
+    const { restore: _done, ...fresh } = (await this.db.get('accounts', this.accountId)) ?? account;
+    await this.db.put('accounts', { ...fresh, birthdayHeight: lowest });
+    return 'done';
   }
 
   private progress(phase: SyncProgress['phase'], syncedHeight: number, tipHeight: number, message?: string): SyncProgress {

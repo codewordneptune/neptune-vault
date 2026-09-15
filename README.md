@@ -31,9 +31,12 @@ stay readable, and the app upgrades its stored data on its own.
   It needs about 1 GB of memory free for the browser and a few minutes on a
   recent phone; the app keeps going if you switch away, and shows the step
   it is on. Devices with 4 GB of RAM or less may run out of memory.
-- **The first sync can be long.** Importing a phrase from block 1 on
-  Mainnet downloads about 8 to 10 GB of blocks over time. Give the date your
-  first funds arrived instead, and the scan starts there.
+- **Restoring is quick, or private.** The fast restore asks the node's coin
+  index which blocks hold payments to you and fetches only those: seconds.
+  The node learns which coins are yours, though not the amounts. The
+  private restore downloads every block from a date you choose and scans
+  it on the device, which from block 1 on Mainnet is 8 to 10 GB and hours;
+  the node learns nothing about your coins. Both are offered on import.
 - **Your phrase is the only backup.** The password protects the phrase on
   this device and cannot be recovered. A forgotten password costs a
   re-import, not your funds. A lost phrase costs the funds.
@@ -42,7 +45,9 @@ stay readable, and the app upgrades its stored data on its own.
 
 - Create a wallet from a fresh 18-word phrase, confirmed by tapping words
   into place, or import a phrase, or restore a backup file. A mistyped
-  phrase is named by word before you go on.
+  phrase is named by word before you go on. An imported phrase is restored
+  in seconds through the node's coin index, or privately by scanning the
+  chain from a date.
 - Receive to Standard (Generation), Short (EC hybrid) or View-only
   addresses, with a QR code, and share a payment request as a NIP-002 link
   or code that can carry an amount, your name and a note for the sender.
@@ -57,8 +62,8 @@ stay readable, and the app upgrades its stored data on its own.
 - Encrypted seed at rest (Argon2id, AES-256-GCM), auto-lock, password
   change, passkey unlock, and export and import of a backup file with
   contacts.
-- Rescan from a block or a date, Diagnostics for support, and an update
-  strip that offers a new build instead of applying it.
+- Rescan, fast or from a block or a date, Diagnostics for support, and an
+  update strip that offers a new build instead of applying it.
 
 ## What it does not do yet
 
@@ -91,8 +96,10 @@ stay readable, and the app upgrades its stored data on its own.
   unlocking, and hides itself again.
 - The node sees which blocks you fetch and the transactions you submit. It
   does not see your keys, your addresses or your balance; scanning happens
-  in the browser. [docs/PRIVACY.md](docs/PRIVACY.md) lists exactly what
-  leaves the device, and the same text is in the app under About.
+  in the browser. A fast restore tells it more: the identifiers of your
+  addresses, and so which payments and coins are yours.
+  [docs/PRIVACY.md](docs/PRIVACY.md) lists exactly what leaves the device,
+  and the same text is in the app under About.
 - The host serves the code. A new build is downloaded and offered, never
   applied on its own: the strip under the header names the waiting build,
   the one you are on, and links the commits between them on GitHub. About
@@ -101,8 +108,9 @@ stay readable, and the app upgrades its stored data on its own.
 ## Recovering
 
 - **Phrase.** Restores the funds in any wallet that understands Neptune's
-  18-word phrase, including this app on another device. Give the date your
-  first funds arrived so the scan does not start from block 1.
+  18-word phrase, including this app on another device. The fast restore
+  needs no date; the private one starts from the date your first funds
+  arrived so the scan does not begin at block 1.
 - **Backup file.** Made under Settings; encrypted with your password. It
   restores the phrase, the network, the start block and your contacts.
   Every backup file this app has ever written stays readable by later
