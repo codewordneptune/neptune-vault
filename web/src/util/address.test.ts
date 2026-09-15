@@ -81,6 +81,13 @@ describe('label and message', () => {
     expect(paymentUri(addr, undefined, 'Café')).toBe(`neptunecash:${addr}?message=Caf%C3%A9`);
     expect(parsePaymentText(paymentUri(addr, '1.5', 'for the tickets & more')).message).toBe('for the tickets & more');
   });
+  it('puts the label before the message, both percent-encoded', () => {
+    expect(paymentUri(addr, '2', 'lunch', 'Esa J')).toBe(`neptunecash:${addr}?amount=2&label=Esa%20J&message=lunch`);
+    const parsed = parsePaymentText(paymentUri(addr, undefined, undefined, 'Café'));
+    expect(parsed.label).toBe('Café');
+    expect(parsed.message).toBeUndefined();
+  });
+
   it('refuses notes the spec forbids', () => {
     expect(metaProblem('Invoice 42')).toBeNull();
     expect(metaProblem('a'.repeat(255))).toBeNull();

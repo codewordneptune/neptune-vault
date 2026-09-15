@@ -54,7 +54,10 @@ export function Receive() {
   // screen and kept with their send; it never reaches this wallet.
   const [requestNote, setRequestNote] = useState('');
   const noteError = requestNote.trim() ? metaProblem(requestNote.trim()) : null;
-  const paymentLink = paymentUri(address, linkAmount, noteError ? undefined : requestNote.trim() || undefined);
+  // The name the payer sees as the link's label; remembered, since it rarely changes.
+  const [requestLabel, setRequestLabel] = useState(services.settings.requestLabel ?? '');
+  const labelError = requestLabel.trim() ? metaProblem(requestLabel.trim()) : null;
+  const paymentLink = paymentUri(address, linkAmount, noteError ? undefined : requestNote.trim() || undefined, labelError ? undefined : requestLabel.trim() || undefined);
 
   // Validate the request amount through the wallet core and normalise it.
   useEffect(() => {
@@ -203,6 +206,17 @@ export function Receive() {
               autoFocus
             />
             <TextInput
+              label="Your name, as the payer will see it (optional)"
+              description="Goes into the link as its label; the payer's wallet shows it as unverified."
+              value={requestLabel}
+              onChange={(e) => {
+                setRequestLabel(e.currentTarget.value);
+                void services.updateSettings({ requestLabel: e.currentTarget.value.trim() });
+              }}
+              error={labelError}
+              maxLength={255}
+            />
+            <TextInput
               label="Note for the payer (optional)"
               description="Shown to the payer only; it does not reach you."
               value={requestNote}
@@ -213,13 +227,14 @@ export function Receive() {
             <Text size="xs" c="dimmed">
               The link carries your {KIND_LABELS[kind]} address
               {linkAmount ? `, ${linkAmount} NPT` : ''}
-              {requestNote.trim() && !noteError ? ' and the note' : ''}. The QR code on this screen holds the address{linkAmount ? ' and the amount' : ''}; a note travels only in the link.
+              {requestLabel.trim() && !labelError ? ', your name' : ''}
+              {requestNote.trim() && !noteError ? ' and the note' : ''}. The QR code on this screen holds the address{linkAmount ? ' and the amount' : ''}; your name and a note travel only in the link.
             </Text>
             <Group grow>
-              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError || noteError)}>
+              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError || noteError || labelError)}>
                 Copy link
               </Button>
-              <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={Boolean(amountError || noteError)}>
+              <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={Boolean(amountError || noteError || labelError)}>
                 Share
               </Button>
             </Group>
