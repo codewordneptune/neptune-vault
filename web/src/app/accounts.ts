@@ -93,7 +93,49 @@ export class AccountService {
    * `birthdayHeight` is where scanning starts: the current tip for a fresh
    * account, a user-supplied height (or 1) for an import.
    */
+  /** "Wallet n" for the next wallet on this network, counting the ones already there. */
+  private async nextName(network: Network): Promise<string> {
+    const count = (await this.db.getAllFromIndex('accounts', 'byNetwork', network)).length;
+    return 'Wallet ' + (count + 1);
+  }
+
+  async rename(accountId: string, name: string): Promise<void> {
+    const record = await this.db.get('accounts', accountId);
+    if (!record) throw new Error('account not found');
+    const trimmed = name.trim().slice(0, 40);
+    if (!trimmed) throw new Error('A wallet needs a name');
+    await this.db.put('accounts', { ...record, name: trimmed });
+  }
+
+  /** Proves the password opens this wallet; throws WrongPasswordError otherwise. */
+  async verifyPassword(accountId: string, password: string): Promise<void> {
+    const record = await this.db.get('accounts', accountId);
+    if (!record) throw new Error('account not found');
+    const phrase = await openSeed(record.envelope, password, this.derive);
+    phrase.fill('');
+  }
+
+  /**
+   * Remove a wallet from this device: its seed, coins, history, blocks,
+   * contacts and sync state, in one transaction. The funds stay on the
+   * chain and the phrase restores them anywhere. Locks first when it is
+   * the wallet in memory.
+   */
+  async deleteAccount(accountId: string): Promise<void> {
+    if (this.unlockedId === accountId) await this.lock();
+    const tx = this.db.transaction(['accounts', 'syncState', 'utxos', 'history', 'blocks', 'contacts'], 'readwrite');
+    await tx.objectStore('accounts').delete(accountId);
+    await tx.objectStore('syncState').delete(accountId);
+    for (const key of await tx.objectStore('utxos').index('byAccount').getAllKeys(accountId)) await tx.objectStore('utxos').delete(key);
+    for (const key of await tx.objectStore('history').index('byAccount').getAllKeys(accountId)) await tx.objectStore('history').delete(key);
+    for (const key of await tx.objectStore('contacts').index('byAccount').getAllKeys(accountId)) await tx.objectStore('contacts').delete(key);
+    const blockKeys = await tx.objectStore('blocks').index('byAccountHeight').getAllKeys(IDBKeyRange.bound([accountId, 0], [accountId, Number.MAX_SAFE_INTEGER]));
+    for (const key of blockKeys) await tx.objectStore('blocks').delete(key);
+    await tx.done;
+  }
+
   async createAccount(phrase: string[], password: string, network: Network, birthdayHeight: number, options: { fastRestore?: boolean } = {}): Promise<AccountRecord> {
+    const name = await this.nextName(network);
     const envelope = await sealSeed(phrase, password, this.derive, DEFAULT_KDF);
     await this.core.unlock(phrase, network);
     const address0 = await this.core.address('generation', 0);
@@ -106,6 +148,7 @@ export class AccountService {
       address0,
       nextKeyIndices: FRESH_KEY_INDICES,
       backupConfirmed: false,
+      name,
       ...(options.fastRestore ? { restore: 'fast' as const } : {}),
     };
     await this.db.put('accounts', record);
@@ -239,6 +282,7 @@ export class AccountService {
       throw new Error('This backup file was made by a newer version of Neptune Vault. Update the app, then restore it.');
     }
     const network = file.network as Network;
+    const name = await this.nextName(network);
     const phrase = await openSeed(file.envelope, password, this.derive);
     await this.core.unlock(phrase, network);
     const address0 = await this.core.address('generation', 0);
@@ -251,6 +295,7 @@ export class AccountService {
       address0,
       nextKeyIndices: FRESH_KEY_INDICES,
       backupConfirmed: true,
+      name,
       // The file it came from is a backup as of its export date.
       lastBackupAt: file.exportedAt,
     };

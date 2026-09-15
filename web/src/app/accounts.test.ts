@@ -51,6 +51,50 @@ async function setup(lockTimeoutMs = 5 * 60 * 1000) {
 }
 
 describe('account service', () => {
+  it('names wallets in order per network, renames, and removes one without touching another', async () => {
+    const { service } = await setup();
+    const first = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const second = await service.createAccount(['x0', ...Array.from({ length: 17 }, (_, i) => 'x' + (i + 1))], 'pw2', 'regtest', 1);
+    const elsewhere = await service.createAccount(await service.generatePhrase(), 'pw', 'testnet', 1);
+    expect(first.name).toBe('Wallet 1');
+    expect(second.name).toBe('Wallet 2');
+    expect(elsewhere.name).toBe('Wallet 1');
+
+    await service.rename(second.id, '  Savings  ');
+    expect((await db.get('accounts', second.id))?.name).toBe('Savings');
+    await expect(service.rename(second.id, '   ')).rejects.toThrow(/name/);
+
+    for (const id of [first.id, second.id]) {
+      await db.put('utxos', { key: id + ':u', accountId: id, hash: 'u', stored: {}, amountNau: '1', amount: '1', confirmedHeight: 1, confirmedTimestampMs: 0, releaseDateMs: null, spentHeight: null, spentTxid: null, pendingTxid: null });
+      await db.put('history', { key: id + ':h', accountId: id, kind: 'received', status: 'confirmed', txid: '', amountNau: '1', feeNau: null, timestampMs: 0, height: 1, inputHashes: [], recipient: null, error: null, changeNau: null });
+      await db.put('blocks', { key: id + ':1', accountId: id, height: 1, hash: 'b', prevHash: 'a', timestampMs: 0 });
+      await db.put('contacts', { key: id + ':c', id: 'c', accountId: id, name: 'Al', address: 'nolgar1x', kind: 'Standard', createdAt: 0, updatedAt: 0 });
+      await db.put('syncState', { accountId: id, syncedHeight: 1, syncedHash: 'b', updatedAt: 0 });
+    }
+
+    await service.verifyPassword(second.id, 'pw2');
+    await expect(service.verifyPassword(second.id, 'pw')).rejects.toBeInstanceOf(WrongPasswordError);
+
+    // The second wallet is the one in memory; removing it locks.
+    expect(service.currentAccountId).toBe(elsewhere.id);
+    await service.unlock(second.id, 'pw2');
+    await service.deleteAccount(second.id);
+    expect(service.currentAccountId).toBeNull();
+    expect(await db.get('accounts', second.id)).toBeUndefined();
+    expect(await db.get('syncState', second.id)).toBeUndefined();
+    expect(await db.getAllFromIndex('utxos', 'byAccount', second.id)).toEqual([]);
+    expect(await db.getAllFromIndex('history', 'byAccount', second.id)).toEqual([]);
+    expect(await db.getAllFromIndex('contacts', 'byAccount', second.id)).toEqual([]);
+    expect(await db.getAllFromIndex('blocks', 'byAccountHeight', IDBKeyRange.bound([second.id, 0], [second.id, Number.MAX_SAFE_INTEGER]))).toEqual([]);
+    // The first wallet keeps everything.
+    expect((await db.getAllFromIndex('utxos', 'byAccount', first.id)).length).toBe(1);
+    expect((await db.getAllFromIndex('contacts', 'byAccount', first.id)).length).toBe(1);
+    expect(await db.get('syncState', first.id)).toBeDefined();
+    // The next wallet on that network is named after the ones left.
+    const third = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    expect(third.name).toBe('Wallet 2');
+  });
+
   it('creates, locks, and unlocks an account with the password', async () => {
     const { core, service } = await setup();
     const phrase = await service.generatePhrase();

@@ -33,6 +33,8 @@ export interface AccountRecord {
   nextKeyIndices: NextKeyIndices;
   /** True once the user confirmed the seed phrase (F3). */
   backupConfirmed: boolean;
+  /** The wallet's name on this device, for telling several apart. Absent on the first wallets ever made. */
+  name?: string;
   /**
    * A fast restore is pending: the next sync asks the node's coin index
    * which blocks are this wallet's and scans only those, instead of every
@@ -254,6 +256,11 @@ export const FRESH_KEY_INDICES: NextKeyIndices = { generation: 1, ec_hybrid: 0, 
  * Accounts stored before address kinds existed carry a single
  * `nextKeyIndex`; read them as generation-only.
  */
+/** The name a wallet is shown under; the first wallets ever made have none. */
+export function walletName(account: Pick<AccountRecord, 'name'>): string {
+  return account.name?.trim() || 'Wallet 1';
+}
+
 export function nextKeyIndicesOf(account: AccountRecord): NextKeyIndices {
   const legacy = (account as unknown as { nextKeyIndex?: number }).nextKeyIndex;
   return account.nextKeyIndices ?? { generation: legacy ?? 1, ec_hybrid: 0, viewing: 0 };

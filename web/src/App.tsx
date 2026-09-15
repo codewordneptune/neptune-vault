@@ -28,7 +28,9 @@ const TABS = [
 export function App() {
   const { ready, account, locked, services } = useApp();
   // A new screen starts at its top; the router alone keeps the old scroll position.
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  // Onboarding is closed once a wallet exists, except to add another.
+  const addingWallet = new URLSearchParams(search).has('add');
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
@@ -65,7 +67,7 @@ export function App() {
       <SendStrip />
       <Container component="main" size="xs" py="md">
         <Routes>
-          <Route path="/onboarding" element={account ? <Navigate to="/" replace /> : <Onboarding />} />
+          <Route path="/onboarding" element={account && !addingWallet ? <Navigate to="/" replace /> : <Onboarding />} />
           <Route path="/" element={gate(<Home />)} />
           <Route path="/receive" element={gate(<Receive />)} />
           <Route path="/send" element={gate(<Send />)} />

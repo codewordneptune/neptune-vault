@@ -1,4 +1,4 @@
-import { Button, Divider, Paper, PasswordInput, Stack, Title } from '@mantine/core';
+import { Button, Divider, Paper, PasswordInput, Stack, Text, Title } from '@mantine/core';
 import { IconFingerprint } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -14,7 +14,9 @@ function isCancellation(e: unknown): boolean {
 }
 
 import { useApp } from '../app/AppContext';
+import { walletName } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
+import { NETWORK_LABELS } from '../util/network';
 
 export function Unlock() {
   const { services, account } = useApp();
@@ -74,6 +76,11 @@ export function Unlock() {
       >
         <Stack>
           <Title order={2}>Welcome back</Title>
+          {account && (
+            <Text size="sm" c="dimmed">
+              {walletName(account)} · {NETWORK_LABELS[account.network]}
+            </Text>
+          )}
           {hasPasskey && (
             <>
               <Button leftSection={<IconFingerprint size={18} stroke={1.8} />} loading={passkeyBusy} onClick={() => void unlockWithPasskey()}>

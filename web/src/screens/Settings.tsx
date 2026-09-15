@@ -1,14 +1,14 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
-import { Alert, Anchor, Button, Group, Modal, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck } from '@tabler/icons-react';
+import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconWallet } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { showBlock, useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
-import { requestPersistentStorage } from '../storage/db';
+import { requestPersistentStorage, walletName } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
@@ -64,7 +64,8 @@ export function Settings() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `neptune-vault-${account.network}-${new Date().toISOString().slice(0, 10)}.json`;
+    const slug = walletName(account).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    a.download = `neptune-vault-${account.network}-${slug}-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -112,6 +113,7 @@ export function Settings() {
         Settings
       </Title>
       {message && <Alert color="green" onClose={() => setMessage(null)} withCloseButton>{message}</Alert>}
+      <WalletCard />
       <Paper>
         <Stack>
           <Title order={3} className="vault-section-title">
@@ -473,6 +475,94 @@ function PasskeyCard() {
         </Group>
       </Stack>
     </form>
+  );
+}
+
+// This wallet's name, another wallet, and removal from this device.
+function WalletCard() {
+  const { services, account, refresh, removeAccount, sendJob } = useApp();
+  const navigate = useNavigate();
+  const [name, setName] = useState(account ? walletName(account) : '');
+  const [removing, setRemoving] = useState(false);
+  const [password, setPassword] = useState('');
+  const [haveBackup, setHaveBackup] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setName(account ? walletName(account) : '');
+  }, [account?.id, account?.name]);
+  if (!account) return null;
+  const sending = Boolean(sendJob && !sendJob.done);
+
+  const save = async () => {
+    if (name.trim() === walletName(account)) return;
+    try {
+      await services.accounts.rename(account.id, name);
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await services.accounts.verifyPassword(account.id, password);
+      await removeAccount(account.id);
+      setRemoving(false);
+      navigate('/');
+    } catch (e) {
+      setError(e instanceof WrongPasswordError ? 'Wrong password' : (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Paper>
+      <Stack>
+        <Title order={3} className="vault-section-title">
+          <IconWallet size={18} stroke={1.8} aria-hidden />
+          Wallet
+        </Title>
+        <TextInput
+          label="Name on this device"
+          value={name}
+          maxLength={40}
+          onChange={(e) => setName(e.currentTarget.value)}
+          onBlur={() => void save()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void save();
+          }}
+        />
+        <Group>
+          <Button variant="light" disabled={sending} onClick={() => navigate('/onboarding?add=1')}>
+            Add another wallet
+          </Button>
+          <Button variant="subtle" color="red" disabled={sending} onClick={() => setRemoving(true)}>
+            Remove from this device
+          </Button>
+        </Group>
+        <Modal opened={removing} onClose={() => setRemoving(false)} title={`Remove ${walletName(account)} from this device?`}>
+          <Stack>
+            <Text size="sm">
+              Its coins stay on the chain. Only the seed phrase, or a backup file, brings them back: this device will hold nothing of this wallet afterwards, including its history and contacts.
+            </Text>
+            <Checkbox label="I have this wallet's seed phrase or a backup file" checked={haveBackup} onChange={(e) => setHaveBackup(e.currentTarget.checked)} />
+            <PasswordInput label="This wallet's password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} error={error} autoComplete="current-password" />
+            <Group grow>
+              <Button variant="default" onClick={() => setRemoving(false)}>
+                Cancel
+              </Button>
+              <Button color="red" loading={busy} disabled={!haveBackup || !password} onClick={() => void remove()}>
+                Remove wallet
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+      </Stack>
+    </Paper>
   );
 }
 

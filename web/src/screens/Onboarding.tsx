@@ -3,9 +3,8 @@
 
 import { Alert, Button, Checkbox, Group, Paper, PasswordInput, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
 import { IconCopy, IconFileUpload } from '@tabler/icons-react';
-import { useRef } from 'react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
@@ -50,11 +49,18 @@ function saveDraft(draft: Draft | null) {
 }
 
 export function Onboarding() {
-  const { services, setAccount, switchNetwork } = useApp();
+  const { services, account, setAccount, switchNetwork, pauseSync, network: currentNetwork } = useApp();
   const navigate = useNavigate();
+  // Adding a wallet next to an existing one: same steps, a way back to it.
+  const adding = Boolean(account) && new URLSearchParams(useLocation().search).has('add');
   const draft = loadDraft();
   const [step, setStep] = useState<Step>(draft ? (draft.imported ? 'password' : 'show') : 'welcome');
-  const [network, setNetwork] = useState<Network>(draft?.network ?? services.settings.network);
+  // The network is the app's: a switch made from the header menu must reach
+  // the wallet being made here, or it would be saved on the wrong network.
+  const [network, setNetwork] = useState<Network>(draft?.network ?? currentNetwork);
+  useEffect(() => {
+    setNetwork(currentNetwork);
+  }, [currentNetwork]);
   const [phrase, setPhrase] = useState<string[]>(draft?.phrase ?? []);
   const [imported, setImported] = useState(draft?.imported ?? false);
   const [birthday, setBirthday] = useState<number | string>(draft?.birthday ?? 1);
@@ -141,6 +147,7 @@ export function Onboarding() {
           height = 0;
         }
       }
+      await pauseSync();
       const record = await services.accounts.createAccount(phrase, password, network, height, { fastRestore });
       saveDraft(null);
       await services.accounts.markBackupConfirmed(record.id);
@@ -159,6 +166,7 @@ export function Onboarding() {
     setError(null);
     try {
       const parsed = JSON.parse(await file.text()) as ExportFile;
+      await pauseSync();
       const record = await services.accounts.importFile(parsed, password);
       saveDraft(null);
       await services.updateSettings({ currentAccountId: record.id, network: record.network });
@@ -175,12 +183,16 @@ export function Onboarding() {
     <Stack gap="md">
       {error && <Alert color="red">{error}</Alert>}
 
-      {step === 'welcome' && <PocNotice />}
+      {step === 'welcome' && !adding && <PocNotice />}
       {step === 'welcome' && (
         <Paper>
           <Stack>
-            <Title order={2}>Welcome</Title>
-            <Text size="sm" c="dimmed">This wallet keeps your keys on this device only. Your seed phrase is the only backup.</Text>
+            <Title order={2}>{adding ? 'Add a wallet' : 'Welcome'}</Title>
+            <Text size="sm" c="dimmed">
+              {adding
+                ? 'Another seed phrase, with its own password and its own backup. The wallet you have stays on this device; the header menu switches between them.'
+                : 'This wallet keeps your keys on this device only. Your seed phrase is the only backup.'}
+            </Text>
             <Select
               label="Network"
               data={NETWORK_OPTIONS}
@@ -196,6 +208,11 @@ export function Onboarding() {
             {draft && (
               <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>
                 Discard the unfinished wallet
+              </Button>
+            )}
+            {adding && (
+              <Button variant="subtle" onClick={() => navigate('/settings')}>
+                Keep the current wallet
               </Button>
             )}
           </Stack>

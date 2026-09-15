@@ -1,22 +1,30 @@
-// The network pill in the header: a menu listing the three networks, marking
-// the ones that already have an account. Choosing one applies the same
-// lock-and-switch as Settings.
+// The network pill in the header: a menu listing the three networks, the
+// wallets on the current one when there are several, and a way to add one.
+// Choosing a network applies the same lock-and-switch as Settings; choosing
+// a wallet locks and opens that wallet.
 
 import { Button, Group, Menu, Modal, Stack, Text } from '@mantine/core';
-import { IconCheck, IconChevronDown } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconPlus } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
-import type { Network } from '../storage/db';
+import { walletName, type AccountRecord, type Network } from '../storage/db';
 import { NETWORK_LABELS } from '../util/network';
 
 const NETWORKS: Network[] = ['main', 'testnet', 'regtest'];
 
 export function NetworkMenu() {
-  const { services, network, switchNetwork, account } = useApp();
-  const [withAccount, setWithAccount] = useState<Set<Network>>(new Set());
+  const { services, network, switchNetwork, switchAccount, account, sendJob } = useApp();
+  const navigate = useNavigate();
+  const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [opened, setOpened] = useState(false);
   const [pending, setPending] = useState<Network | null>(null);
+  const sending = Boolean(sendJob && !sendJob.done);
+  const onThisNetwork = accounts.filter((a) => a.network === network);
+  const several = onThisNetwork.length > 1;
+  const countOn = (n: Network) => accounts.filter((a) => a.network === n).length;
+  const hint = (n: Network) => (countOn(n) === 0 ? 'no wallet' : countOn(n) === 1 ? 'wallet' : countOn(n) + ' wallets');
 
   const choose = (n: Network) => {
     if (n === network) return;
@@ -25,18 +33,18 @@ export function NetworkMenu() {
     else void switchNetwork(n);
   };
 
-  // Which networks have an account; refreshed each time the menu opens, since
-  // onboarding or an import may have added one.
+  // The wallets on this device; refreshed each time the menu opens and when
+  // the current one changes, since onboarding or an import may have added one.
   useEffect(() => {
-    if (!opened) return;
-    void services.db.getAll('accounts').then((all) => setWithAccount(new Set(all.map((a) => a.network))));
+    void services.db.getAll('accounts').then(setAccounts);
   }, [opened, services, account]);
 
   return (
     <Menu opened={opened} onChange={setOpened} position="bottom-end" width={200} radius="md" shadow="md">
       <Menu.Target>
-        <button type="button" className="vault-network" aria-label={`Network: ${NETWORK_LABELS[network]}. Change network`}>
+        <button type="button" className="vault-network" aria-label={`Network: ${NETWORK_LABELS[network]}${several && account ? ', ' + walletName(account) : ''}. Change network or wallet`}>
           {NETWORK_LABELS[network]}
+          {several && account ? ' · ' + walletName(account) : ''}
           <IconChevronDown size={12} stroke={2.2} />
         </button>
       </Menu.Target>
@@ -47,13 +55,36 @@ export function NetworkMenu() {
             key={n}
             onClick={() => choose(n)}
             leftSection={n === network ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
-            rightSection={
-              <span className="vault-network-hint">{withAccount.has(n) ? 'wallet' : 'no wallet'}</span>
-            }
+            rightSection={<span className="vault-network-hint">{hint(n)}</span>}
           >
             {NETWORK_LABELS[n]}
           </Menu.Item>
         ))}
+        {several && (
+          <>
+            <Menu.Label>Wallets on {NETWORK_LABELS[network]}</Menu.Label>
+            {onThisNetwork.map((a) => (
+              <Menu.Item
+                key={a.id}
+                disabled={sending}
+                onClick={() => {
+                  if (a.id !== account?.id) void switchAccount(a.id);
+                }}
+                leftSection={a.id === account?.id ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
+              >
+                {walletName(a)}
+              </Menu.Item>
+            ))}
+          </>
+        )}
+        {account && (
+          <>
+            <Menu.Divider />
+            <Menu.Item disabled={sending} leftSection={<IconPlus size={14} />} onClick={() => navigate('/onboarding?add=1')}>
+              Add a wallet
+            </Menu.Item>
+          </>
+        )}
       </Menu.Dropdown>
       <Modal opened={pending !== null} onClose={() => setPending(null)} title={pending ? `Switch to ${NETWORK_LABELS[pending]}?` : ''}>
         {pending && (

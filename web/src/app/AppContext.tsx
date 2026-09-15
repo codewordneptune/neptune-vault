@@ -60,6 +60,12 @@ export interface AppState {
   network: Network;
   /** Lock, select the network, and show its account (or onboarding). */
   switchNetwork: (network: Network) => Promise<void>;
+  /** Lock and show another wallet, on whichever network it belongs to. */
+  switchAccount: (accountId: string) => Promise<void>;
+  /** Remove a wallet from this device and show the next one on its network, or onboarding. */
+  removeAccount: (accountId: string) => Promise<void>;
+  /** End the running sync pass, before the account changes under it. */
+  pauseSync: () => Promise<void>;
   /** The running or last send. */
   sendJob: SendJob | null;
   /** Run a send as a job: wake lock held, auto-lock deferred, toast at the end. */
@@ -110,6 +116,33 @@ export function AppProvider({ services, children }: { services: Services; childr
       setNetwork(next);
     },
     [services, stopSync],
+  );
+
+  const switchAccount = useCallback(
+    async (id: string) => {
+      const record = await services.db.get('accounts', id);
+      if (!record) return;
+      await stopSync();
+      await services.accounts.lock();
+      await services.updateSettings({ network: record.network, currentAccountId: id });
+      setNetwork(record.network);
+      setAccount(record);
+    },
+    [services, stopSync],
+  );
+
+  const removeAccount = useCallback(
+    async (id: string) => {
+      const record = await services.db.get('accounts', id);
+      if (!record) return;
+      await stopSync();
+      await services.accounts.deleteAccount(id);
+      const rest = await services.db.getAllFromIndex('accounts', 'byNetwork', record.network);
+      const next = rest[0] ?? null;
+      await services.updateSettings({ currentAccountId: next?.id ?? null });
+      if (account?.id === id) setAccount(next);
+    },
+    [services, stopSync, account],
   );
 
   // Initial account: the one settings point at, else the only one on this network.
@@ -333,8 +366,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   }, [utxos]);
 
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, startSend, cancelSend, dismissSendJob }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, startSend, cancelSend, dismissSendJob],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

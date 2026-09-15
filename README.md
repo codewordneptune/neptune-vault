@@ -62,6 +62,9 @@ stay readable, and the app upgrades its stored data on its own.
 - Encrypted seed at rest (Argon2id, AES-256-GCM), auto-lock, password
   change, passkey unlock, and export and import of a backup file with
   contacts.
+- Several wallets on one device, each with its own phrase, password and
+  backup, switched from the header menu; a wallet can be removed from the
+  device once you confirm you hold its phrase or backup.
 - Rescan, fast or from a block or a date, Diagnostics for support, and an
   update strip that offers a new build instead of applying it.
 
@@ -69,8 +72,6 @@ stay readable, and the app upgrades its stored data on its own.
 
 - No security audit has been done. Treat every promise above as a design
   intent that a review may still contradict.
-- One wallet per network on a device. A second phrase means importing over
-  the first, after backing it up.
 - No iOS testing. Safari's storage rules and memory limits are known only
   from documentation.
 - Proving happens on the device only; there is no option to hand it to a
