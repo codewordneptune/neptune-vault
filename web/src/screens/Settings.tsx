@@ -114,7 +114,7 @@ export function Settings() {
       <Paper>
         <Stack>
           <Title order={3} className="vault-section-title">
-            <IconShieldCheck size={16} stroke={1.8} aria-hidden />
+            <IconShieldCheck size={18} stroke={1.8} aria-hidden />
             Backup
           </Title>
           {persistent ? (
@@ -169,7 +169,7 @@ export function Settings() {
       <Paper>
         <Stack>
           <Title order={3} className="vault-section-title">
-            <IconLock size={16} stroke={1.8} aria-hidden />
+            <IconLock size={18} stroke={1.8} aria-hidden />
             Security
           </Title>
           <Text size="sm" c="dimmed">
@@ -191,7 +191,7 @@ export function Settings() {
       <Paper>
         <Stack>
           <Title order={3} className="vault-section-title">
-            <IconPlugConnected size={16} stroke={1.8} aria-hidden />
+            <IconPlugConnected size={18} stroke={1.8} aria-hidden />
             Network and node
           </Title>
           <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} />
@@ -217,7 +217,7 @@ export function Settings() {
       <Paper>
         <Stack>
           <Title order={3} className="vault-section-title">
-            <IconDeviceMobile size={16} stroke={1.8} aria-hidden />
+            <IconDeviceMobile size={18} stroke={1.8} aria-hidden />
             App
           </Title>
           <InstallCard />
@@ -235,7 +235,7 @@ export function Settings() {
       <Paper>
         <Stack>
           <Title order={3} className="vault-section-title">
-            <IconInfoCircle size={16} stroke={1.8} aria-hidden />
+            <IconInfoCircle size={18} stroke={1.8} aria-hidden />
             About
           </Title>
           <Text size="sm" c="dimmed">
