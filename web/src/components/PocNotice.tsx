@@ -49,7 +49,7 @@ export function PocNotice() {
       }}
     >
       {expanded && (
-        <Text size="sm">No security audit, breaking changes ahead, and bugs may lose funds. Use it only with amounts you can afford to lose, and keep your phrase somewhere safe.</Text>
+        <Text size="sm">No security audit, breaking changes ahead, and bugs may lose funds. Use it only with amounts you can afford to lose, and keep your seed phrase somewhere safe.</Text>
       )}
     </Alert>
   );

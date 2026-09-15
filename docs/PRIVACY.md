@@ -13,7 +13,7 @@ history, your contacts, the settings, and a record of the last proof. All of
 it lives in this browser's storage on this device. Nothing is kept anywhere
 else by this app.
 
-Clearing the browser's site data deletes all of it. The phrase or a backup
+Clearing the browser's site data deletes all of it. The seed phrase or a backup
 file is the only way back.
 
 ## What leaves your device, and to whom
@@ -31,7 +31,7 @@ them), and the transactions you send. A fast restore tells it more: the
 identifiers of your addresses, and with them every payment you have received
 and every coin you have spent, though not the amounts. The private restore,
 which downloads the chain, tells it none of that. It does not receive your
-phrase, your password, your addresses as such, your contacts, or the notes
+seed phrase, your password, your addresses as such, your contacts, or the notes
 and names in payment links.
 
 **The host serving the app.** Opening or updating the app fetches its files

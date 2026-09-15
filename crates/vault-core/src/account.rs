@@ -163,7 +163,7 @@ pub const PHRASE_WORDS: usize = 18;
 pub fn phrase_problem(words: &[String]) -> Option<String> {
     if words.len() != PHRASE_WORDS {
         return Some(format!(
-            "A phrase has {PHRASE_WORDS} words; this has {}.",
+            "A seed phrase has {PHRASE_WORDS} words; this has {}.",
             words.len()
         ));
     }
@@ -180,7 +180,7 @@ pub fn phrase_problem(words: &[String]) -> Option<String> {
     match SecretKeyMaterial::from_phrase(words.iter().map(|w| w.trim())) {
         Ok(_) => None,
         Err(_) => Some(
-            "Every word is on the list, but together they are not a valid phrase. \
+            "Every word is on the list, but together they are not a valid seed phrase. \
              Check the words and their order against your backup."
                 .to_string(),
         ),
@@ -223,7 +223,7 @@ mod tests {
         let words = fixed_phrase()[..17].to_vec();
         assert_eq!(
             phrase_problem(&words).unwrap(),
-            "A phrase has 18 words; this has 17."
+            "A seed phrase has 18 words; this has 17."
         );
     }
 

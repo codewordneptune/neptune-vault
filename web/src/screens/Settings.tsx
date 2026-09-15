@@ -122,12 +122,12 @@ export function Settings() {
           </Title>
           {persistent ? (
             <Text size="sm" c="dimmed">
-              Persistent storage is granted, so the browser will not evict this wallet's data on its own. Clearing the browser's site data still deletes it; keep the phrase or a backup file.
+              Persistent storage is granted, so the browser will not evict this wallet's data on its own. Clearing the browser's site data still deletes it; keep the seed phrase or a backup file.
             </Text>
           ) : (
             <Alert color="yellow" icon={<IconAlertTriangle size={18} />} title="The browser may evict this wallet">
               <Text size="sm">
-                The browser has not granted persistent storage, so it can delete this wallet's data when space runs low, without asking. Browsers grant it on their own once the app is installed or has been opened regularly. A backup file or the phrase restores everything.
+                The browser has not granted persistent storage, so it can delete this wallet's data when space runs low, without asking. Browsers grant it on their own once the app is installed or has been opened regularly. A backup file or the seed phrase restores everything.
               </Text>
               <Group mt="xs" gap="sm" align="center">
                 <Button size="sm" variant="default" className="vault-tap" onClick={() => void requestPersistent()}>
@@ -176,7 +176,7 @@ export function Settings() {
             Security
           </Title>
           <Text size="sm" c="dimmed">
-            The password encrypts your phrase on this device and is asked for on every unlock. Changing it does not change the phrase or the backup file's contents beyond the new wrapping.
+            The password encrypts your seed phrase on this device and is asked for on every unlock. Changing it does not change the seed phrase or the backup file's contents beyond the new wrapping.
           </Text>
           <ChangePassword />
           <PasskeyCard />

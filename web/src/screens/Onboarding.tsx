@@ -204,7 +204,7 @@ export function Onboarding() {
               }}
             />
             <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
-            <Button variant="light" onClick={() => setStep('import')}>Import a phrase or backup file</Button>
+            <Button variant="light" onClick={() => setStep('import')}>Import a seed phrase or backup file</Button>
             {draft && (
               <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>
                 Discard the unfinished wallet
@@ -246,7 +246,7 @@ export function Onboarding() {
         <Paper>
           <Stack>
             <span className="vault-eyebrow">Step 2 of 3</span>
-            <Title order={2}>Confirm your phrase</Title>
+            <Title order={2}>Confirm your seed phrase</Title>
             <Text size="sm" c="dimmed">Tap the words below to put them back in their places.</Text>
             <WordGrid
               words={phrase.map((w, i) => (checks.includes(i) ? (slots[i] ?? '') : w))}
@@ -324,7 +324,7 @@ function PasswordStep({ busy, onSubmit, stepLabel, onBack }: { busy: boolean; on
         <span className="vault-eyebrow">{stepLabel}</span>
         <Title order={2}>Choose a password</Title>
         <Text size="sm" c="dimmed">
-          It only protects the phrase stored on this device and is asked for on every unlock. It cannot be recovered, but the phrase can always restore the wallet, so a forgotten password costs a re-import, not your funds.
+          It only protects the seed phrase stored on this device and is asked for on every unlock. It cannot be recovered, but the seed phrase can always restore the wallet, so a forgotten password costs a re-import, not your funds.
         </Text>
         <PasswordInput
           label="Password (at least 8 characters)"
@@ -433,10 +433,10 @@ function ImportStep({
               disabled={fromTip}
               description="The block your first funds arrived in, or earlier. From block 1 on Mainnet the scan downloads about 8 to 10 GB; a later block saves most of it."
             />
-            <Checkbox label="This phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
+            <Checkbox label="This seed phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
           </>
         )}
-        <Button disabled={words.length !== 18} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this seed</Button>
+        <Button disabled={words.length !== 18} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this seed phrase</Button>
         <Text size="sm" c="dimmed">Or restore a backup file exported by this app:</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">

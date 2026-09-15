@@ -5,7 +5,7 @@ that a browser can hold Neptune Cash keys, sync against a node and prove
 transactions on a phone. It has had no security audit, its storage and
 recovery paths are weeks old, and it may lose funds through bugs. Use it
 only with amounts you can afford to lose, on testnet or regtest where you
-can, and keep your phrase somewhere safe.
+can, and keep your seed phrase somewhere safe.
 
 A wallet for [Neptune Cash](https://neptune.cash) that runs entirely in the
 browser, as an installable web app for phones. Keys never leave the device:
@@ -37,15 +37,15 @@ stay readable, and the app upgrades its stored data on its own.
   private restore downloads every block from a date you choose and scans
   it on the device, which from block 1 on Mainnet is 8 to 10 GB and hours;
   the node learns nothing about your coins. Both are offered on import.
-- **Your phrase is the only backup.** The password protects the phrase on
+- **Your seed phrase is the only backup.** The password protects the seed phrase on
   this device and cannot be recovered. A forgotten password costs a
-  re-import, not your funds. A lost phrase costs the funds.
+  re-import, not your funds. A lost seed phrase costs the funds.
 
 ## What it does
 
-- Create a wallet from a fresh 18-word phrase, confirmed by tapping words
-  into place, or import a phrase, or restore a backup file. A mistyped
-  phrase is named by word before you go on. An imported phrase is restored
+- Create a wallet from a fresh 18-word seed phrase, confirmed by tapping words
+  into place, or import a seed phrase, or restore a backup file. A mistyped
+  seed phrase is named by word before you go on. An imported seed phrase is restored
   in seconds through the node's coin index, or privately by scanning the
   chain from a date.
 - Receive to Standard (Generation), Short (EC hybrid) or View-only
@@ -62,9 +62,9 @@ stay readable, and the app upgrades its stored data on its own.
 - Encrypted seed at rest (Argon2id, AES-256-GCM), auto-lock, password
   change, passkey unlock, and export and import of a backup file with
   contacts.
-- Several wallets on one device, each with its own phrase, password and
+- Several wallets on one device, each with its own seed phrase, password and
   backup, switched from the header menu; a wallet can be removed from the
-  device once you confirm you hold its phrase or backup.
+  device once you confirm you hold its seed phrase or backup.
 - Rescan, fast or from a block or a date, Diagnostics for support, and an
   update strip that offers a new build instead of applying it.
 
@@ -88,12 +88,12 @@ stay readable, and the app upgrades its stored data on its own.
 - The seed is made and used inside WebAssembly compiled from Neptune's own
   wallet crates, so addresses and signatures are byte for byte what
   neptune-core produces.
-- At rest the phrase is encrypted with a key derived from your password by
+- At rest the seed phrase is encrypted with a key derived from your password by
   Argon2id, under AES-256-GCM, in the browser's storage for this site. A
   passkey can wrap the same key so you can unlock without typing the
   password.
 - The wallet locks itself after five minutes idle, when it goes to the
-  background, and when you say so. The phrase is shown only after
+  background, and when you say so. The seed phrase is shown only after
   unlocking, and hides itself again.
 - The node sees which blocks you fetch and the transactions you submit. It
   does not see your keys, your addresses or your balance; scanning happens
@@ -108,15 +108,15 @@ stay readable, and the app upgrades its stored data on its own.
 
 ## Recovering
 
-- **Phrase.** Restores the funds in any wallet that understands Neptune's
-  18-word phrase, including this app on another device. The fast restore
+- **Seed phrase.** Restores the funds in any wallet that understands Neptune's
+  18-word seed phrase, including this app on another device. The fast restore
   needs no date; the private one starts from the date your first funds
   arrived so the scan does not begin at block 1.
 - **Backup file.** Made under Settings; encrypted with your password. It
-  restores the phrase, the network, the start block and your contacts.
+  restores the seed phrase, the network, the start block and your contacts.
   Every backup file this app has ever written stays readable by later
   versions.
-- **Password.** Cannot be recovered. Import the phrase again and choose a
+- **Password.** Cannot be recovered. Import the seed phrase again and choose a
   new one.
 
 ## Getting help
@@ -124,7 +124,7 @@ stay readable, and the app upgrades its stored data on its own.
 - Something wrong: [open an issue](https://github.com/codewordneptune/neptune-vault/issues).
   Include the app version and the facts from Diagnostics in Settings
   (threads, cores, memory, installed or tab, last proof), the network, and
-  what you did. Never include your phrase or a backup file.
+  what you did. Never include your seed phrase or a backup file.
 - Community and news: <https://useneptune.org>.
 - About Neptune Cash: <https://neptune.cash>.
 
