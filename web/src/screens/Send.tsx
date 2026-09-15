@@ -69,7 +69,7 @@ export function Send() {
   // message explaining why there is none.
   const parsePositive = async (raw: string, what: string): Promise<{ nau: bigint } | { message: string }> => {
     // A pasted "1 234.5" is fine; spaces (including the narrow ones the app shows) are grouping.
-    const text = raw.replace(/[s  ]/g, '');
+    const text = raw.replace(/[\s\u202F\u00A0]/g, '');
     if (text.trim() === '') return { message: `Enter the ${what}` };
     if (text.trim().startsWith('-')) return { message: `The ${what} must be greater than zero` };
     let nau: bigint;

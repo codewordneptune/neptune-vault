@@ -1,9 +1,11 @@
-// Receiving address as text and QR code (F11), for each of the three address
-// kinds. Key 0 of a kind is its main address; "next unused" derives the next
-// key of that kind.
+// Receiving (F11): the address of each kind as text and QR code, and a
+// payment request (NIP-002 link with amount, name and note) with its own
+// code. Two tabs, because the address code and the request code must never
+// be mistaken for one another. Key 0 of a kind is its main address; "next
+// unused" derives the next key of that kind.
 
-import { Button, Code, Group, Modal, Paper, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconCopy, IconReceipt, IconShare } from '@tabler/icons-react';
+import { Button, Code, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconCopy, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
@@ -35,37 +37,45 @@ const KIND_NOTES: Record<KeyKind, string> = {
     'For auditing: anyone holding this address can see every payment it receives, though never spend them. Share it only with someone you trust to see that activity.',
 };
 
+type Tab = 'address' | 'request';
+
+const QR_OPTIONS = { type: 'image/png' as const, width: 1200, margin: 2, errorCorrectionLevel: 'L' as const };
+
 export function Receive() {
   const { services, account } = useApp();
+  const [tab, setTab] = useState<Tab>('address');
   const [kind, setKind] = useState<KeyKind>('generation');
   const [indices, setIndices] = useState<Record<KeyKind, number>>({ generation: 0, ec_hybrid: 0, viewing: 0 });
   const [address, setAddress] = useState<string>(account?.address0 ?? '');
   const [qr, setQr] = useState<string>('');
   const [showFull, setShowFull] = useState(false);
-  // Optional amount for a payment request; the link follows NIP-2 (npt:).
+  const index = indices[kind];
+
+  // The request: amount, name and note. They belong to this visit of the
+  // screen: kept while switching tabs, gone when the screen is left.
   const [requestAmount, setRequestAmount] = useState('');
   const [amountError, setAmountError] = useState<string | null>(null);
-  const [sharing, setSharing] = useState(false);
-  const [qrNote, setQrNote] = useState<string | null>(null);
   // The requested amount as a conforming NIP-002 decimal (from nau, so
   // "1,5" or ".5" never reach the link), or undefined when none is asked.
   const [linkAmount, setLinkAmount] = useState<string | undefined>(undefined);
-  // A note for the sender: the link's message. It is shown on their review
-  // screen and kept with their send; it never reaches this wallet.
-  const [requestNote, setRequestNote] = useState('');
-  const noteError = requestNote.trim() ? metaProblem(requestNote.trim()) : null;
-  // The name the sender sees as the link's label. Like the amount and the
-  // note it belongs to one request and is cleared with the dialog.
+  // The name the sender sees as the link's label, and a note for the sender
+  // (the link's message): shown on their review and kept with their send,
+  // never reaching this wallet.
   const [requestLabel, setRequestLabel] = useState('');
   const labelError = requestLabel.trim() ? metaProblem(requestLabel.trim()) : null;
-  const linkNote = noteError ? undefined : requestNote.trim() || undefined;
+  const [requestNote, setRequestNote] = useState('');
+  const noteError = requestNote.trim() ? metaProblem(requestNote.trim()) : null;
   const linkLabel = labelError ? undefined : requestLabel.trim() || undefined;
+  const linkNote = noteError ? undefined : requestNote.trim() || undefined;
   const paymentLink = paymentUri(address, linkAmount, linkNote, linkLabel);
+  const [requestQr, setRequestQr] = useState('');
+  const [requestQrNote, setRequestQrNote] = useState<string | null>(null);
 
   // Validate the request amount through the wallet core and normalise it.
   useEffect(() => {
     let cancelled = false;
-    const text = requestAmount.replace(/[s  ]/g, '');
+    // A pasted grouped value is fine; spaces are grouping.
+    const text = requestAmount.replace(/[\s  ]/g, '');
     if (text === '') {
       setLinkAmount(undefined);
       setAmountError(null);
@@ -93,26 +103,21 @@ export function Receive() {
       cancelled = true;
     };
   }, [requestAmount, services]);
-  const index = indices[kind];
 
+  // The address of the chosen kind and index, and its code: the address
+  // alone. Scheme and address are upper-cased for the alphanumeric mode a
+  // generation address needs. A PNG, not an SVG: a long press on a phone
+  // saves the image, and galleries and downloaders handle PNG everywhere
+  // while an SVG data URL often arrives as a broken file. 1200 px keeps a
+  // version-40 code (177 modules) at about 7 px per module.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const a = kind === 'generation' && index === 0 && account ? account.address0 : await services.core.address(kind, index);
       if (cancelled) return;
       setAddress(a);
-      // Scheme and address are upper-cased for the alphanumeric mode a
-      // generation address needs. A PNG, not an SVG: a long press on a phone saves the image, and
-      // galleries and downloaders handle PNG everywhere while an SVG data
-      // URL often arrives as a broken file. 1200 px keeps a version-40 code
-      // (177 modules) at about 7 px per module, more than any screen shows.
-      const render = async (payload: string) => {
-        setQr(await QRCode.toDataURL(payload, { type: 'image/png', width: 1200, margin: 2, errorCorrectionLevel: 'L' }));
-      };
-      // The page shows the address alone; a request with amount, name or
-      // note has its own code inside the request dialog.
       try {
-        await render(paymentQrPayload(a));
+        setQr(await QRCode.toDataURL(paymentQrPayload(a), QR_OPTIONS));
       } catch {
         setQr('');
       }
@@ -122,29 +127,28 @@ export function Receive() {
     };
   }, [kind, index, account, services]);
 
-  // The request dialog's code carries the whole link when it fits; otherwise
-  // as much as fits, with a line saying what the shared link still carries.
-  const [requestQr, setRequestQr] = useState('');
+  // The request's code carries the whole link when it fits; otherwise as
+  // much as fits, with a line saying what the link still carries.
   useEffect(() => {
-    if (!sharing || !address) return;
+    if (tab !== 'request' || !address) return;
     let cancelled = false;
     void (async () => {
       const render = async (payload: string) => {
-        const url = await QRCode.toDataURL(payload, { type: 'image/png', width: 1200, margin: 2, errorCorrectionLevel: 'L' });
+        const url = await QRCode.toDataURL(payload, QR_OPTIONS);
         if (!cancelled) setRequestQr(url);
       };
       const withText = Boolean(linkNote || linkLabel);
       try {
         await render(paymentQrPayload(address, linkAmount, linkNote, linkLabel));
-        setQrNote(null);
+        setRequestQrNote(null);
       } catch {
         try {
           await render(paymentQrPayload(address, linkAmount));
-          setQrNote(withText ? 'The name and note do not fit in the code for this address; the link carries them.' : null);
+          setRequestQrNote(withText ? 'The name and note do not fit in the code for this address; the link carries them.' : null);
         } catch {
           try {
             await render(paymentQrPayload(address));
-            setQrNote(linkAmount || withText ? 'The amount, name and note do not fit in the code for this address; the link carries them.' : null);
+            setRequestQrNote(linkAmount || withText ? 'The amount, name and note do not fit in the code for this address; the link carries them.' : null);
           } catch {
             setRequestQr('');
           }
@@ -154,22 +158,20 @@ export function Receive() {
     return () => {
       cancelled = true;
     };
-  }, [sharing, address, linkAmount, linkNote, linkLabel]);
+  }, [tab, address, linkAmount, linkNote, linkLabel]);
 
   const copy = () => void copyText(address, 'Address copied');
 
   // The system share sheet where it exists; otherwise the link is copied.
   const share = async () => {
-    setSharing(false);
-    const text = paymentLink;
     if (navigator.share) {
       try {
-        await navigator.share({ text });
+        await navigator.share({ text: paymentLink });
       } catch {
         // Cancelled by the user; nothing to report.
       }
     } else {
-      await copyText(text, linkAmount ? 'Payment request copied' : 'Payment link copied');
+      await copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied');
     }
   };
 
@@ -177,6 +179,9 @@ export function Receive() {
     const used = account ? nextKeyIndicesOf(account)[kind] : 0;
     setIndices({ ...indices, [kind]: Math.max(used, index + 1) });
   };
+
+  const requestInvalid = Boolean(amountError || noteError || labelError);
+  const whichAddress = index === 0 ? `your main ${KIND_LABELS[kind]} address` : `${KIND_LABELS[kind]} address ${index}`;
 
   return (
     <Paper>
@@ -198,39 +203,38 @@ export function Receive() {
             ),
           }))}
         />
-        <Text size="sm" c="dimmed">
-          {KIND_NOTES[kind]}
-        </Text>
-        {qr && (
-          <img
-            src={qr}
-            alt={`${KIND_LABELS[kind]} address QR code`}
-            style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }}
-          />
+        <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
+          <Tabs.List grow>
+            <Tabs.Tab value="address">Address</Tabs.Tab>
+            <Tabs.Tab value="request">Request payment</Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
+
+        {tab === 'address' && (
+          <>
+            <Text size="sm" c="dimmed">
+              {KIND_NOTES[kind]}
+            </Text>
+            {qr && <img src={qr} alt={`${KIND_LABELS[kind]} address QR code`} style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />}
+            <Text ff="monospace" size="sm" ta="center" style={{ wordBreak: 'break-all' }}>
+              {abbreviateAddress(address)}
+            </Text>
+            <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} fullWidth>
+              Copy address
+            </Button>
+            <UnstyledButton onClick={() => setShowFull((v) => !v)} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
+              {showFull ? 'Hide full address' : 'Show full address'}
+            </UnstyledButton>
+            {showFull && (
+              <Code block style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap', fontSize: 11 }}>
+                {address}
+              </Code>
+            )}
+          </>
         )}
-        <Text ff="monospace" size="sm" ta="center" style={{ wordBreak: 'break-all' }}>
-          {abbreviateAddress(address)}
-        </Text>
-        <Group grow>
-          <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy}>
-            Copy address
-          </Button>
-          <Button variant="light" leftSection={<IconReceipt size={16} stroke={1.8} />} onClick={() => setSharing(true)}>
-            Request payment
-          </Button>
-        </Group>
-        <Modal
-          opened={sharing}
-          onClose={() => {
-            // A request lives and dies with its dialog.
-            setSharing(false);
-            setRequestAmount('');
-            setRequestLabel('');
-            setRequestNote('');
-          }}
-          title="Request a payment"
-        >
-          <Stack>
+
+        {tab === 'request' && (
+          <>
             <TextInput
               label="Amount to request (NPT, optional)"
               description="The sender's wallet fills it in."
@@ -238,7 +242,6 @@ export function Receive() {
               value={requestAmount}
               onChange={(e) => setRequestAmount(e.currentTarget.value)}
               error={amountError}
-              autoFocus
             />
             <TextInput
               label="Your name, shown to the sender (optional)"
@@ -256,35 +259,28 @@ export function Receive() {
               error={noteError}
               maxLength={255}
             />
-            {requestQr && (
-              <img src={requestQr} alt="Payment request QR code" style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
-            )}
-            {qrNote && (
-              <Text size="xs" c="dimmed">
-                {qrNote}
-              </Text>
-            )}
             <Group grow>
-              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError || noteError || labelError)}>
+              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={requestInvalid}>
                 Copy link
               </Button>
-              <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={Boolean(amountError || noteError || labelError)}>
+              <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid}>
                 Share
               </Button>
             </Group>
-          </Stack>
-        </Modal>
-        <UnstyledButton onClick={() => setShowFull((v) => !v)} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
-          {showFull ? 'Hide full address' : 'Show full address'}
-        </UnstyledButton>
-        {showFull && (
-          <Code block style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap', fontSize: 11 }}>
-            {address}
-          </Code>
+            {requestQr && !requestInvalid && (
+              <img src={requestQr} alt="Payment request QR code" style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
+            )}
+            {requestQrNote && !requestInvalid && (
+              <Text size="xs" c="dimmed">
+                {requestQrNote}
+              </Text>
+            )}
+          </>
         )}
+
         <Group justify="space-between" align="baseline">
           <Text size="xs" c="dimmed">
-            {index === 0 ? `Your main ${KIND_LABELS[kind]} address` : `${KIND_LABELS[kind]} address ${index}`}. Funds sent to any of your addresses are found by the sync.
+            {tab === 'address' ? `This is ${whichAddress}.` : `The request is to ${whichAddress}.`} Funds sent to any of your addresses are found by the sync.
           </Text>
           <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
             {index > 0 && (
