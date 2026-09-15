@@ -292,27 +292,30 @@ export function Send() {
             </div>
           </div>
           {(linkMeta?.label || linkMeta?.message) && (
-            <div className="vault-link-meta">
-              {linkMeta.label && (
-                <div>
-                  <Text size="xs" c="dimmed">
-                    Payee named in the link, unverified
+            <div className="vault-link-meta-form">
+              <IconLink size={16} stroke={1.8} aria-hidden />
+              <div style={{ minWidth: 0 }}>
+                {linkMeta.label && (
+                  <Text size="sm" truncate>
+                    <Text component="span" size="xs" c="dimmed">
+                      Payee named in the link, unverified:{' '}
+                    </Text>
+                    <span dir="auto" className="vault-bidi">
+                      {linkMeta.label}
+                    </span>
                   </Text>
-                  <Text size="sm" truncate dir="auto" className="vault-bidi">
-                    {linkMeta.label}
+                )}
+                {linkMeta.message && (
+                  <Text size="sm" truncate>
+                    <Text component="span" size="xs" c="dimmed">
+                      Note from the link, kept with this send:{' '}
+                    </Text>
+                    <span dir="auto" className="vault-bidi">
+                      {linkMeta.message}
+                    </span>
                   </Text>
-                </div>
-              )}
-              {linkMeta.message && (
-                <div>
-                  <Text size="xs" c="dimmed">
-                    Note from the link, kept with this send
-                  </Text>
-                  <Text size="sm" truncate dir="auto" className="vault-bidi">
-                    {linkMeta.message}
-                  </Text>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
           <Text size="xs" c="dimmed">

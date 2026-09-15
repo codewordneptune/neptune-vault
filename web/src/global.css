@@ -656,19 +656,13 @@ html {
   flex-shrink: 0;
 }
 
-/* Text a payment link supplied: its own block, each value on one line,
-   isolated for bidirectional text (NIP-002, Security considerations). */
-.vault-link-meta {
-  display: grid;
-  gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid var(--v-surface-2);
-}
+/* Text a payment link supplied is isolated for bidirectional text
+   (NIP-002, Security considerations). */
 .vault-bidi {
   unicode-bidi: isolate;
 }
-/* What a pasted payment link brought along, shown on the Send form as a
-   quiet box so it is noticed before the review. */
+/* What a pasted payment link brought along: a quiet box, the same on the
+   Send form and on the review, apart from the address and amounts. */
 .vault-link-meta-form {
   display: flex;
   align-items: flex-start;
@@ -676,7 +670,6 @@ html {
   padding: 10px 12px;
   border-radius: var(--v-radius-xs);
   background: var(--v-surface-2);
-  margin-top: -6px;
 }
 .vault-link-meta-form > svg {
   flex-shrink: 0;
