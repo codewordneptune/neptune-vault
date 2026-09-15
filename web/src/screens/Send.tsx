@@ -311,7 +311,7 @@ export function Send() {
                 {linkMeta.message && (
                   <div style={{ minWidth: 0 }}>
                     <Text size="xs" c="dimmed">
-                      Note from the link, kept with this send
+                      Note from the link
                     </Text>
                     <Text size="sm" truncate dir="auto" className="vault-bidi">
                       {linkMeta.message}
