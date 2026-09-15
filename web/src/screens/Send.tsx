@@ -384,7 +384,7 @@ export function Send() {
           <Stack>
             <TextInput
               label="Recipient address"
-              placeholder="Address or neptunecash: payment link"
+              placeholder="Address or payment link"
               value={recipient}
               onChange={(e) => {
                 const value = e.currentTarget.value;
