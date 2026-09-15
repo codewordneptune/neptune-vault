@@ -28,13 +28,19 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
 };
 
 // Same guidance as the desktop wallet gives on its addresses page.
+// What the chosen kind means for whoever gets it; shown under both tabs,
+// since a request carries the same address as the bare code.
 const KIND_NOTES: Record<KeyKind, string> = {
-  generation:
-    'Safe to reuse and the most private: the default for anything you publish. The code is dense: scan from close up, or copy the address instead.',
+  generation: 'Safe to reuse and the most private: the default for anything you publish.',
   ec_hybrid:
     'Easy to share by message. Give each one to a single sender: if reused widely, a future quantum attacker could reveal, but never spend, the funds sent to it.',
   viewing:
     'For auditing: anyone holding this address can see every payment it receives, though never spend them. Share it only with someone you trust to see that activity.',
+};
+
+// About the address code alone; the request code has its own note.
+const CODE_HINTS: Partial<Record<KeyKind, string>> = {
+  generation: 'The code is dense: scan from close up, or copy the address instead.',
 };
 
 type Tab = 'address' | 'request';
@@ -221,6 +227,7 @@ export function Receive() {
             </Button>
             <Text size="sm" c="dimmed">
               {KIND_NOTES[kind]}
+              {CODE_HINTS[kind] ? ` ${CODE_HINTS[kind]}` : ''}
             </Text>
             <UnstyledButton onClick={() => setShowFull((v) => !v)} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
               {showFull ? 'Hide full address' : 'Show full address'}
@@ -274,6 +281,9 @@ export function Receive() {
                 {requestQrNote}
               </Text>
             )}
+            <Text size="sm" c="dimmed">
+              {KIND_NOTES[kind]}
+            </Text>
           </>
         )}
 
