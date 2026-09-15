@@ -13,8 +13,10 @@ device: the seed is generated in a WebAssembly build of Neptune's own wallet
 code, encrypted with a password (and optionally a passkey), and stored in the
 browser. Transactions are proven on the phone, in WebAssembly, with all cores.
 
-Demo at <https://vault.dev.useneptune.org>. Expect breaking changes, including
-to the stored data and the backup file format.
+Demo at <https://vault.dev.useneptune.org>. Expect breaking changes in what the
+app does; not in what it stores. Backup files from every version stay
+readable, and the app upgrades its stored data on its own (see Data formats
+in docs/ARCHITECTURE.md).
 
 ## What it does
 

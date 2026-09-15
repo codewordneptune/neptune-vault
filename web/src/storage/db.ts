@@ -182,7 +182,20 @@ export const DEFAULT_SETTINGS: SettingsRecord = {
 };
 
 export async function openVaultDb(): Promise<VaultDb> {
-  return openDB<VaultSchema>(DB_NAME, DB_VERSION, {
+  try {
+    return await openVaultDbAt(DB_VERSION);
+  } catch (e) {
+    // The browser refuses to open a database at a version below the one on
+    // disk: a newer app wrote it. Say so rather than touch it.
+    if ((e as { name?: string }).name === 'VersionError') {
+      throw new Error('This wallet\x27s data was written by a newer version of Neptune Vault. Update the app.');
+    }
+    throw e;
+  }
+}
+
+function openVaultDbAt(version: number): Promise<VaultDb> {
+  return openDB<VaultSchema>(DB_NAME, version, {
     // Each step runs once, in order, inside the upgrade transaction; a
     // store that exists is never recreated, so data is kept.
     upgrade(db, oldVersion) {

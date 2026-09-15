@@ -230,7 +230,12 @@ export class AccountService {
 
   /** Import an export file. The password is checked by unlocking. */
   async importFile(file: ExportFile, password: string): Promise<AccountRecord> {
-    if (file.format !== 'neptune-vault-backup' || (file.version !== 1 && file.version !== 2)) throw new Error('not a Neptune Vault backup file');
+    if (file.format !== 'neptune-vault-backup') throw new Error('not a Neptune Vault backup file');
+    // Every version ever written stays readable; one this app does not know
+    // is from a newer app, never a reason to guess at the contents.
+    if (file.version !== 1 && file.version !== 2) {
+      throw new Error('This backup file was made by a newer version of Neptune Vault. Update the app, then restore it.');
+    }
     const network = file.network as Network;
     const phrase = await openSeed(file.envelope, password, this.derive);
     await this.core.unlock(phrase, network);

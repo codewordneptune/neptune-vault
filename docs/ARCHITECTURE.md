@@ -358,3 +358,25 @@ neptune-core so the fork can be retired.
 6. The wallet must stay in the foreground while proving. Android may still
    discard the tab under memory pressure; the user is told to keep the app
    open and the wake lock reduces the chance.
+
+## Data formats
+
+Three formats hold a person's wallet: the IndexedDB database, the backup
+file, and the seed envelope inside both. The rules, pinned by
+`web/src/storage/formats.test.ts` and the fixtures beside it:
+
+- The database has one schema version (`DB_VERSION`). A change to a store
+  or a field raises it and ships an upgrade step that runs on its own when
+  the app opens, asks nothing, and never deletes a field it does not
+  understand. A database written by a newer app is refused with "update the
+  app" and left untouched.
+- The backup file carries its own version. Every version ever written stays
+  readable forever: a fixture of each is kept under `storage/fixtures` and
+  restored by the test suite, so a release that breaks an old file fails to
+  build. Export always writes the newest version. A file from a newer app is
+  refused with "update the app", never decoded by guesswork.
+- The seed envelope (Argon2id parameters, AES-GCM boxes) has a version; a
+  change to it is a new number, and the old number still opens.
+
+Adding a version means: bump the constant, add the upgrade or reader,
+write the new fixture, and never remove an old one.

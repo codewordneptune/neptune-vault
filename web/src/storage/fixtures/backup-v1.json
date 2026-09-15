@@ -1,0 +1,25 @@
+{
+  "format": "neptune-vault-backup",
+  "version": 1,
+  "network": "regtest",
+  "birthdayHeight": 3,
+  "envelope": {
+    "version": 1,
+    "kdf": {
+      "name": "argon2id",
+      "mKib": 8,
+      "tCost": 1,
+      "pCost": 1,
+      "salt": "ElMiY/WaxKpAT9PpXtUCVA=="
+    },
+    "wrappedContentKey": {
+      "iv": "+v/xR/xJFQZgHFMl",
+      "ciphertext": "bOY/LaZgEsjOZc4Nj2WyCyJmaeK3oUNMUtl35eZb9+ZdPOkYVFEenjOSblUvQIHV"
+    },
+    "seed": {
+      "iv": "2Y+ww2YxES+7yU4v",
+      "ciphertext": "6DXQxQfgXtHs28F0onVBPAUmk4pBOKt6xtHdU3OloHq1dvVwrTGfHk33pgzl/gDGgfkKO4Zu0t/loHgexDrYiq0mJ0VgY1KRert4AeM="
+    }
+  },
+  "exportedAt": 1757000000000
+}
