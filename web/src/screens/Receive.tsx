@@ -95,9 +95,12 @@ export function Receive() {
       // upper-cased for the alphanumeric mode a generation address needs;
       // a query needs byte mode, and when the amount does not fit the code
       // falls back to the address-only URI and the link carries the amount.
+      // A PNG, not an SVG: a long press on a phone saves the image, and
+      // galleries and downloaders handle PNG everywhere while an SVG data
+      // URL often arrives as a broken file. 1200 px keeps a version-40 code
+      // (177 modules) at about 7 px per module, more than any screen shows.
       const render = async (payload: string) => {
-        const svg = await QRCode.toString(payload, { type: 'svg', margin: 2, errorCorrectionLevel: 'L' });
-        setQr(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
+        setQr(await QRCode.toDataURL(payload, { type: 'image/png', width: 1200, margin: 2, errorCorrectionLevel: 'L' }));
       };
       try {
         await render(paymentQrPayload(a, linkAmount));
