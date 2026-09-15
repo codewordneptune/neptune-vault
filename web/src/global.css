@@ -632,3 +632,14 @@ html {
   min-width: 40px;
   min-height: 40px;
 }
+
+/* A history row title (a contact name can be long) wraps to two lines,
+   then truncates; the amount column keeps its width. */
+.vault-row-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}

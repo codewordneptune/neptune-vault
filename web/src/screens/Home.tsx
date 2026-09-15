@@ -225,7 +225,7 @@ export function Home() {
                       {incoming ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />}
                     </span>
                     <div style={{ minWidth: 0 }}>
-                      <Text size="sm" fw={500} truncate>
+                      <Text size="sm" fw={500} className="vault-row-title">
                         {titleOf(e)}
                       </Text>
                       <Text size="xs" c="dimmed">
