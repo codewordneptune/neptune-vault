@@ -213,7 +213,7 @@ export function Receive() {
         </Text>
         <Group grow>
           <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy}>
-            Copy
+            Copy address
           </Button>
           <Button variant="light" leftSection={<IconReceipt size={16} stroke={1.8} />} onClick={() => setSharing(true)}>
             Request payment
