@@ -250,7 +250,9 @@ export function Onboarding() {
         </Paper>
       )}
 
-      {step === 'password' && <PasswordStep busy={busy} onSubmit={finish} stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'} />}
+      {step === 'password' && (
+        <PasswordStep busy={busy} onSubmit={finish} stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'} onBack={() => setStep(imported ? 'import' : 'confirm')} />
+      )}
 
       {step === 'import' && (
         <ImportStep
@@ -260,6 +262,8 @@ export function Onboarding() {
           fromTip={fromTip}
           setFromTip={setFromTip}
           node={() => services.node()}
+          initialText={imported ? phrase.join(' ') : ''}
+          checkPhrase={(words) => services.core.phraseProblem(words)}
           onPhrase={(words) => {
             setPhrase(words);
             setImported(true);
@@ -285,7 +289,7 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
-function PasswordStep({ busy, onSubmit, stepLabel }: { busy: boolean; onSubmit: (password: string) => void; stepLabel: string }) {
+function PasswordStep({ busy, onSubmit, stepLabel, onBack }: { busy: boolean; onSubmit: (password: string) => void; stepLabel: string; onBack: () => void }) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
   const ok = password.length >= 8 && password === again;
@@ -307,6 +311,7 @@ function PasswordStep({ busy, onSubmit, stepLabel }: { busy: boolean; onSubmit: 
         />
         <PasswordInput label="Repeat" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={again && again !== password ? 'passwords differ' : undefined} />
         <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password)}>Create wallet</Button>
+        <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
     </Paper>
   );
@@ -319,6 +324,8 @@ function ImportStep({
   fromTip,
   setFromTip,
   node,
+  initialText,
+  checkPhrase,
   onPhrase,
   onFile,
   onBack,
@@ -329,21 +336,51 @@ function ImportStep({
   fromTip: boolean;
   setFromTip: (v: boolean) => void;
   node: () => NodeClient;
+  /** The phrase typed before, when coming back from the password step. */
+  initialText: string;
+  /** Why the words cannot be a phrase, or null; asked before the step advances. */
+  checkPhrase: (words: string[]) => Promise<string | null>;
   onPhrase: (words: string[]) => void;
   onFile: (file: File, password: string) => void;
   onBack: () => void;
 }) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText);
+  const [phraseError, setPhraseError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [filePassword, setFilePassword] = useState('');
   const words = text.trim().split(/\s+/).filter(Boolean);
+  const continueWithPhrase = async () => {
+    const lower = words.map((w) => w.toLowerCase());
+    setChecking(true);
+    try {
+      const problem = await checkPhrase(lower);
+      if (problem) setPhraseError(problem);
+      else onPhrase(lower);
+    } catch (e) {
+      setPhraseError((e as Error).message);
+    } finally {
+      setChecking(false);
+    }
+  };
   return (
     <Paper>
       <Stack>
         <span className="vault-eyebrow">Step 1 of 2</span>
         <Title order={2}>Import</Title>
-        <Textarea label="Seed phrase (18 words)" autosize minRows={3} value={text} onChange={(e) => setText(e.currentTarget.value)} />
+        <Textarea
+          label="Seed phrase (18 words)"
+          description={words.length ? words.length + ' of 18 words' : undefined}
+          autosize
+          minRows={3}
+          value={text}
+          error={phraseError ?? undefined}
+          onChange={(e) => {
+            setText(e.currentTarget.value);
+            setPhraseError(null);
+          }}
+        />
         <StartBlockPicker
           value={birthday}
           onChange={setBirthday}
@@ -352,7 +389,7 @@ function ImportStep({
           description="The block your first funds arrived in, or earlier. From block 1 on Mainnet the scan downloads about 8 to 10 GB; a later block saves most of it."
         />
         <Checkbox label="This phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
-        <Button disabled={words.length !== 18} onClick={() => onPhrase(words.map((w) => w.toLowerCase()))}>Continue with this phrase</Button>
+        <Button disabled={words.length !== 18} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this phrase</Button>
         <Text size="sm" c="dimmed">Or restore a backup file exported by this app:</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">

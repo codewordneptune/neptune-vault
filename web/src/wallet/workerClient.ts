@@ -82,6 +82,9 @@ export class WalletWorkerClient implements WalletCore {
   isValidAddress(encoded: string, network: string) {
     return this.call<boolean>('isValidAddress', [encoded, network]);
   }
+  phraseProblem(words: string[]) {
+    return this.call<string | null>('phraseProblem', [words]);
+  }
   unlock(phrase: string[], network: string) {
     return this.call<void>('unlock', [phrase, network]);
   }

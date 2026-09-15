@@ -65,6 +65,8 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       return { result: m.format_amount(args[0] as string) };
     case 'isValidAddress':
       return { result: m.is_valid_address(args[0] as string, args[1] as string) };
+    case 'phraseProblem':
+      return { result: m.phrase_problem(args[0] as string[]) ?? null };
     case 'unlock': {
       account?.free();
       account = new m.Account(args[0] as string[], args[1] as string);

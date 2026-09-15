@@ -104,6 +104,12 @@ mod wasm {
         .is_ok())
     }
 
+    /// Why `words` cannot be a seed phrase, or undefined when they can.
+    #[wasm_bindgen]
+    pub fn phrase_problem(words: Vec<String>) -> Option<String> {
+        account::phrase_problem(&words)
+    }
+
     /// An unlocked account. Holds the seed in wasm memory; drop it to lock.
     #[wasm_bindgen]
     pub struct Account(account::Account);

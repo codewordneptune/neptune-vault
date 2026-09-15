@@ -2895,6 +2895,7 @@ dependencies = [
  "rand 0.9.5",
  "serde",
  "serde_json",
+ "tiny-bip39",
  "wasm-bindgen",
  "zeroize",
 ]

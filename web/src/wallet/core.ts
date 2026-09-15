@@ -112,6 +112,8 @@ export interface WalletCore {
   parseAmount(text: string): Promise<string>;
   formatAmount(nau: string): Promise<string>;
   isValidAddress(encoded: string, network: string): Promise<boolean>;
+  /** Why `words` cannot be a seed phrase, in plain words, or null when they can. */
+  phraseProblem(words: string[]): Promise<string | null>;
 
   /** Load the account into memory. Replaces any previously unlocked one. */
   unlock(phrase: string[], network: string): Promise<void>;

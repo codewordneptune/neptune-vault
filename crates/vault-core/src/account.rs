@@ -151,3 +151,87 @@ impl Account {
             .with_context(|| format!("not a valid {} address", self.network))
     }
 }
+
+/// Words in a phrase.
+pub const PHRASE_WORDS: usize = 18;
+
+/// Why the words cannot be a seed phrase, said for the person typing it, or
+/// None when they can. Checked on the import screen before anything is
+/// sealed or derived. A word off the list is named by position, since that
+/// is a typo; real words that fail the checksum are a wrong or misplaced
+/// word, and the backup is the only place to check.
+pub fn phrase_problem(words: &[String]) -> Option<String> {
+    if words.len() != PHRASE_WORDS {
+        return Some(format!(
+            "A phrase has {PHRASE_WORDS} words; this has {}.",
+            words.len()
+        ));
+    }
+    let list = bip39::Language::English.wordmap();
+    for (i, word) in words.iter().enumerate() {
+        let word = word.trim();
+        if list.get_bits(word).is_err() {
+            return Some(format!(
+                "Word {}, \"{word}\", is not in the word list.",
+                i + 1
+            ));
+        }
+    }
+    match SecretKeyMaterial::from_phrase(words.iter().map(|w| w.trim())) {
+        Ok(_) => None,
+        Err(_) => Some(
+            "Every word is on the list, but together they are not a valid phrase. \
+             Check the words and their order against your backup."
+                .to_string(),
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neptune_wallet::twenty_first::prelude::BFieldElement;
+    use neptune_wallet::twenty_first::prelude::XFieldElement;
+
+    fn fixed_phrase() -> Vec<String> {
+        SecretKeyMaterial(XFieldElement::new([
+            BFieldElement::new(1),
+            BFieldElement::new(2),
+            BFieldElement::new(3),
+        ]))
+        .to_phrase()
+    }
+
+    #[test]
+    fn a_real_phrase_has_no_problem() {
+        assert_eq!(phrase_problem(&fixed_phrase()), None);
+        assert_eq!(phrase_problem(&Account::generate_phrase()), None);
+    }
+
+    #[test]
+    fn a_typo_is_named_by_position() {
+        let mut words = fixed_phrase();
+        words[6] = "abandom".to_string();
+        assert_eq!(
+            phrase_problem(&words).unwrap(),
+            "Word 7, \"abandom\", is not in the word list."
+        );
+    }
+
+    #[test]
+    fn a_short_phrase_is_counted() {
+        let words = fixed_phrase()[..17].to_vec();
+        assert_eq!(
+            phrase_problem(&words).unwrap(),
+            "A phrase has 18 words; this has 17."
+        );
+    }
+
+    #[test]
+    fn real_words_in_the_wrong_order_fail_the_checksum() {
+        let mut words = fixed_phrase();
+        words.swap(0, 17);
+        let problem = phrase_problem(&words).unwrap();
+        assert!(problem.starts_with("Every word is on the list"), "{problem}");
+    }
+}
