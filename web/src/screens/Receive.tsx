@@ -30,7 +30,7 @@ const KIND_NOTES: Record<KeyKind, string> = {
   generation:
     'Safe to reuse and the most private: the default for anything you publish. The code is dense: scan from close up, or copy the address instead.',
   ec_hybrid:
-    'Easy to share by message. Give each one to a single payer: if reused widely, a future quantum attacker could reveal, but never spend, the funds sent to it.',
+    'Easy to share by message. Give each one to a single sender: if reused widely, a future quantum attacker could reveal, but never spend, the funds sent to it.',
   viewing:
     'For auditing: anyone holding this address can see every payment it receives, though never spend them. Share it only with someone you trust to see that activity.',
 };
@@ -50,11 +50,11 @@ export function Receive() {
   // The requested amount as a conforming NIP-002 decimal (from nau, so
   // "1,5" or ".5" never reach the link), or undefined when none is asked.
   const [linkAmount, setLinkAmount] = useState<string | undefined>(undefined);
-  // A note for the payer: the link's message. It is shown on their review
+  // A note for the sender: the link's message. It is shown on their review
   // screen and kept with their send; it never reaches this wallet.
   const [requestNote, setRequestNote] = useState('');
   const noteError = requestNote.trim() ? metaProblem(requestNote.trim()) : null;
-  // The name the payer sees as the link's label. Like the amount and the
+  // The name the sender sees as the link's label. Like the amount and the
   // note it belongs to one request and is cleared with the dialog.
   const [requestLabel, setRequestLabel] = useState('');
   const labelError = requestLabel.trim() ? metaProblem(requestLabel.trim()) : null;
@@ -233,7 +233,7 @@ export function Receive() {
           <Stack>
             <TextInput
               label="Amount to request (NPT, optional)"
-              description="The payer's wallet fills it in."
+              description="The sender's wallet fills it in."
               inputMode="decimal"
               value={requestAmount}
               onChange={(e) => setRequestAmount(e.currentTarget.value)}
@@ -241,16 +241,16 @@ export function Receive() {
               autoFocus
             />
             <TextInput
-              label="Your name, as the payer will see it (optional)"
-              description="Goes into the link as its label; the payer's wallet shows it as unverified."
+              label="Your name, shown to the sender (optional)"
+              description="Goes into the link as its label; the sender's wallet shows it as unverified."
               value={requestLabel}
               onChange={(e) => setRequestLabel(e.currentTarget.value)}
               error={labelError}
               maxLength={255}
             />
             <TextInput
-              label="Note for the payer (optional)"
-              description="Shown to the payer only; it does not reach you."
+              label="Note for the sender (optional)"
+              description="Shown to the sender only; it does not reach you."
               value={requestNote}
               onChange={(e) => setRequestNote(e.currentTarget.value)}
               error={noteError}

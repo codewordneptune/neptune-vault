@@ -298,7 +298,7 @@ export function Send() {
                 {linkMeta.label && (
                   <Text size="sm" truncate>
                     <Text component="span" size="xs" c="dimmed">
-                      Payee named in the link, unverified:{' '}
+                      Name in the link, unverified:{' '}
                     </Text>
                     <span dir="auto" className="vault-bidi">
                       {linkMeta.label}
@@ -422,7 +422,7 @@ export function Send() {
                   {linkMeta.label && (
                     <Text size="sm" truncate>
                       <Text component="span" size="xs" c="dimmed">
-                        Payee named in the link, unverified:{' '}
+                        Name in the link, unverified:{' '}
                       </Text>
                       <span dir="auto" className="vault-bidi">
                         {linkMeta.label}
