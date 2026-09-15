@@ -30,6 +30,8 @@ export class SyncEngine {
   private readonly keepBlocks: number;
   private readonly onProgress: (p: SyncProgress) => void;
   private running = false;
+  private stopRequested = false;
+  private current: Promise<SyncProgress> | null = null;
 
   constructor(
     private readonly db: VaultDb,
@@ -45,10 +47,31 @@ export class SyncEngine {
     this.onProgress = options.onProgress ?? (() => {});
   }
 
+  /**
+   * Ask a running pass to end, and wait until it has. It ends after the
+   * batch in flight, which is not written: a rescan or a lock that follows
+   * sees the database exactly as the pass left it before the call.
+   */
+  async stop(): Promise<void> {
+    this.stopRequested = true;
+    await this.current?.catch(() => undefined);
+  }
+
   /** One full pass to the tip. Safe to call repeatedly; overlapping calls are ignored. */
   async syncOnce(): Promise<SyncProgress> {
     if (this.running) return this.progress('scanning', await this.syncedHeight(), 0, 'already running');
     this.running = true;
+    this.stopRequested = false;
+    this.current = this.pass();
+    try {
+      return await this.current;
+    } finally {
+      this.running = false;
+      this.current = null;
+    }
+  }
+
+  private async pass(): Promise<SyncProgress> {
     try {
       const account = await this.db.get('accounts', this.accountId);
       if (!account) throw new Error('account not found');
@@ -76,10 +99,13 @@ export class SyncEngine {
 
       let nextKeyIndices = nextKeyIndicesOf(account);
       let height = state.syncedHeight + 1;
-      while (height <= tip.height) {
+      while (height <= tip.height && !this.stopRequested) {
         const to = Math.min(height + this.batchSize - 1, tip.height);
         this.progress('scanning', height - 1, tip.height);
         const blocksResponse = await this.node.getBlocksRaw(height, to);
+        // Asked to stop while the batch was in flight: leave it unwritten,
+        // and say nothing, since whoever asked is about to start over.
+        if (this.stopRequested) return { phase: 'scanning', syncedHeight: height - 1, tipHeight: tip.height };
         const unspent = await this.unspentStored();
         const result = await this.core.scanBlocks(blocksResponse, unspent, nextKeyIndices);
         if (result.blocks.length === 0) break;
@@ -89,12 +115,11 @@ export class SyncEngine {
         height = last.height + 1;
       }
       const finalState = await this.db.get('syncState', this.accountId);
+      if (this.stopRequested) return { phase: 'scanning', syncedHeight: finalState?.syncedHeight ?? state.syncedHeight, tipHeight: tip.height };
       return this.progress('done', finalState?.syncedHeight ?? state.syncedHeight, tip.height);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       return this.progress('error', await this.syncedHeight(), 0, message);
-    } finally {
-      this.running = false;
     }
   }
 

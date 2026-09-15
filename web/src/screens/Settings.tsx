@@ -477,7 +477,7 @@ function PasskeyCard() {
 }
 
 function RescanCard() {
-  const { services, account, refresh, syncNow } = useApp();
+  const { services, account, rescan: rescanFrom } = useApp();
   const [open, setOpen] = useState(false);
   const [height, setHeight] = useState<number | string>(account?.birthdayHeight ?? 1);
   const [busy, setBusy] = useState(false);
@@ -498,10 +498,8 @@ function RescanCard() {
       } catch {
         // Node unreachable: the sync clamps the height on first contact.
       }
-      await services.accounts.rescanFrom(account.id, Number(height) || 0);
+      await rescanFrom(Number(height) || 0);
       setOpen(false);
-      await refresh();
-      void syncNow();
     } finally {
       setBusy(false);
     }

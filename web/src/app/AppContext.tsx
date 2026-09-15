@@ -7,7 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import type { AccountRecord, HistoryRecord, Network, UtxoRecord } from '../storage/db';
 import type { SendRequest } from '../wallet/core';
-import type { SyncProgress } from '../wallet/sync';
+import type { SyncEngine, SyncProgress } from '../wallet/sync';
 import { RequiresLustrationError, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
 
@@ -45,6 +45,12 @@ export interface AppState {
   refresh: () => Promise<void>;
   /** Run one sync pass now (also runs on a timer while unlocked). */
   syncNow: () => Promise<void>;
+  /**
+   * Scan again from `height`: the running pass is stopped first, so the
+   * local view is rebuilt from the new start and not from where the old
+   * pass happened to be.
+   */
+  rescan: (height: number) => Promise<void>;
   /** When the last sync pass finished without error. */
   lastSyncedAt: number | null;
   /** The browser's own view of connectivity. */
@@ -85,16 +91,25 @@ export function AppProvider({ services, children }: { services: Services; childr
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [online, setOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
   const syncing = useRef(false);
+  const engine = useRef<SyncEngine | null>(null);
+  const syncRun = useRef<Promise<void> | null>(null);
+
+  // End the running pass, if any, and wait for syncNow to let go.
+  const stopSync = useCallback(async () => {
+    await engine.current?.stop();
+    await syncRun.current;
+  }, []);
 
   const switchNetwork = useCallback(
     async (next: Network) => {
+      await stopSync();
       await services.updateSettings({ network: next, currentAccountId: null });
       await services.accounts.lock();
       const all = await services.db.getAllFromIndex('accounts', 'byNetwork', next);
       setAccount(all[0] ?? null);
       setNetwork(next);
     },
-    [services],
+    [services, stopSync],
   );
 
   // Initial account: the one settings point at, else the only one on this network.
@@ -234,18 +249,40 @@ export function AppProvider({ services, children }: { services: Services; childr
       return;
     }
     syncing.current = true;
-    try {
-      const engine = services.syncEngine(accountId, (p) => {
-        setSync(p);
-        if (p.phase === 'done') setLastSyncedAt(Date.now());
-      });
-      await engine.syncOnce();
-      await refresh();
-      await watchMempool();
-    } finally {
-      syncing.current = false;
-    }
+    const run = (async () => {
+      try {
+        const e = services.syncEngine(accountId, (p) => {
+          setSync(p);
+          if (p.phase === 'done') setLastSyncedAt(Date.now());
+        });
+        engine.current = e;
+        await e.syncOnce();
+        await refresh();
+        await watchMempool();
+      } finally {
+        engine.current = null;
+        syncing.current = false;
+      }
+    })();
+    syncRun.current = run;
+    await run;
   }, [services, accountId, locked, refresh, watchMempool]);
+
+  const rescan = useCallback(
+    async (height: number) => {
+      if (!accountId) return;
+      await stopSync();
+      await services.accounts.rescanFrom(accountId, height);
+      await refresh();
+      void syncNow();
+    },
+    [services, accountId, stopSync, refresh, syncNow],
+  );
+
+  // A lock ends the running pass; the next unlock starts a fresh one.
+  useEffect(() => {
+    if (locked) void engine.current?.stop();
+  }, [locked]);
 
   // Follow the connection: mark offline at once, sync again when it returns.
   useEffect(() => {
@@ -296,8 +333,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   }, [utxos]);
 
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, lastSyncedAt, online, setAccount, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, lastSyncedAt, online, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, sendJob, startSend, cancelSend, dismissSendJob],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -213,6 +213,29 @@ describe('sync engine', () => {
     expect(node.getBlocksCalls).toEqual([[9, 9]]);
   });
 
+  it('stops after the batch in flight, leaving that batch unwritten', async () => {
+    const { node, engine } = await setup();
+    node.extendTo(20);
+    const fetchBlocks = node.getBlocksRaw.bind(node);
+    node.getBlocksRaw = async (from, to) => {
+      const response = await fetchBlocks(from, to);
+      // Stop while the second batch is in flight.
+      if (node.getBlocksCalls.length === 2) void engine.stop();
+      return response;
+    };
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('scanning');
+    expect(node.getBlocksCalls).toEqual([
+      [3, 6],
+      [7, 10],
+    ]);
+    expect((await db.get('syncState', 'acc'))?.syncedHeight).toBe(6);
+    // A later pass on the same engine runs to the tip.
+    node.getBlocksRaw = fetchBlocks;
+    expect((await engine.syncOnce()).phase).toBe('done');
+    expect((await db.get('syncState', 'acc'))?.syncedHeight).toBe(20);
+  });
+
   it('reports node errors without corrupting state', async () => {
     const { node, engine } = await setup();
     node.extendTo(5);
