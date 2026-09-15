@@ -4,8 +4,8 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { Button, Code, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconCopy, IconShare } from '@tabler/icons-react';
+import { Alert, Button, Code, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconAlertTriangle, IconCopy, IconInfoCircle, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
@@ -42,6 +42,30 @@ const KIND_NOTES: Record<KeyKind, string> = {
 const CODE_HINTS: Partial<Record<KeyKind, string>> = {
   generation: 'The code is dense: scan from close up, or copy the address instead.',
 };
+
+// The note's shape says how much care the kind needs: plain text for
+// Standard, which only reassures; a panel with an info mark for Short,
+// which asks for one sender per address; a warning panel for View-only,
+// whose exposure cannot be taken back.
+function KindNote({ kind, extra }: { kind: KeyKind; extra?: string }) {
+  const text = extra ? `${KIND_NOTES[kind]} ${extra}` : KIND_NOTES[kind];
+  if (kind === 'generation') {
+    return (
+      <Text size="sm" c="dimmed">
+        {text}
+      </Text>
+    );
+  }
+  return kind === 'viewing' ? (
+    <Alert color="yellow" icon={<IconAlertTriangle size={18} />}>
+      {text}
+    </Alert>
+  ) : (
+    <Alert color="blue" icon={<IconInfoCircle size={18} />}>
+      {text}
+    </Alert>
+  );
+}
 
 type Tab = 'address' | 'request';
 
@@ -233,10 +257,7 @@ export function Receive() {
             <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} fullWidth>
               Copy address
             </Button>
-            <Text size="sm" c="dimmed">
-              {KIND_NOTES[kind]}
-              {CODE_HINTS[kind] ? ` ${CODE_HINTS[kind]}` : ''}
-            </Text>
+            <KindNote kind={kind} extra={CODE_HINTS[kind]} />
           </>
         )}
 
@@ -281,9 +302,7 @@ export function Receive() {
                 {requestQrNote}
               </Text>
             )}
-            <Text size="sm" c="dimmed">
-              {KIND_NOTES[kind]}
-            </Text>
+            <KindNote kind={kind} />
           </>
         )}
 
