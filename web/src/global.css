@@ -707,3 +707,15 @@ html {
 .vault-link-meta-form > div > div + div {
   margin-top: 6px;
 }
+
+/* A new build waiting for a tap: a strip under the header, like a send. */
+.vault-updatestrip {
+  background: var(--v-accent-soft);
+  border-bottom: 1px solid var(--v-surface-2);
+  padding: 8px 16px;
+  color: var(--v-text);
+}
+.vault-updatestrip svg {
+  color: var(--v-accent-text);
+  flex-shrink: 0;
+}

@@ -7,6 +7,7 @@ import { useApp } from './app/AppContext';
 import { Logo } from './components/Logo';
 import { NetworkMenu } from './components/NetworkMenu';
 import { SendStrip } from './components/SendStrip';
+import { UpdateStrip } from './components/UpdateStrip';
 import { Contacts } from './screens/Contacts';
 import { Diagnostics } from './screens/Diagnostics';
 import { Home } from './screens/Home';
@@ -60,6 +61,7 @@ export function App() {
           </Group>
         </Container>
       </header>
+      <UpdateStrip />
       <SendStrip />
       <Container component="main" size="xs" py="md">
         <Routes>

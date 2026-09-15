@@ -95,6 +95,13 @@ crates covers that period: `npm run wasm:prover-legacy` builds
 the app picks the package by the claim version the chain requires at the
 tip. It goes away once the fork has activated; see docs/M1-STATUS.md.
 
+## Updates
+
+An installed app never replaces its own code on its own. A new build is
+downloaded and offered in a strip under the header, with the version you
+are on; it takes effect when you tap Update, and never while a send is
+running. What runs is what you accepted, and About says which build that is.
+
 ## Versions
 
 The app has one version, the `version` field in `web/package.json`, shown

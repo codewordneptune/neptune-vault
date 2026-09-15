@@ -29,7 +29,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // A new build is downloaded and offered, never applied on its own: the
+      // wallet runs the code its owner accepted (see components/UpdateStrip).
+      registerType: 'prompt',
       includeAssets: ['icons/*.png', 'favicon.svg'],
       manifest: {
         name: 'Neptune Vault',
