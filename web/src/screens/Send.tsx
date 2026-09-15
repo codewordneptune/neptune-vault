@@ -4,7 +4,7 @@
 
 import { ActionIcon, Alert, Badge, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { IconAddressBook, IconClipboard, IconScan } from '@tabler/icons-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { formatNau, useApp } from '../app/AppContext';
@@ -57,6 +57,8 @@ export function Send() {
   const [recipientError, setRecipientError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [feeError, setFeeError] = useState<string | null>(null);
+  // Focused when Custom is chosen, not whenever the field happens to mount.
+  const customFeeRef = useRef<HTMLInputElement>(null);
   const [totals, setTotals] = useState<{ amountNau: bigint; feeNau: bigint } | null>(null);
   const [askLustration, setAskLustration] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -414,7 +416,10 @@ export function Send() {
                   setFeePreset(v);
                   const preset = FEE_PRESETS.find((x) => x.value === v);
                   if (preset && preset.fee) setFee(preset.fee);
-                  else if (v === 'custom') setFee(services.settings.feeCustom ?? '');
+                  else if (v === 'custom') {
+                    setFee(services.settings.feeCustom ?? '');
+                    setTimeout(() => customFeeRef.current?.focus(), 0);
+                  }
                   void services.updateSettings({ feePreset: v });
                 }}
                 data={FEE_PRESETS.map((x) => ({
@@ -440,7 +445,7 @@ export function Send() {
                 }}
                 onBlur={() => void checkAmounts()}
                 error={feeError}
-                autoFocus
+                ref={customFeeRef}
               />
             )}
             {!online && (
