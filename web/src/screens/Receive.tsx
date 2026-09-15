@@ -224,12 +224,15 @@ export function Receive() {
               error={noteError}
               maxLength={255}
             />
-            <Text size="xs" c="dimmed">
-              The link carries your {KIND_LABELS[kind]} address
-              {linkAmount ? `, ${linkAmount} NPT` : ''}
-              {requestLabel.trim() && !labelError ? ', your name' : ''}
-              {requestNote.trim() && !noteError ? ' and the note' : ''}. The QR code on this screen holds the address{linkAmount ? ' and the amount' : ''}; your name and a note travel only in the link.
-            </Text>
+            {(linkAmount || (requestLabel.trim() && !labelError) || (requestNote.trim() && !noteError)) && (
+              <Text size="xs" c="dimmed">
+                The link carries your address
+                {linkAmount ? `, ${linkAmount} NPT` : ''}
+                {requestLabel.trim() && !labelError ? ', your name' : ''}
+                {requestNote.trim() && !noteError ? ' and the note' : ''}.
+                {(requestLabel.trim() && !labelError) || (requestNote.trim() && !noteError) ? ' The QR code holds only the address' + (linkAmount ? ' and the amount' : '') + '.' : ''}
+              </Text>
+            )}
             <Group grow>
               <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError || noteError || labelError)}>
                 Copy link
