@@ -242,7 +242,7 @@ export function Receive() {
             />
             <TextInput
               label="Your name, shown to the sender (optional)"
-              description="Goes into the link as its label; the sender's wallet shows it as unverified."
+              description="Travels in the link; the sender's wallet shows it as an unverified name."
               value={requestLabel}
               onChange={(e) => setRequestLabel(e.currentTarget.value)}
               error={labelError}

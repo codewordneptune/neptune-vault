@@ -25,7 +25,7 @@ describe('parsePaymentText (NIP-002)', () => {
     expect(parsePaymentText('NEPTUNECASH:NOLGAM1ABC?amount=10&label=Dev%20Fund')).toEqual({ address: 'nolgam1abc', amount: '10', label: 'Dev Fund', message: undefined });
     expect(parsePaymentText('neptunecash:nolgam1abc?label=Caf%C3%A9&message=Invoice%2042')).toMatchObject({ label: 'Café', message: 'Invoice 42' });
     expect(parsePaymentText('neptunecash:nolgam1abc?label=a+b')).toMatchObject({ label: 'a+b' });
-    expect(parsePaymentText('neptunecash:nolgam1abc?label=%ZZ').error).toMatch(/label/);
+    expect(parsePaymentText('neptunecash:nolgam1abc?label=%ZZ').error).toMatch(/name in the link/);
     expect(parsePaymentText('  neptunecash:nolgam1abc?amount=1  ')).toMatchObject({ address: 'nolgam1abc', amount: '1' });
     expect(parsePaymentText('neptunecash:nolgam1abc?label=a?b')).toMatchObject({ address: 'nolgam1abc', label: 'a?b' });
     expect(parsePaymentText('neptunecash:nolgam1abc?shop-order=7')).toMatchObject({ address: 'nolgam1abc', amount: undefined });
