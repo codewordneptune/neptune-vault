@@ -273,34 +273,32 @@ export function Home() {
         {detail && (
           <Stack gap="sm">
             <DetailRow label="Status" value={statusOf(detail.record)} />
-            {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
-            {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
-            {detail.record.note && <DetailRow label="Note from the link" value={detail.record.note} isolate />}
             <DetailRow label="When" value={new Date(detail.record.timestampMs).toLocaleString()} />
             {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
+            {detail.kind === 'sent' && (
+              <DetailRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />
+            )}
+            {detail.kind === 'self' && <DetailRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT, back to this wallet`} />}
+            {detail.kind !== 'received' && detail.record.feeNau && <DetailRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
+            {detail.kind === 'sent' && detail.changeNau !== null && <DetailRow label="Change returned" value={`${amount(detail.changeNau)} NPT`} />}
+            {detail.kind !== 'received' && detail.record.recipient && (
+              <DetailRow
+                label={detail.kind === 'self' ? 'Recipient · this wallet' : contactFor(detail.record.recipient) ? `Recipient · ${contactFor(detail.record.recipient)?.name}` : 'Recipient'}
+                value={detail.record.recipient}
+                mono
+                abbreviate
+                copy="Address copied"
+              />
+            )}
+            {detail.record.note && <DetailRow label="Note from the link" value={detail.record.note} isolate />}
+            {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
+            {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
+            {detail.kind === 'sent' && (detail.record.txid === '' || detail.record.recipient === null) && (
+              <DetailRow label="Details" value="Built on another device, or on this one before a rescan. The chain does not carry the recipient or the fee, so the amount above includes the fee." />
+            )}
             {outputsOf(detail).map((o) => (
               <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Commitment copied" href={explorer ? explorer + o.commitment : undefined} />
             ))}
-            {detail.kind !== 'received' && (
-              <>
-                {detail.kind === 'sent' && (detail.record.txid === '' || detail.record.recipient === null) && (
-                  <DetailRow label="Details" value="Built on another device, or on this one before a rescan. The chain does not carry the recipient or the fee, so the amount below includes the fee." />
-                )}
-                {detail.kind === 'sent' && <DetailRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />}
-                {detail.kind === 'self' && <DetailRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT, back to this wallet`} />}
-                {detail.record.feeNau && <DetailRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
-                {detail.changeNau !== null && detail.kind === 'sent' && <DetailRow label="Change returned" value={`${amount(detail.changeNau)} NPT`} />}
-                {detail.record.recipient && (
-                  <DetailRow
-                    label={contactFor(detail.record.recipient) ? `Recipient · ${contactFor(detail.record.recipient)?.name}` : 'Recipient'}
-                    value={detail.record.recipient}
-                    mono
-                    abbreviate
-                    copy="Address copied"
-                  />
-                )}
-              </>
-            )}
             {detail.kind !== 'received' && detail.record.status === 'pending' && (
               <Group justify="flex-end" mt="xs">
                 <Button
@@ -323,7 +321,11 @@ export function Home() {
         {givingUp && (
           <Stack>
             <Text size="sm">
-              The coins held for it become spendable again. If the transaction is confirmed anyway, it still goes through and shows up as sent.
+              {givingUp.mempoolCheckedAt && !givingUp.mempoolSeenAt
+                ? 'The node no longer holds this transaction, so giving up only tidies your list. The coins held for it become spendable again.'
+                : givingUp.mempoolSeenAt
+                  ? 'The node still holds this transaction. The coins held for it become spendable here again, but if the network confirms it anyway, it still goes through and shows up as sent.'
+                  : 'The coins held for it become spendable again. If the transaction is confirmed anyway, it still goes through and shows up as sent.'}
             </Text>
             <Text size="sm" c="dimmed">
               This send: {formatNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${formatNau(BigInt(givingUp.feeNau))} NPT fee`}. Held for it: {formatNau(reservedFor(givingUp))} NPT, which becomes spendable again.

@@ -195,7 +195,7 @@ export function Receive() {
           <Stack>
             <TextInput
               label="Amount to request (NPT, optional)"
-              description="Goes into the link and, where it fits, the QR code, so the payer's wallet fills it in."
+              description="The payer's wallet fills it in."
               inputMode="decimal"
               value={requestAmount}
               onChange={(e) => setRequestAmount(e.currentTarget.value)}
@@ -204,7 +204,7 @@ export function Receive() {
             />
             <TextInput
               label="Note for the payer (optional)"
-              description="Shown on the payer's screen and kept with their send. It does not reach you."
+              description="Shown to the payer only; it does not reach you."
               value={requestNote}
               onChange={(e) => setRequestNote(e.currentTarget.value)}
               error={noteError}
@@ -213,7 +213,7 @@ export function Receive() {
             <Text size="xs" c="dimmed">
               The link carries your {KIND_LABELS[kind]} address
               {linkAmount ? `, ${linkAmount} NPT` : ''}
-              {requestNote.trim() && !noteError ? ' and the note' : ''}.
+              {requestNote.trim() && !noteError ? ' and the note' : ''}. The QR code on this screen holds the address{linkAmount ? ' and the amount' : ''}; a note travels only in the link.
             </Text>
             <Group grow>
               <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={Boolean(amountError || noteError)}>

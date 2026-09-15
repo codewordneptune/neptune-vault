@@ -124,6 +124,12 @@ export function AppProvider({ services, children }: { services: Services; childr
     const rows = await services.db.getAllFromIndex('history', 'byAccount', accountId);
     rows.sort((a, b) => b.timestampMs - a.timestampMs);
     setHistory(rows);
+    // A finished send whose row has confirmed no longer needs its notice.
+    setSendJob((job) => {
+      if (!job?.done || !job.outcome) return job;
+      const row = rows.find((h) => h.kind === 'sent' && h.txid === job.outcome?.txid);
+      return row && row.status === 'confirmed' ? null : job;
+    });
   }, [services, accountId]);
 
   const startSend = useCallback(
@@ -165,7 +171,7 @@ export function AppProvider({ services, children }: { services: Services; childr
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, outcome } : job));
-        if (window.location.pathname !== '/send') {
+        if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
           notifications.show({ color: 'green', title: 'Sent', message: `${request.amount} NPT submitted. It shows as pending until it is confirmed.` });
         }
         await refresh();
@@ -178,7 +184,7 @@ export function AppProvider({ services, children }: { services: Services; childr
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, error: message } : job));
-        if (message && window.location.pathname !== '/send') notifications.show({ color: 'red', title: 'Not sent', message });
+        if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message });
         throw e;
       } finally {
         await wake?.release();
@@ -207,8 +213,11 @@ export function AppProvider({ services, children }: { services: Services; childr
     if (!accountId || locked || watching.current || !navigator.onLine) return;
     watching.current = true;
     try {
-      await services.mempoolWatcher(accountId).poll();
+      const r = await services.mempoolWatcher(accountId).poll();
       await refresh();
+      if (r.incoming > 0 && document.visibilityState === 'visible' && window.location.pathname !== '/') {
+        notifications.show({ color: 'green', title: 'Incoming payment', message: `${formatNau(BigInt(r.incomingNau))} NPT is on its way to you, waiting for a block.` });
+      }
     } catch (e) {
       console.debug('mempool watch', (e as Error).message);
     } finally {

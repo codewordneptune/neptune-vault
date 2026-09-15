@@ -667,3 +667,9 @@ html {
 .vault-bidi {
   unicode-bidi: isolate;
 }
+.vault-link-meta-form {
+  gap: 2px;
+  padding-top: 0;
+  border-top: 0;
+  margin-top: -8px;
+}

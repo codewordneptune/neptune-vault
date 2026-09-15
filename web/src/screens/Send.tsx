@@ -184,6 +184,15 @@ export function Send() {
     }
   };
 
+  // A finished job's notice belongs to this visit; leaving the screen clears it.
+  useEffect(() => {
+    return () => {
+      if (sendJobRef.current?.done) dismissSendJob();
+    };
+  }, [dismissSendJob]);
+  const sendJobRef = useRef(sendJob);
+  sendJobRef.current = sendJob;
+
   const running = Boolean(sendJob && !sendJob.done);
   const p = sendJob?.progress.proving;
   const proving = sendJob?.progress.stage === 'proving';
@@ -311,7 +320,7 @@ export function Send() {
           </Text>
           {askLustration && (
             <Alert color="yellow" title="One more thing">
-              This transaction has to include an extra public announcement the network requires right now. It does not change the amount.
+              Right now the network asks senders to publish which coins a transaction spends, in an extra public announcement. Nothing about the amount or the recipient changes; the announcement only says which of your coins were used.
             </Alert>
           )}
           <Group grow>
@@ -403,6 +412,26 @@ export function Send() {
                 </Group>
               }
             />
+            {linkMeta && (linkMeta.label || linkMeta.message) && (
+              <div className="vault-link-meta vault-link-meta-form">
+                {linkMeta.label && (
+                  <Text size="xs" c="dimmed" truncate>
+                    Payee named in the link, unverified:{' '}
+                    <span dir="auto" className="vault-bidi">
+                      {linkMeta.label}
+                    </span>
+                  </Text>
+                )}
+                {linkMeta.message && (
+                  <Text size="xs" c="dimmed" truncate>
+                    Note from the link:{' '}
+                    <span dir="auto" className="vault-bidi">
+                      {linkMeta.message}
+                    </span>
+                  </Text>
+                )}
+              </div>
+            )}
             <TextInput
               label="Amount (NPT)"
               inputMode="decimal"

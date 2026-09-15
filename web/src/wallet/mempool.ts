@@ -56,15 +56,15 @@ export class MempoolWatcher {
   }
 
   /** One round: new kernels scanned, pending rows kept in step, own sends checked. */
-  async poll(): Promise<{ scanned: number; incoming: number }> {
-    if (this.disabled) return { scanned: 0, incoming: 0 };
+  async poll(): Promise<{ scanned: number; incoming: number; incomingNau: string }> {
+    if (this.disabled) return { scanned: 0, incoming: 0, incomingNau: '0' };
     let ids: string[];
     try {
       ids = await this.node.mempoolTransactions();
     } catch (e) {
       if (isMethodNotFound(e)) {
         this.disabled = true;
-        return { scanned: 0, incoming: 0 };
+        return { scanned: 0, incoming: 0, incomingNau: '0' };
       }
       throw e;
     }
@@ -87,6 +87,7 @@ export class MempoolWatcher {
     );
     const amountOf = new Map(utxoRows.map((r) => [r.hash, BigInt(r.amountNau)] as const));
     let incoming = 0;
+    let incomingNau = 0n;
     for (const id of fresh) {
       const raw = await this.node.mempoolKernelRaw(id);
       const scan = await this.core.scanMempoolKernel(raw, unspent, nextKeyIndices);
@@ -152,6 +153,7 @@ export class MempoolWatcher {
         };
         await this.db.put('history', row);
         incoming += 1;
+        incomingNau += BigInt(out.amount_nau);
       }
     }
     // Ids that left the mempool are forgotten, so a rewritten transaction
@@ -190,7 +192,7 @@ export class MempoolWatcher {
     }
 
     await this.checkOwnSends();
-    return { scanned: fresh.length, incoming };
+    return { scanned: fresh.length, incoming, incomingNau: incomingNau.toString() };
   }
 
   /** Whether the node still holds each of this wallet's pending sends. */
