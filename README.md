@@ -35,6 +35,7 @@ Requirements and decisions are in [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md);
 the design in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); the current state,
 the regtest procedure and the facts learned along the way in
 [docs/M1-STATUS.md](docs/M1-STATUS.md); hosting in [docs/HOSTING.md](docs/HOSTING.md);
+what the app keeps and sends in [docs/PRIVACY.md](docs/PRIVACY.md);
 prover measurements in [docs/M0-BENCHMARK.md](docs/M0-BENCHMARK.md).
 
 ## Layout

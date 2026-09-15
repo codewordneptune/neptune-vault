@@ -251,6 +251,9 @@ export function Settings() {
             <Anchor href={LINKS.neptune} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               About Neptune Cash
             </Anchor>
+            <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => navigate('/privacy')}>
+              Privacy
+            </Anchor>
           </Group>
           <Text size="xs" c="dimmed">
             Version {__APP_VERSION__} ({__APP_COMMIT__}), built {new Date(__APP_BUILT_AT__).toLocaleDateString()}. Quote the version when reporting a problem.

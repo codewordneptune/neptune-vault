@@ -11,6 +11,7 @@ import { Contacts } from './screens/Contacts';
 import { Diagnostics } from './screens/Diagnostics';
 import { Home } from './screens/Home';
 import { Onboarding } from './screens/Onboarding';
+import { Privacy } from './screens/Privacy';
 import { Receive } from './screens/Receive';
 import { Send } from './screens/Send';
 import { Settings } from './screens/Settings';
@@ -64,6 +65,7 @@ export function App() {
           <Route path="/contacts" element={gate(<Contacts />)} />
           <Route path="/settings" element={gate(<Settings />)} />
           <Route path="/diagnostics" element={<Diagnostics />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Container>
