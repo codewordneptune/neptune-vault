@@ -9,6 +9,7 @@ import { showBlock, showNau, useApp } from '../app/AppContext';
 import { LINKS } from '../app/links';
 import type { StoredUtxo } from '../wallet/core';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
+import { InstallNudge } from '../components/InstallNudge';
 import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
@@ -142,6 +143,8 @@ export function Home() {
         Home
       </Title>
       <PocNotice />
+      {/* One notice at a time: the backup first, since a lost seed phrase is worse than a missing install. */}
+      {!showBackupNudge && <InstallNudge />}
       {showBackupNudge && (
         <Alert color="yellow" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
           <Text size="sm">Clearing the browser's site data deletes it. Save a backup file so you can restore the wallet and its contacts.</Text>

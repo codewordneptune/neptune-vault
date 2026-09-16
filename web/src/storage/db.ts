@@ -128,6 +128,8 @@ export interface SettingsRecord {
   feeCustom?: string;
   /** Balance and amounts masked on Home (an eye toggle). */
   hideBalance?: boolean;
+  /** When the Home install notice was last dismissed; it returns after two weeks. Per device, not per wallet. */
+  installNudgeDismissedAt?: number;
   /** Last connection test per network, kept so Settings shows it on return. */
   nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
   /** How the last proof on this device went, for Diagnostics and bug reports. */
