@@ -400,7 +400,7 @@ function PasswordStep({ busy, onSubmit, stepLabel, onBack }: { busy: boolean; on
           onChange={(e) => setPassword(e.currentTarget.value)}
           onBlur={() => setTouched(true)}
         />
-        <PasswordInput label="Repeat" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={again && again !== password ? 'passwords differ' : undefined} />
+        <PasswordInput label="Repeat" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={again && again !== password ? 'Passwords differ' : undefined} />
         <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password)}>Create wallet</Button>
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
