@@ -2,7 +2,7 @@
 // before a review step; the proof itself runs as a job in the app context
 // so it survives this screen being unmounted (backgrounding locks the app).
 
-import { ActionIcon, Alert, Badge, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
+import { Alert, Badge, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { IconAddressBook, IconClipboard, IconLink, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -31,6 +31,16 @@ const presetFee = (preset: string, custom: string | undefined) =>
   preset === 'custom' ? (custom ?? '') : (FEE_PRESETS.find((p) => p.value === preset)?.fee ?? DEFAULT_FEE);
 
 type Step = 'form' | 'review';
+
+/** What the browser says about reading the clipboard; unknown where it cannot be asked. */
+async function clipboardReadState(): Promise<PermissionState | 'unknown'> {
+  try {
+    const status = await navigator.permissions.query({ name: 'clipboard-read' as PermissionName });
+    return status.state;
+  } catch {
+    return 'unknown';
+  }
+}
 
 export function Send() {
   const { services, account, balance, utxos, online, sendJob, startSend, cancelSend, dismissSendJob } = useApp();
@@ -63,7 +73,9 @@ export function Send() {
   const [totals, setTotals] = useState<{ amountNau: bigint; feeNau: bigint } | null>(null);
   const [askLustration, setAskLustration] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [pasteError, setPasteError] = useState<string | null>(null);
+  // A clipboard problem is the browser's, not the address's: it is said above the field, never as its error.
+  const [pasteNotice, setPasteNotice] = useState<string | null>(null);
+  const recipientRef = useRef<HTMLInputElement>(null);
 
   // Field checks run on blur and again on submit. A value in nau, or the
   // message explaining why there is none.
@@ -177,13 +189,21 @@ export function Send() {
   );
 
   const paste = async () => {
-    setPasteError(null);
+    setPasteNotice(null);
+    // Chrome remembers a refusal per site and then rejects every read
+    // without asking; say so, and where to undo it, rather than "refused".
+    if ((await clipboardReadState()) === 'denied') {
+      setPasteNotice("The browser is blocking clipboard access for this site. Allow it under the site's permissions (in Chrome: the lock icon in the address bar, or Settings, Site settings, Clipboard), or hold the field and choose Paste.");
+      recipientRef.current?.focus();
+      return;
+    }
     try {
       const text = await navigator.clipboard.readText();
-      if (!text.trim()) setPasteError('The clipboard is empty.');
+      if (!text.trim()) setPasteNotice('The clipboard has no text.');
       else applyText(text);
     } catch {
-      setPasteError('Clipboard access was refused. Long-press the field to paste instead.');
+      setPasteNotice('The browser did not let the app read the clipboard. Hold the field and choose Paste.');
+      recipientRef.current?.focus();
     }
   };
 
@@ -387,7 +407,13 @@ export function Send() {
           }}
         >
           <Stack>
+            {pasteNotice && (
+              <Alert color="yellow" withCloseButton onClose={() => setPasteNotice(null)}>
+                {pasteNotice}
+              </Alert>
+            )}
             <TextInput
+              ref={recipientRef}
               label="Recipient address"
               placeholder="Address or payment link"
               value={recipient}
@@ -403,20 +429,16 @@ export function Send() {
                 }
               }}
               onBlur={() => void checkRecipient()}
-              error={recipientError ?? pasteError}
-              rightSectionWidth={88}
+              error={recipientError}
+              rightSectionWidth={150}
               rightSection={
-                <Group gap={4} wrap="nowrap">
-                  <Tooltip label="Paste">
-                    <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Paste address" onClick={() => void paste()}>
-                      <IconClipboard size={18} stroke={1.8} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Tooltip label="Scan QR code">
-                    <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
-                      <IconScan size={18} stroke={1.8} />
-                    </ActionIcon>
-                  </Tooltip>
+                <Group gap={0} wrap="nowrap">
+                  <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconClipboard size={16} stroke={1.8} />} onClick={() => void paste()}>
+                    Paste
+                  </Button>
+                  <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanning(true)}>
+                    Scan
+                  </Button>
                 </Group>
               }
             />
