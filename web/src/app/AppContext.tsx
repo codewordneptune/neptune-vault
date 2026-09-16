@@ -43,6 +43,8 @@ export interface AppState {
   utxos: UtxoRecord[];
   /** Re-read account, balance and history from the database. */
   refresh: () => Promise<void>;
+  /** False until the current account's coins and history have been read once. */
+  loaded: boolean;
   /** Run one sync pass now (also runs on a timer while unlocked). */
   syncNow: () => Promise<void>;
   /**
@@ -161,6 +163,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   // Depends on the account id, not the object: refresh replaces the object,
   // and depending on it would re-trigger refresh forever.
   const accountId = account?.id ?? null;
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const loaded = loadedFor === accountId;
   const refresh = useCallback(async () => {
     if (!accountId) {
       setUtxos([]);
@@ -173,6 +177,7 @@ export function AppProvider({ services, children }: { services: Services; childr
     const rows = await services.db.getAllFromIndex('history', 'byAccount', accountId);
     rows.sort((a, b) => b.timestampMs - a.timestampMs);
     setHistory(rows);
+    setLoadedFor(accountId);
     // A finished send whose row has confirmed no longer needs its notice.
     setSendJob((job) => {
       if (!job?.done || !job.outcome) return job;
@@ -371,8 +376,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   }, [utxos]);
 
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, startSend, cancelSend, dismissSendJob }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, startSend, cancelSend, dismissSendJob],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, startSend, cancelSend, dismissSendJob }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, startSend, cancelSend, dismissSendJob],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

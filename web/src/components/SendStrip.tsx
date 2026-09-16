@@ -9,8 +9,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 
 const STAGE_TEXT: Record<string, string> = {
-  planning: 'Choosing inputs',
-  'membership-proofs': 'Fetching membership proofs',
+  planning: 'Choosing coins',
+  'membership-proofs': 'Checking your coins with the node',
   building: 'Building the transaction',
   proving: 'Proving',
   submitting: 'Submitting to the node',
@@ -18,7 +18,7 @@ const STAGE_TEXT: Record<string, string> = {
 };
 
 export function SendStrip() {
-  const { sendJob, locked } = useApp();
+  const { sendJob, locked, services } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const [, setNow] = useState(Date.now());
@@ -39,10 +39,10 @@ export function SendStrip() {
   const value = p ? (100 * p.index) / p.total : 3;
 
   return (
-    <UnstyledButton className="vault-sendstrip" onClick={() => !locked && navigate('/send')} aria-live="polite" disabled={locked}>
+    <UnstyledButton className="vault-sendstrip" onClick={() => !locked && navigate('/send')} disabled={locked}>
       <div className="vault-sendstrip-row">
-        <Text size="sm" fw={500}>
-          Sending {sendJob.request.amount} NPT · {detail}
+        <Text size="sm" fw={500} truncate style={{ minWidth: 0 }} aria-live="polite">
+          Sending {locked || services.settings.hideBalance ? '••••' : sendJob.request.amount} NPT · {detail}
         </Text>
         <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
           {mm}:{ss}

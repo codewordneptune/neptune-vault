@@ -12,22 +12,23 @@ import { abbreviateAddress, addressKind } from '../util/address';
 export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; onClose: () => void; onPick: (c: ContactRecord) => void }) {
   const { services, account } = useApp();
   const navigate = useNavigate();
-  const [contacts, setContacts] = useState<ContactRecord[]>([]);
+  const [contacts, setContacts] = useState<ContactRecord[] | null>(null);
 
   useEffect(() => {
     if (!opened || !account) return;
+    setContacts(null);
     void services.contacts.list(account.id).then(setContacts);
   }, [opened, services, account]);
 
   return (
     <Modal opened={opened} onClose={onClose} title="Saved recipients">
       <Stack gap={0}>
-        {contacts.length === 0 && (
+        {contacts && contacts.length === 0 && (
           <Text size="sm" c="dimmed">
             No saved recipients yet. You can save one after sending, or add one in Contacts.
           </Text>
         )}
-        {contacts.map((c) => (
+        {(contacts ?? []).map((c) => (
           <UnstyledButton key={c.key} className="vault-row vault-pick" onClick={() => onPick(c)}>
             <div style={{ minWidth: 0 }}>
               <Text size="sm" fw={500}>

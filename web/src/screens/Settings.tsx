@@ -13,28 +13,46 @@ import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
-import { NETWORK_OPTIONS } from '../util/network';
+import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import type { Network } from '../storage/db';
 
 export function Settings() {
-  const { services, account, network, switchNetwork, refresh } = useApp();
+  const { services, account, network, switchNetwork, refresh, sendJob } = useApp();
+  const sending = Boolean(sendJob && !sendJob.done);
+  // The same confirmation the header menu gives: switching locks and hides this wallet.
+  const [pendingNetwork, setPendingNetwork] = useState<Network | null>(null);
   const navigate = useNavigate();
-  const lastBackup = account?.lastBackupAt ? new Date(account.lastBackupAt).toLocaleString() : 'never';
+  const lastBackup = account?.lastBackupAt ? new Date(account.lastBackupAt).toLocaleString() : null;
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
   const [probe, setProbe] = useState<{ ok: boolean; text: string; at?: number } | null>(services.settings.nodeProbe?.[network] ?? null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const changeNetwork = async (value: string | null) => {
-    if (!value) return;
+    if (!value || value === network) return;
     const next = value as Network;
+    if (account) {
+      setPendingNetwork(next);
+      return;
+    }
+    setNodeUrl(services.settings.nodeUrls[next] ?? '');
+    setProbe(services.settings.nodeProbe?.[next] ?? null);
+    await switchNetwork(next);
+  };
+  const confirmNetwork = async () => {
+    const next = pendingNetwork;
+    setPendingNetwork(null);
+    if (!next) return;
     setNodeUrl(services.settings.nodeUrls[next] ?? '');
     setProbe(services.settings.nodeProbe?.[next] ?? null);
     await switchNetwork(next);
   };
 
   // Saving is explicit; the test result is kept per network.
+  const [testing, setTesting] = useState(false);
   const testNode = async () => {
+    setTesting(true);
     setProbe({ ok: true, text: 'Testing…' });
     let result: { ok: boolean; text: string; at: number };
     try {
@@ -45,6 +63,7 @@ export function Settings() {
       result = { ok: false, text: (e as Error).message, at: Date.now() };
     }
     setProbe(result);
+    setTesting(false);
     await services.updateSettings({ nodeProbe: { ...services.settings.nodeProbe, [network]: result } });
   };
 
@@ -57,9 +76,18 @@ export function Settings() {
 
   const exportBackup = async () => {
     if (!account) return;
-    const file = await services.accounts.exportFile(account.id);
+    let file;
+    try {
+      file = await services.accounts.exportFile(account.id);
+    } catch (e) {
+      setMessage(null);
+      setExportError((e as Error).message);
+      return;
+    }
+    setExportError(null);
     await services.accounts.markBackedUp(account.id, file.exportedAt);
     await refresh();
+    setMessage(`Backup file offered for download. If the browser asked where to save it and you cancelled, export it again; the file is encrypted with your password.`);
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -113,6 +141,7 @@ export function Settings() {
         Settings
       </Title>
       {message && <Alert color="green" onClose={() => setMessage(null)} withCloseButton>{message}</Alert>}
+      {exportError && <Alert color="red" onClose={() => setExportError(null)} withCloseButton>Could not make the backup file: {exportError}</Alert>}
       <WalletCard />
       <Paper>
         <Stack>
@@ -133,6 +162,11 @@ export function Settings() {
                 Without persistent storage the browser may delete this wallet's data when space runs low. Installing the app usually earns it; a backup file or the seed phrase restores everything.
               </Text>
               <Group mt="xs" gap="sm" align="center">
+                {installState().kind === 'promptable' && (
+                  <Button size="sm" variant="light" className="vault-tap" onClick={() => void promptInstall()}>
+                    Install app
+                  </Button>
+                )}
                 <Button size="sm" variant="default" className="vault-tap" onClick={() => void requestPersistent()}>
                   Request again
                 </Button>
@@ -145,7 +179,7 @@ export function Settings() {
             </Alert>
           )}
           <Text size="sm" c={account?.lastBackupAt ? 'dimmed' : 'yellow'}>
-            Last backup file of {account ? walletName(account) : 'this wallet'}: {lastBackup}
+            {lastBackup ? `Last backup file of ${account ? walletName(account) : 'this wallet'}: ${lastBackup}` : `No backup file of ${account ? walletName(account) : 'this wallet'} saved yet.`}
           </Text>
           <Group>
             <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>
@@ -179,13 +213,10 @@ export function Settings() {
             Security
           </Title>
           <Text size="sm" c="dimmed">
-            The password protects the seed phrase on this device and is asked for on every unlock.
+            The password protects the seed phrase on this device and is asked for on every unlock. The wallet locks after 5 minutes idle and when the app goes to the background.
           </Text>
           <ChangePassword />
           <PasskeyCard />
-          <Text size="sm" c="dimmed">
-            Locks after 5 minutes idle and when the app goes to the background.
-          </Text>
           <Group>
             <Button variant="light" onClick={() => void services.accounts.lock()}>
               Lock now
@@ -200,8 +231,19 @@ export function Settings() {
             <IconPlugConnected size={18} stroke={1.8} aria-hidden />
             Network and node
           </Title>
-          <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} />
-          <TextInput label="Node URL" value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
+          <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} disabled={sending} description={sending ? 'Not while a send is running.' : undefined} />
+          <Modal opened={pendingNetwork !== null} onClose={() => setPendingNetwork(null)} title={pendingNetwork ? `Switch to ${NETWORK_LABELS[pendingNetwork]}?` : ''}>
+            <Stack>
+              <Text size="sm">Your {NETWORK_LABELS[network]} wallet stays saved on this device; switch back any time. The app locks when switching.</Text>
+              <Group grow>
+                <Button variant="default" onClick={() => setPendingNetwork(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => void confirmNetwork()}>Switch</Button>
+              </Group>
+            </Stack>
+          </Modal>
+          <TextInput label="Node URL" description={`Used on ${NETWORK_LABELS[network]}; each network has its own.`} value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
           {probe && (
             <Text size="sm" c={probe.ok ? 'dimmed' : 'red'}>
               {probe.text}
@@ -209,10 +251,10 @@ export function Settings() {
             </Text>
           )}
           <Group>
-            <Button onClick={() => void saveAndTestNode()} disabled={!dirty}>
+            <Button onClick={() => void saveAndTestNode()} disabled={!dirty} loading={testing && dirty}>
               Save and test
             </Button>
-            <Button variant="light" onClick={() => void testNode()} disabled={dirty}>
+            <Button variant="light" onClick={() => void testNode()} disabled={dirty} loading={testing && !dirty}>
               Test
             </Button>
           </Group>
@@ -298,7 +340,7 @@ function ChangePassword() {
       setDone(true);
       setOpen(false);
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'The current password is wrong.' : (e as Error).message);
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -358,7 +400,7 @@ function InstallCard() {
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          Installed, the app keeps its storage, works full screen and opens from its own icon.
+          An installed app keeps its storage, works full screen and opens from its own icon.
         </Text>
         <Group>
           <Button
@@ -414,7 +456,7 @@ function PasskeyCard() {
       setOpen(false);
       await refresh();
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'The password is wrong.' : (e as Error).message);
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -470,7 +512,7 @@ function PasskeyCard() {
     >
       <Stack>
         {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
-        <PasswordInput label="Confirm your password" description="Needed once, to let the passkey protect the same key." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" autoFocus />
+        <PasswordInput label="Confirm your password" description="Needed once, to let the passkey protect the same key." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" data-autofocus />
         <Group grow>
           <Button variant="default" onClick={() => { setOpen(false); setPassword(''); setError(null); }}>
             Cancel
@@ -489,6 +531,7 @@ function WalletCard() {
   const { services, account, refresh, removeAccount, sendJob } = useApp();
   const navigate = useNavigate();
   const [name, setName] = useState(account ? walletName(account) : '');
+  const [nameError, setNameError] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   const [password, setPassword] = useState('');
   const [haveBackup, setHaveBackup] = useState(false);
@@ -504,9 +547,10 @@ function WalletCard() {
     if (name.trim() === walletName(account)) return;
     try {
       await services.accounts.rename(account.id, name);
+      setNameError(null);
       await refresh();
     } catch (e) {
-      setError((e as Error).message);
+      setNameError((e as Error).message);
     }
   };
 
@@ -519,7 +563,7 @@ function WalletCard() {
       setRemoving(false);
       navigate('/');
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password' : (e as Error).message);
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -536,7 +580,11 @@ function WalletCard() {
           label="Name on this device"
           value={name}
           maxLength={40}
-          onChange={(e) => setName(e.currentTarget.value)}
+          error={nameError}
+          onChange={(e) => {
+            setName(e.currentTarget.value);
+            setNameError(null);
+          }}
           onBlur={() => void save()}
           onKeyDown={(e) => {
             if (e.key === 'Enter') void save();
@@ -602,6 +650,8 @@ function RescanCard() {
       }
       await rescanFrom(fast ? 0 : Number(height) || 0, fast);
       setOpen(false);
+    } catch (e) {
+      setRescanError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -624,6 +674,7 @@ function RescanCard() {
           </Text>
           <SegmentedControl
             fullWidth
+            aria-label="How to rescan"
             value={fast ? 'fast' : 'private'}
             onChange={(v) => setFast(v === 'fast')}
             data={[

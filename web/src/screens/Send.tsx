@@ -142,6 +142,8 @@ export function Send() {
       setLastRecipient(sentTo);
       setRecipient('');
       setAmount('');
+      setLinkMeta(null);
+      setTotals(null);
       setStep('form');
     } catch (e) {
       if (e instanceof RequiresLustrationError) {
@@ -204,9 +206,9 @@ export function Send() {
       <Paper>
         <Stack>
           <Title order={2}>Sending</Title>
-          <Text>
-            {sendJob.progress.stage === 'planning' && 'Choosing inputs…'}
-            {sendJob.progress.stage === 'membership-proofs' && 'Fetching membership proofs…'}
+          <Text aria-live="polite">
+            {sendJob.progress.stage === 'planning' && 'Choosing coins…'}
+            {sendJob.progress.stage === 'membership-proofs' && 'Checking your coins with the node…'}
             {sendJob.progress.stage === 'building' && 'Building the transaction…'}
             {proving && (p ? `Proving, step ${Math.min(p.index + 1, p.total)} of ${p.total}` : 'Starting the prover…')}
             {sendJob.progress.stage === 'submitting' && 'Submitting to the node…'}
@@ -252,7 +254,7 @@ export function Send() {
         <Stack>
           <Title order={2}>Review</Title>
           <Text size="sm" c="dimmed">
-            Check everything once more. The proof takes a few minutes and cannot be changed after it starts.
+            Check everything once more. The proof takes a few minutes; once it starts, the payment cannot be changed.
           </Text>
           <div className="vault-review">
             <div>
@@ -342,7 +344,7 @@ export function Send() {
               Send
             </Title>
             <Text size="sm" c="dimmed">
-              Spendable {showNau(balance.spendableNau)} NPT
+              Spendable {services.settings.hideBalance ? '••••' : showNau(balance.spendableNau)} NPT
             </Text>
           </div>
           <Button size="compact-md" variant="light" className="vault-tap" leftSection={<IconAddressBook size={16} stroke={1.8} />} onClick={() => setPicking(true)}>
@@ -382,13 +384,17 @@ export function Send() {
           <Stack>
             <TextInput
               label="Recipient address"
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
               placeholder="Address or payment link"
               value={recipient}
               onChange={(e) => {
                 const value = e.currentTarget.value;
                 // A payment link arriving by any route (keyboard paste, share)
                 // is split into its fields, the same as Paste and Scan do.
-                if (/^s*[a-z]+:/i.test(value) && value.includes('1')) applyText(value);
+                if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyText(value);
                 else {
                   setRecipient(value);
                   setRecipientError(null);
@@ -454,6 +460,7 @@ export function Send() {
               </Text>
               <SegmentedControl
                 fullWidth
+                aria-label="Fee"
                 value={feePreset}
                 onChange={(v) => {
                   setFeePreset(v);

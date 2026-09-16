@@ -98,7 +98,7 @@ export function Unlock() {
               setError(null);
             }}
             error={error}
-            autoFocus
+            autoFocus={!hasPasskey}
           />
           <Button type="submit" variant={hasPasskey ? 'light' : 'filled'} loading={busy} disabled={!password}>
             Unlock

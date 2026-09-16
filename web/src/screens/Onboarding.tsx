@@ -165,7 +165,12 @@ export function Onboarding() {
     setBusy(true);
     setError(null);
     try {
-      const parsed = JSON.parse(await file.text()) as ExportFile;
+      let parsed: ExportFile;
+      try {
+        parsed = JSON.parse(await file.text()) as ExportFile;
+      } catch {
+        throw new Error('This file is not a Neptune Vault backup file.');
+      }
       await pauseSync();
       const record = await services.accounts.importFile(parsed, password, { fastRestore: fast });
       saveDraft(null);
@@ -191,7 +196,7 @@ export function Onboarding() {
             <Text size="sm" c="dimmed">
               {adding
                 ? 'Another seed phrase, with its own password and its own backup. The wallet you have stays on this device; the header menu switches between them.'
-                : 'This wallet keeps your keys on this device only. Your seed phrase is the only backup.'}
+                : 'This wallet keeps your keys on this device only. The seed phrase is what restores it; a backup file holds the seed phrase encrypted.'}
             </Text>
             <Select
               label="Network"
@@ -276,7 +281,7 @@ export function Onboarding() {
       )}
 
       {step === 'password' && (
-        <PasswordStep busy={busy} onSubmit={finish} stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'} onBack={() => setStep(imported ? 'import' : 'confirm')} />
+        <PasswordStep busy={busy} onSubmit={finish} stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'} actionLabel={imported ? 'Restore wallet' : 'Create wallet'} onBack={() => setStep(imported ? 'import' : 'confirm')} />
       )}
 
       {step === 'import' && (
@@ -328,6 +333,7 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
         </Group>
         <PasswordInput label="Backup file password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
         <SegmentedControl
+          aria-label="How to restore"
           fullWidth
           value={fast ? 'fast' : 'private'}
           onChange={(v) => setFast(v === 'fast')}
@@ -361,7 +367,7 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
-function PasswordStep({ busy, onSubmit, stepLabel, onBack }: { busy: boolean; onSubmit: (password: string) => void; stepLabel: string; onBack: () => void }) {
+function PasswordStep({ busy, onSubmit, stepLabel, actionLabel, onBack }: { busy: boolean; onSubmit: (password: string) => void; stepLabel: string; actionLabel: string; onBack: () => void }) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
   const ok = password.length >= 8 && password === again;
@@ -396,7 +402,7 @@ function PasswordStep({ busy, onSubmit, stepLabel, onBack }: { busy: boolean; on
           onChange={(e) => setPassword(e.currentTarget.value)}
         />
         <PasswordInput label="Repeat" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={again && again !== password ? 'Passwords differ' : undefined} />
-        <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password)}>Create wallet</Button>
+        <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password)}>{actionLabel}</Button>
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
     </Paper>
@@ -454,7 +460,11 @@ function ImportStep({
         <Title order={2}>Import a seed phrase</Title>
         <Textarea
           label="Seed phrase (18 words)"
-          description={words.length ? words.length + ' of 18 words' : undefined}
+          description={words.length === 0 ? undefined : words.length > 18 ? '18 words needed, you have ' + words.length : words.length + ' of 18 words'}
+          autoCapitalize="none"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
           autosize
           minRows={3}
           value={text}
@@ -465,6 +475,7 @@ function ImportStep({
           }}
         />
         <SegmentedControl
+          aria-label="How to restore"
           fullWidth
           value={fast ? 'fast' : 'private'}
           onChange={(v) => setFast(v === 'fast')}
@@ -482,6 +493,7 @@ function ImportStep({
             <Text size="sm" c="dimmed">
               Every block from the one you choose is downloaded and scanned on this device. The node learns nothing about your coins.
             </Text>
+            <Checkbox label="This seed phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
             <StartBlockPicker
               value={birthday}
               onChange={setBirthday}
@@ -489,7 +501,6 @@ function ImportStep({
               disabled={fromTip}
               description="The block your first funds arrived in, or earlier. From block 1 on Mainnet the scan downloads about 8 to 10 GB; a later block saves most of it."
             />
-            <Checkbox label="This seed phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
           </>
         )}
         <Button disabled={words.length !== 18} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this seed phrase</Button>

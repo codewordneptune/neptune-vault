@@ -178,7 +178,7 @@ export class SendService {
         await tx.objectStore('utxos').put({ ...row, pendingTxid: null });
       }
     }
-    await tx.objectStore('history').put({ ...entry, status: 'failed', error: 'abandoned by the user' });
+    await tx.objectStore('history').put({ ...entry, status: 'failed', error: 'You gave up on this send.' });
     await tx.done;
   }
 }

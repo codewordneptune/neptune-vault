@@ -54,6 +54,7 @@ export function NetworkMenu() {
           <Menu.Item
             key={n}
             onClick={() => choose(n)}
+            disabled={sending}
             leftSection={n === network ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
             rightSection={<span className="vault-network-hint">{hint(n)}</span>}
           >

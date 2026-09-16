@@ -17,7 +17,7 @@ import { groupHistory, type HistoryEntry } from '../util/history';
 import { formatWhen } from '../util/time';
 
 export function Home() {
-  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, sendJob, dismissSendJob } = useApp();
+  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, sendJob, dismissSendJob, loaded } = useApp();
   // A send that failed while the person was elsewhere is easy to miss as a
   // toast; it stays here until dismissed, and survives a reload.
   const [failure, setFailure] = useState(services.settings.lastSendFailure);
@@ -164,10 +164,10 @@ export function Home() {
       {!showBackupNudge && <InstallNudge />}
       {showBackupNudge && (
         <Alert color="yellow" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
-          <Text size="sm">Clearing the browser's site data deletes it. Save a backup file so you can restore the wallet and its contacts.</Text>
+          <Text size="sm">Clearing the browser's site data deletes it. Export a backup file so you can restore the wallet and its contacts.</Text>
           <Text size="sm" mt="xs">
             <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-              Save a backup file
+              Export backup file
             </UnstyledButton>
           </Text>
         </Alert>
@@ -202,7 +202,7 @@ export function Home() {
             </ActionIcon>
           </Group>
           <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${showNau(balance.spendableNau)} NPT`}>
-            {amount(balance.spendableNau)}
+            {loaded ? amount(balance.spendableNau) : '…'}
             <small> NPT</small>
           </div>
           {incomingNau > 0n && (
@@ -230,7 +230,11 @@ export function Home() {
       <Paper>
         <Stack>
         <Title order={3}>History</Title>
-        {entries.length === 0 ? (
+        {!loaded ? (
+          <Text c="dimmed" size="sm">
+            Loading…
+          </Text>
+        ) : entries.length === 0 ? (
           <Text c="dimmed" size="sm">
             Nothing yet.{' '}
             <UnstyledButton onClick={() => navigate('/receive')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
@@ -244,7 +248,7 @@ export function Home() {
               const h = e.record;
               const incoming = e.kind === 'received';
               return (
-                <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={`${titleOf(e)}, details`}>
+                <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={`${titleOf(e)}, ${incoming ? 'plus' : 'minus'} ${amount(e.shownNau)} NPT${h.status !== 'confirmed' ? ', ' + h.status : ''}, details`}>
                   <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
                     <span className={`vault-row-icon${incoming ? '' : ' out'}`}>
                       {incoming ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />}
@@ -267,7 +271,7 @@ export function Home() {
                     <Group gap={6} justify="flex-end" wrap="nowrap">
                       {h.status !== 'confirmed' && (
                         <Badge size="xs" color={h.status === 'pending' ? 'yellow' : 'red'}>
-                          {h.status}
+                          {h.status === 'pending' ? 'Pending' : 'Failed'}
                         </Badge>
                       )}
                       {e.kind === 'sent' && h.feeNau && !hidden ? (
@@ -316,14 +320,11 @@ export function Home() {
               />
             )}
             {detail.kind === 'sent' && !detail.record.recipient && (
-              <DetailRow label="Recipient" value="Not known on this device. The send was made elsewhere, or before this wallet was restored, and the chain carries neither the recipient nor the fee." />
+              <DetailRow label="Recipient" value="Not known on this device. The send was made elsewhere, or before this wallet was restored; the chain carries neither the recipient nor the fee, so the amount above includes the fee." />
             )}
             {detail.record.note && <DetailRow label="Note from the link" value={detail.record.note} isolate />}
             {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
             {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
-            {detail.kind === 'sent' && (detail.record.txid === '' || detail.record.recipient === null) && (
-              <DetailRow label="Details" value="Built on another device, or on this one before a rescan. The chain does not carry the recipient or the fee, so the amount above includes the fee." />
-            )}
             {outputsOf(detail).map((o) => (
               <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Commitment copied" href={explorer ? explorer + o.commitment : undefined} />
             ))}
@@ -400,7 +401,7 @@ function DetailRow({ label, value, mono, copy, href, abbreviate, isolate }: { la
           </Group>
         )}
       </Group>
-      <Text size="sm" className={mono ? 'vault-detail-mono' : isolate ? 'vault-bidi' : undefined} dir={isolate ? 'auto' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
+      <Text size="sm" className={mono ? 'vault-detail-mono' : isolate ? 'vault-bidi vault-link-meta-text' : undefined} dir={isolate ? 'auto' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
         {shown}
       </Text>
       {abbreviate && (

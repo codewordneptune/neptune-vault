@@ -15,7 +15,7 @@ import { networkLabel } from '../util/network';
 export function Contacts() {
   const { services, account } = useApp();
   const navigate = useNavigate();
-  const [contacts, setContacts] = useState<ContactRecord[]>([]);
+  const [contacts, setContacts] = useState<ContactRecord[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<ContactRecord | null>(null);
   const [removing, setRemoving] = useState<ContactRecord | null>(null);
@@ -32,7 +32,11 @@ export function Contacts() {
 
   const remove = async () => {
     if (!removing) return;
-    await services.contacts.remove(removing.key);
+    try {
+      await services.contacts.remove(removing.key);
+    } catch (e) {
+      setError((e as Error).message);
+    }
     setRemoving(null);
     await load();
   };
@@ -53,7 +57,7 @@ export function Contacts() {
             </Button>
           </Group>
           {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
-          {contacts.length === 0 ? (
+          {contacts === null ? null : contacts.length === 0 ? (
             <Text size="sm" c="dimmed">
               No saved recipients yet. Add one here, or save a recipient after sending. Contacts are also offered when you choose a recipient on Send.
             </Text>
@@ -62,7 +66,7 @@ export function Contacts() {
               {contacts.map((c) => (
                 <div className="vault-row" key={c.key}>
                   <div style={{ minWidth: 0 }}>
-                    <Text size="sm" fw={500}>
+                    <Text size="sm" fw={500} className="vault-row-title">
                       {c.name}
                     </Text>
                     <Text size="xs" c="dimmed" ff="monospace">
@@ -209,7 +213,7 @@ export function ContactForm({
       >
         <Stack>
           {error && <Alert color="red">{error}</Alert>}
-          <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} autoFocus data-autofocus />
+          <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} data-autofocus />
           {fixedAddress ? (
             <Text size="xs" c="dimmed" ff="monospace">
               {abbreviateAddress(fixedAddress)}
@@ -217,6 +221,10 @@ export function ContactForm({
           ) : (
             <TextInput
               label="Address"
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
               value={address}
               onChange={(e) => {
                 setAddress(e.currentTarget.value);
@@ -268,7 +276,7 @@ function RenameForm({ initial, onSave }: { initial: string; onSave: (name: strin
     >
       <Stack>
         {error && <Alert color="red">{error}</Alert>}
-        <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} autoFocus data-autofocus />
+        <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} data-autofocus />
         <Button type="submit" disabled={!name.trim()}>
           Save
         </Button>

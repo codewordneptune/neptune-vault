@@ -78,6 +78,7 @@ export function Receive() {
   const [indices, setIndices] = useState<Record<KeyKind, number>>({ generation: 0, ec_hybrid: 0, viewing: 0 });
   const [address, setAddress] = useState<string>(account?.address0 ?? '');
   const [qr, setQr] = useState<string>('');
+  const [addressError, setAddressError] = useState<string | null>(null);
   const [showFull, setShowFull] = useState(false);
   const index = indices[kind];
 
@@ -142,14 +143,23 @@ export function Receive() {
   // version-40 code (177 modules) at about 7 px per module.
   useEffect(() => {
     let cancelled = false;
+    // The old address and code go at once: nobody must copy or scan the
+    // previous kind believing it is the one just chosen.
+    setAddress('');
+    setQr('');
+    setAddressError(null);
     void (async () => {
-      const a = kind === 'generation' && index === 0 && account ? account.address0 : await services.core.address(kind, index);
-      if (cancelled) return;
-      setAddress(a);
       try {
-        setQr(await QRCode.toDataURL(paymentQrPayload(a), QR_OPTIONS));
-      } catch {
-        setQr('');
+        const a = kind === 'generation' && index === 0 && account ? account.address0 : await services.core.address(kind, index);
+        if (cancelled) return;
+        setAddress(a);
+        try {
+          setQr(await QRCode.toDataURL(paymentQrPayload(a), QR_OPTIONS));
+        } catch {
+          setQr('');
+        }
+      } catch (e) {
+        if (!cancelled) setAddressError((e as Error).message);
       }
     })();
     return () => {
@@ -220,6 +230,7 @@ export function Receive() {
           Receive
         </Title>
         <SegmentedControl
+          aria-label="Address kind"
           fullWidth
           value={kind}
           onChange={(v) => setKind(v as KeyKind)}
@@ -244,7 +255,7 @@ export function Receive() {
           <>
             {qr && <img src={qr} alt={`${KIND_LABELS[kind]} address QR code`} style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />}
             <Text ff="monospace" size="sm" ta="center" style={{ wordBreak: 'break-all' }}>
-              {abbreviateAddress(address)}
+              {address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}
             </Text>
             <UnstyledButton onClick={() => setShowFull((v) => !v)} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
               {showFull ? 'Hide full address' : 'Show full address'}
@@ -254,7 +265,12 @@ export function Receive() {
                 {address}
               </Code>
             )}
-            <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} fullWidth>
+            {addressError && (
+              <Text size="sm" c="red">
+                Could not derive this address: {addressError}
+              </Text>
+            )}
+            <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} fullWidth disabled={!address}>
               Copy address
             </Button>
             <KindNote kind={kind} extra={CODE_HINTS[kind]} />
