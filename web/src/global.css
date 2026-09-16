@@ -89,6 +89,10 @@ h3.mantine-Title-root {
 .mantine-Button-root[data-variant='subtle'] {
   color: var(--v-accent-text);
 }
+/* A destructive action is red at rest, not only on hover. */
+.mantine-Button-root[data-variant='subtle'].vault-danger {
+  color: #ff8a80;
+}
 /* A control inside a field (Max, Scan) is plain text at rest, and stays
    plain when disabled: faded, no box, so it never becomes the one boxed
    thing on the screen and the field does not change shape. */

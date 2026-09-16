@@ -546,7 +546,7 @@ function WalletCard() {
           <Button variant="light" disabled={sending} onClick={() => navigate('/onboarding?add=1')}>
             Add another wallet
           </Button>
-          <Button variant="subtle" color="red" disabled={sending} onClick={() => setRemoving(true)}>
+          <Button variant="subtle" color="red" className="vault-danger" disabled={sending} onClick={() => setRemoving(true)}>
             Remove from this device
           </Button>
         </Group>
