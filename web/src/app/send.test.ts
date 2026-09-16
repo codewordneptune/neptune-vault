@@ -42,13 +42,23 @@ class FakeCore implements Partial<WalletCore> {
 class FakeNode {
   accept = true;
   submitted: unknown[] = [];
+  /** Heights the next tip reads return, in order; the last one repeats. */
+  heights: number[] = [10];
+  /** Thrown by the next submission, once. */
+  submitError: string | null = null;
   async restoreMembershipProofRaw(sets: unknown[]) {
     return JSON.stringify({ jsonrpc: '2.0', id: 1, result: { snapshot: { syncedHeight: 10, syncedHash: 'h', syncedMutatorSet: {}, membershipProofs: sets } } });
   }
   async tipHeaderRaw() {
-    return { raw: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { header: { height: 10, prevBlockDigest: 'p', timestamp: 0, difficulty: '1' } } }), height: 10 };
+    const height = this.heights.length > 1 ? (this.heights.shift() as number) : this.heights[0];
+    return { raw: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { header: { height, prevBlockDigest: 'p', timestamp: 0, difficulty: '1' } } }), height };
   }
   async submitTransaction(tx: unknown) {
+    if (this.submitError) {
+      const message = this.submitError;
+      this.submitError = null;
+      throw new Error(message);
+    }
     this.submitted.push(tx);
     return this.accept;
   }
@@ -56,7 +66,9 @@ class FakeNode {
 
 class FakeProver implements Prover {
   fail = false;
+  calls = 0;
   async prove(req: { witness: Uint8Array }, onProgress: (p: never) => void) {
+    this.calls += 1;
     onProgress({ index: 1, total: 6, name: 'x', elapsedSeconds: 1, memoryMb: 900, threads: 4 } as never);
     if (this.fail) throw new Error('out of memory');
     return { proofCollection: new Uint8Array([9, 9]), seconds: 1, memoryMb: 900, threads: 4, witnessLen: req.witness.length };
@@ -115,6 +127,50 @@ describe('send service', () => {
     await expect(service.send(request, () => {})).rejects.toThrow('did not accept');
     expect((await db.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
     expect(await db.get('history', 'acc:sent:tx-abc')).toBeUndefined();
+  });
+
+  it('proves again when a block arrives during proving, then sends', async () => {
+    const { node, prover, service } = await setup();
+    // Reads: build (10), check after proving (11), build again (11), check (11).
+    node.heights = [10, 11, 11, 11];
+    const notes: string[] = [];
+    const outcome = await service.send(request, (p) => {
+      if (p.note) notes.push(p.note);
+    });
+    expect(outcome.txid).toBe('tx-abc');
+    expect(prover.calls).toBe(2);
+    expect(node.submitted).toHaveLength(1);
+    expect(notes[0]).toMatch(/A block arrived while the proof was being made.*2 of 3/);
+    expect((await db.get('utxos', 'acc:a'))?.pendingTxid).toBe('tx-abc');
+  });
+
+  it('gives up after three proofs when blocks keep arriving, reserving nothing', async () => {
+    const { node, prover, service } = await setup();
+    node.heights = [10, 11, 11, 12, 12, 13];
+    await expect(service.send(request, () => {})).rejects.toThrow(/3 times over/);
+    expect(prover.calls).toBe(3);
+    expect(node.submitted).toHaveLength(0);
+    expect((await db.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
+  });
+
+  it('proves again when the node refuses because a block arrived just before', async () => {
+    const { node, prover, service } = await setup();
+    node.submitError = 'wallet_submitTransaction: Server error ({"SubmitTransaction":"NotConfirmable"})';
+    // Reads: build (10), check (10), check after the refusal (11), build again (11), check (11).
+    node.heights = [10, 10, 11, 11, 11];
+    const outcome = await service.send(request, () => {});
+    expect(outcome.txid).toBe('tx-abc');
+    expect(prover.calls).toBe(2);
+    expect(node.submitted).toHaveLength(1);
+  });
+
+  it('names a spent coin when the node refuses and the tip has not moved', async () => {
+    const { node, prover, service } = await setup();
+    node.submitError = 'wallet_submitTransaction: Server error ({"SubmitTransaction":"NotConfirmable"})';
+    await expect(service.send(request, () => {})).rejects.toThrow(/spent already/);
+    expect(prover.calls).toBe(1);
+    expect(node.submitted).toHaveLength(0);
+    expect((await db.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
   });
 
   it('surfaces the lustration requirement as its own error', async () => {

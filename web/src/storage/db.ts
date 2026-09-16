@@ -130,6 +130,8 @@ export interface SettingsRecord {
   hideBalance?: boolean;
   /** When the Home install notice was last dismissed; it returns after two weeks. Per device, not per wallet. */
   installNudgeDismissedAt?: number;
+  /** The last send that failed, shown on Home until dismissed: a toast is missed, a notice is not. */
+  lastSendFailure?: { at: number; accountId: string; amount: string; recipient: string; message: string };
   /** Last connection test per network, kept so Settings shows it on return. */
   nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
   /** How the last proof on this device went, for Diagnostics and bug reports. */

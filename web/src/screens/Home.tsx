@@ -17,7 +17,17 @@ import { groupHistory, type HistoryEntry } from '../util/history';
 import { formatWhen } from '../util/time';
 
 export function Home() {
-  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account } = useApp();
+  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, sendJob, dismissSendJob } = useApp();
+  // A send that failed while the person was elsewhere is easy to miss as a
+  // toast; it stays here until dismissed, and survives a reload.
+  const [failure, setFailure] = useState(services.settings.lastSendFailure);
+  useEffect(() => {
+    setFailure(services.settings.lastSendFailure);
+  }, [services, sendJob?.done, sendJob?.error]);
+  const dismissFailure = () => {
+    setFailure(undefined);
+    dismissSendJob();
+  };
   // Masked amounts for reading the app in public; remembered across visits.
   const [hidden, setHidden] = useState<boolean>(services.settings.hideBalance ?? false);
   const toggleHidden = () => {
@@ -143,6 +153,13 @@ export function Home() {
         Home
       </Title>
       <PocNotice />
+      {failure && failure.accountId === account?.id && (
+        <Alert color="red" title="Not sent" withCloseButton onClose={dismissFailure}>
+          <Text size="sm">
+            {failure.amount} NPT to {abbreviateAddress(failure.recipient)}, {new Date(failure.at).toLocaleString()}. {failure.message}
+          </Text>
+        </Alert>
+      )}
       {/* One notice at a time: the backup first, since a lost seed phrase is worse than a missing install. */}
       {!showBackupNudge && <InstallNudge />}
       {showBackupNudge && (

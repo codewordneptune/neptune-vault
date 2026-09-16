@@ -220,6 +220,7 @@ export function AppProvider({ services, children }: { services: Services; childr
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, outcome } : job));
+        if (services.settings.lastSendFailure) void services.updateSettings({ lastSendFailure: undefined });
         if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
           notifications.show({ color: 'green', title: 'Sent', message: `${request.amount} NPT submitted. It shows as pending until it is confirmed.` });
         }
@@ -233,6 +234,7 @@ export function AppProvider({ services, children }: { services: Services; childr
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, error: message } : job));
+        if (message) void services.updateSettings({ lastSendFailure: { at: Date.now(), accountId, amount: request.amount, recipient: request.recipient, message } });
         if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message });
         throw e;
       } finally {
@@ -248,7 +250,10 @@ export function AppProvider({ services, children }: { services: Services; childr
     setSendJob((job) => (job && !job.done ? { ...job, done: true, error: 'Cancelled.' } : job));
   }, [services]);
 
-  const dismissSendJob = useCallback(() => setSendJob(null), []);
+  const dismissSendJob = useCallback(() => {
+    setSendJob(null);
+    if (services.settings.lastSendFailure) void services.updateSettings({ lastSendFailure: undefined });
+  }, [services]);
 
   useEffect(() => {
     void refresh();

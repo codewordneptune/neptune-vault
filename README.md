@@ -30,7 +30,10 @@ stay readable, and the app upgrades its stored data on its own.
 - **Sending takes a while.** A transaction proof is produced on the device.
   It needs about 1 GB of memory free for the browser and a few minutes on a
   recent phone; the app keeps going if you switch away, and shows the step
-  it is on. Devices with 4 GB of RAM or less may run out of memory.
+  it is on. Devices with 4 GB of RAM or less may run out of memory. If a
+  block is mined while the proof is being made, the proof no longer fits
+  the chain and the app builds and proves again, up to three times, and
+  says so.
 - **Restoring is quick, or private.** The fast restore asks the node's coin
   index which blocks hold payments to you and fetches only those: seconds.
   The node learns which coins are yours, though not the amounts. The

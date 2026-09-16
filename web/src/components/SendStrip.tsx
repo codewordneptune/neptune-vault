@@ -48,6 +48,11 @@ export function SendStrip() {
           {mm}:{ss}
         </Text>
       </div>
+      {sendJob.progress.note && (
+        <Text size="xs" c="dimmed" mb={6}>
+          {sendJob.progress.note}
+        </Text>
+      )}
       <Progress value={value} size="xs" animated={!p} />
     </UnstyledButton>
   );
