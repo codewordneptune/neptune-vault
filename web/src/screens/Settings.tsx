@@ -228,7 +228,7 @@ export function Settings() {
           </Title>
           <InstallCard />
           <Text size="sm" c="dimmed">
-            Diagnostics show cores, threads and the install state, useful when reporting a problem.
+            Diagnostics list this device's cores, threads, memory, install state and the app version. Copy them into a problem report.
           </Text>
           <Group>
             <Button variant="light" onClick={() => navigate('/diagnostics')}>
@@ -265,7 +265,7 @@ export function Settings() {
             </Anchor>
           </Group>
           <Text size="xs" c="dimmed">
-            Version {__APP_VERSION__} ({__APP_COMMIT__}), built {new Date(__APP_BUILT_AT__).toLocaleDateString()}. Quote the version when reporting a problem.
+            Version {__APP_VERSION__} ({__APP_COMMIT__}), built {new Date(__APP_BUILT_AT__).toLocaleDateString()}.
           </Text>
         </Stack>
       </Paper>
