@@ -559,7 +559,7 @@ function WalletCard() {
                 Cancel
               </Button>
               <Button color="red" loading={busy} disabled={!haveBackup || !password} onClick={() => void remove()}>
-                Remove wallet
+                Remove
               </Button>
             </Group>
           </Stack>
