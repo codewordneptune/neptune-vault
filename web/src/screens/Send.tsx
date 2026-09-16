@@ -303,7 +303,7 @@ export function Send() {
                     <Text size="xs" c="dimmed">
                       Name in the link (unverified)
                     </Text>
-                    <Text size="sm" truncate dir="auto" className="vault-bidi">
+                    <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
                       {linkMeta.label}
                     </Text>
                   </div>
@@ -313,7 +313,7 @@ export function Send() {
                     <Text size="xs" c="dimmed">
                       Note from the link
                     </Text>
-                    <Text size="sm" truncate dir="auto" className="vault-bidi">
+                    <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
                       {linkMeta.message}
                     </Text>
                   </div>
@@ -429,7 +429,7 @@ export function Send() {
                       <Text size="xs" c="dimmed">
                         Name in the link (unverified)
                       </Text>
-                      <Text size="sm" truncate dir="auto" className="vault-bidi">
+                      <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
                         {linkMeta.label}
                       </Text>
                     </div>
@@ -439,7 +439,7 @@ export function Send() {
                       <Text size="xs" c="dimmed">
                         Note from the link
                       </Text>
-                      <Text size="sm" truncate dir="auto" className="vault-bidi">
+                      <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
                         {linkMeta.message}
                       </Text>
                     </div>

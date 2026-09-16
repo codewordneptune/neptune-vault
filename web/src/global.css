@@ -707,6 +707,13 @@ html {
 .vault-link-meta-form > div > div + div {
   margin-top: 6px;
 }
+/* The name and the note are shown whole: a link carries at most 255 bytes
+   of each, so a few lines at worst, and cutting them would hide what the
+   payee wrote. Long runs without spaces wrap rather than overflow. */
+.vault-link-meta-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 
 /* A new build waiting for a tap: a strip under the header, like a send. */
 .vault-updatestrip {
