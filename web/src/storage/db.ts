@@ -41,6 +41,8 @@ export interface AccountRecord {
    * block from the start height. Cleared when it has run.
    */
   restore?: 'fast';
+  /** When the local view was last rebuilt through the node's coin index; absent when it was scanned from the start block. */
+  restoredAt?: number;
   /** When an export file was last saved, or the file's date for an imported account. Absent: never. */
   lastBackupAt?: number;
   /** When the Home backup reminder was last dismissed; it returns after a week. */

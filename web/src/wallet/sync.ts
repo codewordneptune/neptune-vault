@@ -176,7 +176,7 @@ export class SyncEngine {
     }
     await this.db.put('syncState', { accountId: this.accountId, syncedHeight: tipHeight, syncedHash: tipHash, updatedAt: Date.now() });
     const { restore: _done, ...fresh } = (await this.db.get('accounts', this.accountId)) ?? account;
-    await this.db.put('accounts', { ...fresh, birthdayHeight: lowest });
+    await this.db.put('accounts', { ...fresh, birthdayHeight: lowest, restoredAt: Date.now() });
     return 'done';
   }
 

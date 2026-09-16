@@ -32,11 +32,11 @@ export function PocNotice() {
       icon={<IconAlertTriangle size={18} />}
       title={
         <span className="vault-poc-title">
-          Proof of concept, not for production use
+          {expanded ? 'Proof of concept, not for production use' : 'Proof of concept'}
           <Chevron size={16} stroke={1.8} aria-hidden />
         </span>
       }
-      className="vault-poc"
+      className={expanded ? 'vault-poc' : 'vault-poc collapsed'}
       role="button"
       tabIndex={0}
       aria-expanded={expanded}

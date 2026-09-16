@@ -251,7 +251,7 @@ export class AccountService {
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
     const tx = this.db.transaction(['accounts', 'syncState', 'utxos', 'history', 'blocks'], 'readwrite');
-    const { restore: _previous, ...rest } = record;
+    const { restore: _previous, restoredAt: _how, ...rest } = record;
     await tx.objectStore('accounts').put({ ...rest, birthdayHeight: Math.max(0, Math.floor(height)), nextKeyIndices: FRESH_KEY_INDICES, ...(fast ? { restore: 'fast' as const } : {}) });
     await tx.objectStore('syncState').delete(accountId);
     for (const key of await tx.objectStore('utxos').index('byAccount').getAllKeys(accountId)) await tx.objectStore('utxos').delete(key);

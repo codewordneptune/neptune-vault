@@ -130,7 +130,7 @@ export function Settings() {
           ) : (
             <Alert color="yellow" icon={<IconAlertTriangle size={18} />} title="The browser may evict this wallet">
               <Text size="sm">
-                The browser has not granted persistent storage, so it can delete this wallet's data when space runs low, without asking. Browsers grant it on their own once the app is installed or has been opened regularly. A backup file or the seed phrase restores everything.
+                Without persistent storage the browser may delete this wallet's data when space runs low. Installing the app usually earns it; a backup file or the seed phrase restores everything.
               </Text>
               <Group mt="xs" gap="sm" align="center">
                 <Button size="sm" variant="default" className="vault-tap" onClick={() => void requestPersistent()}>
@@ -179,7 +179,7 @@ export function Settings() {
             Security
           </Title>
           <Text size="sm" c="dimmed">
-            The password encrypts your seed phrase on this device and is asked for on every unlock. Changing it does not change the seed phrase or the backup file's contents beyond the new wrapping.
+            The password protects the seed phrase on this device and is asked for on every unlock.
           </Text>
           <ChangePassword />
           <PasskeyCard />
@@ -245,7 +245,7 @@ export function Settings() {
             About
           </Title>
           <Text size="sm" c="dimmed">
-            Neptune Vault is a wallet for Neptune Cash that runs entirely in your browser: keys never leave this device, and the app talks only to the node you choose. It is a proof of concept and not recommended for production use: no audit, breaking changes ahead, use only with amounts you can afford to lose.
+            A wallet for Neptune Cash that runs entirely in your browser: keys never leave this device, and the app talks only to the node you choose. A proof of concept: no audit, breaking changes ahead, use only what you can afford to lose.
           </Text>
           <Group gap="md">
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
@@ -358,7 +358,7 @@ function InstallCard() {
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          Install to the home screen for a full-screen app with its own icon. It keeps working offline for everything except talking to the node.
+          Installed, the app keeps its storage, works full screen and opens from its own icon.
         </Text>
         <Group>
           <Button
@@ -437,7 +437,7 @@ function PasskeyCard() {
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          Passkey unlock is on: the wallet opens with your fingerprint, face or device PIN. The password still works and is what a backup file needs.
+          Passkey unlock is on. The password still works and is what a backup file needs.
         </Text>
         <Group>
           <Button variant="light" onClick={() => void disable()}>
@@ -451,7 +451,7 @@ function PasskeyCard() {
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          Unlock with your fingerprint, face or device PIN instead of typing the password. The passkey stays on this device.
+          Unlock with fingerprint, face or device PIN; the passkey stays on this device.
         </Text>
         <Group>
           <Button variant="light" disabled={!account || supported === null} onClick={() => setOpen(true)}>
@@ -579,6 +579,9 @@ function RescanCard() {
   const [busy, setBusy] = useState(false);
   if (!account) return null;
   const from = account.birthdayHeight === 0 ? 'the current tip (not set yet)' : `block ${showBlock(account.birthdayHeight)}`;
+  const how = account.restoredAt
+    ? `Restored through the node's coin index on ${new Date(account.restoredAt).toLocaleDateString()}; blocks before ${from} were not scanned.`
+    : `Scanned from ${from}. Funds sent before that block are not seen; rescan from an earlier block to find them.`;
 
   const [rescanError, setRescanError] = useState<string | null>(null);
   const [fast, setFast] = useState(true);
@@ -607,7 +610,7 @@ function RescanCard() {
   return (
     <Stack gap="xs">
       <Text size="sm" c="dimmed">
-        Scanning from {from}. Funds sent before that block are not seen; set an earlier block to find them.
+        {how}
       </Text>
       <Group>
         <Button variant="light" onClick={() => { setHeight(account.birthdayHeight || 1); setOpen(true); }}>

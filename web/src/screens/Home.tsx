@@ -107,7 +107,7 @@ export function Home() {
   const titleOf = (e: HistoryEntry) => {
     if (e.kind === 'received') return e.record.status === 'pending' ? 'Incoming' : 'Received';
     if (e.kind === 'self') return 'Moved to yourself';
-    if (e.record.txid === '' || e.record.recipient === null) return 'Sent · details not on this device';
+    if (e.record.txid === '' || e.record.recipient === null) return 'Sent';
     const c = contactFor(e.record.recipient);
     return `Sent to ${c ? c.name : e.record.recipient ? abbreviateAddress(e.record.recipient) : 'address'}`;
   };
@@ -314,6 +314,9 @@ export function Home() {
                 abbreviate
                 copy="Address copied"
               />
+            )}
+            {detail.kind === 'sent' && !detail.record.recipient && (
+              <DetailRow label="Recipient" value="Not known on this device. The send was made elsewhere, or before this wallet was restored, and the chain carries neither the recipient nor the fee." />
             )}
             {detail.record.note && <DetailRow label="Note from the link" value={detail.record.note} isolate />}
             {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}

@@ -281,6 +281,11 @@ export function Send() {
               <span>Total</span>
               <b>{showNau(totalNau)} NPT</b>
             </div>
+            {totals.feeNau > totals.amountNau && (
+              <Text size="sm" c="yellow" mt="xs">
+                The fee is larger than the amount.
+              </Text>
+            )}
           </div>
           {(linkMeta?.label || linkMeta?.message) && (
             <div className="vault-link-meta-form">
