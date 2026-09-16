@@ -89,6 +89,15 @@ h3.mantine-Title-root {
 .mantine-Button-root[data-variant='subtle'] {
   color: var(--v-accent-text);
 }
+/* A control inside a field (Max, Scan) is plain text at rest, and stays
+   plain when disabled: faded, no box, so it never becomes the one boxed
+   thing on the screen and the field does not change shape. */
+.mantine-Input-section .mantine-Button-root:disabled,
+.mantine-Input-section .mantine-Button-root[data-disabled] {
+  background: transparent;
+  border: 0;
+  color: var(--v-faint);
+}
 
 /* Fields: a darker well, no border, accent ring on focus. */
 .mantine-Input-input {
