@@ -155,8 +155,10 @@ export function Home() {
           </Text>
         </Alert>
       )}
-      <div className={`vault-status${sync?.phase === 'error' ? ' error' : ''}`}>
+      {/* The dot answers "is this current?" without reading: green up to date, amber while working, red when it cannot say. */}
+      <div className="vault-status">
         <span className="vault-status-text">
+          <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' ? 'ok' : 'busy'}`} aria-hidden />
           {!online && <IconWifiOff size={14} stroke={1.8} />}
           {busy && <IconRefresh size={14} stroke={1.8} className="vault-spin" />}
           {syncText}
