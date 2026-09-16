@@ -212,7 +212,7 @@ export function Onboarding() {
             )}
             {adding && (
               <Button variant="subtle" onClick={() => navigate('/settings')}>
-                Keep the current wallet
+                Cancel
               </Button>
             )}
           </Stack>
