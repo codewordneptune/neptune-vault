@@ -1,4 +1,4 @@
-// The proof-of-concept warning, on the first screens a person sees. Shown
+// The not-yet-audited warning, on the first screens a person sees. Shown
 // in full the first time on a device; after that as one line that expands
 // on tap, so the balance stays on the first screen of a phone.
 
@@ -32,7 +32,7 @@ export function PocNotice() {
       icon={<IconAlertTriangle size={18} />}
       title={
         <span className="vault-poc-title">
-          {expanded ? 'Proof of concept, not for production use' : 'Proof of concept'}
+          Early version, not yet audited
           <Chevron size={16} stroke={1.8} aria-hidden />
         </span>
       }
@@ -49,7 +49,7 @@ export function PocNotice() {
       }}
     >
       {expanded && (
-        <Text size="sm">No security audit, breaking changes ahead, and bugs may lose funds. Use it only with amounts you can afford to lose, and keep your seed phrase somewhere safe.</Text>
+        <Text size="sm">No security audit yet, and changes every week. Use it only with amounts you can afford to lose, and keep your seed phrase somewhere safe.</Text>
       )}
     </Alert>
   );

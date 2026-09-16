@@ -245,7 +245,7 @@ export function Settings() {
             About
           </Title>
           <Text size="sm" c="dimmed">
-            A wallet for Neptune Cash that runs entirely in your browser: keys never leave this device, and the app talks only to the node you choose. A proof of concept: no audit, breaking changes ahead, use only what you can afford to lose.
+            A wallet for Neptune Cash that runs entirely in your browser: keys never leave this device, and the app talks only to the node you choose. An early version: no security audit yet, changes every week, use only what you can afford to lose.
           </Text>
           <Group gap="md">
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">

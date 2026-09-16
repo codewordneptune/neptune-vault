@@ -575,7 +575,7 @@ button.vault-network::before {
   opacity: 0.8;
 }
 
-/* The proof-of-concept notice collapses to its title after the first visit. */
+/* The not-yet-audited notice collapses to its title after the first visit. */
 .vault-poc {
   cursor: pointer;
 }
