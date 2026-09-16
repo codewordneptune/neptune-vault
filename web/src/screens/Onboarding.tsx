@@ -364,15 +364,12 @@ function shuffle<T>(items: T[]): T[] {
 function PasswordStep({ busy, onSubmit, stepLabel, onBack }: { busy: boolean; onSubmit: (password: string) => void; stepLabel: string; onBack: () => void }) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
-  const [touched, setTouched] = useState(false);
   const ok = password.length >= 8 && password === again;
   // Length is the only signal worth showing; anything finer misleads. The
   // word is coloured, not a bar: four words say as much as the app knows.
-  // "Too short" turns red only once the field has been left, never while
-  // the first eight characters are still being typed.
   const level = password.length === 0 ? null : password.length < 8 ? 'short' : password.length < 12 ? 'weak' : password.length < 16 ? 'good' : 'strong';
   const strengthWord = { short: 'Too short', weak: 'Weak', good: 'Good', strong: 'Strong' } as const;
-  const strengthColour = level === 'short' ? (touched ? 'red' : undefined) : level === 'weak' ? 'yellow' : 'green';
+  const strengthColour = level === 'short' ? 'red' : level === 'weak' ? 'yellow' : 'green';
   return (
     <Paper>
       <Stack>
@@ -397,7 +394,6 @@ function PasswordStep({ busy, onSubmit, stepLabel, onBack }: { busy: boolean; on
           }
           value={password}
           onChange={(e) => setPassword(e.currentTarget.value)}
-          onBlur={() => setTouched(true)}
         />
         <PasswordInput label="Repeat" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={again && again !== password ? 'Passwords differ' : undefined} />
         <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password)}>Create wallet</Button>
