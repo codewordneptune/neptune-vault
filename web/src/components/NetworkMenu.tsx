@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
-import { walletName, type AccountRecord, type Network } from '../storage/db';
+import { byCreation, walletName, type AccountRecord, type Network } from '../storage/db';
 import { NETWORK_LABELS } from '../util/network';
 
 const NETWORKS: Network[] = ['main', 'testnet', 'regtest'];
@@ -36,7 +36,7 @@ export function NetworkMenu() {
   // The wallets on this device; refreshed each time the menu opens and when
   // the current one changes, since onboarding or an import may have added one.
   useEffect(() => {
-    void services.db.getAll('accounts').then(setAccounts);
+    void services.db.getAll('accounts').then((all) => setAccounts(byCreation(all)));
   }, [opened, services, account]);
 
   return (

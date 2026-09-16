@@ -5,7 +5,7 @@ import { notifications } from '@mantine/notifications';
 import { groupDigits, showInt } from '../util/format';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import type { AccountRecord, HistoryRecord, Network, UtxoRecord } from '../storage/db';
+import { byCreation, type AccountRecord, type HistoryRecord, type Network, type UtxoRecord } from '../storage/db';
 import type { SendRequest } from '../wallet/core';
 import type { SyncEngine, SyncProgress } from '../wallet/sync';
 import { RequiresLustrationError, type SendOutcome, type SendProgress } from './send';
@@ -111,7 +111,7 @@ export function AppProvider({ services, children }: { services: Services; childr
       await stopSync();
       await services.updateSettings({ network: next, currentAccountId: null });
       await services.accounts.lock();
-      const all = await services.db.getAllFromIndex('accounts', 'byNetwork', next);
+      const all = byCreation(await services.db.getAllFromIndex('accounts', 'byNetwork', next));
       setAccount(all[0] ?? null);
       setNetwork(next);
     },
@@ -137,7 +137,7 @@ export function AppProvider({ services, children }: { services: Services; childr
       if (!record) return;
       await stopSync();
       await services.accounts.deleteAccount(id);
-      const rest = await services.db.getAllFromIndex('accounts', 'byNetwork', record.network);
+      const rest = byCreation(await services.db.getAllFromIndex('accounts', 'byNetwork', record.network));
       const next = rest[0] ?? null;
       await services.updateSettings({ currentAccountId: next?.id ?? null });
       if (account?.id === id) setAccount(next);
@@ -148,7 +148,7 @@ export function AppProvider({ services, children }: { services: Services; childr
   // Initial account: the one settings point at, else the only one on this network.
   useEffect(() => {
     void (async () => {
-      const all = await services.db.getAllFromIndex('accounts', 'byNetwork', services.settings.network);
+      const all = byCreation(await services.db.getAllFromIndex('accounts', 'byNetwork', services.settings.network));
       const chosen = all.find((a) => a.id === services.settings.currentAccountId) ?? all[0] ?? null;
       setAccount(chosen);
       setReady(true);

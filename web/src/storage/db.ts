@@ -258,6 +258,16 @@ export const FRESH_KEY_INDICES: NextKeyIndices = { generation: 1, ec_hybrid: 0, 
  * Accounts stored before address kinds existed carry a single
  * `nextKeyIndex`; read them as generation-only.
  */
+/**
+ * Wallets in the order they were made, oldest first: the order the menu
+ * shows and the one the app picks from. Ids are random, so the database's
+ * own order would shuffle the list between one look and the next; a name
+ * order would move a wallet when it is renamed.
+ */
+export function byCreation<T extends Pick<AccountRecord, 'createdAt'>>(accounts: T[]): T[] {
+  return [...accounts].sort((a, b) => a.createdAt - b.createdAt);
+}
+
 /** The name a wallet is shown under; the first wallets ever made have none. */
 export function walletName(account: Pick<AccountRecord, 'name'>): string {
   return account.name?.trim() || 'Wallet 1';
