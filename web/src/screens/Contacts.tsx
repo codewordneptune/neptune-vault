@@ -2,7 +2,7 @@
 // delete, and start a send to one.
 
 import { ActionIcon, Alert, Badge, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
-import { IconChevronLeft, IconClipboard, IconDotsVertical, IconPencil, IconScan, IconSend, IconTrash, IconUserPlus } from '@tabler/icons-react';
+import { IconChevronLeft, IconDotsVertical, IconPencil, IconScan, IconSend, IconTrash, IconUserPlus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -199,16 +199,6 @@ export function ContactForm({
     }
   };
 
-  const paste = async () => {
-    try {
-      const parsed = parsePaymentText(await navigator.clipboard.readText());
-      if (parsed.error) setAddressError(parsed.error);
-      else setAddress(parsed.address);
-    } catch {
-      setError('Clipboard access was refused. Long-press the field to paste instead.');
-    }
-  };
-
   return (
     <Modal opened={opened} onClose={onClose} title={fixedAddress ? 'Save recipient' : 'Add contact'}>
       <form
@@ -234,16 +224,11 @@ export function ContactForm({
               }}
               onBlur={() => void checkAddress()}
               error={addressError}
-              rightSectionWidth={88}
+              rightSectionWidth={44}
               rightSection={
-                <Group gap={4} wrap="nowrap">
-                  <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Paste address" onClick={() => void paste()}>
-                    <IconClipboard size={18} stroke={1.8} />
-                  </ActionIcon>
-                  <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
-                    <IconScan size={18} stroke={1.8} />
-                  </ActionIcon>
-                </Group>
+                <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
+                  <IconScan size={18} stroke={1.8} />
+                </ActionIcon>
               }
             />
           )}
