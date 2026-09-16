@@ -251,8 +251,14 @@ export function Settings() {
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               Report a problem
             </Anchor>
+            <Anchor href={LINKS.telegram} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
+              Ask in Telegram
+            </Anchor>
+            <Anchor href={LINKS.forum} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
+              Forum
+            </Anchor>
             <Anchor href={LINKS.project} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-              Community
+              News and guides
             </Anchor>
             <Anchor href={LINKS.neptune} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               About Neptune Cash

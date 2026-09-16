@@ -3,6 +3,8 @@
 
 export const LINKS = {
   project: 'https://useneptune.org',
+  telegram: 'https://t.me/neptune_project',
+  forum: 'https://talk.neptune.cash/',
   issues: 'https://github.com/codewordneptune/neptune-vault/issues',
   /** GitHub compare page; append `<from>...<to>` commits. */
   compare: 'https://github.com/codewordneptune/neptune-vault/compare/',

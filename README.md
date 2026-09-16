@@ -125,7 +125,8 @@ stay readable, and the app upgrades its stored data on its own.
   Include the app version and the facts from Diagnostics in Settings
   (threads, cores, memory, installed or tab, last proof), the network, and
   what you did. Never include your seed phrase or a backup file.
-- Community and news: <https://useneptune.org>.
+- Questions: the [Neptune Cash Telegram](https://t.me/neptune_project) for a quick one, the [forum](https://talk.neptune.cash/) for anything worth finding again.
+- News and guides: <https://useneptune.org>.
 - About Neptune Cash: <https://neptune.cash>.
 
 ## Status
