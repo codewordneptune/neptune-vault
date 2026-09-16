@@ -16,7 +16,7 @@ import type { NodeClient } from '../node/rpc';
 import type { Network } from '../storage/db';
 import type { ExportFile } from '../storage/envelope';
 
-type Step = 'welcome' | 'show' | 'confirm' | 'password' | 'import';
+type Step = 'welcome' | 'show' | 'confirm' | 'password' | 'import' | 'file';
 
 // The draft phrase lives in this tab's session storage until the account
 // exists, so a screenshot, app switch, tab discard or reload does not throw
@@ -161,13 +161,13 @@ export function Onboarding() {
     }
   };
 
-  const importFile = async (file: File, password: string) => {
+  const importFile = async (file: File, password: string, fast: boolean) => {
     setBusy(true);
     setError(null);
     try {
       const parsed = JSON.parse(await file.text()) as ExportFile;
       await pauseSync();
-      const record = await services.accounts.importFile(parsed, password);
+      const record = await services.accounts.importFile(parsed, password, { fastRestore: fast });
       saveDraft(null);
       await services.updateSettings({ currentAccountId: record.id, network: record.network });
       setAccount(record);
@@ -203,8 +203,9 @@ export function Onboarding() {
                 void switchNetwork(v as Network);
               }}
             />
-            <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
-            <Button variant="light" onClick={() => setStep('import')}>Import a seed phrase or backup file</Button>
+            <Button onClick={startCreate} loading={busy}>{adding ? 'With a new seed phrase' : 'Create a new wallet'}</Button>
+            <Button variant="light" onClick={() => setStep('import')}>{adding ? 'With a seed phrase you have' : 'Import a seed phrase'}</Button>
+            <Button variant="light" onClick={() => setStep('file')}>{adding ? 'From a backup file' : 'Restore a backup file'}</Button>
             {draft && (
               <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>
                 Discard the unfinished wallet
@@ -280,7 +281,6 @@ export function Onboarding() {
 
       {step === 'import' && (
         <ImportStep
-          busy={busy}
           birthday={birthday}
           setBirthday={setBirthday}
           fromTip={fromTip}
@@ -296,11 +296,57 @@ export function Onboarding() {
             saveDraft({ phrase: words, network, imported: true, birthday, fast });
             setStep('password');
           }}
-          onFile={importFile}
           onBack={() => setStep('welcome')}
         />
       )}
+
+      {step === 'file' && <FileStep busy={busy} onFile={importFile} onBack={() => setStep('welcome')} />}
     </Stack>
+  );
+}
+
+// Restore from a backup file made by this app: the file carries the seed,
+// the network, the start block and the contacts; its password opens it.
+function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File, password: string, fast: boolean) => void; onBack: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [password, setPassword] = useState('');
+  const [fast, setFast] = useState(true);
+  return (
+    <Paper>
+      <Stack>
+        <Title order={2}>Restore a backup file</Title>
+        <Text size="sm" c="dimmed">A file exported by this app, opened with the password it was saved under. It brings back the seed phrase, the network, the start block and your contacts.</Text>
+        <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
+        <Group align="center">
+          <Button variant="default" leftSection={<IconFileUpload size={16} stroke={1.8} />} onClick={() => fileInput.current?.click()}>
+            Choose backup file
+          </Button>
+          <Text size="sm" c={file ? undefined : 'dimmed'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {file ? file.name : 'No file chosen'}
+          </Text>
+        </Group>
+        <PasswordInput label="Backup file password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
+        <SegmentedControl
+          fullWidth
+          value={fast ? 'fast' : 'private'}
+          onChange={(v) => setFast(v === 'fast')}
+          data={[
+            { value: 'fast', label: 'Fast restore' },
+            { value: 'private', label: 'Private restore' },
+          ]}
+        />
+        <Text size="sm" c="dimmed">
+          {fast
+            ? "The node's coin index says which blocks hold payments to you, and only those are fetched: seconds, not hours. The node learns which coins are yours, though not the amounts."
+            : 'Every block from the start block in the file is downloaded and scanned on this device. The node learns nothing about your coins.'}
+        </Text>
+        <Button disabled={!file || !password} loading={busy} onClick={() => file && onFile(file, password, fast)}>
+          Restore
+        </Button>
+        <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
+      </Stack>
+    </Paper>
   );
 }
 
@@ -344,7 +390,6 @@ function PasswordStep({ busy, onSubmit, stepLabel, onBack }: { busy: boolean; on
 }
 
 function ImportStep({
-  busy,
   birthday,
   setBirthday,
   fromTip,
@@ -355,10 +400,8 @@ function ImportStep({
   initialText,
   checkPhrase,
   onPhrase,
-  onFile,
   onBack,
 }: {
-  busy: boolean;
   birthday: number | string;
   setBirthday: (v: number | string) => void;
   fromTip: boolean;
@@ -371,15 +414,11 @@ function ImportStep({
   /** Why the words cannot be a phrase, or null; asked before the step advances. */
   checkPhrase: (words: string[]) => Promise<string | null>;
   onPhrase: (words: string[]) => void;
-  onFile: (file: File, password: string) => void;
   onBack: () => void;
 }) {
   const [text, setText] = useState(initialText);
   const [phraseError, setPhraseError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [filePassword, setFilePassword] = useState('');
   const words = text.trim().split(/\s+/).filter(Boolean);
   const continueWithPhrase = async () => {
     const lower = words.map((w) => w.toLowerCase());
@@ -398,7 +437,7 @@ function ImportStep({
     <Paper>
       <Stack>
         <span className="vault-eyebrow">Step 1 of 2</span>
-        <Title order={2}>Import</Title>
+        <Title order={2}>Import a seed phrase</Title>
         <Textarea
           label="Seed phrase (18 words)"
           description={words.length ? words.length + ' of 18 words' : undefined}
@@ -440,18 +479,6 @@ function ImportStep({
           </>
         )}
         <Button disabled={words.length !== 18} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this seed phrase</Button>
-        <Text size="sm" c="dimmed">Or restore a backup file exported by this app:</Text>
-        <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
-        <Group align="center">
-          <Button variant="default" leftSection={<IconFileUpload size={16} stroke={1.8} />} onClick={() => fileInput.current?.click()}>
-            Choose backup file
-          </Button>
-          <Text size="sm" c={file ? undefined : 'dimmed'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {file ? file.name : 'No file chosen'}
-          </Text>
-        </Group>
-        <PasswordInput label="Backup file password" value={filePassword} onChange={(e) => setFilePassword(e.currentTarget.value)} />
-        <Button variant="light" disabled={!file || !filePassword} loading={busy} onClick={() => file && onFile(file, filePassword)}>Restore from file</Button>
         <Button variant="subtle" onClick={onBack}>Back</Button>
       </Stack>
     </Paper>

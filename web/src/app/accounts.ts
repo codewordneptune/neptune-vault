@@ -274,7 +274,7 @@ export class AccountService {
   }
 
   /** Import an export file. The password is checked by unlocking. */
-  async importFile(file: ExportFile, password: string): Promise<AccountRecord> {
+  async importFile(file: ExportFile, password: string, options: { fastRestore?: boolean } = {}): Promise<AccountRecord> {
     if (file.format !== 'neptune-vault-backup') throw new Error('not a Neptune Vault backup file');
     // Every version ever written stays readable; one this app does not know
     // is from a newer app, never a reason to guess at the contents.
@@ -298,6 +298,7 @@ export class AccountService {
       name,
       // The file it came from is a backup as of its export date.
       lastBackupAt: file.exportedAt,
+      ...(options.fastRestore ? { restore: 'fast' as const } : {}),
     };
     await this.db.put('accounts', record);
     for (const c of file.contacts ?? []) {
