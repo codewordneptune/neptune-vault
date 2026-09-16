@@ -349,8 +349,9 @@ button.vault-network::before {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  background: var(--v-accent-soft);
-  color: var(--v-accent-text);
+  /* Money in: the tile agrees with the green amount beside it. */
+  background: rgba(63, 185, 80, 0.16);
+  color: #3fb950;
 }
 .vault-row-icon.out {
   background: var(--v-surface-2);
