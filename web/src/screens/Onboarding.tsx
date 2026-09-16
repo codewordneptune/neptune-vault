@@ -236,8 +236,11 @@ export function Onboarding() {
             </Group>
             <Button onClick={startConfirm}>I have written them down</Button>
             <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); setStep('welcome'); }}>
-              Start over
+              Cancel
             </Button>
+            <Text size="xs" c="dimmed" ta="center">
+              If you cancel, the words above will not be used.
+            </Text>
           </Stack>
         </Paper>
       )}
