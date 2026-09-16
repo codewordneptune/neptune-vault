@@ -187,7 +187,7 @@ export function Onboarding() {
       {step === 'welcome' && (
         <Paper>
           <Stack>
-            <Title order={2}>{adding ? 'Add a wallet' : 'Welcome'}</Title>
+            <Title order={2}>{adding ? 'Add a wallet' : 'Set up your wallet'}</Title>
             <Text size="sm" c="dimmed">
               {adding
                 ? 'Another seed phrase, with its own password and its own backup. The wallet you have stays on this device; the header menu switches between them.'
@@ -203,9 +203,9 @@ export function Onboarding() {
                 void switchNetwork(v as Network);
               }}
             />
-            <Button onClick={startCreate} loading={busy}>{adding ? 'With a new seed phrase' : 'Create a new wallet'}</Button>
-            <Button variant="light" onClick={() => setStep('import')}>{adding ? 'With a seed phrase you have' : 'Import a seed phrase'}</Button>
-            <Button variant="light" onClick={() => setStep('file')}>{adding ? 'From a backup file' : 'Restore a backup file'}</Button>
+            <Button onClick={startCreate} loading={busy}>With a new seed phrase</Button>
+            <Button variant="light" onClick={() => setStep('import')}>With a seed phrase you have</Button>
+            <Button variant="light" onClick={() => setStep('file')}>From a backup file</Button>
             {draft && (
               <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>
                 Discard the unfinished wallet
