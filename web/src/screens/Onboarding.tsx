@@ -390,7 +390,6 @@ function PasswordStep({ busy, onSubmit, stepLabel, onBack }: { busy: boolean; on
                 <Text span inherit fw={600} c={strengthColour}>
                   {strengthWord[level]}
                 </Text>
-                . Longer beats complicated.
               </>
             ) : (
               'Longer beats complicated.'
