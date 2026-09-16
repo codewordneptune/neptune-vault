@@ -228,7 +228,7 @@ export function Settings() {
           </Title>
           <InstallCard />
           <Text size="sm" c="dimmed">
-            Diagnostics list this device's cores, threads, memory, install state and the app version. Copy them into a problem report.
+            Diagnostics list this device's cores, threads, memory, install state and the app version: the details to include if you ever report a problem.
           </Text>
           <Group>
             <Button variant="light" onClick={() => navigate('/diagnostics')}>
