@@ -287,7 +287,7 @@ export function Send() {
               <b>{showNau(totalNau)} NPT</b>
             </div>
             {totals.feeNau > totals.amountNau && (
-              <Text size="sm" c="yellow" mt="xs">
+              <Text size="sm" c="var(--v-warn-text)" mt="xs">
                 The fee is larger than the amount.
               </Text>
             )}

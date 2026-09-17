@@ -37,7 +37,7 @@ captureInstallPrompt();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="dark">
+    <MantineProvider theme={theme} defaultColorScheme="auto">
       <Notifications position="top-center" />
       <ErrorBoundary>
         <Root />

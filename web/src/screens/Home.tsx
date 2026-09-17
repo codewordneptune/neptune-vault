@@ -1,6 +1,6 @@
 // Balance, sync status and history (F13, F14, R18).
 
-import { ActionIcon, Alert, Badge, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Alert, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -200,7 +200,7 @@ export function Home() {
       <Paper>
         <Stack gap="xs">
           <Group justify="space-between" align="center">
-            <span className="vault-eyebrow">Spendable balance</span>
+            <span className="vault-eyebrow">Balance</span>
             <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
               {hidden ? <IconEyeOff size={16} stroke={1.8} /> : <IconEye size={16} stroke={1.8} />}
             </ActionIcon>
@@ -277,33 +277,27 @@ export function Home() {
                       <Text size="sm" fw={500} className="vault-row-title">
                         {titleOf(e)}
                       </Text>
-                      <Text size="xs" c="dimmed">
+                      <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
                         {formatWhen(h.timestampMs)}
                         {h.height !== null && ` · block ${showBlock(h.height)}`}
+                        {h.status !== 'confirmed' && (
+                          <>
+                            {' · '}
+                            <Text span inherit className={h.status === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
+                              {h.status === 'pending' ? 'Pending' : 'Failed'}
+                            </Text>
+                          </>
+                        )}
+                        {e.kind === 'sent' && h.feeNau && !hidden && ` · fee ${amount(BigInt(h.feeNau))}`}
+                        {e.kind === 'self' && !hidden && ' · fee only'}
                       </Text>
                     </div>
                   </Group>
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <Text size="sm" fw={600} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
                       {incoming ? '+' : '−'}
                       {amount(e.shownNau)}
                     </Text>
-                    <Group gap={6} justify="flex-end" wrap="nowrap">
-                      {h.status !== 'confirmed' && (
-                        <Badge size="xs" color={h.status === 'pending' ? 'yellow' : 'red'}>
-                          {h.status === 'pending' ? 'Pending' : 'Failed'}
-                        </Badge>
-                      )}
-                      {e.kind === 'sent' && h.feeNau && !hidden ? (
-                        <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          fee {amount(BigInt(h.feeNau))}
-                        </Text>
-                      ) : e.kind === 'self' && !hidden ? (
-                        <Text size="xs" c="dimmed">
-                          fee only
-                        </Text>
-                      ) : null}
-                    </Group>
                   </div>
                 </UnstyledButton>
               );

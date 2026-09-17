@@ -17,6 +17,12 @@
   --v-accent-deep: #1a5fc4;
   --v-accent-text: #7db4f5;
   --v-accent-soft: rgba(58, 139, 243, 0.12);
+  --v-ok-text: #3fb950;
+  --v-warn-text: #e3b341;
+  --v-danger-text: #ff8a80;
+  --v-disabled-bg: rgba(255, 255, 255, 0.05);
+  --v-disabled-border: rgba(255, 255, 255, 0.08);
+  --v-backdrop: rgba(9, 14, 21, 0.7);
   --v-radius-xs: 8px;
   --v-radius-sm: 12px;
   --v-radius-md: 16px;
@@ -24,6 +30,33 @@
   --v-fs-sm: 0.875rem;
   --v-fs-md: 0.9375rem;
   --v-shadow-accent: 0 8px 20px rgba(31, 111, 224, 0.25);
+}
+
+/* The light palette, when the device asks for it. Mantine stamps the
+   scheme on the root element and the same tokens carry both; the neutrals
+   keep a touch of the accent's blue so the page reads as chosen. */
+:root[data-mantine-color-scheme='light'] {
+  --v-page: #f3f6fa;
+  --v-page-end: #e8edf4;
+  --v-surface: #ffffff;
+  --v-surface-2: #e9eef5;
+  --v-field: #f2f5f9;
+  --v-text: #15202e;
+  --v-text-2: #2f3f52;
+  --v-muted: #5a6a7e;
+  --v-faint: #8896a8;
+  --v-accent: #2b7de9;
+  --v-accent-2: #1f6fe0;
+  --v-accent-deep: #1a5fc4;
+  --v-accent-text: #1a5fc4;
+  --v-accent-soft: rgba(43, 125, 233, 0.1);
+  --v-ok-text: #1f8f3a;
+  --v-warn-text: #8a5a00;
+  --v-danger-text: #c62828;
+  --v-disabled-bg: rgba(0, 0, 0, 0.05);
+  --v-disabled-border: rgba(0, 0, 0, 0.1);
+  --v-backdrop: rgba(30, 40, 55, 0.5);
+  --v-shadow-accent: 0 8px 20px rgba(31, 111, 224, 0.18);
 }
 
 body {
@@ -71,8 +104,8 @@ h3.mantine-Title-root {
    every variant; it has to stand off the card, which the plain surface did not. */
 .mantine-Button-root:disabled,
 .mantine-Button-root[data-disabled] {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--v-disabled-bg);
+  border: 1px solid var(--v-disabled-border);
   box-shadow: none;
   color: var(--v-faint);
 }
@@ -91,7 +124,7 @@ h3.mantine-Title-root {
 }
 /* A destructive action is red at rest, not only on hover. */
 .mantine-Button-root[data-variant='subtle'].vault-danger {
-  color: #ff8a80;
+  color: var(--v-danger-text);
 }
 /* A control inside a field (Max, Scan) is plain text at rest, and stays
    plain when disabled: faded, no box, so it never becomes the one boxed
@@ -351,7 +384,7 @@ button.vault-network::before {
   flex-shrink: 0;
   /* Money in: the tile agrees with the green amount beside it. */
   background: rgba(63, 185, 80, 0.16);
-  color: #3fb950;
+  color: var(--v-ok-text);
 }
 .vault-row-icon.out {
   background: var(--v-surface-2);
@@ -490,7 +523,7 @@ button.vault-network::before {
   padding: 12px 20px 20px;
 }
 .mantine-Modal-overlay {
-  background: rgba(9, 14, 21, 0.7);
+  background: var(--v-backdrop);
 }
 
 /* Sync in progress. */
@@ -547,8 +580,15 @@ button.vault-network::before {
   background: var(--v-accent);
 }
 .vault-balance-note-in {
-  color: #3fb950;
+  color: var(--v-ok-text);
   flex-shrink: 0;
+}
+/* A row's state, on its second line. */
+.vault-state-pending {
+  color: var(--v-warn-text);
+}
+.vault-state-failed {
+  color: var(--v-danger-text);
 }
 .vault-balance-note-held {
   color: var(--v-muted);
@@ -651,7 +691,7 @@ html {
 
 /* Incoming amounts in the history are green; outgoing stay in the text colour. */
 .vault-amount-in {
-  color: #3fb950;
+  color: var(--v-ok-text);
 }
 
 /* Touch targets: at least 40 px to hit, drawn no larger than before. */

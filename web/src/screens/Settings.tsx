@@ -178,7 +178,7 @@ export function Settings() {
               </Group>
             </Alert>
           )}
-          <Text size="sm" c={account?.lastBackupAt ? 'dimmed' : 'yellow'}>
+          <Text size="sm" c="dimmed">
             {lastBackup ? `Last backup file of ${account ? walletName(account) : 'this wallet'}: ${lastBackup}` : `No backup file of ${account ? walletName(account) : 'this wallet'} saved yet.`}
           </Text>
           <Group>
