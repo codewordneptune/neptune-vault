@@ -199,10 +199,12 @@ export function Home() {
       </div>
       <Paper>
         <Stack gap="xs">
-          <Group justify="space-between" align="center">
+          {/* The eye keeps its 40 px target but is pulled into the row's
+              margins, so the label sits where every other card's title does. */}
+          <Group justify="space-between" align="center" style={{ minHeight: 0 }}>
             <span className="vault-eyebrow">Balance</span>
-            <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
-              {hidden ? <IconEyeOff size={16} stroke={1.8} /> : <IconEye size={16} stroke={1.8} />}
+            <ActionIcon variant="subtle" size="lg" className="vault-tap" my={-10} mr={-8} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
+              {hidden ? <IconEyeOff size={20} stroke={1.8} /> : <IconEye size={20} stroke={1.8} />}
             </ActionIcon>
           </Group>
           <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${showNau(balance.spendableNau)} NPT`}>

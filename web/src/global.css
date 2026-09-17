@@ -23,6 +23,9 @@
   --v-disabled-bg: rgba(255, 255, 255, 0.05);
   --v-disabled-border: rgba(255, 255, 255, 0.08);
   --v-backdrop: rgba(9, 14, 21, 0.7);
+  --v-segment-track: var(--v-field);
+  --v-segment-active: var(--v-surface-2);
+  --v-segment-shadow: none;
   --v-radius-xs: 8px;
   --v-radius-sm: 12px;
   --v-radius-md: 16px;
@@ -56,6 +59,9 @@
   --v-disabled-bg: rgba(0, 0, 0, 0.05);
   --v-disabled-border: rgba(0, 0, 0, 0.1);
   --v-backdrop: rgba(30, 40, 55, 0.5);
+  --v-segment-track: #e3e9f1;
+  --v-segment-active: #ffffff;
+  --v-segment-shadow: 0 1px 2px rgba(21, 32, 46, 0.14), 0 0 0 1px rgba(21, 32, 46, 0.06);
   --v-shadow-accent: 0 8px 20px rgba(31, 111, 224, 0.18);
 }
 
@@ -155,14 +161,17 @@ h3.mantine-Title-root {
   color: var(--v-muted);
 }
 
+/* The chosen segment must read at a glance in both palettes: on the white
+   light card the track is a shade darker and the pill is white with a soft
+   lift, since two near-white greys alone do not separate. */
 .mantine-SegmentedControl-root {
-  background: var(--v-field);
+  background: var(--v-segment-track);
   border: 0;
   padding: 4px;
 }
 .mantine-SegmentedControl-indicator {
-  background: var(--v-surface-2);
-  box-shadow: none;
+  background: var(--v-segment-active);
+  box-shadow: var(--v-segment-shadow);
 }
 .mantine-SegmentedControl-label {
   color: var(--v-muted);
