@@ -1,6 +1,6 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
-import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
 import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconWallet } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -268,6 +268,7 @@ export function Settings() {
             <IconDeviceMobile size={18} stroke={1.8} aria-hidden />
             App
           </Title>
+          <AppearanceCard />
           <InstallCard />
           <Text size="sm" c="dimmed">
             Diagnostics list this device's cores, threads, memory, install state and the app version: the details to include if you ever report a problem.
@@ -381,6 +382,31 @@ function ChangePassword() {
         </Group>
       </Stack>
     </form>
+  );
+}
+
+// Light, dark, or whatever the device says. The library remembers a manual
+// choice in this browser's storage; "System" is the default and follows the
+// device, so nothing changes unless a person asks.
+function AppearanceCard() {
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
+  return (
+    <Stack gap="xs">
+      <Text size="sm" c="dimmed">
+        Appearance
+      </Text>
+      <SegmentedControl
+        fullWidth
+        aria-label="Appearance"
+        value={colorScheme}
+        onChange={(v) => setColorScheme(v as 'auto' | 'light' | 'dark')}
+        data={[
+          { value: 'auto', label: 'System' },
+          { value: 'light', label: 'Light' },
+          { value: 'dark', label: 'Dark' },
+        ]}
+      />
+    </Stack>
   );
 }
 
