@@ -544,7 +544,15 @@ button.vault-network::before {
   background: #3fb950;
 }
 .vault-status-dot.busy {
-  background: #e3b341;
+  background: var(--v-accent);
+}
+.vault-balance-note-in {
+  color: #3fb950;
+  flex-shrink: 0;
+}
+.vault-balance-note-held {
+  color: var(--v-muted);
+  flex-shrink: 0;
 }
 .vault-status-dot.bad {
   background: #ff8a80;

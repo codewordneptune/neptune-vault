@@ -591,6 +591,9 @@ function WalletCard() {
           }}
         />
         <Group>
+          <Button variant="light" onClick={() => navigate('/contacts')}>
+            Contacts
+          </Button>
           <Button variant="light" disabled={sending} onClick={() => navigate('/onboarding?add=1')}>
             Add another wallet
           </Button>

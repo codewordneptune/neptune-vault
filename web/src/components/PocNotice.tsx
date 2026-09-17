@@ -28,7 +28,7 @@ export function PocNotice() {
   const Chevron = expanded ? IconChevronUp : IconChevronDown;
   return (
     <Alert
-      color="orange"
+      color="gray"
       icon={<IconAlertTriangle size={18} />}
       title={
         <span className="vault-poc-title">

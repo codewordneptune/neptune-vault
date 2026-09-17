@@ -8,6 +8,8 @@ export interface ProveProgress {
   index: number;
   total: number;
   name: string;
+  /** Share of the proving work finished, 0 to 1, by the measured cost of each sub-proof; not a time. */
+  work?: number;
   /** Seconds spent on finished sub-proofs so far. */
   elapsedSeconds: number;
   memoryMb: number;
@@ -19,6 +21,31 @@ export interface ProveOutcome {
   seconds: number;
   memoryMb: number;
   threads: number;
+}
+
+/**
+ * Relative cost of each sub-proof, from the Galaxy S24 measurement
+ * (seconds, single thread): the removal-records integrity proof is most of
+ * the work, the lock scripts almost none. Used only to move the bar in
+ * proportion to work done, never to promise a time.
+ */
+const SUB_PROOF_WEIGHT: Array<[prefix: string, weight: number]> = [
+  ['removal_records_integrity', 309],
+  ['collect_lock_scripts', 15],
+  ['kernel_to_outputs', 35],
+  ['collect_type_scripts', 31],
+  ['type_script', 63],
+  ['lock_script', 3],
+];
+function weightOf(name: string): number {
+  return SUB_PROOF_WEIGHT.find(([prefix]) => name.startsWith(prefix))?.[1] ?? 30;
+}
+/** Total weight of a collection with `total` proofs, of which `inputs` are lock scripts. */
+function totalWeight(total: number, inputs: number): number {
+  const fixed = 309 + 15 + 35 + 31;
+  const locks = Math.max(0, Math.min(inputs, total - 4));
+  const types = Math.max(0, total - 4 - locks);
+  return fixed + locks * 3 + types * 63;
 }
 
 export class ProverClient {
@@ -35,6 +62,8 @@ export class ProverClient {
     this.worker = worker;
     const started = performance.now();
     let threads = 0;
+    let doneWeight = 0;
+    let allWeight = 0;
     let elapsedMs = 0;
     // For the crash message: which sub-proof was running and the last memory reading.
     let current = { name: '', index: 0, total: 0 };
@@ -49,16 +78,18 @@ export class ProverClient {
         switch (data.kind) {
           case 'ready':
             threads = data.threads;
-            onProgress({ index: 0, total: data.total, name: '', elapsedSeconds: 0, memoryMb: 0, threads });
+            allWeight = totalWeight(data.total, request.inputs ?? 1);
+            onProgress({ index: 0, total: data.total, name: '', work: 0, elapsedSeconds: 0, memoryMb: 0, threads });
             break;
           case 'started':
             current = { name: data.name, index: data.index, total: data.total };
-            onProgress({ index: data.index, total: data.total, name: data.name, elapsedSeconds: elapsedMs / 1000, memoryMb: 0, threads });
+            onProgress({ index: data.index, total: data.total, name: data.name, work: doneWeight / allWeight, elapsedSeconds: elapsedMs / 1000, memoryMb: 0, threads });
             break;
           case 'finished':
             elapsedMs += data.millis;
             lastMemoryMb = data.memoryBytes / 1048576;
-            onProgress({ index: data.index + 1, total: data.total, name: data.name, elapsedSeconds: elapsedMs / 1000, memoryMb: data.memoryBytes / 1048576, threads });
+            doneWeight += weightOf(data.name);
+            onProgress({ index: data.index + 1, total: data.total, name: data.name, work: Math.min(1, doneWeight / allWeight), elapsedSeconds: elapsedMs / 1000, memoryMb: data.memoryBytes / 1048576, threads });
             break;
           case 'done':
             finish();

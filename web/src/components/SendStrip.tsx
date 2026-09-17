@@ -36,7 +36,7 @@ export function SendStrip() {
   const elapsed = Math.round((Date.now() - sendJob.startedAt) / 1000);
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const ss = String(elapsed % 60).padStart(2, '0');
-  const value = p ? (100 * p.index) / p.total : 3;
+  const value = p ? 100 * (p.work ?? p.index / p.total) : 3;
 
   return (
     <UnstyledButton className="vault-sendstrip" onClick={() => !locked && navigate('/send')} disabled={locked}>

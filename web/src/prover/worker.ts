@@ -22,6 +22,8 @@ async function loadProver(legacy: boolean): Promise<ProverModule> {
 }
 
 export interface ProveRequest {
+  /** How many inputs the transaction spends, to weight the progress bar; optional. */
+  inputs?: number;
   witness: Uint8Array;
   network: string;
   blockHeight: number;

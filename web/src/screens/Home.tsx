@@ -1,7 +1,7 @@
 // Balance, sync status and history (F13, F14, R18).
 
 import { ActionIcon, Alert, Badge, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
+import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -69,6 +69,10 @@ export function Home() {
   }, [services, account, history.length]);
   const contactFor = (address: string | null) => (address ? contacts.find((c) => c.address === address) : undefined);
   const [detail, setDetail] = useState<HistoryEntry | null>(null);
+  const [why, setWhy] = useState(false);
+  // The sheet's technical rows are folded until asked for, and fold again for the next entry.
+  const [tech, setTech] = useState(false);
+  useEffect(() => setTech(false), [detail]);
   const PAGE = 50;
   const [shown, setShown] = useState(PAGE);
 
@@ -163,7 +167,7 @@ export function Home() {
       {/* One notice at a time: the backup first, since a lost seed phrase is worse than a missing install. */}
       {!showBackupNudge && <InstallNudge />}
       {showBackupNudge && (
-        <Alert color="yellow" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
+        <Alert color="gray" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
           <Text size="sm">Clearing the browser's site data deletes it. Export a backup file so you can restore the wallet and its contacts.</Text>
           <Text size="sm" mt="xs">
             <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
@@ -205,16 +209,32 @@ export function Home() {
             {loaded ? amount(balance.spendableNau) : '…'}
             <small> NPT</small>
           </div>
+          {/* Money on the way and money held, as two readings; the sentence behind them is one tap away. */}
           {incomingNau > 0n && (
-            <Text size="sm" c="dimmed">
-              {amount(incomingNau)} NPT incoming, spendable once confirmed.
-            </Text>
+            <Group gap={6} wrap="nowrap">
+              <IconArrowDownLeft size={14} stroke={1.8} className="vault-balance-note-in" aria-hidden />
+              <Text size="sm">{amount(incomingNau)} NPT incoming</Text>
+            </Group>
           )}
           {balance.reservedNau > 0n && (
-            <Text size="sm" c="dimmed">
-              {amount(balance.reservedNau)} NPT is held by {pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}
-              {pendingSends.length === 1 && `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee`}. Once {pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, {amount(afterPendingNau)} NPT is spendable.
-            </Text>
+            <Group gap={6} wrap="nowrap">
+              <IconLock size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
+              <Text size="sm">{amount(balance.reservedNau)} NPT held until confirmed</Text>
+            </Group>
+          )}
+          {(incomingNau > 0n || balance.reservedNau > 0n) && (
+            <>
+              <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link" aria-expanded={why}>
+                {why ? 'Less' : 'What does this mean?'}
+              </UnstyledButton>
+              {why && (
+                <Text size="xs" c="dimmed">
+                  {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
+                  {balance.reservedNau > 0n &&
+                    `${amount(balance.reservedNau)} NPT is held by ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}${pendingSends.length === 1 ? `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee` : ''}. Once ${pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, ${amount(afterPendingNau)} NPT is spendable.`}
+                </Text>
+              )}
+            </>
           )}
           <Group grow mt="sm">
             <Button leftSection={<IconArrowUpRight size={16} stroke={1.8} />} onClick={() => navigate('/send')}>
@@ -325,9 +345,17 @@ export function Home() {
             {detail.record.note && <DetailRow label="Note from the link" value={detail.record.note} isolate />}
             {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
             {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
-            {outputsOf(detail).map((o) => (
-              <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Commitment copied" href={explorer ? explorer + o.commitment : undefined} />
-            ))}
+            {outputsOf(detail).length > 0 && (
+              <>
+                <UnstyledButton onClick={() => setTech((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link" aria-expanded={tech}>
+                  {tech ? 'Hide technical details' : 'Technical details'}
+                </UnstyledButton>
+                {tech &&
+                  outputsOf(detail).map((o) => (
+                    <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Commitment copied" href={explorer ? explorer + o.commitment : undefined} />
+                  ))}
+              </>
+            )}
             {detail.kind !== 'received' && detail.record.status === 'pending' && (
               <Group justify="flex-end" mt="xs">
                 <Button

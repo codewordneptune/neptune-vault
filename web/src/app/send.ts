@@ -36,7 +36,7 @@ export interface SendOutcome {
 /** The prover as the send flow needs it; the real one is ProverClient. */
 export interface Prover {
   prove(
-    request: { witness: Uint8Array; network: string; blockHeight: number; threads: number; legacy?: boolean },
+    request: { witness: Uint8Array; network: string; blockHeight: number; threads: number; legacy?: boolean; inputs?: number },
     onProgress: (p: ProveProgress) => void,
   ): Promise<ProveOutcome>;
 }
@@ -104,7 +104,7 @@ export class SendService {
       const proving: ProveOutcome = this.useMockProofs
         ? { proofCollection: await this.core.mockProofCollection(built.witness), seconds: 0, memoryMb: 0, threads: 0 }
         : await this.prover.prove(
-            { witness: built.witness, network: this.network, blockHeight: tipHeader.height, threads: this.threads, legacy: version === 5 },
+            { witness: built.witness, network: this.network, blockHeight: tipHeader.height, threads: this.threads, legacy: version === 5, inputs: plan.inputs.length },
             (p) => onProgress({ stage: 'proving', proving: p, note: again }),
           );
 

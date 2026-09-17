@@ -2,9 +2,9 @@
 // before a review step; the proof itself runs as a job in the app context
 // so it survives this screen being unmounted (backgrounding locks the app).
 
-import { Alert, Badge, Button, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { Alert, Badge, Button, Drawer, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { IconAddressBook, IconLink, IconScan } from '@tabler/icons-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { formatNau, showNau, useApp } from '../app/AppContext';
@@ -149,8 +149,10 @@ export function Send() {
       if (e instanceof RequiresLustrationError) {
         dismissSendJob();
         setAskLustration(true);
+      } else {
+        // The failure notice lives on the form.
+        setStep('form');
       }
-      // Other failures are shown from the job state below.
     }
   };
 
@@ -213,10 +215,10 @@ export function Send() {
             {proving && (p ? `Proving, step ${Math.min(p.index + 1, p.total)} of ${p.total}` : 'Starting the prover…')}
             {sendJob.progress.stage === 'submitting' && 'Submitting to the node…'}
           </Text>
-          {proving && p && <Progress value={(100 * p.index) / p.total} animated />}
+          {proving && p && <Progress value={100 * (p.work ?? p.index / p.total)} animated aria-label="Share of the proving work done" />}
           {proving && p && (
             <Text size="xs" c="dimmed">
-              {showInt(provingSeconds)} s so far, {p.threads || 'single'} threads{p.memoryMb ? `, ${showInt(p.memoryMb)} MB` : ''}. You can switch apps; the proof continues and the app tells you when it is submitted.
+              {showInt(provingSeconds)} s so far, {p.threads || 'single'} threads{p.memoryMb ? `, ${showInt(p.memoryMb)} MB` : ''}. The proof continues if you switch apps, though the phone may run it slower there. The app tells you when it is submitted.
             </Text>
           )}
           {proving && (
@@ -229,6 +231,9 @@ export function Send() {
     );
   }
 
+  // The review is a sheet over the form, so the form stays in view and
+  // "Edit" is a step back rather than a screen change.
+  let reviewSheet: ReactNode = null;
   if (step === 'review' && totals) {
     const totalNau = totals.amountNau + totals.feeNau;
     const kind = addressKindLabel(recipient);
@@ -249,12 +254,10 @@ export function Send() {
       heldNau += BigInt(c.amountNau);
       used += 1;
     }
-    return (
-      <Paper>
+    reviewSheet = (
         <Stack>
-          <Title order={2}>Review</Title>
           <Text size="sm" c="dimmed">
-            Check everything once more. The proof takes a few minutes; once it starts, the payment cannot be changed.
+            Check everything once more. Proving can take a few minutes on a phone. The payment cannot be changed once it starts.
           </Text>
           <div className="vault-review">
             <div>
@@ -331,13 +334,15 @@ export function Send() {
             <Button onClick={() => void send(askLustration)}>{askLustration ? 'Send anyway' : 'Send now'}</Button>
           </Group>
         </Stack>
-      </Paper>
     );
   }
 
   return (
     <Paper>
       <Stack>
+        <Drawer opened={reviewSheet !== null} onClose={() => setStep('form')} position="bottom" size="auto" title="Review" trapFocus>
+          {reviewSheet}
+        </Drawer>
         <Group justify="space-between" align="center">
           <div>
             <Title order={2} className="sr-only">
