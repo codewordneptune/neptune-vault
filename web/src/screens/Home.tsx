@@ -1,7 +1,7 @@
 // Balance, sync status and history (F13, F14, R18).
 
 import { ActionIcon, Alert, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconClockPause, IconCopy, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
+import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDown, IconClockPause, IconCopy, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -372,8 +372,11 @@ export function Home() {
             {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
             {outputsOf(detail).length > 0 && (
               <>
-                <UnstyledButton onClick={() => setTech((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link" aria-expanded={tech}>
-                  {tech ? 'Hide technical details' : 'Technical details'}
+                {/* A section of the sheet, not a link beside the address's own
+                    link: a line above it, the muted colour, a chevron that turns. */}
+                <UnstyledButton onClick={() => setTech((v) => !v)} className="vault-detail-section" aria-expanded={tech}>
+                  <span>Technical details</span>
+                  <IconChevronDown size={16} stroke={1.8} aria-hidden className={tech ? 'vault-chevron open' : 'vault-chevron'} />
                 </UnstyledButton>
                 {tech && (
                   <Text size="xs" c="dimmed">
@@ -454,7 +457,7 @@ function DetailRow({ label, value, mono, copy, abbreviate, isolate }: { label: s
         {shown}
       </Text>
       {abbreviate && (
-        <UnstyledButton onClick={() => setFull((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link">
+        <UnstyledButton onClick={() => setFull((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link vault-tap-link-start">
           {full ? 'Hide full address' : 'Show full address'}
         </UnstyledButton>
       )}

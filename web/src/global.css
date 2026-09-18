@@ -855,3 +855,38 @@ html {
   left: 50%;
   translate: -50% -50%;
 }
+
+/* A tap-link that belongs to the value above it sits under that value, at
+   the left edge, not centred across the row. */
+.vault-tap-link-start {
+  align-self: flex-start;
+  justify-content: flex-start;
+  padding-left: 0;
+}
+/* A collapsible section inside a sheet: set off from the rows above it by a
+   line and some air, in the muted colour, with a chevron that turns. It is
+   a part of the sheet, and must not read as one more link. */
+.vault-detail-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--v-surface-2);
+  color: var(--v-muted);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+}
+.vault-chevron {
+  transition: rotate 150ms ease;
+}
+.vault-chevron.open {
+  rotate: 180deg;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vault-chevron {
+    transition: none;
+  }
+}
