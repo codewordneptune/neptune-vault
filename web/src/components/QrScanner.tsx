@@ -28,12 +28,15 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   const [attempt, setAttempt] = useState(0);
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
+  // Whether the camera was asked to keep focusing. Camera options are set as
+  // a whole, so whatever sets one of them later (the torch) must repeat this.
+  const continuousFocus = useRef(false);
 
   const toggleTorch = async () => {
     const track = trackRef.current;
     if (!track) return;
     try {
-      await track.applyConstraints({ advanced: [{ torch: !torchOn } as MediaTrackConstraintSet] });
+      await track.applyConstraints({ advanced: [{ torch: !torchOn, ...(continuousFocus.current ? { focusMode: 'continuous' } : {}) } as MediaTrackConstraintSet] });
       setTorchOn((v) => !v);
     } catch {
       setTorchAvailable(false);
@@ -103,7 +106,15 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
         // have been closed by then. The cleanup below ran when `stream` was
         // still null, so nothing else will ever stop these tracks: without
         // this the camera stays on, light and all, with no scanner on screen.
-        const video = videoRef.current;
+        // The dialog draws its contents a moment after it opens. A camera that
+        // is quick to open (permission already given, a fast phone) can be
+        // ready before the video element exists; wait for it briefly rather
+        // than give up with the scanner showing a black box.
+        let video = videoRef.current;
+        for (let i = 0; !video && !stopped && i < 40; i++) {
+          await new Promise((r) => setTimeout(r, 50));
+          video = videoRef.current;
+        }
         if (stopped || !video) {
           stream.getTracks().forEach((t) => t.stop());
           stream = null;
@@ -111,9 +122,23 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
         }
         const track = stream.getVideoTracks()[0] ?? null;
         trackRef.current = track;
-        const caps = (track?.getCapabilities?.() ?? {}) as { torch?: boolean };
+        const caps = (track?.getCapabilities?.() ?? {}) as { torch?: boolean; focusMode?: string[] };
         setTorchAvailable(Boolean(caps.torch));
         setTorchOn(false);
+        // A web page gets only the camera behaviour it asks for. Left alone,
+        // many phones hold one focus for the whole session, and a dense code
+        // a hand's width away stays a blur: the phone's own camera app reads
+        // the same code from the same distance because it keeps focusing.
+        // Asked for where the camera says it can; ignored where it cannot.
+        continuousFocus.current = false;
+        if (track && caps.focusMode?.includes('continuous')) {
+          try {
+            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] });
+            continuousFocus.current = true;
+          } catch {
+            // Offered but refused: the scan goes on with whatever focus there is.
+          }
+        }
         video.srcObject = stream;
         await video.play();
         void tick();
