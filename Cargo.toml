@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/vault-prover", "crates/vault-core", "crates/vault-fixtures"]
+members = ["crates/vault-prover", "crates/vault-core", "crates/vault-bridge", "crates/vault-fixtures"]
 # Vendored crates are used through [patch.crates-io] below, not as members,
 # but they live inside the workspace tree and must be excluded explicitly so
 # `cargo test` can run inside them.

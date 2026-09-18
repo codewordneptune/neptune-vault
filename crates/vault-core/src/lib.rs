@@ -12,6 +12,13 @@ pub mod kdf;
 pub mod scan;
 pub mod send;
 
+/// Version of this package, for the diagnostics screen. Read here rather
+/// than in each wrapper, so every caller reports the core it is actually
+/// running.
+pub fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
 #[cfg(target_arch = "wasm32")]
 mod wasm {
     use neptune_primitives::network::Network;
@@ -43,7 +50,7 @@ mod wasm {
     /// Version of the wallet core package, for the diagnostics screen.
     #[wasm_bindgen]
     pub fn core_version() -> String {
-        env!("CARGO_PKG_VERSION").to_string()
+        crate::version().to_string()
     }
 
     /// A fresh 18-word seed phrase.
