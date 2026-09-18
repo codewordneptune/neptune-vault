@@ -926,3 +926,45 @@ html {
   word-break: break-word;
   font-variant-numeric: tabular-nums;
 }
+
+/* A QR code at full size for someone else's camera. White in either theme:
+   the white around the code is the quiet border a scanner needs, so these
+   colours are fixed and not the theme's. */
+.vault-qr-full,
+.vault-qr-full-header {
+  background: #ffffff;
+  color: #15202e;
+}
+.vault-qr-full-header .mantine-Modal-close {
+  color: #15202e;
+}
+.vault-qr-full-code {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: #ffffff;
+  cursor: pointer;
+  /* As large as fits: the full width, or what the height leaves once the
+     title and the two lines under the code have had theirs. The side
+     padding is given back, so the code runs to the screen's edges. */
+  width: min(100vw, calc(100dvh - 170px));
+  margin: 0 calc(-1 * var(--mantine-spacing-md));
+  max-width: none;
+}
+.vault-qr-full-code img {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Left to the browser's smooth scaling: the image is larger than the
+     screen, and scaling it down by nearest pixel would make the code's
+     squares uneven in width, which is worse for a scanner than soft edges. */
+}
+.vault-qr-full-caption {
+  color: #15202e;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* What it is on one line, the address on the next, neither broken. */
+  white-space: pre-line;
+}
+.vault-qr-full-hint {
+  color: #5a6a7e;
+}

@@ -9,6 +9,8 @@ import { IconAlertTriangle, IconCopy, IconInfoCircle, IconShare } from '@tabler/
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
+import { QrFullScreen } from '../components/QrFullScreen';
+
 import { formatNau, useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
 import { abbreviateAddress, metaProblem, paymentQrPayload, paymentUri } from '../util/address';
@@ -80,6 +82,8 @@ export function Receive() {
   const [qr, setQr] = useState<string>('');
   const [addressError, setAddressError] = useState<string | null>(null);
   const [showFull, setShowFull] = useState(false);
+  // Which code, if any, is shown as large as the screen allows.
+  const [enlarged, setEnlarged] = useState<'address' | 'request' | null>(null);
   const index = indices[kind];
 
   // The request: amount, name and note. They belong to this visit of the
@@ -265,7 +269,16 @@ export function Receive() {
 
         {tab === 'address' && (
           <>
-            {qr && <img src={qr} alt={`${KIND_LABELS[kind]} address QR code`} style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />}
+            {qr && (
+              <>
+                <UnstyledButton onClick={() => setEnlarged('address')} aria-label="Show the QR code full screen" style={{ display: 'block', width: '100%' }}>
+                  <img src={qr} alt={`${KIND_LABELS[kind]} address QR code`} style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
+                </UnstyledButton>
+                <UnstyledButton onClick={() => setEnlarged('address')} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
+                  Show full screen
+                </UnstyledButton>
+              </>
+            )}
             <Text ff="monospace" size="sm" ta="center" style={{ wordBreak: 'break-all' }}>
               {address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}
             </Text>
@@ -323,7 +336,14 @@ export function Receive() {
               </Button>
             </Group>
             {requestQr && !requestInvalid && (
-              <img src={requestQr} alt="Payment request QR code" style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
+              <>
+                <UnstyledButton onClick={() => setEnlarged('request')} aria-label="Show the QR code full screen" style={{ display: 'block', width: '100%' }}>
+                  <img src={requestQr} alt="Payment request QR code" style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
+                </UnstyledButton>
+                <UnstyledButton onClick={() => setEnlarged('request')} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
+                  Show full screen
+                </UnstyledButton>
+              </>
             )}
             {requestQrNote && !requestInvalid && (
               <Text size="xs" c="dimmed">
@@ -351,6 +371,14 @@ export function Receive() {
             )}
           </Group>
         </Group>
+        <QrFullScreen
+          opened={enlarged !== null && Boolean(enlarged === 'request' ? requestQr : qr)}
+          onClose={() => setEnlarged(null)}
+          src={enlarged === 'request' ? requestQr : qr}
+          title={enlarged === 'request' ? 'Payment request' : `${KIND_LABELS[kind]} address`}
+          caption={`${enlarged === 'request' && linkAmount ? `${linkAmount} NPT to ` : ''}${KIND_LABELS[kind]} (${KIND_PROTOCOL[kind]})
+${address ? abbreviateAddress(address) : ''}`}
+        />
       </Stack>
     </Paper>
   );
