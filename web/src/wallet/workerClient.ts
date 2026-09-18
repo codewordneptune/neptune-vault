@@ -2,7 +2,17 @@
 // one request per call and resolving on the matching reply.
 
 import type { InputPlan, KeyKind, NextKeyIndices, ScanExpectation, ScanResult, SendPlan, SendRequest, StoredUtxo, WalletCore, MempoolScan } from './core';
+import type { SeedEnvelope } from '../storage/db';
+import { WrongPasswordError } from '../storage/envelope';
 import type { WorkerRequest, WorkerResponse } from './worker';
+
+/** The wallet was locked while this call was waiting: its worker is gone. */
+export class WalletLockedError extends Error {
+  constructor() {
+    super('wallet is locked');
+    this.name = 'WalletLockedError';
+  }
+}
 
 export class WalletWorkerClient implements WalletCore {
   private worker: Worker | null = null;
@@ -20,7 +30,7 @@ export class WalletWorkerClient implements WalletCore {
         if (!entry) return;
         this.pending.delete(data.id);
         if (data.ok) entry.resolve(data.result);
-        else entry.reject(new Error(data.error ?? 'wallet worker failed'));
+        else entry.reject(data.errorName === 'WrongPasswordError' ? new WrongPasswordError() : new Error(data.error ?? 'wallet worker failed'));
       };
       worker.onerror = (e) => this.fail(new Error(e.message || 'wallet worker failed'));
       this.worker = worker;
@@ -53,12 +63,28 @@ export class WalletWorkerClient implements WalletCore {
     });
   }
 
-  /** Hard lock: drops the worker and every secret it held. */
+  /**
+   * Lock: the worker goes, and with it the seed, the derived keys and the
+   * wasm memory that held them. A message asking the worker to forget would
+   * wait behind whatever it is busy with and would leave its memory in
+   * place; ending it does neither. The next call starts a fresh worker,
+   * which knows nothing until it is given an envelope and a password.
+   */
   terminate(): void {
     this.worker?.terminate();
     this.worker = null;
-    for (const entry of this.pending.values()) entry.reject(new Error('wallet locked'));
+    for (const entry of this.pending.values()) entry.reject(new WalletLockedError());
     this.pending.clear();
+  }
+
+  unlockEnvelope(envelope: SeedEnvelope, password: string, network: string) {
+    return this.call<void>('unlockEnvelope', [envelope, password, network]);
+  }
+  unlockEnvelopeWithSecret(envelope: SeedEnvelope, wrapped: { iv: string; ciphertext: string }, secret: Uint8Array, network: string) {
+    return this.call<void>('unlockEnvelopeWithSecret', [envelope, wrapped, secret, network]);
+  }
+  openEnvelope(envelope: SeedEnvelope, password: string, wantPhrase: boolean) {
+    return this.call<string[] | null>('openEnvelope', [envelope, password, wantPhrase]);
   }
 
   coreVersion() {

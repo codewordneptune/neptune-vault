@@ -1,6 +1,15 @@
 // Wallet worker: hosts the wasm wallet core so key derivation, scanning and
 // witness building never block the UI thread, and so the decrypted seed
 // lives in this worker's memory only. Terminating the worker locks.
+//
+// Unlocking happens in here too: the page hands over the stored envelope
+// and the password, and this worker derives the key, decrypts the phrase
+// and loads the account. The phrase is never on the page's own heap at an
+// unlock. It reaches the page only when it has to be seen: once when a new
+// wallet's words are written down, and when the person asks to see them.
+
+import { openSeed, openSeedWithSecret, WrongPasswordError, type DeriveKey } from '../storage/envelope';
+import type { SeedEnvelope } from '../storage/db';
 
 // Served untransformed from the public dir, like the prover package.
 type CoreModule = typeof import('../../public/wasm/core/vault_core');
@@ -18,6 +27,8 @@ export interface WorkerResponse {
   ok: boolean;
   result?: unknown;
   error?: string;
+  /** The error's class name, so the page can tell a wrong password from a failure. */
+  errorName?: string;
   transfer?: Transferable[];
 }
 
@@ -71,6 +82,32 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       account?.free();
       account = new m.Account(args[0] as string[], args[1] as string);
       return { result: null };
+    }
+    case 'unlockEnvelope': {
+      const [envelope, password, network] = args as [SeedEnvelope, string, string];
+      const derive: DeriveKey = (pw, salt, mKib, tCost, pCost) => m.derive_key(pw, salt, mKib, tCost, pCost);
+      const phrase = await openSeed(envelope, password, derive);
+      account?.free();
+      account = new m.Account(phrase, network);
+      return { result: null };
+    }
+    case 'unlockEnvelopeWithSecret': {
+      const [envelope, wrapped, secret, network] = args as [SeedEnvelope, { iv: string; ciphertext: string }, Uint8Array, string];
+      try {
+        const phrase = await openSeedWithSecret(envelope, wrapped, secret);
+        account?.free();
+        account = new m.Account(phrase, network);
+      } finally {
+        secret.fill(0);
+      }
+      return { result: null };
+    }
+    case 'openEnvelope': {
+      // For showing the words, and for proving a password: the one place the phrase goes back to the page.
+      const [envelope, password, wantPhrase] = args as [SeedEnvelope, string, boolean];
+      const derive: DeriveKey = (pw, salt, mKib, tCost, pCost) => m.derive_key(pw, salt, mKib, tCost, pCost);
+      const phrase = await openSeed(envelope, password, derive);
+      return { result: wantPhrase ? phrase : null };
     }
     case 'lock':
       account?.free();
@@ -129,7 +166,7 @@ self.onmessage = async ({ data }: MessageEvent<WorkerRequest>) => {
     const response: WorkerResponse = { id, ok: true, result };
     (self as unknown as Worker).postMessage(response, transfer ?? []);
   } catch (e) {
-    const response: WorkerResponse = { id, ok: false, error: e instanceof Error ? e.message : String(e) };
+    const response: WorkerResponse = { id, ok: false, error: e instanceof Error ? e.message : String(e), errorName: e instanceof WrongPasswordError ? 'WrongPasswordError' : undefined };
     (self as unknown as Worker).postMessage(response);
   }
 };

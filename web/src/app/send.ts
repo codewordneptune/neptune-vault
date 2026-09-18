@@ -131,6 +131,12 @@ export class SendService {
         built = await this.core.buildSend(plan.inputs, snapshotResponse, tipHeader.raw, request, Date.now());
       } catch (e) {
         if (e instanceof Error && e.message.includes('lustration')) throw new RequiresLustrationError();
+        // Locking by hand during a proof is fine as long as the proof can be
+        // used. A block that arrives meanwhile means building again, and
+        // building needs the keys, which a locked wallet does not have.
+        if (attempt > 1 && e instanceof Error && /wallet is locked/i.test(e.message)) {
+          throw new Error('A new block arrived during the proof, so the transaction had to be built again, and the wallet had been locked meanwhile. Nothing was sent. Unlock and send again.');
+        }
         throw e;
       }
 

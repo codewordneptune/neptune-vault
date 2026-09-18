@@ -78,28 +78,42 @@ export class AccountService {
     const record = await this.db.get('accounts', accountId);
     if (!record?.passkey) throw new Error('No passkey is set up for this wallet');
     const secret = await this.passkeys.secret(record.passkey.credentialId, record.passkey.prfSalt);
-    let phrase: string[];
-    try {
-      phrase = await openSeedWithSecret(record.envelope, record.passkey.wrappedContentKey, secret);
-    } finally {
-      secret.fill(0);
-    }
-    await this.load(phrase, record.network, epoch);
+    const wrapped = record.passkey.wrappedContentKey;
+    await this.load(epoch, async () => {
+      try {
+        if (this.core.unlockEnvelopeWithSecret) await this.core.unlockEnvelopeWithSecret(record.envelope, wrapped, new Uint8Array(secret), record.network);
+        else await this.core.unlock(await openSeedWithSecret(record.envelope, wrapped, secret), record.network);
+      } finally {
+        secret.fill(0);
+      }
+    });
     this.setUnlocked(accountId);
   }
 
   /**
-   * Hand the phrase to the core, unless a lock arrived since `epoch` was
-   * read or the page is hidden; then nothing stays loaded.
+   * Load the keys into the core with `into`, unless a lock arrived since
+   * `epoch` was read or the page is hidden; then nothing stays loaded.
    */
-  private async load(phrase: string[], network: Network, epoch: number): Promise<void> {
+  private async load(epoch: number, into: () => Promise<void>): Promise<void> {
     if (epoch !== this.epoch) throw new UnlockCancelledError();
-    await this.core.unlock(phrase, network);
+    try {
+      await into();
+    } catch (e) {
+      // A lock ends the worker, and the call it was busy with fails: that is the lock, not an error.
+      if (epoch !== this.epoch) throw new UnlockCancelledError();
+      throw e;
+    }
     const hidden = this.doc?.visibilityState === 'hidden' && !this.lockDeferred;
     if (epoch !== this.epoch || hidden) {
-      await this.core.lock().catch(() => undefined);
+      await this.forget();
       throw new UnlockCancelledError();
     }
+  }
+
+  /** Drop whatever the core holds: end its worker where it has one. */
+  private async forget(): Promise<void> {
+    if (this.core.terminate) this.core.terminate();
+    else await this.core.lock().catch(() => undefined);
   }
 
   private readonly derive: DeriveKey = (pw, salt, m, t, p) => this.core.deriveKey(pw, salt, m, t, p);
@@ -141,8 +155,8 @@ export class AccountService {
   async verifyPassword(accountId: string, password: string): Promise<void> {
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
-    const phrase = await openSeed(record.envelope, password, this.derive);
-    phrase.fill('');
+    if (this.core.openEnvelope) await this.core.openEnvelope(record.envelope, password, false);
+    else await openSeed(record.envelope, password, this.derive);
   }
 
   /**
@@ -153,6 +167,7 @@ export class AccountService {
   async revealPhrase(accountId: string, password: string): Promise<string[]> {
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
+    if (this.core.openEnvelope) return (await this.core.openEnvelope(record.envelope, password, true)) ?? [];
     return openSeed(record.envelope, password, this.derive);
   }
 
@@ -180,7 +195,7 @@ export class AccountService {
     const epoch = this.epoch;
     const name = await this.nextName(network);
     const envelope = await sealSeed(phrase, password, this.derive, DEFAULT_KDF);
-    await this.load(phrase, network, epoch);
+    await this.load(epoch, () => this.core.unlock(phrase, network));
     // From here the keys are in the core. Whatever fails below, they must
     // not stay there with no lock armed.
     try {
@@ -202,7 +217,7 @@ export class AccountService {
       this.setUnlocked(record.id);
       return record;
     } catch (e) {
-      await this.core.lock().catch(() => undefined);
+      await this.forget();
       throw e;
     }
   }
@@ -212,8 +227,10 @@ export class AccountService {
     const epoch = this.epoch;
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
-    const phrase = await openSeed(record.envelope, password, this.derive);
-    await this.load(phrase, record.network, epoch);
+    await this.load(epoch, async () => {
+      if (this.core.unlockEnvelope) await this.core.unlockEnvelope(record.envelope, password, record.network);
+      else await this.core.unlock(await openSeed(record.envelope, password, this.derive), record.network);
+    });
     this.setUnlocked(accountId);
   }
 
@@ -242,7 +259,7 @@ export class AccountService {
     this.lockPending = false;
     this.clearIdleTimer();
     for (const l of this.listeners) l(true);
-    await this.core.lock();
+    await this.forget();
   }
 
   /** Call on any user interaction to postpone the idle lock. */
@@ -358,8 +375,10 @@ export class AccountService {
       .filter((c) => c.name !== '' && c.address.length <= 8000);
 
     const name = await this.nextName(network);
-    const phrase = await openSeed(file.envelope, password, this.derive);
-    await this.load(phrase, network, epoch);
+    await this.load(epoch, async () => {
+      if (this.core.unlockEnvelope) await this.core.unlockEnvelope(file.envelope, password, network);
+      else await this.core.unlock(await openSeed(file.envelope, password, this.derive), network);
+    });
     let recordId: string | null = null;
     try {
       const address0 = await this.core.address('generation', 0);
@@ -393,7 +412,7 @@ export class AccountService {
       this.setUnlocked(record.id);
       return record;
     } catch (e) {
-      await this.core.lock().catch(() => undefined);
+      await this.forget();
       // A cancelled import keeps the wallet it made: it is whole, only locked.
       if (recordId !== null && !(e instanceof UnlockCancelledError)) await this.deleteAccount(recordId).catch(() => undefined);
       throw e;

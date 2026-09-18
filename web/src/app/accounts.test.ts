@@ -3,7 +3,8 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { openVaultDb, type VaultDb } from '../storage/db';
-import { WrongPasswordError } from '../storage/envelope';
+import type { SeedEnvelope } from '../storage/db';
+import { openSeed, WrongPasswordError } from '../storage/envelope';
 import type { WalletCore } from '../wallet/core';
 import { AccountService, UnlockCancelledError } from './accounts';
 import type { PasskeyProvider } from './passkey';
@@ -43,6 +44,38 @@ class FakeCore implements Partial<WalletCore> {
   async address(_kind: string, index: number) {
     if (this.failAddress) throw new Error('worker failed');
     return `nolgar1-${this.unlocked?.[0]}-${index}`;
+  }
+}
+
+/** A core that lives in a worker, as the real one does: it opens envelopes itself and can be ended. */
+class FakeWorkerCore extends FakeCore {
+  terminated = 0;
+  /** Phrases handed over by the page, which an unlock must never do. */
+  phrasesFromThePage = 0;
+  /** Rejects of calls in flight, so ending the worker can fail them. */
+  private inFlight: ((e: Error) => void)[] = [];
+  async unlock(phrase: string[]) {
+    this.phrasesFromThePage += 1;
+    this.unlocked = phrase;
+  }
+  async unlockEnvelope(envelope: SeedEnvelope, password: string) {
+    const phrase = await new Promise<string[]>((resolve, reject) => {
+      this.inFlight.push(reject);
+      openSeed(envelope, password, (pw, salt) => this.deriveKey(pw, salt)).then(resolve, reject);
+    });
+    this.unlocked = phrase;
+  }
+  async openEnvelope(envelope: SeedEnvelope, password: string, wantPhrase: boolean) {
+    const phrase = await openSeed(envelope, password, (pw, salt) => this.deriveKey(pw, salt));
+    return wantPhrase ? phrase : null;
+  }
+  terminate() {
+    this.terminated += 1;
+    this.unlocked = null;
+    for (const reject of this.inFlight.splice(0)) reject(new Error('wallet is locked'));
+  }
+  async lock(): Promise<void> {
+    throw new Error('a worker core is ended, never asked to forget');
   }
 }
 
@@ -172,6 +205,43 @@ describe('account service', () => {
     expect(service.currentAccountId).toBe(made.id);
     await expect(service.revealPhrase(made.id, 'wrong-pw')).rejects.toBeInstanceOf(WrongPasswordError);
     expect(await service.revealPhrase(made.id, 'right-pw')).toEqual(words);
+  });
+
+  it('lock ends the worker, and an unlock opens the envelope inside it', async () => {
+    db = await openVaultDb();
+    const core = new FakeWorkerCore();
+    const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+    const words = await service.generatePhrase();
+    const made = await service.createAccount(words, 'pw', 'regtest', 1);
+    // Creating hands the new words over once: they were on the page to be written down.
+    expect(core.phrasesFromThePage).toBe(1);
+
+    await service.lock();
+    expect(core.terminated).toBe(1);
+    expect(core.unlocked).toBeNull();
+
+    await service.unlock(made.id, 'pw');
+    expect(core.unlocked).toEqual(words);
+    expect(core.phrasesFromThePage).toBe(1);
+    await expect(service.unlock(made.id, 'nope')).rejects.toBeInstanceOf(WrongPasswordError);
+    await service.verifyPassword(made.id, 'pw');
+    expect(await service.revealPhrase(made.id, 'pw')).toEqual(words);
+  });
+
+  it('a lock that ends the worker mid-unlock reads as cancelled, not as a failure', async () => {
+    db = await openVaultDb();
+    const core = new FakeWorkerCore();
+    const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+    const made = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    await service.lock();
+    let open!: () => void;
+    core.gate = new Promise((r) => (open = r));
+    const unlocking = service.unlock(made.id, 'pw');
+    await new Promise((r) => setTimeout(r, 5));
+    await service.lock();
+    open();
+    await expect(unlocking).rejects.toBeInstanceOf(UnlockCancelledError);
+    expect(core.unlocked).toBeNull();
   });
 
   it('lock always reaches the core, even when nothing is marked unlocked', async () => {

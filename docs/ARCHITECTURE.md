@@ -219,8 +219,24 @@ Seed envelope, password path (R10):
 - The derived key wraps a random 256-bit content key. The content key
   encrypts the seed with AES-256-GCM through WebCrypto. Changing the password
   re-wraps the content key without touching the seed ciphertext.
-- The decrypted seed lives only inside the wallet worker. The UI thread never
-  holds it. Locking terminates the worker (F8).
+- The decrypted seed lives inside the wallet worker. At an unlock the page
+  hands the worker the stored envelope and the password, and the worker
+  derives the key, decrypts the phrase and loads the account, so the phrase
+  is never on the UI thread's heap. The phrase is on the UI thread in two
+  cases only, where it has to be seen: when a new wallet's words are written
+  down or an existing phrase is typed in, and when the person asks to see
+  the words, which takes the password again.
+- Locking terminates the worker (F8): the seed, the derived keys and the wasm
+  memory that held them go with it, and the next unlock starts a fresh one.
+  A lock never waits for the worker, so a busy or hung worker cannot delay
+  it. Argon2 wipes its working memory, and the account overwrites its
+  secrets when dropped; the browser gives no way to zero freed memory on
+  demand, so this is best effort, not a guarantee.
+- Automatic locks are deferred while a send runs and applied when it ends.
+  A proof does not need the seed: the prover worker holds only the witness,
+  which carries the spending secrets of the coins being spent. Locking by
+  hand during a proof lets it finish and submit; only a rebuild after a new
+  block needs the keys, and then the send stops and says so.
 
 Seed envelope, passkey path (R9, optional):
 

@@ -2,6 +2,8 @@
 // package so the sync engine and the UI can be tested with a fake, and so
 // the real one can live in a Web Worker.
 
+import type { SeedEnvelope } from '../storage/db';
+
 export interface ScannedBlock {
   height: number;
   hash: string;
@@ -139,6 +141,18 @@ export interface WalletCore {
 
   /** Load the account into memory. Replaces any previously unlocked one. */
   unlock(phrase: string[], network: string): Promise<void>;
+  /**
+   * Open the envelope and load the account inside the core, so the phrase
+   * never reaches the page. Throws WrongPasswordError. Optional: a core
+   * without it is given the phrase through `unlock`.
+   */
+  unlockEnvelope?(envelope: SeedEnvelope, password: string, network: string): Promise<void>;
+  /** The same through a passkey's secret, which is zeroed once used. */
+  unlockEnvelopeWithSecret?(envelope: SeedEnvelope, wrapped: { iv: string; ciphertext: string }, secret: Uint8Array, network: string): Promise<void>;
+  /** Check the password and, when `wantPhrase`, give the words back for showing. */
+  openEnvelope?(envelope: SeedEnvelope, password: string, wantPhrase: boolean): Promise<string[] | null>;
+  /** End the core's worker and everything in its memory. Optional: a core without it is asked to `lock`. */
+  terminate?(): void;
   lock(): Promise<void>;
   isUnlocked(): Promise<boolean>;
 

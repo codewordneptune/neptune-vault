@@ -68,6 +68,25 @@ pub struct Account {
     keys: [Vec<SpendingKey>; 3],
 }
 
+/// Locking ends the worker that holds this object, which releases all of
+/// its memory at once. Overwriting the secrets on the way out is the second
+/// line: it covers an account replaced by another in a worker that lives on.
+/// Best effort only. The upstream key types are plain data with no wiping
+/// of their own, and the derived keys on the heap are freed, not cleared.
+impl Drop for Account {
+    fn drop(&mut self) {
+        let blank = SecretKeyMaterial(neptune_wallet::twenty_first::prelude::XFieldElement::new_const(neptune_wallet::twenty_first::prelude::BFieldElement::new(0)));
+        self.secret = blank;
+        self.entropy = WalletEntropy::new(blank);
+        for keys in &mut self.keys {
+            keys.clear();
+        }
+        // Keep the optimiser from dropping stores to an object about to go.
+        std::hint::black_box(&self.secret);
+        std::hint::black_box(&self.entropy);
+    }
+}
+
 impl Account {
     /// A fresh 18-word phrase from the browser's random source.
     pub fn generate_phrase() -> Vec<String> {

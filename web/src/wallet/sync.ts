@@ -209,6 +209,10 @@ export class SyncEngine {
       return this.progress('done', finalState?.syncedHeight ?? state.syncedHeight, tip.height);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
+      // A lock ends the core's worker under a running pass. That is the lock
+      // doing its job, not a sync failure to show on the next unlock; the
+      // batch in flight was not written.
+      if (/wallet is locked/i.test(message)) return { phase: 'scanning', syncedHeight: await this.syncedHeight(), tipHeight: 0 };
       return this.progress('error', await this.syncedHeight(), 0, message);
     }
   }
