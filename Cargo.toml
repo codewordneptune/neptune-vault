@@ -15,6 +15,7 @@ twenty-first = { path = "crates/vendor/twenty-first" }
 triton-vm = { path = "crates/vendor/triton-vm" }
 
 [profile.release]
+trim-paths = "all"
 opt-level = 3
 debug = false
 

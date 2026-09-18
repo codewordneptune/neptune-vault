@@ -16,8 +16,10 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # A named image and an exact Node, so that the same commit builds the
+    # same files next month as today.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +38,16 @@ jobs:
           key: wasm-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'crates/legacy/Cargo.lock', 'rust-toolchain.toml', '.cargo/config.toml') }}
           restore-keys: wasm-${{ runner.os }}-
 
+      # The wallet core's own tests, which the web tests cannot stand in
+      # for: key derivation, scanning, the chain checks held against real
+      # mainnet blocks, and sending. Then the test that guards the one change
+      # made to vendored arithmetic, the field inverse in twenty-first,
+      # whose debug assertion is compiled out of release builds.
+      - name: Rust tests
+        run: |
+          cargo test --locked -p vault-core
+          cargo test --locked --manifest-path crates/vendor/twenty-first/Cargo.toml norm_based_inverse
+
       - name: Install wasm-pack
         run: curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
@@ -48,7 +60,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.20.0
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -58,6 +70,31 @@ jobs:
           npm ci
           npm test
           npm run build
+
+      # What this run deploys, file by file. Anyone can build the same commit
+      # and compare, or hash what the site serves and compare. The list is in
+      # the run's summary and kept as an artifact.
+      - name: Hashes of the deployed files
+        working-directory: web/dist
+        run: |
+          find . -type f -print0 | sort -z | xargs -0 sha256sum > ../dist.sha256
+          {
+            echo "### Deployed files, commit ${GITHUB_SHA}"
+            echo
+            echo "$(wc -l < ../dist.sha256) files. SHA-256 of the list itself: $(sha256sum ../dist.sha256 | cut -d' ' -f1)"
+            echo
+            echo '<details><summary>Every file</summary>'
+            echo '<pre>'
+            cat ../dist.sha256
+            echo '</pre>'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-sha256-${{ github.sha }}
+          path: web/dist.sha256
+          retention-days: 90
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1

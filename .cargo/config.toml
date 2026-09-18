@@ -24,4 +24,5 @@ rustflags = [
 ]
 
 [unstable]
+trim-paths = true
 build-std = ["panic_abort", "std"]

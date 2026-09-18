@@ -13,7 +13,17 @@ try {
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-const builtAt = new Date().toISOString();
+// The build's date is the commit's, not the clock's: two builds of one
+// commit must come out byte for byte the same, or nobody can check that the
+// site serves what the repository holds. SOURCE_DATE_EPOCH, the usual
+// convention, wins when set; the clock is only for a plain source archive.
+let builtAt = new Date().toISOString();
+try {
+  const epoch = process.env.SOURCE_DATE_EPOCH;
+  builtAt = epoch ? new Date(Number(epoch) * 1000).toISOString() : new Date(execSync('git log -1 --format=%cI').toString().trim()).toISOString();
+} catch {
+  // Not a git checkout.
+}
 
 // The build's identity as a file next to its assets, so a running app can
 // read which build is waiting for it (components/UpdateStrip). It is never

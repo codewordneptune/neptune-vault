@@ -69,3 +69,28 @@ The app calls the node from the browser, so the node must send CORS
 headers; the public mainnet node does. A node that does not can only be
 reached through a proxy that adds them. The regtest proxy in
 `vite.config.ts` exists only on the dev server.
+
+## Checking that the site serves what the repository holds
+
+Every deploy run lists the SHA-256 of each file it uploads, in the run's
+summary on GitHub and as an artifact named `dist-sha256-<commit>`. Three
+things make that list worth comparing against:
+
+- The build's date comes from the commit (or `SOURCE_DATE_EPOCH`), never
+  from the clock, so the bundle does not change from one run to the next.
+- Absolute paths are trimmed from the wasm (`trim-paths` in
+  `.cargo/config.toml` and the release profiles), so the binaries do not
+  carry the builder's directories, and a local build does not publish the
+  builder's user name.
+- The runner image, the Rust nightly and Node are named exactly.
+
+To check a deploy, hash what the site serves and compare with the run's list:
+
+```
+curl -s https://vault.dev.useneptune.org/version.json
+curl -s https://vault.dev.useneptune.org/wasm/core/vault_core_bg.wasm | sha256sum
+```
+
+To go further, build the same commit and compare `web/dist` file by file.
+What is not pinned yet, and can still make two builds differ: wasm-pack and
+the wasm-bindgen and wasm-opt binaries it downloads.

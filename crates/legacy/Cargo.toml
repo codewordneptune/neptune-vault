@@ -17,5 +17,6 @@ triton-vm = { path = "vendor/triton-vm" }
 twenty-first = { path = "../vendor/twenty-first" }
 
 [profile.release]
+trim-paths = "all"
 opt-level = 3
 debug = false

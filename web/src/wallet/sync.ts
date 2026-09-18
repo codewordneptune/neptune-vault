@@ -41,8 +41,8 @@ export class SyncEngine {
   private readonly batchSize: number;
   private readonly keepBlocks: number;
   private readonly onProgress: (p: SyncProgress) => void;
-  /** The node has said it runs this account's network; asked once per engine. */
-  private networkChecked = false;
+  /** The node URL that has said it runs this account's network; asked once per node, again when the URL changes. */
+  private networkCheckedFor: string | null = null;
   private running = false;
   private stopRequested = false;
   private current: Promise<SyncProgress> | null = null;
@@ -120,13 +120,13 @@ export class SyncEngine {
 
       // A node on another network would make every stored block look
       // orphaned and wipe the local view; ask before trusting anything.
-      if (!this.networkChecked) {
+      if (this.networkCheckedFor !== this.node.url) {
         const theirs = await this.node.network();
         const ours = account.network;
         if (theirs !== null && !(theirs === ours || (ours === 'testnet' && theirs.startsWith('testnet')))) {
           throw new Error(`This node runs the ${theirs} network and this wallet is on ${ours}. Check the node URL in Settings.`);
         }
-        this.networkChecked = true;
+        this.networkCheckedFor = this.node.url;
       }
 
       const tip = await this.node.tipHeader();
