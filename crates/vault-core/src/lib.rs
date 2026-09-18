@@ -7,6 +7,7 @@
 
 pub mod account;
 pub mod amount;
+pub mod chain;
 pub mod kdf;
 pub mod scan;
 pub mod send;
@@ -18,6 +19,7 @@ mod wasm {
 
     use crate::account;
     use crate::amount;
+    use crate::chain;
     use crate::kdf;
     use crate::scan;
     use crate::send;
@@ -146,7 +148,10 @@ mod wasm {
             blocks_response: &str,
             unspent_json: &str,
             next_key_indices_json: &str,
+            expectation_json: &str,
         ) -> Result<String, JsError> {
+            let expectation: chain::Expectation = serde_json::from_str(expectation_json)
+                .map_err(|e| JsError::new(&format!("cannot decode the expectation: {e}")))?;
             let envelope: Envelope<neptune_rpc_api::model::message::GetBlocksResponse> =
                 serde_json::from_str(blocks_response)
                     .map_err(|e| JsError::new(&format!("cannot decode blocks: {e}")))?;
@@ -155,7 +160,7 @@ mod wasm {
                 .map_err(|e| JsError::new(&format!("cannot decode unspent utxos: {e}")))?;
             let next_key_indices = serde_json::from_str(next_key_indices_json)
                 .map_err(|e| JsError::new(&format!("cannot decode next key indices: {e}")))?;
-            let result = scan::scan_blocks(&mut self.0, blocks, unspent, next_key_indices)
+            let result = scan::scan_blocks(&mut self.0, blocks, unspent, next_key_indices, &expectation)
                 .map_err(js_err)?;
             serde_json::to_string(&result).map_err(|e| JsError::new(&e.to_string()))
         }

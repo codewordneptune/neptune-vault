@@ -6,7 +6,7 @@ export interface PrivacySection {
   paragraphs: string[];
 }
 
-export const PRIVACY_UPDATED = '2026-09-15';
+export const PRIVACY_UPDATED = '2026-09-18';
 
 export const PRIVACY: PrivacySection[] = [
   {
@@ -23,6 +23,13 @@ export const PRIVACY: PrivacySection[] = [
       'The host serving the app. Opening or updating the app fetches its files from the site it is installed from. Like any web host, it can log the requests it receives, including your network address. It receives nothing about your wallet.',
       'The explorer, if you tap a link to it. An explorer link opens a page about one output on an external site, which then knows that someone looked at that output. You choose whether to tap.',
       'Whoever you share with. A payment link or QR code carries your address, the amount, and any name or note you typed; the share sheet hands it to the app you pick. A sender\'s wallet shows the name as unverified. Nothing in a link reaches the chain.',
+    ],
+  },
+  {
+    title: 'What the node is trusted for',
+    paragraphs: [
+      "This wallet keeps no copy of the chain, so what it shows comes from the node. It checks what it cheaply can: that the blocks are the ones it asked for, that each follows the last one it scanned, that each was really mined at a difficulty the network has had, that a payment it shows is announced to your key and carried by that block, and that the node runs the network your wallet is on. A node therefore cannot simply invent a payment; it would have to mine one.",
+      "What it cannot check: the proof inside a block, and whether the node shows the heaviest chain or all of it. A dishonest node can hide payments or spends from you, show you a stale chain, and see which blocks you ask for. It can never spend your coins or learn your keys. For amounts that matter, wait for several blocks, and use a node you trust or run your own.",
     ],
   },
   {

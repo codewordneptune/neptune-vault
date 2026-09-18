@@ -128,6 +128,20 @@ export class NodeClient {
     return (JSON.parse(text) as { result: T }).result;
   }
 
+  /**
+   * The network the node says it runs: "main", "regtest", "testnet-0".
+   * Null when the node is too old to say.
+   */
+  async network(): Promise<string | null> {
+    try {
+      const r = await this.call<{ network: string }>('node_network');
+      return typeof r.network === 'string' ? r.network : null;
+    } catch (e) {
+      if (/method not found|-32601/i.test(e instanceof Error ? e.message : String(e))) return null;
+      throw e;
+    }
+  }
+
   async tipDigest(): Promise<string> {
     const r = await this.call<{ digest: string }>('chain_tipDigest');
     return r.digest;

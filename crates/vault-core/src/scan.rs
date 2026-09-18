@@ -8,7 +8,6 @@ use std::collections::HashSet;
 
 use anyhow::anyhow;
 use anyhow::Result;
-use neptune_consensus::block::block_kernel::BlockKernel;
 use neptune_consensus::transaction::transaction_kernel::TransactionKernel;
 use neptune_mutator_set::addition_record::AdditionRecord;
 use neptune_mutator_set::removal_record::absolute_index_set::AbsoluteIndexSet;
@@ -26,6 +25,7 @@ use crate::account::Account;
 use crate::account::KeyKind;
 use crate::account::KEY_LOOKAHEAD;
 use crate::amount;
+use crate::chain;
 
 /// A UTXO the wallet owns, as stored by the app. Everything needed to spend
 /// it later is in `recovery`; the rest is for display and bookkeeping.
@@ -138,6 +138,11 @@ pub struct ScannedBlock {
     pub incoming: Vec<StoredUtxo>,
     /// Hashes of previously unspent UTXOs consumed in this block.
     pub spent: Vec<String>,
+    /// Which of the watched output commitments this block carries: how a
+    /// pending send is known to be in a block, rather than merely to have
+    /// lost its inputs to some other transaction.
+    #[serde(default)]
+    pub seen: Vec<String>,
 }
 
 /// Next unused derivation index per key kind.
@@ -177,20 +182,23 @@ pub struct ScanResult {
 
 /// Scan a batch of blocks, in order. `unspent` are the wallet's unspent UTXOs
 /// before the batch; UTXOs found in earlier blocks of the batch are watched
-/// for spends in later ones.
+/// for spends in later ones. The blocks are first held against what was
+/// asked for (see `chain`); nothing is scanned from an answer that fails.
 pub fn scan_blocks(
     account: &mut Account,
     blocks: Vec<RpcWalletBlock>,
     unspent: Vec<StoredUtxo>,
     next_key_indices: NextKeyIndices,
+    expectation: &chain::Expectation,
 ) -> Result<ScanResult> {
     let mut working_unspent = unspent;
     let mut next_key_indices = next_key_indices;
     let mut scanned = Vec::with_capacity(blocks.len());
+    let blocks = chain::hashed(blocks);
+    chain::check(account.network(), &blocks, expectation)?;
+    let watch: HashSet<&str> = expectation.watch.iter().map(String::as_str).collect();
 
-    for block in blocks {
-        let block_hash = block.hash();
-        let kernel: BlockKernel = block.kernel.into();
+    for (block_hash, kernel) in blocks {
         let addition_records = kernel
             .all_addition_records(block_hash)
             .map_err(|e| anyhow!("block {} has invalid guesser fee records: {e:?}", kernel.header.height))?;
@@ -213,6 +221,15 @@ pub fn scan_blocks(
 
         working_unspent.retain(|u| !spent.contains(&u.hash));
         working_unspent.extend(incoming.iter().cloned());
+        let seen = if watch.is_empty() {
+            Vec::new()
+        } else {
+            addition_records
+                .iter()
+                .map(|ar| ar.canonical_commitment.to_hex())
+                .filter(|c| watch.contains(c.as_str()))
+                .collect()
+        };
 
         scanned.push(ScannedBlock {
             height,
@@ -221,6 +238,7 @@ pub fn scan_blocks(
             timestamp_ms,
             incoming,
             spent,
+            seen,
         });
     }
 

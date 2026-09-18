@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { NodeClient, RpcBlockHeader, RpcWalletBlock } from '../node/rpc';
 import { openVaultDb, type AccountRecord, type VaultDb } from '../storage/db';
-import type { NextKeyIndices, ScanResult, StoredUtxo, WalletCore } from './core';
+import { NOT_LINKED, type NextKeyIndices, type ScanExpectation, type ScanResult, type StoredUtxo, type WalletCore } from './core';
 import { SyncEngine } from './sync';
 
 // A chain the fake node serves and a fake core that "finds" what we tell it.
@@ -33,6 +33,12 @@ class FakeNode {
   flagHeights: number[] = [];
   spendHeights = new Map<string, number[]>();
   noIndex = false;
+  networkName: string | null = 'regtest';
+  /** Answer "canonical" this many times whatever is asked: a reorganisation that lands just after the check. */
+  staleCanonicalAnswers = 0;
+  async network() {
+    return this.networkName;
+  }
   async tipDigest() {
     return this.hashAt(this.tip);
   }
@@ -61,6 +67,10 @@ class FakeNode {
     return { height: this.tip, prevBlockDigest: this.hashAt(this.tip - 1), timestamp: this.tip * 1000, difficulty: '1' };
   }
   async isBlockCanonical(digest: string) {
+    if (this.staleCanonicalAnswers > 0) {
+      this.staleCanonicalAnswers -= 1;
+      return true;
+    }
     return this.canonical.has(digest);
   }
   async getBlocksRaw(from: number, to: number): Promise<string> {
@@ -81,6 +91,9 @@ class FakeCore implements Partial<WalletCore> {
   /** height -> incoming utxos, and height -> spent hashes, scripted by tests. */
   incoming = new Map<number, StoredUtxo[]>();
   spent = new Map<number, string[]>();
+  /** height -> output commitments the block carries. */
+  outputs = new Map<number, string[]>();
+  expectations: ScanExpectation[] = [];
   nextKeyIndexAfter = 1;
   async announcementFlags() {
     return "[]";
@@ -88,8 +101,13 @@ class FakeCore implements Partial<WalletCore> {
   async absoluteIndexSets(unspent: StoredUtxo[]) {
     return JSON.stringify(unspent.map((u) => u.hash));
   }
-  async scanBlocks(blocksResponse: string, _unspent: StoredUtxo[], _next: NextKeyIndices): Promise<ScanResult> {
+  async scanBlocks(blocksResponse: string, _unspent: StoredUtxo[], _next: NextKeyIndices, expectation: ScanExpectation): Promise<ScanResult> {
     const blocks = (JSON.parse(blocksResponse) as { result: { blocks: unknown[] } }).result.blocks;
+    this.expectations.push(expectation);
+    // The real core's checks, as far as the engine depends on them.
+    const first = (blocks as RpcWalletBlock[])[0];
+    if (first && first.kernel.header.height !== expectation.from) throw new Error('chain check: wrong height');
+    if (first && expectation.prev_hash !== null && first.kernel.header.prevBlockDigest !== expectation.prev_hash) throw new Error(`${NOT_LINKED}: block ${expectation.from}`);
     const out = (blocks as RpcWalletBlock[]).map((b) => ({
       height: b.kernel.header.height,
       hash: b.proofLeaf,
@@ -97,6 +115,7 @@ class FakeCore implements Partial<WalletCore> {
       timestamp_ms: b.kernel.header.timestamp,
       incoming: this.incoming.get(b.kernel.header.height) ?? [],
       spent: this.spent.get(b.kernel.header.height) ?? [],
+      seen: (this.outputs.get(b.kernel.header.height) ?? []).filter((c) => expectation.watch.includes(c)),
     }));
     return { blocks: out, next_key_indices: { generation: this.nextKeyIndexAfter, ec_hybrid: 0, viewing: 0 } };
   }
@@ -169,6 +188,73 @@ describe('sync engine', () => {
     const sent = (await db.get('history', 'acc:sent:tx-1'))!;
     expect(sent.status).toBe('confirmed');
     expect(sent.height).toBe(8);
+  });
+
+  it('confirms a send by its own outputs, and fails it when its coins were spent by another transaction', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(6);
+    core.incoming.set(4, [utxo('u1', 4, '5'), utxo('u2', 4, '3'), utxo('u3', 4, '2')]);
+    await engine.syncOnce();
+    const reserve = async (hash: string, txid: string) => db.put('utxos', { ...(await db.get('utxos', `acc:${hash}`))!, pendingTxid: txid });
+    const pending = (txid: string, inputs: string[], commitment: string) =>
+      db.put('history', { key: `acc:sent:${txid}`, accountId: 'acc', kind: 'sent', status: 'pending', txid, amountNau: '1', feeNau: '0', timestampMs: 0, height: null, inputHashes: inputs, recipient: 'r', error: null, outputs: [{ commitment, role: 'recipient' }] });
+    await reserve('u1', 'tx-mine');
+    await pending('tx-mine', ['u1'], 'out-mine');
+    await reserve('u2', 'tx-lost');
+    await reserve('u3', 'tx-lost');
+    await pending('tx-lost', ['u2', 'u3'], 'out-lost');
+
+    // Block 8 spends u1 and u2. It carries tx-mine's output; u2 went to a
+    // transaction from another device, so tx-lost never happened.
+    node.extendTo(8);
+    core.spent.set(8, ['u1', 'u2']);
+    core.outputs.set(8, ['out-mine', 'someone-else']);
+    await engine.syncOnce();
+    expect(core.expectations.at(-1)?.watch.sort()).toEqual(['out-lost', 'out-mine']);
+
+    expect((await db.get('history', 'acc:sent:tx-mine'))?.status).toBe('confirmed');
+    const lost = (await db.get('history', 'acc:sent:tx-lost'))!;
+    expect(lost.status).toBe('failed');
+    expect(lost.error).toMatch(/spent by another transaction/);
+    // The coin it lost is spent, by nobody this device knows; the other is free again.
+    expect(await db.get('utxos', 'acc:u2')).toMatchObject({ spentHeight: 8, spentTxid: null, pendingTxid: null });
+    expect(await db.get('utxos', 'acc:u3')).toMatchObject({ spentHeight: null, pendingTxid: null });
+    // And the spend shows as one made elsewhere.
+    expect((await db.get('history', 'acc:spent:8'))?.inputHashes).toEqual(['u2']);
+  });
+
+  it('refuses a node on another network before touching anything', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(6);
+    core.incoming.set(4, [utxo('u1', 4, '5')]);
+    await engine.syncOnce();
+    const other = new FakeNode();
+    other.networkName = 'main';
+    other.extendTo(2);
+    const wrong = new SyncEngine(db, other as unknown as NodeClient, core as unknown as WalletCore, 'acc', { batchSize: 4, keepBlocks: 100 });
+    const result = await wrong.syncOnce();
+    expect(result.phase).toBe('error');
+    expect(result.message).toMatch(/runs the main network/);
+    expect(await db.get('utxos', 'acc:u1')).toBeDefined();
+    expect((await db.get('accounts', 'acc'))?.birthdayHeight).toBe(3);
+  });
+
+  it('rolls back when the next block does not follow the last one scanned, though the node called it canonical', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(8);
+    core.incoming.set(7, [utxo('orphaned', 7, '1')]);
+    await engine.syncOnce();
+
+    // The reorganisation lands between the canonical check and the fetch.
+    node.forkAbove(6, 10);
+    node.staleCanonicalAnswers = 1;
+    core.incoming.clear();
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('done');
+    expect(result.syncedHeight).toBe(10);
+    expect(await db.get('utxos', 'acc:orphaned')).toBeUndefined();
+    const blocks = await db.getAllFromIndex('blocks', 'byAccountHeight', IDBKeyRange.bound(['acc', 0], ['acc', Infinity]));
+    expect(blocks.map((b) => b.hash)).toEqual(['hash-3', 'hash-4', 'hash-5', 'hash-6', 'fork-7', 'fork-8', 'fork-9', 'fork-10']);
   });
 
   it('records a spend made elsewhere as a send, with what came back as change', async () => {

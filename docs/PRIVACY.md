@@ -3,7 +3,7 @@
 What this wallet keeps, what it sends and to whom, and what is public. The
 same text is shown in the app under Settings, About, Privacy; the app's copy
 (`web/src/content/privacy.ts`) is the reference and this file mirrors it.
-Last changed 2026-09-15.
+Last changed 2026-09-18.
 
 ## What this wallet keeps on your device
 
@@ -47,6 +47,12 @@ at that output. You choose whether to tap.
 the amount, and any name or note you typed; the share sheet hands it to the
 app you pick. A sender's wallet shows the name as unverified. Nothing in a
 link reaches the chain.
+
+## What the node is trusted for
+
+This wallet keeps no copy of the chain, so what it shows comes from the node. It checks what it cheaply can: that the blocks are the ones it asked for, that each follows the last one it scanned, that each was really mined at a difficulty the network has had, that a payment it shows is announced to your key and carried by that block, and that the node runs the network your wallet is on. A node therefore cannot simply invent a payment; it would have to mine one.
+
+What it cannot check: the proof inside a block, and whether the node shows the heaviest chain or all of it. A dishonest node can hide payments or spends from you, show you a stale chain, and see which blocks you ask for. It can never spend your coins or learn your keys. For amounts that matter, wait for several blocks, and use a node you trust or run your own.
 
 ## What is public on the chain
 

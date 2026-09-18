@@ -9,7 +9,7 @@
 import type { NodeClient } from '../node/rpc';
 import type { AccountRecord, BlockRecord, HistoryRecord, UtxoRecord, VaultDb } from '../storage/db';
 import { nextKeyIndicesOf } from '../storage/db';
-import type { NextKeyIndices, ScannedBlock, StoredUtxo, WalletCore } from './core';
+import { NOT_LINKED, type NextKeyIndices, type ScannedBlock, type StoredUtxo, type WalletCore } from './core';
 
 export interface SyncProgress {
   phase: 'checking' | 'restoring' | 'scanning' | 'done' | 'error';
@@ -34,6 +34,8 @@ export class SyncEngine {
   private readonly batchSize: number;
   private readonly keepBlocks: number;
   private readonly onProgress: (p: SyncProgress) => void;
+  /** The node has said it runs this account's network; asked once per engine. */
+  private networkChecked = false;
   private running = false;
   private stopRequested = false;
   private current: Promise<SyncProgress> | null = null;
@@ -81,6 +83,17 @@ export class SyncEngine {
       let account = await this.db.get('accounts', this.accountId);
       if (!account) throw new Error('account not found');
 
+      // A node on another network would make every stored block look
+      // orphaned and wipe the local view; ask before trusting anything.
+      if (!this.networkChecked) {
+        const theirs = await this.node.network();
+        const ours = account.network;
+        if (theirs !== null && !(theirs === ours || (ours === 'testnet' && theirs.startsWith('testnet')))) {
+          throw new Error(`This node runs the ${theirs} network and this wallet is on ${ours}. Check the node URL in Settings.`);
+        }
+        this.networkChecked = true;
+      }
+
       const tip = await this.node.tipHeader();
       if (account.restore === 'fast') {
         const outcome = await this.restoreFast(account, tip.height);
@@ -110,6 +123,12 @@ export class SyncEngine {
 
       let nextKeyIndices = nextKeyIndicesOf(account);
       let height = state.syncedHeight + 1;
+      // The block each batch must follow: the core refuses an answer that
+      // does not link to it, so a reorganisation between the check above
+      // and the fetch, or a node on another chain, cannot leave orphaned
+      // blocks in the wallet.
+      let prevHash = state.syncedHash;
+      let unlinked = 0;
       while (height <= tip.height && !this.stopRequested) {
         const to = Math.min(height + this.batchSize - 1, tip.height);
         this.progress('scanning', height - 1, tip.height);
@@ -118,12 +137,28 @@ export class SyncEngine {
         // and say nothing, since whoever asked is about to start over.
         if (this.stopRequested) return { phase: 'scanning', syncedHeight: height - 1, tipHeight: tip.height };
         const unspent = await this.unspentStored();
-        const result = await this.core.scanBlocks(blocksResponse, unspent, nextKeyIndices);
+        let result;
+        try {
+          result = await this.core.scanBlocks(blocksResponse, unspent, nextKeyIndices, { from: height, to, prev_hash: prevHash, watch: await this.watchedCommitments() });
+        } catch (e) {
+          if (!(e instanceof Error) || !e.message.includes(NOT_LINKED)) throw e;
+          // The chain moved under the wallet. Find the newest stored block
+          // the node still has and go on from there; give up after a few
+          // rounds rather than chase a node that never agrees with itself.
+          unlinked += 1;
+          if (unlinked > 3) throw new Error('The node keeps answering with blocks that do not follow the ones this wallet has scanned. Try again later, or choose another node in Settings.');
+          await this.rollBackIfForked(height - 1, prevHash, true);
+          const rolled = await this.db.get('syncState', this.accountId);
+          height = (rolled?.syncedHeight ?? height - 1) + 1;
+          prevHash = rolled?.syncedHash ?? null;
+          continue;
+        }
         if (result.blocks.length === 0) break;
         nextKeyIndices = result.next_key_indices;
         await this.persist(result.blocks, nextKeyIndices);
         const last = result.blocks[result.blocks.length - 1];
         height = last.height + 1;
+        prevHash = last.hash;
       }
       const finalState = await this.db.get('syncState', this.accountId);
       if (this.stopRequested) return { phase: 'scanning', syncedHeight: finalState?.syncedHeight ?? state.syncedHeight, tipHeight: tip.height };
@@ -166,7 +201,9 @@ export class SyncEngine {
         this.progress('restoring', scanned.size, tipHeight, 'Fast restore: block ' + (i + 1) + ' of ' + todo.length);
         const blocksResponse = await this.node.getBlocksRaw(height, height);
         if (this.stopRequested) return 'stopped';
-        const result = await this.core.scanBlocks(blocksResponse, await this.unspentStored(), nextKeyIndices);
+        // A single block has no neighbour here to link to; the core still
+        // checks it is the height asked for and that it was mined.
+        const result = await this.core.scanBlocks(blocksResponse, await this.unspentStored(), nextKeyIndices, { from: height, to: height, prev_hash: null, watch: await this.watchedCommitments() });
         scanned.add(height);
         if (result.blocks.length === 0) continue;
         nextKeyIndices = result.next_key_indices;
@@ -191,6 +228,12 @@ export class SyncEngine {
     return s?.syncedHeight ?? 0;
   }
 
+  /** Output commitments of this wallet's pending sends: a block that carries one has that send in it. */
+  private async watchedCommitments(): Promise<string[]> {
+    const rows = await this.db.getAllFromIndex('history', 'byAccount', this.accountId);
+    return rows.filter((r) => r.kind === 'sent' && r.status === 'pending').flatMap((r) => (r.outputs ?? []).map((o) => o.commitment));
+  }
+
   /** The wallet's unspent UTXOs in the core's own representation. */
   private async unspentStored(): Promise<StoredUtxo[]> {
     const rows = await this.db.getAllFromIndex('utxos', 'byAccount', this.accountId);
@@ -202,9 +245,11 @@ export class SyncEngine {
    * block that still is and roll the account back to it. Returns the height
    * rolled back to, or null when nothing was forked.
    */
-  private async rollBackIfForked(syncedHeight: number, syncedHash: string | null): Promise<number | null> {
-    if (!syncedHash) return null;
-    if (await this.node.isBlockCanonical(syncedHash)) return null;
+  private async rollBackIfForked(syncedHeight: number, syncedHash: string | null, knownForked = false): Promise<number | null> {
+    if (!knownForked) {
+      if (!syncedHash) return null;
+      if (await this.node.isBlockCanonical(syncedHash)) return null;
+    }
 
     const range = IDBKeyRange.bound([this.accountId, 0], [this.accountId, Infinity]);
     const stored = await this.db.getAllFromIndex('blocks', 'byAccountHeight', range);
@@ -295,15 +340,30 @@ export class SyncEngine {
       // send from another device with the same phrase.
       const elsewhere: string[] = [];
       let spentNau = 0n;
+      const seen = new Set(block.seen ?? []);
       for (const hash of block.spent) {
         const key = `${this.accountId}:${hash}`;
         const existing = await utxoStore.get(key);
         if (!existing) continue;
-        await utxoStore.put({ ...existing, spentHeight: block.height, spentTxid: existing.pendingTxid });
         const sent = existing.pendingTxid ? await historyStore.get(`${this.accountId}:sent:${existing.pendingTxid}`) : undefined;
-        if (sent) {
+        // A send is in this block when the block carries its outputs. Its
+        // inputs being spent is not enough: another device with the same
+        // seed phrase can spend the same coins in another transaction, and
+        // then this send never reached its recipient. Rows from before
+        // outputs were recorded have nothing to compare and keep the old rule.
+        const recorded = sent?.outputs ?? [];
+        const mine = sent !== undefined && (recorded.length === 0 || recorded.some((o) => seen.has(o.commitment)));
+        await utxoStore.put({ ...existing, spentHeight: block.height, spentTxid: mine ? existing.pendingTxid : null, pendingTxid: mine ? existing.pendingTxid : null });
+        if (sent && mine) {
           if (sent.status === 'pending') await historyStore.put({ ...sent, status: 'confirmed', height: block.height });
         } else {
+          if (sent && sent.status === 'pending') {
+            await historyStore.put({ ...sent, status: 'failed', height: block.height, error: 'Not sent: its coins were spent by another transaction, made elsewhere with this seed phrase.' });
+            // Whatever else it held is free again.
+            for (const other of await utxoStore.index('byAccount').getAll(this.accountId)) {
+              if (other.pendingTxid === sent.txid && other.spentHeight === null && other.key !== key) await utxoStore.put({ ...other, pendingTxid: null });
+            }
+          }
           // Not a send this device built (a coin the mempool watcher held
           // for a transaction seen elsewhere lands here too).
           elsewhere.push(hash);

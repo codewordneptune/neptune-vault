@@ -88,8 +88,8 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       return { result: requireAccount().absolute_index_sets(JSON.stringify(args[0])) };
     case 'scanBlocks': {
       // The blocks arrive as the node's raw response text: big integers survive.
-      const [blocksResponse, unspent, nextKeyIndices] = args as [string, unknown[], unknown];
-      const json = requireAccount().scan_blocks(blocksResponse, JSON.stringify(unspent), JSON.stringify(nextKeyIndices));
+      const [blocksResponse, unspent, nextKeyIndices, expectation] = args as [string, unknown[], unknown, unknown];
+      const json = requireAccount().scan_blocks(blocksResponse, JSON.stringify(unspent), JSON.stringify(nextKeyIndices), JSON.stringify(expectation));
       return { result: JSON.parse(json) };
     }
     case 'scanMempoolKernel': {

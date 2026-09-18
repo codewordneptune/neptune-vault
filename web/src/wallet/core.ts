@@ -9,6 +9,8 @@ export interface ScannedBlock {
   timestamp_ms: number;
   incoming: StoredUtxo[];
   spent: string[];
+  /** Which watched output commitments the block carries. */
+  seen?: string[];
 }
 
 /** Address kinds the app offers; names match the Rust serde names. */
@@ -39,6 +41,21 @@ export interface PendingIncoming {
   /** Time lock, if any, in milliseconds since the epoch. */
   release_date_ms?: number | null;
 }
+
+/**
+ * What the node was asked for, so the core can hold the answer against it:
+ * the heights, the block the first one must follow, and the output
+ * commitments of pending sends to report back when a block carries them.
+ */
+export interface ScanExpectation {
+  from: number;
+  to: number;
+  prev_hash: string | null;
+  watch: string[];
+}
+
+/** The core's message when a block does not follow the wallet's last one: a reorganisation, not an error. */
+export const NOT_LINKED = 'chain check: not linked';
 
 /** What one mempool transaction means for this wallet. */
 export interface MempoolScan {
@@ -126,7 +143,7 @@ export interface WalletCore {
   phrase(): Promise<string[]>;
   address(kind: KeyKind, index: number): Promise<string>;
   /** `blocksResponse` is the node's raw JSON-RPC response text for wallet_getBlocks. */
-  scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices): Promise<ScanResult>;
+  scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices, expectation: ScanExpectation): Promise<ScanResult>;
   /** The announcement flags of the keys a scan would try, as the JSON text of the index request. */
   announcementFlags(nextKeyIndices: NextKeyIndices): Promise<string>;
   /** The absolute index sets of these coins, as the JSON text of the index request. */
