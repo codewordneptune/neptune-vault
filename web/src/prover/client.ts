@@ -48,8 +48,20 @@ function totalWeight(total: number, inputs: number): number {
   return fixed + locks * 3 + types * 63;
 }
 
+/** The proof was abandoned by the person. */
+export class ProofCancelledError extends Error {
+  constructor() {
+    super('The proof was cancelled.');
+    this.name = 'ProofCancelledError';
+  }
+}
+
 export class ProverClient {
   private worker: Worker | null = null;
+  // The running proof's reject. Terminating a worker settles nothing by
+  // itself: without this, a cancelled send would wait forever, and with it
+  // everything its `finally` undoes, the deferred auto-lock first of all.
+  private rejectRunning: ((e: Error) => void) | null = null;
 
   /** Default thread count: all reported cores (decided 2026-09-13). */
   static defaultThreads(): number {
@@ -70,9 +82,11 @@ export class ProverClient {
     let lastMemoryMb = 0;
 
     return new Promise<ProveOutcome>((resolve, reject) => {
+      this.rejectRunning = reject;
       const finish = () => {
         worker.terminate();
         this.worker = null;
+        this.rejectRunning = null;
       };
       worker.onmessage = ({ data }: MessageEvent<ProveMessage>) => {
         switch (data.kind) {
@@ -116,5 +130,8 @@ export class ProverClient {
   cancel(): void {
     this.worker?.terminate();
     this.worker = null;
+    const reject = this.rejectRunning;
+    this.rejectRunning = null;
+    reject?.(new ProofCancelledError());
   }
 }

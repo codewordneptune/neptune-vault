@@ -2,10 +2,10 @@ import 'fake-indexeddb/auto';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { NodeClient } from '../node/rpc';
+import { NodeError, type NodeClient } from '../node/rpc';
 import { openVaultDb, type UtxoRecord, type VaultDb } from '../storage/db';
 import type { InputPlan, SendPlan, SendRequest, StoredUtxo, WalletCore } from '../wallet/core';
-import { RequiresLustrationError, SendService, type Prover } from './send';
+import { RequiresLustrationError, SendCancelledError, SendService, SendUnconfirmedError, type Prover } from './send';
 
 function stored(hash: string, amount: string, height: number): StoredUtxo {
   return { hash, amount_nau: amount, amount, key_kind: 'generation', key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
@@ -46,6 +46,11 @@ class FakeNode {
   heights: number[] = [10];
   /** Thrown by the next submission, once. */
   submitError: string | null = null;
+  /** The next submission reaches the node, which takes it, and the answer is lost on the way back. */
+  loseAnswer = false;
+  /** What the wallet had written down at the moment the node was handed the transaction. */
+  heldAtSubmit: (string | null | undefined)[] = [];
+  beforeSubmit: (() => Promise<void>) | null = null;
   async restoreMembershipProofRaw(sets: unknown[]) {
     return JSON.stringify({ jsonrpc: '2.0', id: 1, result: { snapshot: { syncedHeight: 10, syncedHash: 'h', syncedMutatorSet: {}, membershipProofs: sets } } });
   }
@@ -54,6 +59,12 @@ class FakeNode {
     return { raw: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { header: { height, prevBlockDigest: 'p', timestamp: 0, difficulty: '1' } } }), height };
   }
   async submitTransaction(tx: unknown) {
+    if (this.beforeSubmit) await this.beforeSubmit();
+    if (this.loseAnswer) {
+      this.loseAnswer = false;
+      this.submitted.push(tx);
+      throw new NodeError('No answer from the node within 120 s', 'timeout', 'wallet_submitTransaction');
+    }
     if (this.submitError) {
       const message = this.submitError;
       this.submitError = null;
@@ -67,8 +78,11 @@ class FakeNode {
 class FakeProver implements Prover {
   fail = false;
   calls = 0;
+  /** Runs while the proof is "being made": where a test presses Cancel. */
+  during: (() => void) | null = null;
   async prove(req: { witness: Uint8Array }, onProgress: (p: never) => void) {
     this.calls += 1;
+    this.during?.();
     onProgress({ index: 1, total: 6, name: 'x', elapsedSeconds: 1, memoryMb: 900, threads: 4 } as never);
     if (this.fail) throw new Error('out of memory');
     return { proofCollection: new Uint8Array([9, 9]), seconds: 1, memoryMb: 900, threads: 4, witnessLen: req.witness.length };
@@ -115,6 +129,47 @@ describe('send service', () => {
     expect(entry?.status).toBe('pending');
     expect(entry?.inputHashes).toEqual(['a', 'b']);
     expect(await service.spendable()).toEqual([]);
+  });
+
+  it('writes the send down and holds its coins before the node hears of it', async () => {
+    const { node, service } = await setup();
+    node.beforeSubmit = async () => {
+      node.heldAtSubmit = [(await db.get('utxos', 'acc:a'))?.pendingTxid, (await db.get('history', 'acc:sent:tx-abc'))?.status];
+    };
+    await service.send(request, () => {});
+    expect(node.heldAtSubmit).toEqual(['tx-abc', 'pending']);
+  });
+
+  it('keeps a send whose answer was lost as pending, so nobody pays twice', async () => {
+    const { node, service } = await setup();
+    node.loseAnswer = true;
+    await expect(service.send(request, () => {})).rejects.toBeInstanceOf(SendUnconfirmedError);
+    // The node has it; the wallet still holds the coins and shows the send.
+    expect(node.submitted).toHaveLength(1);
+    expect((await db.get('history', 'acc:sent:tx-abc'))?.status).toBe('pending');
+    expect(await service.spendable()).toEqual([]);
+    // Giving up on it later frees them, as for any pending send.
+    await service.forget('tx-abc');
+    expect((await service.spendable()).map((u) => u.hash).sort()).toEqual(['a', 'b']);
+  });
+
+  it('cancel during the proof sends nothing and holds nothing', async () => {
+    const { node, prover, service } = await setup();
+    const abort = new AbortController();
+    prover.during = () => abort.abort();
+    await expect(service.send(request, () => {}, null, abort.signal)).rejects.toBeInstanceOf(SendCancelledError);
+    expect(node.submitted).toHaveLength(0);
+    expect(await db.get('history', 'acc:sent:tx-abc')).toBeUndefined();
+    expect((await service.spendable()).map((u) => u.hash).sort()).toEqual(['a', 'b']);
+  });
+
+  it('cancel after the transaction was handed over is not honoured: the send goes through and says so', async () => {
+    const { node, service } = await setup();
+    const abort = new AbortController();
+    node.beforeSubmit = async () => abort.abort();
+    const outcome = await service.send(request, () => {}, null, abort.signal);
+    expect(outcome.txid).toBe('tx-abc');
+    expect((await db.get('history', 'acc:sent:tx-abc'))?.status).toBe('pending');
   });
 
   it('reserves nothing when proving fails or the node rejects', async () => {

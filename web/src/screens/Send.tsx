@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom';
 
 import { formatNau, showNau, useApp } from '../app/AppContext';
-import { RequiresLustrationError } from '../app/send';
+import { RequiresLustrationError, SendBusyError } from '../app/send';
 import { ContactPicker } from '../components/ContactPicker';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
@@ -133,8 +133,11 @@ export function Send() {
     setStep('review');
   };
 
+  // A second tap while the first is being taken up does nothing at all.
+  const [starting, setStarting] = useState(false);
   const send = async (acceptLustration: boolean) => {
-    if (!account) return;
+    if (!account || starting) return;
+    setStarting(true);
     setAskLustration(false);
     try {
       const sentTo = recipient.trim().toLowerCase();
@@ -146,6 +149,7 @@ export function Send() {
       setTotals(null);
       setStep('form');
     } catch (e) {
+      if (e instanceof SendBusyError) return;
       if (e instanceof RequiresLustrationError) {
         dismissSendJob();
         setAskLustration(true);
@@ -153,6 +157,8 @@ export function Send() {
         // The failure notice lives on the form.
         setStep('form');
       }
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -331,7 +337,7 @@ export function Send() {
             <Button variant="default" onClick={() => setStep('form')}>
               Edit
             </Button>
-            <Button onClick={() => void send(askLustration)}>{askLustration ? 'Send anyway' : 'Send now'}</Button>
+            <Button onClick={() => void send(askLustration)} loading={starting} disabled={running}>{askLustration ? 'Send anyway' : 'Send now'}</Button>
           </Group>
         </Stack>
     );

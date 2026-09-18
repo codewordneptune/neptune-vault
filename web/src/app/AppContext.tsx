@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { byCreation, type AccountRecord, type HistoryRecord, type Network, type UtxoRecord } from '../storage/db';
 import type { SendRequest } from '../wallet/core';
 import type { SyncEngine, SyncProgress } from '../wallet/sync';
-import { RequiresLustrationError, type SendOutcome, type SendProgress } from './send';
+import { RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
 
 /** A send in flight, or just finished; lives here so it survives the
@@ -194,9 +194,19 @@ export function AppProvider({ services, children }: { services: Services; childr
     });
   }, [services, accountId]);
 
+  // One send at a time, decided before anything else happens: a second tap
+  // on "Send now" must not touch the job, the wake lock or the deferred
+  // lock of the send already running.
+  const sending = useRef(false);
+  const sendAbort = useRef<AbortController | null>(null);
+
   const startSend = useCallback(
     async (request: SendRequest, note: string | null = null): Promise<SendOutcome> => {
       if (!accountId) throw new Error('no account');
+      if (sending.current) throw new SendBusyError();
+      sending.current = true;
+      const abort = new AbortController();
+      sendAbort.current = abort;
       const service = services.sendService(accountId);
       let wake: WakeLockSentinel | null = null;
       try {
@@ -226,6 +236,7 @@ export function AppProvider({ services, children }: { services: Services; childr
           setSendJob((job) => (job ? { ...job, progress, provingSince } : job));
           },
           note,
+          abort.signal,
         );
         if (outcome.proving.seconds > 0) {
           void services.updateSettings({
@@ -240,6 +251,13 @@ export function AppProvider({ services, children }: { services: Services; childr
         await refresh();
         return outcome;
       } catch (e) {
+        // The person cancelled in time: nothing went out, nothing to report.
+        if (e instanceof SendCancelledError) {
+          setSendJob((job) => (job ? { ...job, done: true, error: e.message } : job));
+          throw e;
+        }
+        // Handed over without an answer: the pending row is in History.
+        if (e instanceof SendUnconfirmedError) await refresh();
         const message = e instanceof RequiresLustrationError ? null : (e as Error).message;
         if (message && provingSince !== null) {
           void services.updateSettings({
@@ -251,16 +269,20 @@ export function AppProvider({ services, children }: { services: Services; childr
         if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message });
         throw e;
       } finally {
-        await wake?.release();
+        sending.current = false;
+        sendAbort.current = null;
+        await wake?.release().catch(() => undefined);
         services.accounts.setLockDeferred(false);
       }
     },
     [services, accountId, refresh],
   );
 
+  // Cancel asks; the send answers. The screen says "cancelled" only when
+  // the send service confirms nothing went out, never on the tap alone.
   const cancelSend = useCallback(() => {
+    sendAbort.current?.abort();
     services.prover.cancel();
-    setSendJob((job) => (job && !job.done ? { ...job, done: true, error: 'Cancelled.' } : job));
   }, [services]);
 
   const dismissSendJob = useCallback(() => {

@@ -3,7 +3,7 @@
 // pending transaction with its inputs reserved. On any failure before
 // submission nothing stays reserved.
 
-import type { NodeClient } from '../node/rpc';
+import { NodeError, type NodeClient } from '../node/rpc';
 import type { ProveOutcome, ProveProgress } from '../prover/client';
 import type { HistoryRecord, VaultDb } from '../storage/db';
 import type { SendRequest, StoredUtxo, WalletCore } from '../wallet/core';
@@ -41,6 +41,34 @@ export interface Prover {
   ): Promise<ProveOutcome>;
 }
 
+/** A send is already running; this one was not started and changed nothing. */
+export class SendBusyError extends Error {
+  constructor() {
+    super('A send is already running.');
+    this.name = 'SendBusyError';
+  }
+}
+
+/** The person cancelled before anything was handed to the node. Nothing was sent and nothing is held. */
+export class SendCancelledError extends Error {
+  constructor() {
+    super('Cancelled. Nothing was sent.');
+    this.name = 'SendCancelledError';
+  }
+}
+
+/**
+ * The transaction was handed to the node and no answer came back: it may
+ * have been sent. It stays in History as pending, with its coins held, so
+ * that nobody pays twice on the strength of a lost answer.
+ */
+export class SendUnconfirmedError extends Error {
+  constructor(public readonly txid: string) {
+    super('The node did not answer, so it is not known whether it took the transaction. It may have been sent. It is kept in History as pending with its coins held: it will show as confirmed if it went through, and you can give up on it there if it did not. Do not send it again before then.');
+    this.name = 'SendUnconfirmedError';
+  }
+}
+
 export class RequiresLustrationError extends Error {
   constructor() {
     super('this send requires lustration announcements; confirm to proceed');
@@ -69,7 +97,16 @@ export class SendService {
       .map((r) => r.stored as StoredUtxo);
   }
 
-  async send(request: SendRequest, onProgress: (p: SendProgress) => void, note: string | null = null): Promise<SendOutcome> {
+  /**
+   * `signal` is the person's Cancel. It is honoured up to the moment the
+   * transaction is handed to the node, and checked right before that
+   * moment; after it, the send goes through and says so, because a screen
+   * that says "cancelled" over a payment that went out invites a second one.
+   */
+  async send(request: SendRequest, onProgress: (p: SendProgress) => void, note: string | null = null, signal?: AbortSignal): Promise<SendOutcome> {
+    const stopIfCancelled = () => {
+      if (signal?.aborted) throw new SendCancelledError();
+    };
     const now = Date.now();
     onProgress({ stage: 'planning' });
     const plan = await this.core.planInputs(await this.spendable(now), request, now);
@@ -81,6 +118,7 @@ export class SendService {
     // the proof on a submission that cannot succeed.
     let again: string | undefined;
     for (let attempt = 1; ; attempt++) {
+      stopIfCancelled();
       onProgress({ stage: 'membership-proofs', note: again });
       // Read the proofs before the header so a tip moving in between fails the
       // height check inside build_send rather than yielding mismatched data.
@@ -101,12 +139,22 @@ export class SendService {
       const version = (await this.core.claimVersion?.(this.network, tipHeader.height)) ?? 8;
       onProgress({ stage: 'proving', claimVersion: version, note: again });
       if (version !== 5 && version !== 8) throw new Error(`This wallet cannot prove transactions for claim version ${version}`);
-      const proving: ProveOutcome = this.useMockProofs
-        ? { proofCollection: await this.core.mockProofCollection(built.witness), seconds: 0, memoryMb: 0, threads: 0 }
-        : await this.prover.prove(
-            { witness: built.witness, network: this.network, blockHeight: tipHeader.height, threads: this.threads, legacy: version === 5, inputs: plan.inputs.length },
-            (p) => onProgress({ stage: 'proving', proving: p, note: again }),
-          );
+      stopIfCancelled();
+      let proving: ProveOutcome;
+      try {
+        proving = this.useMockProofs
+          ? { proofCollection: await this.core.mockProofCollection(built.witness), seconds: 0, memoryMb: 0, threads: 0 }
+          : await this.prover.prove(
+              { witness: built.witness, network: this.network, blockHeight: tipHeader.height, threads: this.threads, legacy: version === 5, inputs: plan.inputs.length },
+              (p) => onProgress({ stage: 'proving', proving: p, note: again }),
+            );
+      } catch (e) {
+        if (signal?.aborted) throw new SendCancelledError();
+        throw e;
+      }
+      // The proof is made; what follows is quick and is not a time to offer
+      // Cancel as if minutes of work were still ahead.
+      onProgress({ stage: 'submitting', note: again });
 
       const moved = async () => (await this.node.tipHeaderRaw()).height !== tipHeader.height;
       if (await moved()) {
@@ -115,12 +163,24 @@ export class SendService {
         continue;
       }
 
-      onProgress({ stage: 'submitting', note: again });
       const transaction = await this.core.assembleSubmission(built.kernel, proving.proofCollection);
+      // The last moment Cancel means anything.
+      stopIfCancelled();
+      // The send is written down, and its coins held, before the node hears
+      // of it. If the answer is lost on the way back (a phone changing
+      // networks, a tab killed), the wallet still knows a payment may be out
+      // there, and a second attempt cannot quietly pick the same coins or,
+      // after the first confirms, different ones.
+      const txid = built.summary.txid;
+      await this.recordPending(txid, request, built.summary.input_hashes, built.summary.amount_nau, built.summary.fee_nau, built.summary.change_nau, built.summary.output_commitments ?? [], note);
       let accepted: boolean;
       try {
         accepted = await this.node.submitTransaction(transaction);
       } catch (e) {
+        // No answer at all: it may have been taken. Everything stays held.
+        if (e instanceof NodeError && (e.code === 'timeout' || e.code === 'network')) throw new SendUnconfirmedError(txid);
+        // The node answered, and the answer was no: nothing is out there.
+        await this.discardPending(txid);
         if (!isNotConfirmable(e)) throw e;
         if ((await moved()) && attempt < MAX_SEND_ATTEMPTS) {
           again = `A block arrived just before the transaction reached the node. Building and proving again (${attempt + 1} of ${MAX_SEND_ATTEMPTS}).`;
@@ -128,9 +188,11 @@ export class SendService {
         }
         throw new Error("The node rejected the transaction: one of its coins seems to be spent already. Nothing was sent. Rescan in Settings to refresh this wallet's view of its coins, then try again.");
       }
-      if (!accepted) throw new Error('the node did not accept the transaction');
+      if (!accepted) {
+        await this.discardPending(txid);
+        throw new Error('The node did not accept the transaction. Nothing was sent.');
+      }
 
-      await this.recordPending(built.summary.txid, request, built.summary.input_hashes, built.summary.amount_nau, built.summary.fee_nau, built.summary.change_nau, built.summary.output_commitments ?? [], note);
       onProgress({ stage: 'done' });
       return { txid: built.summary.txid, proving, claimVersion: version };
     }
@@ -163,6 +225,20 @@ export class SendService {
       note,
     };
     await tx.objectStore('history').put(entry);
+    await tx.done;
+  }
+
+  /** The node refused it: release the inputs and drop the row, as if it had never been written. */
+  private async discardPending(txid: string): Promise<void> {
+    const tx = this.db.transaction(['utxos', 'history'], 'readwrite');
+    const entry = await tx.objectStore('history').get(`${this.accountId}:sent:${txid}`);
+    if (entry) {
+      for (const hash of entry.inputHashes) {
+        const row = await tx.objectStore('utxos').get(`${this.accountId}:${hash}`);
+        if (row && row.pendingTxid === txid && row.spentHeight === null) await tx.objectStore('utxos').put({ ...row, pendingTxid: null });
+      }
+      await tx.objectStore('history').delete(entry.key);
+    }
     await tx.done;
   }
 
