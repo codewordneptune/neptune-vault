@@ -37,7 +37,7 @@ export function App() {
 
   // Do not route until the stored account has been looked up, or a reload
   // would bounce an existing account to onboarding.
-  if (!ready) return <Loader m="xl" />;
+  if (!ready) return <Loader className="vault-starting" aria-label="Starting" />;
 
   // Any interaction postpones the idle lock (R11).
   const touch = () => services.accounts.touch();

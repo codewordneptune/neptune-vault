@@ -22,7 +22,7 @@ function Root() {
     createServices().then(setServices, (e) => setError((e as Error).message));
   }, []);
   if (error) return <Text c="red">Could not start: {error}</Text>;
-  if (!services) return <Loader m="xl" />;
+  if (!services) return <Loader className="vault-starting" aria-label="Starting" />;
   return (
     <AppProvider services={services}>
       <BrowserRouter>
