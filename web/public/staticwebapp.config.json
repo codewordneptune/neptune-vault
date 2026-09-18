@@ -18,7 +18,7 @@
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
-    "Permissions-Policy": "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), display-capture=(), publickey-credentials-get=(self), publickey-credentials-create=(self)"
+    "Permissions-Policy": "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), display-capture=(), clipboard-read=(), clipboard-write=(self), screen-wake-lock=(self), web-share=(self), publickey-credentials-get=(self), publickey-credentials-create=(self)"
   },
   "mimeTypes": {
     ".wasm": "application/wasm",
