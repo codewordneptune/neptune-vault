@@ -123,8 +123,10 @@ export function Home() {
     const c = contactFor(e.record.recipient);
     return `Sent to ${c ? c.name : e.record.recipient ? abbreviateAddress(e.record.recipient) : 'address'}`;
   };
-  // Outputs of an entry, as the explorer knows them. A received row's coin
-  // carries its own commitment once scanned with a core that keeps it.
+  // The coins a payment put on the chain, by their commitments: what a block
+  // explorer knows them by. A received row's coin carries its own commitment
+  // once scanned with a core that keeps it. The labels say "coin", as the
+  // rest of the app does; "output" is the protocol's word, not the person's.
   const outputsOf = (e: HistoryEntry): { commitment: string; label: string }[] => {
     const coinOf = (row: HistoryRecord) => {
       const hash = coinKeyOfReceipt(row);
@@ -132,21 +134,21 @@ export function Home() {
     };
     if (e.kind === 'received') {
       const c = coinOf(e.record) ?? e.record.outputs?.[0]?.commitment;
-      return c ? [{ commitment: c, label: 'Output' }] : [];
+      return c ? [{ commitment: c, label: 'Your coin' }] : [];
     }
     const numbered = (list: { commitment: string; label: string }[]) => {
-      const changes = list.filter((o) => o.label === 'Change output').length;
+      const changes = list.filter((o) => o.label === 'Your change').length;
       let n = 0;
-      return list.map((o) => (o.label === 'Change output' && changes > 1 ? { ...o, label: `Change output ${++n}` } : o));
+      return list.map((o) => (o.label === 'Your change' && changes > 1 ? { ...o, label: `Your change ${++n}` } : o));
     };
-    const recorded = (e.record.outputs ?? []).map((o) => ({ commitment: o.commitment, label: o.role === 'recipient' ? `Output to ${e.kind === 'self' ? 'yourself' : 'the recipient'}` : 'Change output' }));
+    const recorded = (e.record.outputs ?? []).map((o) => ({ commitment: o.commitment, label: o.role === 'recipient' ? (e.kind === 'self' ? 'Your coin' : "The recipient's coin") : 'Your change' }));
     if (recorded.length > 0) return numbered(recorded);
     // A send recorded before outputs were kept: the coins it brought back
     // are known once scanned, the recipient's output is not.
     return numbered(
       e.folded.flatMap((row) => {
         const c = coinOf(row);
-        return c ? [{ commitment: c, label: e.kind === 'self' && BigInt(row.amountNau) === BigInt(e.record.amountNau) ? 'Output to yourself' : 'Change output' }] : [];
+        return c ? [{ commitment: c, label: e.kind === 'self' && BigInt(row.amountNau) === BigInt(e.record.amountNau) ? 'Your coin' : 'Your change' }] : [];
       }),
     );
   };
@@ -373,9 +375,14 @@ export function Home() {
                 <UnstyledButton onClick={() => setTech((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link" aria-expanded={tech}>
                   {tech ? 'Hide technical details' : 'Technical details'}
                 </UnstyledButton>
+                {tech && (
+                  <Text size="xs" c="dimmed">
+                    A payment puts new coins on the chain. These are their identifiers, called commitments, for looking one up in a block explorer. They reveal no amount and no address.
+                  </Text>
+                )}
                 {tech &&
                   outputsOf(detail).map((o) => (
-                    <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Commitment copied" />
+                    <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Identifier copied" />
                   ))}
               </>
             )}

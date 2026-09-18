@@ -60,8 +60,9 @@ stay readable, and the app upgrades its stored data on its own.
 - Send with a review step, fee presets, saved contacts and camera scanning
   of the recipient's code or payment link. The proof is produced on the
   device and the send survives the app being backgrounded.
-- History with one row per transaction and a detail sheet. The outputs'
-  commitments can be copied from it, for looking one up in an explorer.
+- History with one row per transaction and a detail sheet. Under its
+  technical details are the identifiers of the coins a payment made (their
+  commitments), to copy for looking one up in a block explorer.
 - Encrypted seed at rest (Argon2id, AES-256-GCM), auto-lock, password
   change, passkey unlock, and export and import of a backup file with
   contacts.
