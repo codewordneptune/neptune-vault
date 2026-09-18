@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { openVaultDb, type VaultDb } from '../storage/db';
 import type { SeedEnvelope } from '../storage/db';
 import { openSeed, WrongPasswordError } from '../storage/envelope';
-import type { WalletCore } from '../wallet/core';
+import type { WalletCore } from '../backend/types';
 import { AccountService, UnlockCancelledError } from './accounts';
 import type { PasskeyProvider } from './passkey';
 

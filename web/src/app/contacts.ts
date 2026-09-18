@@ -4,7 +4,7 @@
 
 import type { ContactRecord, VaultDb } from '../storage/db';
 import { addressKindLabel } from '../util/address';
-import type { WalletCore } from '../wallet/core';
+import type { WalletCore } from '../backend/types';
 
 /**
  * What makes two contact names the same name. A contact is picked by its

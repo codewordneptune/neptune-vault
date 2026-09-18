@@ -8,11 +8,11 @@
 // unlock. It reaches the page only when it has to be seen: once when a new
 // wallet's words are written down, and when the person asks to see them.
 
-import { openSeed, openSeedWithSecret, WrongPasswordError, type DeriveKey } from '../storage/envelope';
-import type { SeedEnvelope } from '../storage/db';
+import { openSeed, openSeedWithSecret, WrongPasswordError, type DeriveKey } from '../../storage/envelope';
+import type { SeedEnvelope } from '../../storage/db';
 
 // Served untransformed from the public dir, like the prover package.
-type CoreModule = typeof import('../../public/wasm/core/vault_core');
+type CoreModule = typeof import('../../../public/wasm/core/vault_core');
 type Account = InstanceType<CoreModule['Account']>;
 
 

@@ -1,27 +1,9 @@
 // Main-thread client for the prover worker. One proof at a time; a fresh
 // worker per proof so a cancelled or failed run frees its memory.
 
-import type { ProveMessage, ProveRequest } from './worker';
-import { showInt } from '../util/format';
-
-export interface ProveProgress {
-  index: number;
-  total: number;
-  name: string;
-  /** Share of the proving work finished, 0 to 1, by the measured cost of each sub-proof; not a time. */
-  work?: number;
-  /** Seconds spent on finished sub-proofs so far. */
-  elapsedSeconds: number;
-  memoryMb: number;
-  threads: number;
-}
-
-export interface ProveOutcome {
-  proofCollection: Uint8Array;
-  seconds: number;
-  memoryMb: number;
-  threads: number;
-}
+import { showInt } from '../../util/format';
+import type { ProveOutcome, ProveProgress, ProveRequest } from '../types';
+import type { ProveMessage } from './proverWorker';
 
 /**
  * Relative cost of each sub-proof, from the Galaxy S24 measurement
@@ -70,7 +52,7 @@ export class ProverClient {
 
   prove(request: ProveRequest, onProgress: (p: ProveProgress) => void): Promise<ProveOutcome> {
     if (this.worker) throw new Error('a proof is already running');
-    const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+    const worker = new Worker(new URL('./proverWorker.ts', import.meta.url), { type: 'module' });
     this.worker = worker;
     const started = performance.now();
     let threads = 0;

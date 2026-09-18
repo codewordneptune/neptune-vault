@@ -1,10 +1,10 @@
 // Main-thread proxy for the wallet worker. Implements WalletCore by posting
 // one request per call and resolving on the matching reply.
 
-import type { InputPlan, KeyKind, NextKeyIndices, ScanExpectation, ScanResult, SendPlan, SendRequest, StoredUtxo, WalletCore, MempoolScan } from './core';
-import type { SeedEnvelope } from '../storage/db';
-import { WrongPasswordError } from '../storage/envelope';
-import type { WorkerRequest, WorkerResponse } from './worker';
+import type { InputPlan, KeyKind, NextKeyIndices, ScanExpectation, ScanResult, SendPlan, SendRequest, StoredUtxo, WalletCore, MempoolScan } from '../types';
+import type { SeedEnvelope } from '../../storage/db';
+import { WrongPasswordError } from '../../storage/envelope';
+import type { WorkerRequest, WorkerResponse } from './walletWorker';
 
 /** The wallet was locked while this call was waiting: its worker is gone. */
 export class WalletLockedError extends Error {
@@ -24,7 +24,7 @@ export class WalletWorkerClient implements WalletCore {
 
   private get w(): Worker {
     if (!this.worker) {
-      const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+      const worker = new Worker(new URL('./walletWorker.ts', import.meta.url), { type: 'module' });
       worker.onmessage = ({ data }: MessageEvent<WorkerResponse>) => {
         const entry = this.pending.get(data.id);
         if (!entry) return;

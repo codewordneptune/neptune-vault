@@ -4,7 +4,7 @@
 // both networks can coexist (R14, F20). The wallet core's own types
 // (StoredUtxo, ScannedBlock, SendSummary) are stored as it produces them.
 
-import type { NextKeyIndices } from '../wallet/core';
+import type { NextKeyIndices } from '../backend/types';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from 'idb';
 
 export type Network = 'main' | 'testnet' | 'regtest';

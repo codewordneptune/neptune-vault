@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { showBlock, showNau, useApp } from '../app/AppContext';
-import type { StoredUtxo } from '../wallet/core';
+import type { StoredUtxo } from '../backend/types';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
 import { PocNotice } from '../components/PocNotice';

@@ -181,3 +181,48 @@ export interface WalletCore {
   mockProofCollection(witness: Uint8Array): Promise<Uint8Array>;
   assembleSubmission(kernel: Uint8Array, proofCollection: Uint8Array): Promise<unknown>;
 }
+
+// ---------------------------------------------------------------------------
+// The prover. It takes a witness and returns a proof collection, and is the
+// slowest thing the wallet does, so its progress is reported as it goes.
+// ---------------------------------------------------------------------------
+
+export interface ProveRequest {
+  /** How many inputs the transaction spends, to weight the progress bar; optional. */
+  inputs?: number;
+  witness: Uint8Array;
+  network: string;
+  blockHeight: number;
+  threads: number;
+  /** Use the pre-fork prover package (claim version 5). */
+  legacy?: boolean;
+}
+
+export interface ProveProgress {
+  index: number;
+  total: number;
+  name: string;
+  /** Share of the proving work finished, 0 to 1, by the measured cost of each sub-proof; not a time. */
+  work?: number;
+  /** Seconds spent on finished sub-proofs so far. */
+  elapsedSeconds: number;
+  memoryMb: number;
+  threads: number;
+}
+
+export interface ProveOutcome {
+  proofCollection: Uint8Array;
+  seconds: number;
+  memoryMb: number;
+  threads: number;
+}
+
+/**
+ * The prover as the send flow needs it. In a browser this is wasm in a
+ * worker; in a native shell it is the same Rust compiled for the device.
+ */
+export interface Prover {
+  prove(request: ProveRequest, onProgress: (p: ProveProgress) => void): Promise<ProveOutcome>;
+  /** Abandon the running proof. Settles the promise `prove` returned. */
+  cancel(): void;
+}

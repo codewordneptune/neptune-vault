@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { openVaultDb, type VaultDb } from '../storage/db';
-import type { WalletCore } from '../wallet/core';
+import type { WalletCore } from '../backend/types';
 import { ContactsService, distinctNames, nameKey } from './contacts';
 
 const core = {

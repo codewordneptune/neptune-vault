@@ -2,9 +2,9 @@
 // node client, account service. Screens reach them through AppContext.
 
 import { NodeClient } from '../node/rpc';
-import { ProverClient } from '../prover/client';
+import { ProverClient } from '../backend/browser/proverClient';
 import { loadSettings, openVaultDb, requestPersistentStorage, saveSettings, type Network, type SettingsRecord, type VaultDb } from '../storage/db';
-import { WalletWorkerClient } from '../wallet/workerClient';
+import { WalletWorkerClient } from '../backend/browser/walletClient';
 import { ContactsService } from './contacts';
 import { WebAuthnPasskeys } from './passkey';
 import { MempoolWatcher } from '../wallet/mempool';

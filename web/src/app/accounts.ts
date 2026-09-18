@@ -6,7 +6,7 @@ import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractConte
 import type { PasskeyProvider } from './passkey';
 import { addressKindLabel } from '../util/address';
 import { distinctNames } from './contacts';
-import type { WalletCore } from '../wallet/core';
+import type { WalletCore } from '../backend/types';
 
 export type LockListener = (locked: boolean) => void;
 

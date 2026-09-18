@@ -16,7 +16,7 @@ import { openDB } from 'idb';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { AccountService } from '../app/accounts';
-import type { WalletCore } from '../wallet/core';
+import type { WalletCore } from '../backend/types';
 import { DB_VERSION, openVaultDb, type VaultDb } from './db';
 import { BackupAlteredError, sealBackup, sealSeed, WrongPasswordError, type DeriveKey, type ExportFile, type SealedExportFile } from './envelope';
 

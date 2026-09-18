@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { NodeError, type NodeClient } from '../node/rpc';
 import { openVaultDb, type UtxoRecord, type VaultDb } from '../storage/db';
-import type { InputPlan, SendPlan, SendRequest, StoredUtxo, WalletCore } from '../wallet/core';
-import { RequiresLustrationError, SendCancelledError, SendService, SendUnconfirmedError, type Prover } from './send';
+import type { InputPlan, SendPlan, SendRequest, StoredUtxo, WalletCore } from '../backend/types';
+import type { Prover } from '../backend/types';
+import { RequiresLustrationError, SendCancelledError, SendService, SendUnconfirmedError } from './send';
 
 function stored(hash: string, amount: string, height: number): StoredUtxo {
   return { hash, amount_nau: amount, amount, key_kind: 'generation', key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
@@ -76,6 +77,10 @@ class FakeNode {
 }
 
 class FakeProver implements Prover {
+  cancelled = 0;
+  cancel() {
+    this.cancelled += 1;
+  }
   fail = false;
   calls = 0;
   /** Runs while the proof is "being made": where a test presses Cancel. */

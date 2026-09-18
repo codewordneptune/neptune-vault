@@ -5,7 +5,9 @@
 // The wasm package is served untransformed from /wasm/prover (public dir):
 // wasm-bindgen-rayon re-fetches its own helper script into blob workers,
 // and a dev-server transform would inject imports those cannot resolve.
-type ProverModule = typeof import('../../public/wasm/prover/vault_prover');
+import type { ProveRequest } from '../types';
+
+type ProverModule = typeof import('../../../public/wasm/prover/vault_prover');
 // The pre-fork package (claim version 5, Triton VM 7) exports the same
 // functions; it is only fetched when the chain still asks for it.
 const PACKAGES = {
@@ -19,17 +21,6 @@ async function loadProver(legacy: boolean): Promise<ProverModule> {
   const url = new URL(legacy ? PACKAGES.legacy : PACKAGES.current, self.location.origin).href;
   prover ??= (await import(/* @vite-ignore */ url)) as ProverModule;
   return prover;
-}
-
-export interface ProveRequest {
-  /** How many inputs the transaction spends, to weight the progress bar; optional. */
-  inputs?: number;
-  witness: Uint8Array;
-  network: string;
-  blockHeight: number;
-  threads: number;
-  /** Use the pre-fork prover package (claim version 5). */
-  legacy?: boolean;
 }
 
 export type ProveMessage =

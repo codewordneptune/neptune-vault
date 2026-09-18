@@ -6,7 +6,7 @@ import { groupDigits, showInt } from '../util/format';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { byCreation, type AccountRecord, type HistoryRecord, type Network, type UtxoRecord } from '../storage/db';
-import type { SendRequest } from '../wallet/core';
+import type { SendRequest } from '../backend/types';
 import type { SyncEngine, SyncProgress } from '../wallet/sync';
 import { RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';

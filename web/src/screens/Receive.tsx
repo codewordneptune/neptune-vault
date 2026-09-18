@@ -15,7 +15,7 @@ import { formatNau, useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
 import { abbreviateAddress, metaProblem, paymentQrPayload, paymentUri } from '../util/address';
 import { copyText } from '../util/clipboard';
-import { KEY_LOOKAHEAD, type KeyKind } from '../wallet/core';
+import { KEY_LOOKAHEAD, type KeyKind } from '../backend/types';
 
 // Labelled by what the address is for; the protocol name is the caption.
 const KIND_LABELS: Record<KeyKind, string> = {

@@ -9,7 +9,7 @@
 import type { NodeClient } from '../node/rpc';
 import type { AccountRecord, BlockRecord, HistoryRecord, Network, UtxoRecord, VaultDb } from '../storage/db';
 import { nextKeyIndicesOf } from '../storage/db';
-import { NOT_LINKED, type NextKeyIndices, type ScannedBlock, type StoredUtxo, type WalletCore } from './core';
+import { NOT_LINKED, type NextKeyIndices, type ScannedBlock, type StoredUtxo, type WalletCore } from '../backend/types';
 
 export interface SyncProgress {
   phase: 'checking' | 'restoring' | 'scanning' | 'done' | 'error';
