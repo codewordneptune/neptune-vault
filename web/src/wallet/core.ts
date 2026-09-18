@@ -139,8 +139,6 @@ export interface WalletCore {
   lock(): Promise<void>;
   isUnlocked(): Promise<boolean>;
 
-  /** The unlocked account's phrase, for the backup screen. */
-  phrase(): Promise<string[]>;
   address(kind: KeyKind, index: number): Promise<string>;
   /** `blocksResponse` is the node's raw JSON-RPC response text for wallet_getBlocks. */
   scanBlocks(blocksResponse: string, unspent: StoredUtxo[], nextKeyIndices: NextKeyIndices, expectation: ScanExpectation): Promise<ScanResult>;

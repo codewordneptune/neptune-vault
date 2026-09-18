@@ -94,9 +94,6 @@ export class WalletWorkerClient implements WalletCore {
   isUnlocked() {
     return this.call<boolean>('isUnlocked');
   }
-  phrase() {
-    return this.call<string[]>('phrase');
-  }
   address(kind: KeyKind, index: number) {
     return this.call<string>('address', [kind, index]);
   }

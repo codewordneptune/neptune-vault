@@ -98,13 +98,38 @@ export function Settings() {
     URL.revokeObjectURL(url);
   };
 
-  // The phrase lives only in the worker while unlocked; it is fetched on
-  // show and dropped from this screen on hide, after a minute at most, and
-  // as soon as the app goes to the background or this screen is left.
+  // Showing the phrase asks for the password again: an unlocked wallet may
+  // be in someone else's hand, and the phrase is the whole wallet, for good.
+  // It is dropped from this screen on hide, after a minute at most, and as
+  // soon as the app goes to the background or this screen is left.
   const PHRASE_SECONDS = 60;
   const [phraseLeft, setPhraseLeft] = useState(PHRASE_SECONDS);
-  const togglePhrase = async () => {
-    setPhrase(phrase ? null : await services.core.phrase());
+  const [asking, setAsking] = useState(false);
+  const [revealPassword, setRevealPassword] = useState('');
+  const [revealError, setRevealError] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  const togglePhrase = () => {
+    if (phrase) {
+      setPhrase(null);
+      return;
+    }
+    setRevealPassword('');
+    setRevealError(null);
+    setAsking(true);
+  };
+  const reveal = async () => {
+    if (!account) return;
+    setRevealing(true);
+    setRevealError(null);
+    try {
+      setPhrase(await services.accounts.revealPhrase(account.id, revealPassword));
+      setAsking(false);
+    } catch (e) {
+      setRevealError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+    } finally {
+      setRevealPassword('');
+      setRevealing(false);
+    }
   };
   useEffect(() => {
     if (!phrase) return;
@@ -183,10 +208,31 @@ export function Settings() {
           </Text>
           <Group>
             <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>
-            <Button variant="light" onClick={() => void togglePhrase()} disabled={!account}>
+            <Button variant="light" onClick={togglePhrase} disabled={!account}>
               {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
             </Button>
           </Group>
+          <Modal opened={asking} onClose={() => setAsking(false)} title="Show the seed phrase">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void reveal();
+              }}
+            >
+              <Stack>
+                <Text size="sm">Anyone who sees these words can take everything in this wallet, from anywhere, for good. Make sure nobody is watching the screen.</Text>
+                <PasswordInput label="Password" value={revealPassword} onChange={(e) => setRevealPassword(e.currentTarget.value)} error={revealError} autoComplete="current-password" data-autofocus />
+                <Group grow>
+                  <Button variant="default" onClick={() => setAsking(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" loading={revealing} disabled={revealPassword === ''}>
+                    Show
+                  </Button>
+                </Group>
+              </Stack>
+            </form>
+          </Modal>
           {phrase && (
             <Stack gap="xs">
               <WordGrid words={phrase} />

@@ -165,6 +165,15 @@ describe('account service', () => {
     expect((await db.getAll('accounts')).length).toBe(before + 1);
   });
 
+  it('shows the seed phrase only to the password, unlocked or not', async () => {
+    const { service } = await setup();
+    const words = await service.generatePhrase();
+    const made = await service.createAccount(words, 'right-pw', 'regtest', 1);
+    expect(service.currentAccountId).toBe(made.id);
+    await expect(service.revealPhrase(made.id, 'wrong-pw')).rejects.toBeInstanceOf(WrongPasswordError);
+    expect(await service.revealPhrase(made.id, 'right-pw')).toEqual(words);
+  });
+
   it('lock always reaches the core, even when nothing is marked unlocked', async () => {
     const { core, service } = await setup();
     core.unlocked = ['left', 'behind'];

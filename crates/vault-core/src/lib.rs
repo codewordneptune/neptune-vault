@@ -127,9 +127,10 @@ mod wasm {
                 .map_err(js_err)
         }
 
-        pub fn phrase(&self) -> Vec<String> {
-            self.0.phrase()
-        }
+        // There is deliberately no way to read the phrase back out of an
+        // unlocked account. Showing it means opening the stored envelope
+        // with the password again, so neither a person holding an unlocked
+        // phone nor a script in the page gets it for the asking.
 
         /// bech32m receiving address of the nth key of `kind`
         /// (`generation`, `ec_hybrid` or `viewing`).

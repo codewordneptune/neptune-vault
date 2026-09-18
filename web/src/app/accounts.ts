@@ -146,6 +146,17 @@ export class AccountService {
   }
 
   /**
+   * The seed phrase, for showing. It is opened from the stored envelope
+   * with the password, every time: being unlocked is not enough, since an
+   * unlocked phone may be in someone else's hand. Throws WrongPasswordError.
+   */
+  async revealPhrase(accountId: string, password: string): Promise<string[]> {
+    const record = await this.db.get('accounts', accountId);
+    if (!record) throw new Error('account not found');
+    return openSeed(record.envelope, password, this.derive);
+  }
+
+  /**
    * Remove a wallet from this device: its seed, coins, history, blocks,
    * contacts and sync state, in one transaction. The funds stay on the
    * chain and the phrase restores them anywhere. Locks first when it is

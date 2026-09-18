@@ -78,8 +78,6 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       return { result: null };
     case 'isUnlocked':
       return { result: account !== null };
-    case 'phrase':
-      return { result: requireAccount().phrase() };
     case 'address':
       return { result: requireAccount().address(args[0] as string, BigInt(args[1] as number)) };
     case 'announcementFlags':
