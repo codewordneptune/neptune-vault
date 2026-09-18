@@ -39,10 +39,6 @@ from the site it is installed from. Like any web host, it can log the
 requests it receives, including your network address. It receives nothing
 about your wallet.
 
-**The explorer, if you tap a link to it.** An explorer link opens a page
-about one output on an external site, which then knows that someone looked
-at that output. You choose whether to tap.
-
 **Whoever you share with.** A payment link or QR code carries your address,
 the amount, and any name or note you typed; the share sheet hands it to the
 app you pick. A sender's wallet shows the name as unverified. Nothing in a

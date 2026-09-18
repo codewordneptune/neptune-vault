@@ -60,8 +60,8 @@ stay readable, and the app upgrades its stored data on its own.
 - Send with a review step, fee presets, saved contacts and camera scanning
   of the recipient's code or payment link. The proof is produced on the
   device and the send survives the app being backgrounded.
-- History with one row per transaction, a detail sheet, and a link to each
-  output on the explorer.
+- History with one row per transaction and a detail sheet. The outputs'
+  commitments can be copied from it, for looking one up in an explorer.
 - Encrypted seed at rest (Argon2id, AES-256-GCM), auto-lock, password
   change, passkey unlock, and export and import of a backup file with
   contacts.
@@ -79,7 +79,6 @@ stay readable, and the app upgrades its stored data on its own.
   from documentation.
 - Proving happens on the device only; there is no option to hand it to a
   server, by design.
-- Explorer links work on Mainnet only.
 - Until Mainnet block 55,000 the network requires proofs in an older
   format, so the app carries a second prover for that period; it goes away
   once the fork has activated.
