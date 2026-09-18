@@ -97,3 +97,15 @@ describe('label and message', () => {
     expect(metaProblem('x\u202Ey')).toMatch(/not allowed/);
   });
 });
+
+describe('names and notes in a link', () => {
+  it('refuses in a link what the link maker refuses: bidi overrides, line separators, C1 controls', () => {
+    const address = 'nolgar1' + 'q'.repeat(20);
+    for (const bad of ['\u202e', '\u2066', '\u2028', '\u0085', '\u0007']) {
+      const link = 'neptunecash:' + address + '?label=' + encodeURIComponent('Shop' + bad + 'pohS');
+      expect(parsePaymentText(link).error, JSON.stringify(bad)).toMatch(/name in the link is malformed/);
+      expect(metaProblem('Shop' + bad)).not.toBeNull();
+    }
+    expect(parsePaymentText('neptunecash:' + address + '?label=' + encodeURIComponent('Café Ünïcode 店')).label).toBe('Café Ünïcode 店');
+  });
+});
