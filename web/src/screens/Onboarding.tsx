@@ -14,7 +14,8 @@ import { copyText } from '../util/clipboard';
 import { NETWORK_OPTIONS } from '../util/network';
 import type { NodeClient } from '../node/rpc';
 import type { Network } from '../storage/db';
-import type { ExportFile } from '../storage/envelope';
+import { notifications } from '@mantine/notifications';
+import { MAX_BACKUP_BYTES, parseBackupFile, WrongPasswordError } from '../storage/envelope';
 
 type Step = 'welcome' | 'show' | 'confirm' | 'password' | 'import' | 'file';
 
@@ -174,20 +175,28 @@ export function Onboarding() {
     setBusy(true);
     setError(null);
     try {
-      let parsed: ExportFile;
-      try {
-        parsed = JSON.parse(await file.text()) as ExportFile;
-      } catch {
-        throw new Error('This file is not a Neptune Vault backup file.');
-      }
+      // Looked at before it is read, and checked before the password is used on it.
+      if (file.size > MAX_BACKUP_BYTES) throw new Error('This file is too large to be a Neptune Vault backup file.');
+      const parsed = parseBackupFile(await file.text());
       await pauseSync();
       const record = await services.accounts.importFile(parsed, password, { fastRestore: fast });
       saveDraft(null);
       await services.updateSettings({ currentAccountId: record.id, network: record.network });
       setAccount(record);
+      // Files from before version 3 carry their contacts and their start
+      // block unprotected: anyone who could write to where the file was
+      // kept could have changed them. The restore cannot tell, so it says so.
+      if (parsed.version < 3) {
+        notifications.show({
+          color: 'yellow',
+          title: 'Restored from an older backup format',
+          message: 'Its contacts and start block were not protected against changes. Check a contact\'s address before you pay them, and export a fresh backup file in Settings.',
+          autoClose: false,
+        });
+      }
       navigate('/');
     } catch (e) {
-      setError((e as Error).message);
+      setError(e instanceof WrongPasswordError ? 'Wrong password. It is the password the file was exported under.' : (e as Error).message);
     } finally {
       setBusy(false);
     }

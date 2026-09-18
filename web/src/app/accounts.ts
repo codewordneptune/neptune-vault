@@ -1,8 +1,8 @@
 // Account lifecycle: create or import, unlock, lock, and the auto-lock
 // policy (R11: five minutes idle, immediately on backgrounding).
 
-import { FRESH_KEY_INDICES, type AccountRecord, type Network, type VaultDb } from '../storage/db';
-import { changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, openSeed, openSeedWithSecret, sealSeed, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
+import { FRESH_KEY_INDICES, type AccountRecord, type Network, type SeedEnvelope, type VaultDb } from '../storage/db';
+import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeed, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
 import type { PasskeyProvider } from './passkey';
 import { addressKindLabel } from '../util/address';
 import type { WalletCore } from '../wallet/core';
@@ -232,6 +232,28 @@ export class AccountService {
       else await this.core.unlock(await openSeed(record.envelope, password, this.derive), record.network);
     });
     this.setUnlocked(accountId);
+    // Not awaited: the wallet is open, and this is housekeeping.
+    void this.strengthen(accountId, password).catch(() => undefined);
+  }
+
+  /**
+   * An envelope keeps the password hash settings it was made with: those of
+   * an early version, or of whatever file it was restored from. If they
+   * are cheaper to guess against than today's default, the content key is
+   * wrapped again at the default, now that the password is in hand. The
+   * seed's own ciphertext does not change. A backup file made earlier keeps
+   * the settings it has; only a fresh export carries the new ones.
+   */
+  private async strengthen(accountId: string, password: string): Promise<void> {
+    const record = await this.db.get('accounts', accountId);
+    if (!record || !isWeakerThanDefault(record.envelope.kdf)) return;
+    const envelope = await reWrapSeed(record.envelope, password, password, this.derive, DEFAULT_KDF);
+    // The record may have moved on during the seconds that took: only the
+    // envelope is touched, and only if it is still the one that was read.
+    const tx = this.db.transaction('accounts', 'readwrite');
+    const current = await tx.store.get(accountId);
+    if (current && current.envelope.kdf.salt === record.envelope.kdf.salt) await tx.store.put({ ...current, envelope });
+    await tx.done;
   }
 
   /**
@@ -304,20 +326,22 @@ export class AccountService {
     if (record) await this.db.put('accounts', { ...record, backupConfirmed: true });
   }
 
-  /** The export file (R8). The envelope stays password-protected. */
-  async exportFile(accountId: string): Promise<ExportFile> {
+  /**
+   * The export file (R8), version 3: the contacts encrypted, the rest
+   * authenticated (see ExportFile). That takes the content key, and so the
+   * password: being unlocked is not enough. Throws WrongPasswordError.
+   */
+  async exportFile(accountId: string, password: string): Promise<ExportFile> {
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
     const contacts = await this.db.getAllFromIndex('contacts', 'byAccount', accountId);
-    return {
-      format: 'neptune-vault-backup',
-      version: 2,
-      network: record.network,
-      birthdayHeight: record.birthdayHeight,
-      envelope: record.envelope,
-      exportedAt: Date.now(),
-      contacts: contacts.map((c) => ({ name: c.name, address: c.address })),
-    };
+    return sealBackup(
+      { network: record.network, birthdayHeight: record.birthdayHeight, exportedAt: Date.now() },
+      record.envelope,
+      { contacts: contacts.map((c) => ({ name: c.name, address: c.address })) },
+      password,
+      this.derive,
+    );
   }
 
   /**
@@ -358,9 +382,10 @@ export class AccountService {
     if (file.format !== 'neptune-vault-backup') throw new Error('not a Neptune Vault backup file');
     // Every version ever written stays readable; one this app does not know
     // is from a newer app, never a reason to guess at the contents.
-    if (file.version !== 1 && file.version !== 2) {
+    if (file.version !== 1 && file.version !== 2 && file.version !== 3) {
       throw new Error('This backup file was made by a newer version of Neptune Vault. Update the app, then restore it.');
     }
+    if (file.version !== 3) assertEnvelope(file.envelope);
     // The file is someone's input: everything is looked at before any of
     // it is used, so a malformed file is refused whole and cannot leave a
     // half-made wallet or loaded keys behind.
@@ -368,7 +393,23 @@ export class AccountService {
     if (network !== 'main' && network !== 'testnet' && network !== 'regtest') throw new Error('This backup file names a network this app does not know.');
     const birthday = Number.isSafeInteger(file.birthdayHeight) && file.birthdayHeight >= 0 ? file.birthdayHeight : 1;
     const exportedAt = Number.isSafeInteger(file.exportedAt) ? file.exportedAt : Date.now();
-    const listed: unknown[] = Array.isArray(file.contacts) ? file.contacts.slice(0, 5000) : [];
+    // A version 3 file keeps its contacts encrypted and everything else
+    // authenticated: opening that part proves the password and proves that
+    // nothing readable was changed, before any key is loaded. A wrong
+    // password and an altered file are told apart.
+    // It also yields the envelope the database keeps, which is an ordinary
+    // one: the file's own cannot be opened by the unlock path, by design.
+    let envelope: SeedEnvelope;
+    let fromFile: unknown;
+    if (file.version === 3) {
+      const opened = await openBackup(file, password, this.derive);
+      envelope = opened.envelope;
+      fromFile = opened.secrets.contacts;
+    } else {
+      envelope = file.envelope;
+      fromFile = file.contacts;
+    }
+    const listed: unknown[] = Array.isArray(fromFile) ? fromFile.slice(0, 5000) : [];
     const contacts = listed
       .filter((c): c is { name: string; address: string } => typeof c === 'object' && c !== null && typeof (c as { name?: unknown }).name === 'string' && typeof (c as { address?: unknown }).address === 'string')
       .map((c) => ({ name: c.name.trim().slice(0, 80), address: c.address.trim().toLowerCase() }))
@@ -376,8 +417,8 @@ export class AccountService {
 
     const name = await this.nextName(network);
     await this.load(epoch, async () => {
-      if (this.core.unlockEnvelope) await this.core.unlockEnvelope(file.envelope, password, network);
-      else await this.core.unlock(await openSeed(file.envelope, password, this.derive), network);
+      if (this.core.unlockEnvelope) await this.core.unlockEnvelope(envelope, password, network);
+      else await this.core.unlock(await openSeed(envelope, password, this.derive), network);
     });
     let recordId: string | null = null;
     try {
@@ -387,7 +428,7 @@ export class AccountService {
         network,
         createdAt: Date.now(),
         birthdayHeight: Math.max(1, birthday),
-        envelope: file.envelope,
+        envelope,
         address0,
         nextKeyIndices: FRESH_KEY_INDICES,
         backupConfirmed: true,
@@ -410,6 +451,7 @@ export class AccountService {
       await tx.done;
       if (epoch !== this.epoch) throw new UnlockCancelledError();
       this.setUnlocked(record.id);
+      void this.strengthen(record.id, password).catch(() => undefined);
       return record;
     } catch (e) {
       await this.forget();

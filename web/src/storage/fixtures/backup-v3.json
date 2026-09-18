@@ -1,0 +1,33 @@
+{
+  "format": "neptune-vault-backup",
+  "version": 3,
+  "network": "regtest",
+  "birthdayHeight": 3,
+  "exportedAt": 1758200000000,
+  "envelope": {
+    "version": 2,
+    "kdf": {
+      "name": "argon2id",
+      "mKib": 8,
+      "tCost": 1,
+      "pCost": 1,
+      "salt": "rNAPFUye+7ESYhWusvSUog=="
+    },
+    "wrappedFileKey": {
+      "iv": "XiyTGTDDHo2RrntZ",
+      "ciphertext": "B8/2gEsaedGzruP/pA1qd9tOALM8Oqao/B8cvxHfMnLTJMioAK70mcgN+E/NZrnd"
+    },
+    "boundContentKey": {
+      "iv": "z/Ni8nLkA19jHYsp",
+      "ciphertext": "AUQJsybj/ALa3ZKA2sn/J3bBJFqD8/72fGc24J/f5jlFd824XkJH5dUI4UOWJ23e"
+    },
+    "seed": {
+      "iv": "1ZldIev1m2rXWLEB",
+      "ciphertext": "BaniXSS1kj6DwMTOS6e+GcdP5AdhaFxVjWlyW0ZCeS2VsZMZvUk4oBVuIY+1KYKehTfIT45NdFy8qZqHB+W1cVdVnTckWX96oHl6JHI="
+    }
+  },
+  "sealed": {
+    "iv": "ZXxcmKEEPE6qjMXr",
+    "ciphertext": "llJ5J30EOZ5MGeVWp2OtxqDybWOM1vaGicK6pPqkSrUo/K11b3w4pLWAYsN34uExRkP5eXLGPtKbhwq54ujemRhMrSSDeAF8"
+  }
+}

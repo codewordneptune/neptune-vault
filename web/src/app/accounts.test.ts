@@ -179,12 +179,14 @@ describe('account service', () => {
     core.failAddress = false;
 
     const made = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
-    const file = await service.exportFile(made.id);
+    const file = await service.exportFile(made.id, 'pw');
     await service.lock();
     const before = (await db.getAll('accounts')).length;
 
     // Contacts that are not contacts are skipped; the rest of the file is used.
-    const odd = { ...file, contacts: [{ name: 1, address: 1 }, null, { name: 'Al', address: 'nolgar1good' }, { name: 'Bo', address: 'elsewhere1' }] } as never;
+    // An older-format file, where contacts sit in clear and anything may be in them.
+    const legacy = { format: file.format, version: 2, network: file.network, birthdayHeight: file.birthdayHeight, exportedAt: file.exportedAt, envelope: (await db.get('accounts', made.id))!.envelope };
+    const odd = { ...legacy, contacts: [{ name: 1, address: 1 }, null, { name: 'Al', address: 'nolgar1good' }, { name: 'Bo', address: 'elsewhere1' }] } as never;
     const imported = await service.importFile(odd, 'pw');
     expect((await db.getAllFromIndex('contacts', 'byAccount', imported.id)).map((c) => c.name)).toEqual(['Al']);
     await service.lock();
@@ -367,7 +369,7 @@ describe('account service', () => {
     const { service } = await setup();
     const created = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
     expect((await db.get('accounts', created.id))?.lastBackupAt).toBeUndefined();
-    const file = await service.exportFile(created.id);
+    const file = await service.exportFile(created.id, 'pw');
     await service.markBackedUp(created.id, file.exportedAt);
     expect((await db.get('accounts', created.id))?.lastBackupAt).toBe(file.exportedAt);
     const imported = await service.importFile(file, 'pw');
@@ -380,8 +382,12 @@ describe('account service', () => {
     const { service } = await setup();
     const phrase = await service.generatePhrase();
     const created = await service.createAccount(phrase, 'pw', 'regtest', 7);
-    const file = await service.exportFile(created.id);
+    await expect(service.exportFile(created.id, 'not-it')).rejects.toBeInstanceOf(WrongPasswordError);
+    const file = await service.exportFile(created.id, 'pw');
     expect(file.format).toBe('neptune-vault-backup');
+    expect(file.version).toBe(3);
+    // Nothing of the contacts is readable in the file.
+    expect('contacts' in file).toBe(false);
     expect(file.birthdayHeight).toBe(7);
 
     await service.lock();

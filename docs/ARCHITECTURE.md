@@ -391,6 +391,21 @@ file, and the seed envelope inside both. The rules, pinned by
   restored by the test suite, so a release that breaks an old file fails to
   build. Export always writes the newest version. A file from a newer app is
   refused with "update the app", never decoded by guesswork.
+- Version 3 of the backup file (storage/envelope.ts has the diagram) keeps
+  the contacts encrypted and authenticates everything readable. The password
+  opens a file key; the file key opens the content key, bound to the
+  readable part as additional authenticated data; the content key opens the
+  seed and the contacts. The first step is unbound on purpose, so a wrong
+  password and a changed file give different errors. The file's envelope is
+  not the database's: an older reader handed a version 3 file dressed as
+  version 2 takes the file key for the content key, and the seed does not
+  open, so the protection cannot be stripped by relabelling. A restore
+  writes an ordinary envelope to the database.
+- Whatever comes from a file or the database is checked before the password
+  touches it: the password hash settings against a ceiling (and, in the
+  core, a floor), and every salt, IV and wrapped key against the exact
+  length this app writes. An envelope opened with settings below today's
+  default is wrapped again at the default.
 - The seed envelope (Argon2id parameters, AES-GCM boxes) has a version; a
   change to it is a new number, and the old number still opens.
 

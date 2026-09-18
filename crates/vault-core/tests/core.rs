@@ -365,10 +365,39 @@ fn own_outputs_are_recognised_by_their_sender_randomness() {
 
 #[test]
 fn key_derivation_is_deterministic_and_salted() {
-    let a = vault_core::kdf::derive_key(b"pw", b"0123456789abcdef", 8 * 1024, 1, 1).unwrap();
-    let b = vault_core::kdf::derive_key(b"pw", b"0123456789abcdef", 8 * 1024, 1, 1).unwrap();
-    let c = vault_core::kdf::derive_key(b"pw", b"fedcba9876543210", 8 * 1024, 1, 1).unwrap();
+    use vault_core::kdf::derive_key;
+    use vault_core::kdf::MIN_M_KIB;
+    use vault_core::kdf::MIN_T_COST;
+    let a = derive_key(b"pw", b"0123456789abcdef", MIN_M_KIB, MIN_T_COST, 1).unwrap();
+    let b = derive_key(b"pw", b"0123456789abcdef", MIN_M_KIB, MIN_T_COST, 1).unwrap();
+    let c = derive_key(b"pw", b"fedcba9876543210", MIN_M_KIB, MIN_T_COST, 1).unwrap();
     assert_eq!(*a, *b);
     assert_ne!(*a, *c);
-    assert!(vault_core::kdf::derive_key(b"pw", b"short", 8 * 1024, 1, 1).is_err());
+    assert!(derive_key(b"pw", b"short", MIN_M_KIB, MIN_T_COST, 1).is_err());
+}
+
+/// The parameters come from stored data and from backup files. A file must
+/// not be able to hold the worker for hours, nor to have the app accept a
+/// password hash that is cheap to guess against.
+#[test]
+fn key_derivation_refuses_parameters_out_of_range() {
+    use vault_core::kdf::*;
+    let salt = b"0123456789abcdef";
+    for (m, t, p) in [
+        (MIN_M_KIB - 1, MIN_T_COST, 1),
+        (8, 1, 1),
+        (MAX_M_KIB + 1, MIN_T_COST, 1),
+        (3_000_000, 3, 1),
+        (MIN_M_KIB, MIN_T_COST - 1, 1),
+        (MIN_M_KIB, MAX_T_COST + 1, 1),
+        (MIN_M_KIB, 4_000_000_000, 1),
+        (MIN_M_KIB, MIN_T_COST, 0),
+        (MIN_M_KIB, MIN_T_COST, MAX_P_COST + 1),
+    ] {
+        assert!(derive_key(b"pw", salt, m, t, p).is_err(), "memory {m}, passes {t}, lanes {p}");
+    }
+    assert!(derive_key(b"pw", &[7u8; 65], MIN_M_KIB, MIN_T_COST, 1).is_err());
+    // The app's own default is inside the range.
+    assert!((MIN_M_KIB..=MAX_M_KIB).contains(&DEFAULT_M_KIB));
+    assert!((MIN_T_COST..=MAX_T_COST).contains(&DEFAULT_T_COST));
 }

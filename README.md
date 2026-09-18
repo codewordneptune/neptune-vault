@@ -123,10 +123,16 @@ stay readable, and the app upgrades its stored data on its own.
   18-word seed phrase, including this app on another device. The fast restore
   needs no date; the private one starts from the date your first funds
   arrived so the scan does not begin at block 1.
-- **Backup file.** Made under Settings; encrypted with your password. It
-  restores the seed phrase, the network, the start block and your contacts.
-  Every backup file this app has ever written stays readable by later
-  versions.
+- **Backup file.** Made under Settings, which asks for your password to
+  make it. It restores the seed phrase, the network, the start block and
+  your contacts. The seed phrase and the contacts are encrypted with the
+  password; the network, the start block and the date stay readable, and
+  are sealed: if anyone changes the file where you keep it, the restore
+  says so and stops, and a wrong password is told apart from a changed
+  file. Every backup file this app has ever written stays readable by later
+  versions. Files from before this format had their contacts and start
+  block in clear and unprotected; restoring one says so, and a fresh export
+  replaces it.
 - **Password.** Cannot be recovered. Import the seed phrase again and choose a
   new one.
 

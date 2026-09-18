@@ -74,16 +74,38 @@ export function Settings() {
     await testNode();
   };
 
+  // The backup file's contacts are encrypted and the rest of it is sealed
+  // against changes, under a key only the password opens: so the export
+  // asks for it, unlocked or not.
+  const [exportAsking, setExportAsking] = useState(false);
+  const [exportPassword, setExportPassword] = useState('');
+  const [exportPasswordError, setExportPasswordError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const askExport = () => {
+    setExportPassword('');
+    setExportPasswordError(null);
+    setExportAsking(true);
+  };
   const exportBackup = async () => {
     if (!account) return;
     let file;
+    setExporting(true);
     try {
-      file = await services.accounts.exportFile(account.id);
+      file = await services.accounts.exportFile(account.id, exportPassword);
     } catch (e) {
+      if (e instanceof WrongPasswordError) {
+        setExportPasswordError('Wrong password. Try again.');
+        return;
+      }
+      setExportAsking(false);
       setMessage(null);
       setExportError((e as Error).message);
       return;
+    } finally {
+      setExportPassword('');
+      setExporting(false);
     }
+    setExportAsking(false);
     setExportError(null);
     await services.accounts.markBackedUp(account.id, file.exportedAt);
     await refresh();
@@ -207,11 +229,32 @@ export function Settings() {
             {lastBackup ? `Last backup file of ${account ? walletName(account) : 'this wallet'}: ${lastBackup}` : `No backup file of ${account ? walletName(account) : 'this wallet'} saved yet.`}
           </Text>
           <Group>
-            <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={() => void exportBackup()} disabled={!account}>Export backup file</Button>
+            <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={askExport} disabled={!account}>Export backup file</Button>
             <Button variant="light" onClick={togglePhrase} disabled={!account}>
               {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
             </Button>
           </Group>
+          <Modal opened={exportAsking} onClose={() => setExportAsking(false)} title="Export backup file">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void exportBackup();
+              }}
+            >
+              <Stack>
+                <Text size="sm">The file holds the seed phrase and your contacts, encrypted with this password, and is sealed so that a change to it shows when it is restored. Keep it somewhere safe; the password is needed to restore it.</Text>
+                <PasswordInput label="Password" value={exportPassword} onChange={(e) => setExportPassword(e.currentTarget.value)} error={exportPasswordError} autoComplete="current-password" data-autofocus />
+                <Group grow>
+                  <Button variant="default" onClick={() => setExportAsking(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" loading={exporting} disabled={exportPassword === ''}>
+                    Export
+                  </Button>
+                </Group>
+              </Stack>
+            </form>
+          </Modal>
           <Modal opened={asking} onClose={() => setAsking(false)} title="Show the seed phrase">
             <form
               onSubmit={(e) => {
