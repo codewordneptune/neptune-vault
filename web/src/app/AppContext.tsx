@@ -94,7 +94,11 @@ const SYNC_INTERVAL_MS = 15_000;
 export function AppProvider({ services, children }: { services: Services; children: ReactNode }) {
   const [account, setAccount] = useState<AccountRecord | null>(null);
   const [ready, setReady] = useState(false);
-  const [locked, setLocked] = useState(true);
+  const [lockedFlag, setLocked] = useState(true);
+  // Unlocked means this wallet's keys are the ones loaded. The flag alone
+  // is not trusted: if it ever disagreed with the account on screen, one
+  // wallet's keys would scan, receive and send under another's name.
+  const locked = lockedFlag || services.accounts.currentAccountId !== (account?.id ?? null);
   const [sync, setSync] = useState<SyncProgress | null>(null);
   const [utxos, setUtxos] = useState<UtxoRecord[]>([]);
   const [history, setHistory] = useState<HistoryRecord[]>([]);

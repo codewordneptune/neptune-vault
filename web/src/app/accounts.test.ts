@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { openVaultDb, type VaultDb } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import type { WalletCore } from '../wallet/core';
-import { AccountService } from './accounts';
+import { AccountService, UnlockCancelledError } from './accounts';
 import type { PasskeyProvider } from './passkey';
 
 class FakePasskeys implements PasskeyProvider {
@@ -18,10 +18,18 @@ class FakePasskeys implements PasskeyProvider {
 /** Enough of the wallet core for the account flows. */
 class FakeCore implements Partial<WalletCore> {
   unlocked: string[] | null = null;
+  /** Set to make the next address derivation fail, as a full disk or a broken worker would. */
+  failAddress = false;
+  /** Resolved by a test to let a slow password hash finish. */
+  gate: Promise<void> | null = null;
+  async isValidAddress(address: string) {
+    return address.startsWith('nolgar1');
+  }
   async generatePhrase() {
     return Array.from({ length: 18 }, (_, i) => `w${i}`);
   }
   async deriveKey(password: Uint8Array, salt: Uint8Array) {
+    if (this.gate) await this.gate;
     const out = new Uint8Array(32);
     for (let i = 0; i < 32; i++) out[i] = (password[i % password.length] ?? 0) ^ salt[i % salt.length] ^ i;
     return out;
@@ -33,6 +41,7 @@ class FakeCore implements Partial<WalletCore> {
     this.unlocked = null;
   }
   async address(_kind: string, index: number) {
+    if (this.failAddress) throw new Error('worker failed');
     return `nolgar1-${this.unlocked?.[0]}-${index}`;
   }
 }
@@ -93,6 +102,74 @@ describe('account service', () => {
     // The next wallet on that network is named after the ones left.
     const third = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
     expect(third.name).toBe('Wallet 2');
+  });
+
+  it('an unlock overtaken by a lock loads nothing: picking another wallet mid-unlock cannot open it', async () => {
+    const { core, service } = await setup();
+    const a = await service.createAccount(await service.generatePhrase(), 'pw-a', 'regtest', 1);
+    await service.lock();
+    const states: boolean[] = [];
+    service.onLockChange((locked) => states.push(locked));
+
+    let open!: () => void;
+    core.gate = new Promise((r) => (open = r));
+    const unlocking = service.unlock(a.id, 'pw-a');
+    // The person picks another wallet while the password is being hashed.
+    await service.lock();
+    open();
+    await expect(unlocking).rejects.toBeInstanceOf(UnlockCancelledError);
+    expect(core.unlocked).toBeNull();
+    expect(service.currentAccountId).toBeNull();
+    expect(states).not.toContain(false);
+  });
+
+  it('an unlock that finishes while the page is hidden locks at once', async () => {
+    const { core, service } = await setup();
+    const a = await service.createAccount(await service.generatePhrase(), 'pw-a', 'regtest', 1);
+    await service.lock();
+    const doc = { visibilityState: 'visible', addEventListener() {}, removeEventListener() {} } as unknown as Document;
+    service.installVisibilityLock(doc);
+    let open!: () => void;
+    core.gate = new Promise((r) => (open = r));
+    const unlocking = service.unlock(a.id, 'pw-a');
+    (doc as { visibilityState: string }).visibilityState = 'hidden';
+    open();
+    await expect(unlocking).rejects.toBeInstanceOf(UnlockCancelledError);
+    expect(core.unlocked).toBeNull();
+  });
+
+  it('a create that fails half way leaves no keys loaded, and a malformed backup file leaves no wallet', async () => {
+    const { core, service } = await setup();
+    core.failAddress = true;
+    await expect(service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1)).rejects.toThrow(/worker failed/);
+    expect(core.unlocked).toBeNull();
+    core.failAddress = false;
+
+    const made = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const file = await service.exportFile(made.id);
+    await service.lock();
+    const before = (await db.getAll('accounts')).length;
+
+    // Contacts that are not contacts are skipped; the rest of the file is used.
+    const odd = { ...file, contacts: [{ name: 1, address: 1 }, null, { name: 'Al', address: 'nolgar1good' }, { name: 'Bo', address: 'elsewhere1' }] } as never;
+    const imported = await service.importFile(odd, 'pw');
+    expect((await db.getAllFromIndex('contacts', 'byAccount', imported.id)).map((c) => c.name)).toEqual(['Al']);
+    await service.lock();
+
+    // A network the app does not know is refused before anything is touched.
+    await expect(service.importFile({ ...file, network: 'moon' } as never, 'pw')).rejects.toThrow(/network/);
+    // A failure after the keys are loaded unloads them and leaves no wallet behind.
+    core.failAddress = true;
+    await expect(service.importFile(file, 'pw')).rejects.toThrow(/worker failed/);
+    expect(core.unlocked).toBeNull();
+    expect((await db.getAll('accounts')).length).toBe(before + 1);
+  });
+
+  it('lock always reaches the core, even when nothing is marked unlocked', async () => {
+    const { core, service } = await setup();
+    core.unlocked = ['left', 'behind'];
+    await service.lock();
+    expect(core.unlocked).toBeNull();
   });
 
   it('creates, locks, and unlocks an account with the password', async () => {

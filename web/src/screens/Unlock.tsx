@@ -15,6 +15,7 @@ function isCancellation(e: unknown): boolean {
 
 import { useApp } from '../app/AppContext';
 import { walletName } from '../storage/db';
+import { UnlockCancelledError } from '../app/accounts';
 import { WrongPasswordError } from '../storage/envelope';
 import { NETWORK_LABELS } from '../util/network';
 
@@ -34,7 +35,7 @@ export function Unlock() {
     try {
       await services.accounts.unlockWithPasskey(account.id);
     } catch (e) {
-      if (!isCancellation(e)) setError((e as Error).message);
+      if (!isCancellation(e) && !(e instanceof UnlockCancelledError)) setError((e as Error).message);
       inputRef.current?.focus();
     } finally {
       setPasskeyBusy(false);
@@ -58,7 +59,8 @@ export function Unlock() {
       await services.accounts.unlock(account.id, password);
       setPassword('');
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+      // Overtaken by a lock (another wallet picked, or the app hidden): the screen that follows says enough.
+      if (!(e instanceof UnlockCancelledError)) setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
       setPassword('');
       inputRef.current?.focus();
     } finally {
