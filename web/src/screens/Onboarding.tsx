@@ -18,10 +18,13 @@ import type { ExportFile } from '../storage/envelope';
 
 type Step = 'welcome' | 'show' | 'confirm' | 'password' | 'import' | 'file';
 
-// The draft phrase lives in this tab's session storage until the account
-// exists, so a screenshot, app switch, tab discard or reload does not throw
-// the user back to the start. It has no funds behind it yet, is invisible to
-// other tabs and sites, and is wiped on completion or when the tab closes.
+// A newly generated phrase lives in this tab's session storage until the
+// account exists, so a screenshot, app switch, tab discard or reload does
+// not throw the user back to the start. It has no funds behind it yet, is
+// invisible to other tabs and sites, and is wiped on completion or when the
+// tab closes. An imported phrase is never stored: it usually has funds
+// behind it, and no password protects anything at that point. It stays in
+// this screen's memory, and a reload asks for the words again.
 const DRAFT_KEY = 'neptune-vault.onboarding-draft';
 interface Draft {
   phrase: string[];
@@ -34,7 +37,13 @@ interface Draft {
 function loadDraft(): Draft | null {
   try {
     const raw = sessionStorage.getItem(DRAFT_KEY);
-    return raw ? (JSON.parse(raw) as Draft) : null;
+    const draft = raw ? (JSON.parse(raw) as Draft) : null;
+    // A draft written by an older version may hold an imported phrase: gone at first sight.
+    if (draft?.imported) {
+      sessionStorage.removeItem(DRAFT_KEY);
+      return null;
+    }
+    return draft;
   } catch {
     return null;
   }
@@ -298,7 +307,8 @@ export function Onboarding() {
           onPhrase={(words) => {
             setPhrase(words);
             setImported(true);
-            saveDraft({ phrase: words, network, imported: true, birthday, fast });
+            // Not saved anywhere: see the note on the draft above.
+            saveDraft(null);
             setStep('password');
           }}
           onBack={() => setStep('welcome')}

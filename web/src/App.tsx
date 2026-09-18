@@ -67,7 +67,8 @@ export function App() {
       <SendStrip />
       <Container component="main" size="xs" py="md">
         <Routes>
-          <Route path="/onboarding" element={account && !addingWallet ? <Navigate to="/" replace /> : <Onboarding />} />
+          {/* Adding a wallet is for whoever can unlock the one that is there: a locked app offers nothing else. */}
+          <Route path="/onboarding" element={account && !addingWallet ? <Navigate to="/" replace /> : account && locked ? <Unlock /> : <Onboarding />} />
           <Route path="/" element={gate(<Home />)} />
           <Route path="/receive" element={gate(<Receive />)} />
           <Route path="/send" element={gate(<Send />)} />
