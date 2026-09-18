@@ -1,12 +1,14 @@
 // Camera QR scanner for the recipient field. Uses the browser's barcode
-// detector where it exists (Chrome on Android) and falls back to jsQR on
-// video frames elsewhere (Safari). Generation addresses make a version-40
-// code, so frames are captured at the camera's full resolution.
+// detector where it exists (Chrome on Android) and falls back to zxing-wasm
+// on video frames elsewhere (Safari, Firefox; see util/qrDecode). Generation
+// addresses make a version-40 code, so frames are captured at the camera's
+// full resolution.
 
 import { Button, Group, Modal, Stack, Text } from '@mantine/core';
 import { IconBulb, IconBulbOff } from '@tabler/icons-react';
-import jsQR from 'jsqr';
 import { useEffect, useRef, useState } from 'react';
+
+import { decodeQr, warmQrDecoder } from '../util/qrDecode';
 
 interface Detector {
   detect(source: ImageBitmapSource): Promise<{ rawValue: string }[]>;
@@ -54,6 +56,9 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     let stopped = false;
     const canvas = document.createElement('canvas');
     const detector = window.BarcodeDetector ? new window.BarcodeDetector({ formats: ['qr_code'] }) : null;
+    // Without a detector of its own the browser needs the bundled decoder:
+    // fetched now, while the camera opens, so the first frame does not wait.
+    if (!detector) warmQrDecoder();
 
     const finish = (text: string) => {
       if (stopped) return;
@@ -78,8 +83,8 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           if (ctx) {
             ctx.drawImage(video, 0, 0);
             const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(image.data, image.width, image.height, { inversionAttempts: 'dontInvert' });
-            if (code?.data) return finish(code.data);
+            const text = await decodeQr(image);
+            if (text) return finish(text);
           }
         }
       } catch {
