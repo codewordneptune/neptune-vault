@@ -165,6 +165,8 @@ export function ContactForm({
   const [address, setAddress] = useState(fixedAddress ?? '');
   const [error, setError] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
+  // A name already taken is said at the name, like every other problem with a field.
+  const [nameError, setNameError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
   const { services } = useApp();
@@ -175,6 +177,7 @@ export function ContactForm({
       setAddress(fixedAddress ?? '');
       setError(null);
       setAddressError(null);
+      setNameError(null);
     }
   }, [opened, fixedAddress]);
 
@@ -197,7 +200,9 @@ export function ContactForm({
     try {
       await onSave(name, address);
     } catch (e) {
-      setError((e as Error).message);
+      const message = (e as Error).message;
+      if (/already have a contact called/.test(message)) setNameError(message);
+      else setError(message);
     } finally {
       setBusy(false);
     }
@@ -213,7 +218,16 @@ export function ContactForm({
       >
         <Stack>
           {error && <Alert color="red">{error}</Alert>}
-          <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} data-autofocus />
+          <TextInput
+            label="Name"
+            value={name}
+            error={nameError}
+            onChange={(e) => {
+              setName(e.currentTarget.value);
+              setNameError(null);
+            }}
+            data-autofocus
+          />
           {fixedAddress ? (
             <Text size="xs" c="dimmed" ff="monospace">
               {abbreviateAddress(fixedAddress)}
@@ -267,16 +281,26 @@ export function ContactForm({
 function RenameForm({ initial, onSave }: { initial: string; onSave: (name: string) => Promise<void> }) {
   const [name, setName] = useState(initial);
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSave(name).catch((err: Error) => setError(err.message));
+        onSave(name).catch((err: Error) => (/already have a contact called/.test(err.message) ? setNameError(err.message) : setError(err.message)));
       }}
     >
       <Stack>
         {error && <Alert color="red">{error}</Alert>}
-        <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} data-autofocus />
+        <TextInput
+          label="Name"
+          value={name}
+          error={nameError}
+          onChange={(e) => {
+            setName(e.currentTarget.value);
+            setNameError(null);
+          }}
+          data-autofocus
+        />
         <Button type="submit" disabled={!name.trim()}>
           Save
         </Button>

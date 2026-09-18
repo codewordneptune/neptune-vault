@@ -72,8 +72,9 @@ for tracking. The Diagnostics screen shows facts about this device to you;
 it sends them nowhere.
 
 The camera, when you scan a code, is read on the device; no frame leaves it.
-The clipboard is written only when you tap Copy, and read only when you tap
-Paste.
+The clipboard is written only when you tap Copy, and never read: the app has
+no Paste button, and the site tells the browser to refuse it clipboard reads
+altogether.
 
 Passkeys are created and stored by your device or its platform account,
 under that platform's own policy; the app stores only a wrapped key that is

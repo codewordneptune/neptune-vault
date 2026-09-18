@@ -5,6 +5,7 @@ import { FRESH_KEY_INDICES, type AccountRecord, type Network, type SeedEnvelope,
 import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeed, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
 import type { PasskeyProvider } from './passkey';
 import { addressKindLabel } from '../util/address';
+import { distinctNames } from './contacts';
 import type { WalletCore } from '../wallet/core';
 
 export type LockListener = (locked: boolean) => void;
@@ -487,8 +488,15 @@ export class AccountService {
         lastBackupAt: exportedAt,
         ...(options.fastRestore ? { restore: 'fast' as const } : {}),
       };
-      const valid: typeof contacts = [];
-      for (const c of contacts) if (await this.core.isValidAddress(c.address, network)) valid.push(c);
+      const usable: typeof contacts = [];
+      const seenAddresses = new Set<string>();
+      for (const c of contacts) {
+        if (seenAddresses.has(c.address) || !(await this.core.isValidAddress(c.address, network))) continue;
+        seenAddresses.add(c.address);
+        usable.push(c);
+      }
+      // No two contacts of a wallet share a name; a file from before that rule may hold namesakes.
+      const valid = distinctNames(usable);
       // The wallet and its contacts arrive together or not at all.
       const tx = this.db.transaction(['accounts', 'contacts'], 'readwrite');
       await tx.objectStore('accounts').put(record);
