@@ -69,8 +69,9 @@ export default defineConfig({
     react(),
     versionJson(),
     VitePWA({
-      // A new build is downloaded and offered, never applied on its own: the
-      // wallet runs the code its owner accepted (see components/UpdateStrip).
+      // A new build is downloaded and offered, and never applied while the app
+      // is open; it takes over when the person taps Update or the app is next
+      // started. components/UpdateStrip says what that does and does not promise.
       registerType: 'prompt',
       includeAssets: ['icons/*.png', 'favicon.svg'],
       manifest: {

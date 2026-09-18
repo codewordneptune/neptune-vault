@@ -104,10 +104,18 @@ stay readable, and the app upgrades its stored data on its own.
   addresses, and so which payments and coins are yours.
   [docs/PRIVACY.md](docs/PRIVACY.md) lists exactly what leaves the device,
   and the same text is in the app under About.
-- The host serves the code. A new build is downloaded and offered, never
-  applied on its own: the strip under the header names the waiting build,
-  the one you are on, and links the commits between them on GitHub. About
-  says which build you are running.
+- The host serves the code, and that is the trust this kind of wallet asks
+  for: whoever controls the site controls what runs. A new build is
+  downloaded and offered, and never applied while the app is open. It takes
+  effect when you tap Update, or the next time the app starts; "Later" holds
+  it off until then, not for good, and no web app can do more than that.
+  The strip under the header names the waiting build and the one you are
+  on, and links the commits between them on GitHub. Those names are what
+  the host says it serves, not a proof. The check that does not depend on
+  the host is the list of file hashes each deploy publishes, which anyone
+  can hold against what the site serves
+  ([docs/HOSTING.md](docs/HOSTING.md)). About says which build you are
+  running.
 
 ## Recovering
 
@@ -212,8 +220,10 @@ tip. It goes away once the fork has activated; see docs/M1-STATUS.md.
 ### Updates
 
 The service worker downloads a new build and waits; the strip under the
-header offers it, and it takes effect when the person taps Update, never
-while a send is running. Each build ships a `version.json` (version, commit,
+header offers it, and it takes effect when the person taps Update or when
+every window of the app has closed, whichever comes first, and never while
+a send is running. An open app asks the host for a new build every hour
+and whenever it comes back to the front. Each build ships a `version.json` (version, commit,
 build time) next to its assets; the running app reads it to name the build
 that is waiting and to build the "What changed" link.
 

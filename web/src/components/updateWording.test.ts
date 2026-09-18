@@ -28,3 +28,13 @@ describe('updateWording', () => {
     expect(updateWording(running, { version: '0.2.1', commit: '6248f7d' }).compare).toBeNull();
   });
 });
+
+describe('a commit that is not one', () => {
+  it("never reaches the compare link: the waiting commit is the host's word", () => {
+    const running = { version: '0.2.0', commit: 'abc1234' };
+    expect(updateWording(running, { version: '0.2.0', commit: 'def5678' }).compare).toBe('abc1234...def5678');
+    for (const odd of ['../../evil', 'def5678?x=1', 'DEF5678', 'unknown', '']) {
+      expect(updateWording(running, { version: '0.2.0', commit: odd }).compare, odd).toBeNull();
+    }
+  });
+});

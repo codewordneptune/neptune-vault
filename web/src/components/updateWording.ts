@@ -14,7 +14,9 @@ export type UpdateWording = {
 };
 
 export function updateWording(running: BuildInfo, waiting: BuildInfo | null): UpdateWording {
-  const known = (c: string) => c !== '' && c !== 'unknown';
+  // A commit goes into a link, and the waiting one comes from the host: only
+  // what looks like a commit is used.
+  const known = (c: string) => /^[0-9a-f]{7,40}$/.test(c);
   if (!waiting) {
     return { headline: 'A new version of Neptune Vault is ready', current: `You are on ${running.version} (${running.commit})`, compare: null };
   }
