@@ -74,7 +74,11 @@ export function App() {
           <Route path="/send" element={gate(<Send />)} />
           <Route path="/contacts" element={gate(<Contacts />)} />
           <Route path="/settings" element={gate(<Settings />)} />
-          <Route path="/diagnostics" element={<Diagnostics />} />
+          {/* Behind the lock when there is a wallet to lock: the page tells when
+              a send was last tried and, if it failed, which node was asked and
+              what it said. With no wallet yet it stays open, since a person who
+              cannot get started needs the device facts to report why. */}
+          <Route path="/diagnostics" element={account && locked ? <Unlock /> : <Diagnostics />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
