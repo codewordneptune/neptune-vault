@@ -1,14 +1,33 @@
-// Camera QR scanner for the recipient field. Uses the browser's barcode
-// detector where it exists (Chrome on Android) and falls back to zxing-wasm
-// on video frames elsewhere (Safari, Firefox; see util/qrDecode). Generation
-// addresses make a version-40 code, so frames are captured at the camera's
-// full resolution.
+// Camera QR scanner for the recipient field.
+//
+// A Standard (Generation) address makes about the densest QR code there is,
+// some 170 modules a side, and a web page gets only the camera it asks for.
+// Left to the defaults, a phone hands over any back camera at 1080p with
+// whatever focus it likes, and such a code does not read, while the phone's
+// own camera app reads it from the same distance. So this scanner asks:
+//
+// - for a back camera that can focus. "Any back camera" on a phone with
+//   several lenses is sometimes the ultra-wide, whose focus is fixed and
+//   cannot be told otherwise. The first time, the cameras are tried in turn
+//   until one offers continuous focus; the choice is remembered, and a button
+//   switches by hand when the guess is wrong;
+// - for continuous focus and, where offered, 2x zoom, so the phone can be
+//   held further back, where every lens focuses, with the code still large;
+// - to read only the centred square the guide shows, which is fewer pixels
+//   to move and decode than the whole frame.
+//
+// Two readers look at each square: the browser's own detector where there is
+// one (fast, weak on dense codes), and zxing in a worker (slower, strong on
+// them), so nothing heavy runs on the thread that draws the preview. A dim
+// line says what the camera actually gave, because which of these a given
+// phone grants to a web page only that phone can tell.
 
 import { Button, Group, Modal, Stack, Text } from '@mantine/core';
-import { IconBulb, IconBulbOff } from '@tabler/icons-react';
+import { IconBulb, IconBulbOff, IconCameraRotate, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { decodeQr, warmQrDecoder } from '../util/qrDecode';
+import { decodeQr } from '../util/qrDecode';
+import type { QrWorkerRequest, QrWorkerResponse } from '../util/qrWorker';
 
 interface Detector {
   detect(source: ImageBitmapSource): Promise<{ rawValue: string }[]>;
@@ -17,6 +36,52 @@ declare global {
   interface Window {
     BarcodeDetector?: new (options?: { formats: string[] }) => Detector;
   }
+}
+
+/** What a camera says it can do, as far as this scanner cares. */
+interface CameraCaps {
+  torch?: boolean;
+  focusMode?: string[];
+  zoom?: { min: number; max: number; step?: number };
+}
+
+/** The share of the frame's short side the guide square, and the read, cover. */
+const GUIDE = 0.86;
+const REMEMBERED_CAMERA = 'neptune-vault.scanner.camera';
+
+function remembered(): string | null {
+  try {
+    return localStorage.getItem(REMEMBERED_CAMERA);
+  } catch {
+    return null;
+  }
+}
+function remember(deviceId: string | null): void {
+  try {
+    if (deviceId) localStorage.setItem(REMEMBERED_CAMERA, deviceId);
+    else localStorage.removeItem(REMEMBERED_CAMERA);
+  } catch {
+    // Storage unavailable: the choice is made again next time.
+  }
+}
+
+function capsOf(track: MediaStreamTrack | null): CameraCaps {
+  return (track?.getCapabilities?.() ?? {}) as CameraCaps;
+}
+
+/** The back cameras, in the browser's order; every camera where none says it faces back (a laptop). */
+async function backCameras(): Promise<MediaDeviceInfo[]> {
+  const all = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput' && d.deviceId !== '');
+  const back = all.filter((d) => /back|rear|environment/i.test(d.label));
+  return back.length > 0 ? back : all;
+}
+
+function openCamera(deviceId: string | null): Promise<MediaStream> {
+  const size = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+  return navigator.mediaDevices.getUserMedia({
+    video: deviceId ? { deviceId: { exact: deviceId }, ...size } : { facingMode: { ideal: 'environment' }, ...size },
+    audio: false,
+  });
 }
 
 export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onClose: () => void; onResult: (text: string) => void }) {
@@ -28,19 +93,57 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   const [attempt, setAttempt] = useState(0);
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
-  // Whether the camera was asked to keep focusing. Camera options are set as
-  // a whole, so whatever sets one of them later (the torch) must repeat this.
-  const continuousFocus = useRef(false);
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [cameraId, setCameraId] = useState<string | null>(null);
+  // The camera picked by hand, which the effect below opens; null lets it choose.
+  const [picked, setPicked] = useState<string | null>(null);
+  const [zoomRange, setZoomRange] = useState<{ min: number; max: number } | null>(null);
+  const [zoomed, setZoomed] = useState(true);
+  const [portrait, setPortrait] = useState(true);
+  const [status, setStatus] = useState('');
+  // The camera's options are set as a whole, so each change repeats the rest.
+  const options = useRef({ focus: false, zoom: null as number | null, torch: false });
 
-  const toggleTorch = async () => {
+  const applyOptions = async (change: Partial<{ focus: boolean; zoom: number | null; torch: boolean }>) => {
     const track = trackRef.current;
     if (!track) return;
+    const next = { ...options.current, ...change };
+    const set: Record<string, unknown> = {};
+    if (next.focus) set.focusMode = 'continuous';
+    if (next.zoom !== null) set.zoom = next.zoom;
+    if (next.torch) set.torch = true;
+    else if (options.current.torch) set.torch = false;
+    // Nothing to ask for: a camera that offers none of these is left alone.
+    if (Object.keys(set).length > 0) await track.applyConstraints({ advanced: [set as MediaTrackConstraintSet] });
+    options.current = next;
+  };
+
+  const toggleTorch = async () => {
     try {
-      await track.applyConstraints({ advanced: [{ torch: !torchOn, ...(continuousFocus.current ? { focusMode: 'continuous' } : {}) } as MediaTrackConstraintSet] });
+      await applyOptions({ torch: !torchOn });
       setTorchOn((v) => !v);
     } catch {
       setTorchAvailable(false);
     }
+  };
+
+  const toggleZoom = async () => {
+    if (!zoomRange) return;
+    const to = zoomed ? zoomRange.min : Math.min(2, zoomRange.max);
+    try {
+      await applyOptions({ zoom: to });
+      setZoomed((v) => !v);
+    } catch {
+      setZoomRange(null);
+    }
+  };
+
+  const nextCamera = () => {
+    if (cameras.length < 2) return;
+    const at = cameras.findIndex((c) => c.deviceId === cameraId);
+    const next = cameras[(at + 1) % cameras.length].deviceId;
+    remember(next);
+    setPicked(next);
   };
 
   // The newest onResult, without being a reason to restart the camera. A
@@ -57,11 +160,16 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     if (!opened) return;
     let stream: MediaStream | null = null;
     let stopped = false;
-    const canvas = document.createElement('canvas');
     const detector = window.BarcodeDetector ? new window.BarcodeDetector({ formats: ['qr_code'] }) : null;
-    // Without a detector of its own the browser needs the bundled decoder:
-    // fetched now, while the camera opens, so the first frame does not wait.
-    if (!detector) warmQrDecoder();
+    let worker: Worker | null = null;
+    let workerBusy = false;
+    let workerBroken = false;
+    let readerMillis = 0;
+    try {
+      worker = new Worker(new URL('../util/qrWorker.ts', import.meta.url), { type: 'module' });
+    } catch {
+      workerBroken = true;
+    }
 
     const finish = (text: string) => {
       if (stopped) return;
@@ -69,43 +177,153 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
       onResultRef.current(text);
     };
 
-    const tick = async () => {
+    if (worker) {
+      worker.onmessage = ({ data }: MessageEvent<QrWorkerResponse>) => {
+        workerBusy = false;
+        readerMillis = data.millis;
+        // A worker that cannot decode (no OffscreenCanvas, say) is set aside
+        // and the page decodes instead: slower, but it reads.
+        if (data.error) workerBroken = true;
+        else if (data.text) finish(data.text);
+      };
+      worker.onerror = () => {
+        workerBusy = false;
+        workerBroken = true;
+      };
+    }
+
+    const stopStream = () => {
+      stream?.getTracks().forEach((t) => t.stop());
+      stream = null;
+    };
+
+    let passes = 0;
+    let passMillis = 0;
+    const describe = (track: MediaStreamTrack, caps: CameraCaps, count: number, index: number) => {
       const video = videoRef.current;
-      if (stopped || !video || video.readyState < 2) {
-        if (!stopped) setTimeout(() => void tick(), 120);
-        return;
-      }
-      try {
-        if (detector) {
-          const codes = await detector.detect(video);
-          if (codes.length > 0) return finish(codes[0].rawValue);
-        } else {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          if (ctx) {
-            ctx.drawImage(video, 0, 0);
-            const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const text = await decodeQr(image);
-            if (text) return finish(text);
+      const size = video && video.videoWidth ? `${video.videoWidth} × ${video.videoHeight}` : 'starting';
+      const focus = options.current.focus ? 'continuous' : caps.focusMode && caps.focusMode.length > 0 ? `not continuous (${caps.focusMode.join(', ')})` : 'not offered';
+      const zoom = options.current.zoom !== null ? `${options.current.zoom}×` : caps.zoom ? 'off' : 'not offered';
+      const readers = [detector ? 'built-in' : null, worker && !workerBroken ? 'zxing' : workerBroken ? 'zxing on the page' : null].filter(Boolean).join(' + ');
+      const pace = passes > 0 ? ` · ${Math.round(passMillis)} ms a look${readerMillis ? `, zxing ${Math.round(readerMillis)} ms` : ''}` : '';
+      const which = count > 1 ? `camera ${index + 1} of ${count}` : 'the only camera';
+      setStatus(`${size} · ${which}${track.label ? ` (${track.label})` : ''} · focus: ${focus} · zoom: ${zoom} · ${readers}${pace}`);
+    };
+
+    const tick = async (track: MediaStreamTrack, caps: CameraCaps, count: number, index: number) => {
+      const video = videoRef.current;
+      if (stopped || !video) return;
+      if (video.readyState >= 2 && video.videoWidth > 0) {
+        const started = performance.now();
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        const side = Math.floor(Math.min(vw, vh) * GUIDE);
+        const sx = Math.floor((vw - side) / 2);
+        const sy = Math.floor((vh - side) / 2);
+        try {
+          const bitmap = await createImageBitmap(video, sx, sy, side, side);
+          let handedOver = false;
+          try {
+            if (detector) {
+              const codes = await detector.detect(bitmap);
+              if (codes.length > 0) return finish(codes[0].rawValue);
+            }
+            if (worker && !workerBroken && !workerBusy) {
+              workerBusy = true;
+              const request: QrWorkerRequest = { id: passes, bitmap };
+              worker.postMessage(request, [bitmap]);
+              handedOver = true;
+            } else if (workerBroken) {
+              // No worker to hand to: read the square here.
+              const canvas = document.createElement('canvas');
+              canvas.width = side;
+              canvas.height = side;
+              const ctx = canvas.getContext('2d', { willReadFrequently: true });
+              if (ctx) {
+                ctx.drawImage(bitmap, 0, 0);
+                const text = await decodeQr(ctx.getImageData(0, 0, side, side));
+                if (text) return finish(text);
+              }
+            }
+          } finally {
+            if (!handedOver) bitmap.close();
           }
+        } catch {
+          // A frame that cannot be read is normal; look at the next one.
         }
-      } catch {
-        // A frame that cannot be decoded is normal; try the next one.
+        passes += 1;
+        const took = performance.now() - started;
+        passMillis = passes === 1 ? took : passMillis * 0.8 + took * 0.2;
+        if (passes % 5 === 1) describe(track, caps, count, index);
       }
-      if (!stopped) setTimeout(() => void tick(), 120);
+      if (!stopped) setTimeout(() => void tick(track, caps, count, index), 150);
     };
 
     void (async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: false,
-        });
-        // The camera can take a second or two to open, and the scanner may
-        // have been closed by then. The cleanup below ran when `stream` was
-        // still null, so nothing else will ever stop these tracks: without
-        // this the camera stays on, light and all, with no scanner on screen.
+        setStatus('Opening the camera…');
+        const wanted = picked ?? remembered();
+        try {
+          stream = await openCamera(wanted);
+        } catch (e) {
+          // A remembered camera that has gone (another phone's id, a camera unplugged): start afresh.
+          if (!wanted) throw e;
+          remember(null);
+          stream = await openCamera(null);
+        }
+        if (stopped) return stopStream();
+
+        // Labels, and with them which cameras face back, are only given once
+        // the camera permission is.
+        let list = await backCameras();
+        if (stopped) return stopStream();
+        let track: MediaStreamTrack | null = stream.getVideoTracks()[0] ?? null;
+        let caps = capsOf(track);
+
+        // First time, and the camera handed over cannot keep focusing: look
+        // for one that can. Each try opens a camera, so this is done once
+        // and the answer kept.
+        // Only where the browser speaks of focus at all: Safari reports no focus
+        // modes for any camera, and opening each in turn there would find nothing.
+        const speaksOfFocus = Boolean((navigator.mediaDevices.getSupportedConstraints() as Record<string, boolean>).focusMode);
+        if (!wanted && speaksOfFocus && track && !caps.focusMode?.includes('continuous') && list.length > 1) {
+          setStatus('Looking for the camera that can focus…');
+          const first = track.getSettings().deviceId ?? null;
+          // One camera at a time: many phones refuse a second while one is
+          // open, so the one in hand is let go before the next is tried.
+          stopStream();
+          track = null;
+          for (const candidate of list) {
+            if (stopped) return;
+            if (candidate.deviceId === first) continue;
+            try {
+              const tryStream = await openCamera(candidate.deviceId);
+              const tryTrack = tryStream.getVideoTracks()[0] ?? null;
+              if (tryTrack && capsOf(tryTrack).focusMode?.includes('continuous')) {
+                stream = tryStream;
+                track = tryTrack;
+                break;
+              }
+              tryStream.getTracks().forEach((t) => t.stop());
+            } catch {
+              // A camera that will not open is passed over.
+            }
+          }
+          // None can: back to the one the browser chose.
+          if (!track) {
+            if (stopped) return;
+            stream = await openCamera(first);
+            track = stream.getVideoTracks()[0] ?? null;
+          }
+          caps = capsOf(track);
+        }
+        if (stopped || !track) return stopStream();
+        const usedId = track.getSettings().deviceId ?? null;
+        if (usedId) remember(usedId);
+        list = list.length > 0 ? list : await backCameras();
+        setCameras(list);
+        setCameraId(usedId);
+
         // The dialog draws its contents a moment after it opens. A camera that
         // is quick to open (permission already given, a fast phone) can be
         // ready before the video element exists; wait for it briefly rather
@@ -115,33 +333,31 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           await new Promise((r) => setTimeout(r, 50));
           video = videoRef.current;
         }
-        if (stopped || !video) {
-          stream.getTracks().forEach((t) => t.stop());
-          stream = null;
-          return;
-        }
-        const track = stream.getVideoTracks()[0] ?? null;
+        // The camera can take a second or two to open, and the scanner may
+        // have been closed by then. The cleanup below ran when `stream` was
+        // still null, so nothing else will ever stop these tracks: without
+        // this the camera stays on, light and all, with no scanner on screen.
+        if (stopped || !video) return stopStream();
+
         trackRef.current = track;
-        const caps = (track?.getCapabilities?.() ?? {}) as { torch?: boolean; focusMode?: string[] };
         setTorchAvailable(Boolean(caps.torch));
         setTorchOn(false);
-        // A web page gets only the camera behaviour it asks for. Left alone,
-        // many phones hold one focus for the whole session, and a dense code
-        // a hand's width away stays a blur: the phone's own camera app reads
-        // the same code from the same distance because it keeps focusing.
-        // Asked for where the camera says it can; ignored where it cannot.
-        continuousFocus.current = false;
-        if (track && caps.focusMode?.includes('continuous')) {
-          try {
-            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] });
-            continuousFocus.current = true;
-          } catch {
-            // Offered but refused: the scan goes on with whatever focus there is.
-          }
+        const zoom = caps.zoom && caps.zoom.max >= 1.5 ? { min: caps.zoom.min, max: caps.zoom.max } : null;
+        setZoomRange(zoom);
+        setZoomed(true);
+        options.current = { focus: false, zoom: null, torch: false };
+        try {
+          await applyOptions({ focus: Boolean(caps.focusMode?.includes('continuous')), zoom: zoom ? Math.min(2, zoom.max) : null });
+        } catch {
+          // Offered but refused: the scan goes on with what the camera does by itself.
         }
+
         video.srcObject = stream;
         await video.play();
-        void tick();
+        setPortrait(video.videoHeight >= video.videoWidth);
+        const index = Math.max(0, list.findIndex((c) => c.deviceId === usedId));
+        describe(track, caps, list.length, index);
+        void tick(track, caps, list.length, index);
       } catch (e) {
         setError(cameraProblem(e));
       }
@@ -149,10 +365,15 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
 
     return () => {
       stopped = true;
-      stream?.getTracks().forEach((t) => t.stop());
+      stopStream();
+      worker?.terminate();
       trackRef.current = null;
     };
-  }, [opened, attempt]);
+    // applyOptions reads refs only; it is not a reason to restart the camera.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened, attempt, picked]);
+
+  const at = cameras.findIndex((c) => c.deviceId === cameraId);
 
   return (
     <Modal opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md">
@@ -163,10 +384,32 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           </Text>
         ) : (
           <Text size="sm" c="dimmed">
-            Hold the code steady and close to the camera. Dense generation codes need a moment.
+            Fill the square with the code and hold steady. If it looks blurry, move back a little; a dense Standard address code needs a moment.
           </Text>
         )}
-        <video ref={videoRef} playsInline muted style={{ width: '100%', borderRadius: 'var(--v-radius-sm)', background: '#000' }} />
+        <div className="vault-scan">
+          <video ref={videoRef} playsInline muted />
+          {!error && <div className={portrait ? 'vault-scan-guide portrait' : 'vault-scan-guide'} style={{ ['--guide' as string]: `${GUIDE * 100}%` }} aria-hidden />}
+        </div>
+        {!error && (torchAvailable || zoomRange || cameras.length > 1) && (
+          <Group gap="xs" justify="center">
+            {torchAvailable && (
+              <Button variant="light" size="compact-md" className="vault-tap" leftSection={torchOn ? <IconBulbOff size={16} stroke={1.8} /> : <IconBulb size={16} stroke={1.8} />} onClick={() => void toggleTorch()}>
+                {torchOn ? 'Torch off' : 'Torch on'}
+              </Button>
+            )}
+            {zoomRange && (
+              <Button variant="light" size="compact-md" className="vault-tap" leftSection={zoomed ? <IconZoomOut size={16} stroke={1.8} /> : <IconZoomIn size={16} stroke={1.8} />} onClick={() => void toggleZoom()}>
+                {zoomed ? 'Zoom out' : 'Zoom in'}
+              </Button>
+            )}
+            {cameras.length > 1 && (
+              <Button variant="light" size="compact-md" className="vault-tap" leftSection={<IconCameraRotate size={16} stroke={1.8} />} onClick={nextCamera}>
+                Camera {at + 1} of {cameras.length}
+              </Button>
+            )}
+          </Group>
+        )}
         <Group grow>
           <Button variant="default" onClick={onClose}>
             Cancel
@@ -182,12 +425,12 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
               Try again
             </Button>
           )}
-          {torchAvailable && (
-            <Button variant="light" leftSection={torchOn ? <IconBulbOff size={16} stroke={1.8} /> : <IconBulb size={16} stroke={1.8} />} onClick={() => void toggleTorch()}>
-              {torchOn ? 'Torch off' : 'Torch on'}
-            </Button>
-          )}
         </Group>
+        {!error && status && (
+          <Text size="xs" c="dimmed" className="vault-scan-status" aria-live="off">
+            {status}
+          </Text>
+        )}
       </Stack>
     </Modal>
   );

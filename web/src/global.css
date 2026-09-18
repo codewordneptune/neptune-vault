@@ -890,3 +890,39 @@ html {
     transition: none;
   }
 }
+
+/* The scanner: the camera preview with a square guide over it. What lies
+   inside the square is what gets read, so filling it is all there is to aim. */
+.vault-scan {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--v-radius-sm);
+  background: #000;
+  line-height: 0;
+}
+.vault-scan video {
+  width: 100%;
+  display: block;
+}
+.vault-scan-guide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  height: var(--guide);
+  aspect-ratio: 1;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+/* A phone holds the frame upright: the square is measured on its width. */
+.vault-scan-guide.portrait {
+  height: auto;
+  width: var(--guide);
+}
+.vault-scan-status {
+  text-align: center;
+  word-break: break-word;
+  font-variant-numeric: tabular-nums;
+}
