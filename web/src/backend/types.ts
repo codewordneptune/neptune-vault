@@ -225,4 +225,6 @@ export interface Prover {
   prove(request: ProveRequest, onProgress: (p: ProveProgress) => void): Promise<ProveOutcome>;
   /** Abandon the running proof. Settles the promise `prove` returned. */
   cancel(): void;
+  /** How many threads to ask for, as this implementation counts them. */
+  defaultThreads(): number;
 }

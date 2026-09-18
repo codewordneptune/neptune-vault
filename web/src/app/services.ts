@@ -1,10 +1,10 @@
 // Wires the long-lived objects together: database, settings, wallet worker,
 // node client, account service. Screens reach them through AppContext.
 
+import { createBackend, type BackendKind } from '../backend';
+import type { Prover, WalletCore } from '../backend/types';
 import { NodeClient } from '../node/rpc';
-import { ProverClient } from '../backend/browser/proverClient';
 import { loadSettings, openVaultDb, requestPersistentStorage, saveSettings, type Network, type SettingsRecord, type VaultDb } from '../storage/db';
-import { WalletWorkerClient } from '../backend/browser/walletClient';
 import { ContactsService } from './contacts';
 import { WebAuthnPasskeys } from './passkey';
 import { MempoolWatcher } from '../wallet/mempool';
@@ -15,9 +15,11 @@ import { SendService } from './send';
 export interface Services {
   db: VaultDb;
   settings: SettingsRecord;
-  core: WalletWorkerClient;
+  core: WalletCore;
   accounts: AccountService;
-  prover: ProverClient;
+  prover: Prover;
+  /** Whether the wallet's Rust runs as wasm here or natively in a shell. */
+  backendKind: BackendKind;
   persistent: boolean;
   node(): NodeClient;
   updateSettings(patch: Partial<SettingsRecord>): Promise<SettingsRecord>;
@@ -40,9 +42,8 @@ export async function createServices(): Promise<Services> {
   const db = await openVaultDb();
   const persistent = await requestPersistentStorage();
   let settings = await loadSettings(db);
-  const core = new WalletWorkerClient();
+  const { core, prover, backendKind } = await createBackend().then((b) => ({ core: b.core, prover: b.prover, backendKind: b.kind }));
   const accounts = new AccountService(db, core, settings.lockTimeoutMs, new WebAuthnPasskeys());
-  const prover = new ProverClient();
 
   const services: Services = {
     db,
@@ -50,6 +51,7 @@ export async function createServices(): Promise<Services> {
     core,
     accounts,
     prover,
+    backendKind,
     persistent,
     node() {
       return new NodeClient(settings.nodeUrls[settings.network]);
@@ -75,7 +77,7 @@ export async function createServices(): Promise<Services> {
       return w;
     },
     sendService(accountId) {
-      return new SendService(db, services.node(), core, prover, accountId, coreNetworkName(settings.network), ProverClient.defaultThreads(), settings.network === 'regtest');
+      return new SendService(db, services.node(), core, prover, accountId, coreNetworkName(settings.network), prover.defaultThreads(), settings.network === 'regtest');
     },
     forgetAccount(accountId) {
       for (const key of [...watchers.keys()]) if (key.startsWith(`${accountId}:`)) watchers.delete(key);

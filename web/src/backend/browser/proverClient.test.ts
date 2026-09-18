@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ProofCancelledError, ProverClient } from './proverClient';
+import { ProofCancelledError } from '../proving';
+import { ProverClient } from './proverClient';
 
 class FailingWorker {
   onmessage: ((e: { data: unknown }) => void) | null = null;

@@ -81,6 +81,9 @@ class FakeProver implements Prover {
   cancel() {
     this.cancelled += 1;
   }
+  defaultThreads() {
+    return 4;
+  }
   fail = false;
   calls = 0;
   /** Runs while the proof is "being made": where a test presses Cancel. */
