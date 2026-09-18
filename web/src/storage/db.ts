@@ -106,6 +106,8 @@ export interface HistoryRecord {
   outputs?: HistoryOutput[];
   /** For sends made from a payment link: the link's message, kept for the payer; never sent anywhere. */
   note?: string | null;
+  /** For receipts: the coin's time lock, if any. A locked payment is real but cannot be spent before this date. */
+  releaseDateMs?: number | null;
   /** For pending sends: when the node's mempool was last seen holding it, and when that was last checked. */
   mempoolSeenAt?: number | null;
   mempoolCheckedAt?: number | null;

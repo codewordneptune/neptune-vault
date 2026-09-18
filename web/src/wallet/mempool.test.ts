@@ -67,7 +67,7 @@ describe('MempoolWatcher', () => {
     const { node, core, watcher } = await setup();
     node.ids = ['t1'];
     core.scans.set('t1', payment('c1', '2'));
-    expect(await watcher.poll()).toEqual({ scanned: 1, incoming: 1, incomingNau: '2000000000000000000000000000000' });
+    expect(await watcher.poll()).toEqual({ scanned: 1, incoming: 1, incomingNau: '2000000000000000000000000000000', lockedNau: '0' });
     const row = (await db.get('history', incomingKey('acc', 'c1')))!;
     expect(row.kind).toBe('received');
     expect(row.status).toBe('pending');
@@ -77,7 +77,7 @@ describe('MempoolWatcher', () => {
     expect(row.outputs).toEqual([{ commitment: 'c1', role: 'recipient' }]);
 
     // Seen ids are not fetched again.
-    expect(await watcher.poll()).toEqual({ scanned: 0, incoming: 0, incomingNau: '0' });
+    expect(await watcher.poll()).toEqual({ scanned: 0, incoming: 0, incomingNau: '0', lockedNau: '0' });
     expect(node.fetched).toEqual(['t1']);
   });
 
@@ -191,7 +191,7 @@ describe('MempoolWatcher', () => {
     node.mempoolTransactions = async () => {
       throw new Error('Method not found');
     };
-    expect(await watcher.poll()).toEqual({ scanned: 0, incoming: 0, incomingNau: '0' });
+    expect(await watcher.poll()).toEqual({ scanned: 0, incoming: 0, incomingNau: '0', lockedNau: '0' });
     expect(watcher.disabled).toBe(true);
   });
 });

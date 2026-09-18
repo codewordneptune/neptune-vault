@@ -36,6 +36,8 @@ export interface PendingIncoming {
   key_index: number;
   /** Created by a transaction built from this seed: not incoming. */
   own: boolean;
+  /** Time lock, if any, in milliseconds since the epoch. */
+  release_date_ms?: number | null;
 }
 
 /** What one mempool transaction means for this wallet. */

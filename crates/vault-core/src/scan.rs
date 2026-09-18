@@ -342,6 +342,10 @@ pub struct PendingIncoming {
     /// Created by a transaction built from this seed (change, or a payment
     /// to itself): not incoming.
     pub own: bool,
+    /// Time lock, if any, as milliseconds since the epoch: the payment
+    /// cannot be spent before it, however many blocks confirm it.
+    #[serde(default)]
+    pub release_date_ms: Option<u64>,
 }
 
 /// What one mempool transaction means for this wallet.
@@ -395,6 +399,7 @@ pub fn scan_mempool_kernel(
             key_kind,
             key_index,
             own,
+            release_date_ms: found.utxo.release_date().map(|t| t.0.value()),
         });
     }
 

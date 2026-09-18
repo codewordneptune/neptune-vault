@@ -1,7 +1,7 @@
 // Balance, sync status and history (F13, F14, R18).
 
 import { ActionIcon, Alert, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
+import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -92,6 +92,15 @@ export function Home() {
   const pendingSends = history.filter((h) => h.kind === 'sent' && h.status === 'pending');
   const leavingNau = pendingSends.reduce((sum, h) => sum + BigInt(h.amountNau) + BigInt(h.feeNau ?? '0'), 0n);
   const afterPendingNau = balance.spendableNau + balance.reservedNau - leavingNau;
+
+  // A receipt's time lock, from the row or, for rows written before it was
+  // kept there, from the coin. Null once the date has passed.
+  const lockOf = (h: HistoryRecord): number | null => {
+    if (h.kind !== 'received') return null;
+    const date = h.releaseDateMs ?? utxos.find((u) => u.hash === coinKeyOfReceipt(h))?.releaseDateMs ?? null;
+    return date !== null && date > Date.now() ? date : null;
+  };
+  const showDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
   const busy = sync?.phase === 'checking' || sync?.phase === 'restoring' || sync?.phase === 'scanning';
   const syncText =
@@ -224,7 +233,15 @@ export function Home() {
               <Text size="sm">{amount(balance.reservedNau)} NPT held until confirmed</Text>
             </Group>
           )}
-          {(incomingNau > 0n || balance.reservedNau > 0n) && (
+          {balance.lockedNau > 0n && (
+            <Group gap={6} wrap="nowrap">
+              <IconClockPause size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
+              <Text size="sm">
+                {amount(balance.lockedNau)} NPT time-locked{balance.nextReleaseMs ? `, first release ${showDate(balance.nextReleaseMs)}` : ''}
+              </Text>
+            </Group>
+          )}
+          {(incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n) && (
             <>
               <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link" aria-expanded={why}>
                 {why ? 'Less' : 'What does this mean?'}
@@ -232,6 +249,7 @@ export function Home() {
               {why && (
                 <Text size="xs" c="dimmed">
                   {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
+                  {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT was paid to you with a time lock set by the payer. It is yours, but the network will not let it be spent before its release date, so it is not counted as spendable. `}
                   {balance.reservedNau > 0n &&
                     `${amount(balance.reservedNau)} NPT is held by ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}${pendingSends.length === 1 ? `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee` : ''}. Once ${pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, ${amount(afterPendingNau)} NPT is spendable.`}
                 </Text>
@@ -270,7 +288,7 @@ export function Home() {
               const h = e.record;
               const incoming = e.kind === 'received';
               return (
-                <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={`${titleOf(e)}, ${incoming ? 'plus' : 'minus'} ${amount(e.shownNau)} NPT${h.status !== 'confirmed' ? ', ' + h.status : ''}, details`}>
+                <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={`${titleOf(e)}, ${incoming ? 'plus' : 'minus'} ${amount(e.shownNau)} NPT${h.status !== 'confirmed' ? ', ' + h.status : ''}${lockOf(h) !== null ? ', time-locked' : ''}, details`}>
                   <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
                     <span className={`vault-row-icon${incoming ? '' : ' out'}`}>
                       {incoming ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />}
@@ -287,6 +305,14 @@ export function Home() {
                             {' · '}
                             <Text span inherit className={h.status === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
                               {h.status === 'pending' ? 'Pending' : 'Failed'}
+                            </Text>
+                          </>
+                        )}
+                        {lockOf(h) !== null && (
+                          <>
+                            {' · '}
+                            <Text span inherit className="vault-state-pending">
+                              Locked until {showDate(lockOf(h) as number)}
                             </Text>
                           </>
                         )}
@@ -320,6 +346,9 @@ export function Home() {
             <DetailRow label="Status" value={statusOf(detail.record)} />
             <DetailRow label="When" value={new Date(detail.record.timestampMs).toLocaleString()} />
             {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
+            {lockOf(detail.record) !== null && (
+              <DetailRow label="Time lock" value={`Not spendable before ${new Date(lockOf(detail.record) as number).toLocaleString()}. The payer set this; confirmations do not shorten it.`} />
+            )}
             {detail.kind === 'sent' && (
               <DetailRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />
             )}

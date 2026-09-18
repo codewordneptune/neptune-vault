@@ -284,6 +284,7 @@ export class SyncEngine {
           inputHashes: [],
           recipient: null,
           error: null,
+          releaseDateMs: u.release_date_ms,
         };
         await historyStore.put(received);
         // The same output was perhaps seen in the mempool first.

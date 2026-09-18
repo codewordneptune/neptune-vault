@@ -29,6 +29,10 @@ export interface Balance {
   spendableNau: bigint;
   /** Reserved by pending outgoing transactions, in nau. */
   reservedNau: bigint;
+  /** Owned but time-locked by whoever paid it: not spendable before its release date. */
+  lockedNau: bigint;
+  /** The earliest release among the locked coins, or null. */
+  nextReleaseMs: number | null;
 }
 
 export interface AppState {
@@ -275,7 +279,7 @@ export function AppProvider({ services, children }: { services: Services; childr
       const r = await services.mempoolWatcher(accountId).poll();
       await refresh();
       if (r.incoming > 0 && document.visibilityState === 'visible' && window.location.pathname !== '/') {
-        notifications.show({ color: 'green', title: 'Incoming payment', message: `${formatNau(BigInt(r.incomingNau))} NPT is on its way to you, waiting for a block.` });
+        notifications.show({ color: 'green', title: 'Incoming payment', message: `${formatNau(BigInt(r.incomingNau))} NPT is on its way to you, waiting for a block.${BigInt(r.lockedNau) > 0n ? ` ${formatNau(BigInt(r.lockedNau))} NPT of it is time-locked by the payer and cannot be spent before its release date.` : ''}` });
       }
     } catch (e) {
       console.debug('mempool watch', (e as Error).message);
@@ -367,12 +371,20 @@ export function AppProvider({ services, children }: { services: Services; childr
   const balance = useMemo<Balance>(() => {
     let spendable = 0n;
     let reserved = 0n;
+    let locked = 0n;
+    let nextRelease: number | null = null;
+    const now = Date.now();
     for (const u of utxos) {
       if (u.spentHeight !== null) continue;
       if (u.pendingTxid) reserved += BigInt(u.amountNau);
-      else spendable += BigInt(u.amountNau);
+      else if (u.releaseDateMs !== null && u.releaseDateMs !== undefined && u.releaseDateMs > now) {
+        // A time-locked coin is owned but cannot be spent yet: a payer can
+        // lock a payment for years, so it must never read as spendable.
+        locked += BigInt(u.amountNau);
+        nextRelease = nextRelease === null ? u.releaseDateMs : Math.min(nextRelease, u.releaseDateMs);
+      } else spendable += BigInt(u.amountNau);
     }
-    return { spendableNau: spendable, reservedNau: reserved };
+    return { spendableNau: spendable, reservedNau: reserved, lockedNau: locked, nextReleaseMs: nextRelease };
   }, [utxos]);
 
   const value = useMemo<AppState>(
