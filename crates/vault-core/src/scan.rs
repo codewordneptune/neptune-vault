@@ -31,7 +31,13 @@ use crate::amount;
 /// it later is in `recovery`; the rest is for display and bookkeeping.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StoredUtxo {
-    /// Hex of `Tip5::hash(utxo)`, the app's primary key for the UTXO.
+    /// The app's primary key for the coin: hex of `Tip5::hash(utxo)`, a
+    /// colon, and the coin's index in the chain's list of all coins. The
+    /// hash alone is not unique: a UTXO is only a lock script and an amount,
+    /// so two payments of one amount to one address hash the same, whenever
+    /// they are made. The index is unique on a chain by construction.
+    /// Records from before the index was appended are re-keyed when the
+    /// database is upgraded.
     pub hash: String,
     /// Hex of the addition record's canonical commitment: what the block
     /// carries and what the explorer indexes an output by. Empty on records
@@ -115,6 +121,11 @@ impl StoredUtxo {
             self.recovery.aocl_index,
         )
     }
+}
+
+/// The key a coin is stored under, see `StoredUtxo::hash`.
+pub fn coin_key(utxo_hash: Digest, aocl_index: u64) -> String {
+    format!("{}:{aocl_index}", utxo_hash.to_hex())
 }
 
 /// What one block changed for this wallet.
@@ -243,6 +254,7 @@ pub fn scan_kernel(
 
     let mut next_key_indices = next_key_indices;
     let mut incoming = Vec::new();
+    let mut taken: HashSet<usize> = HashSet::new();
     for found in announced {
         let addition_record = found.addition_record();
         let Some(position) = addition_records.iter().position(|ar| *ar == addition_record) else {
@@ -259,14 +271,24 @@ pub fn scan_kernel(
         let own_build_height = own_build_height(account, key_kind, key_index, found.sender_randomness, height);
 
         let native_amount = found.utxo.get_native_currency_amount();
+        // Two outputs of one transaction can carry the same addition record
+        // (same amount, same address, same build height): each announcement
+        // then takes its own position, so both coins are kept.
+        let position = addition_records
+            .iter()
+            .enumerate()
+            .position(|(i, ar)| *ar == addition_record && !taken.contains(&i))
+            .unwrap_or(position);
+        taken.insert(position);
+        let aocl_index = num_aocl_leafs_prior + position as u64;
         let recovery = IncomingUtxoRecoveryData {
             utxo: found.utxo.clone(),
             sender_randomness: found.sender_randomness,
             receiver_preimage: found.receiver_preimage,
-            aocl_index: num_aocl_leafs_prior + position as u64,
+            aocl_index,
         };
         incoming.push(StoredUtxo {
-            hash: Tip5::hash(&found.utxo).to_hex(),
+            hash: coin_key(Tip5::hash(&found.utxo), aocl_index),
             commitment: addition_record.canonical_commitment.to_hex(),
             recovery,
             amount_nau: amount::to_nau_string(native_amount),

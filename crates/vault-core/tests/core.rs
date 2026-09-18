@@ -161,7 +161,7 @@ fn scan_finds_announced_utxo_then_its_spend() {
     assert!(spent.is_empty());
     assert_eq!(incoming.len(), 1);
     let found = &incoming[0];
-    assert_eq!(found.hash, utxo_hash.to_hex());
+    assert_eq!(found.hash, scan::coin_key(utxo_hash, 1000));
     assert_eq!(found.amount, "3.25");
     assert_eq!(found.key_kind, KeyKind::Generation);
     assert_eq!(found.key_index, 2);
@@ -190,7 +190,56 @@ fn scan_finds_announced_utxo_then_its_spend() {
     let (incoming2, spent2, _) =
         scan::scan_kernel(&mut account, &spend_kernel, &[], 2000, &incoming, next_key, 8, "01", 1235);
     assert!(incoming2.is_empty());
-    assert_eq!(spent2, vec![utxo_hash.to_hex()]);
+    assert_eq!(spent2, vec![scan::coin_key(utxo_hash, 1000)]);
+}
+
+/// A UTXO is only a lock script and an amount, so equal payments to one
+/// address hash the same. Each must still be its own coin, whether the two
+/// arrive in different blocks or in one transaction.
+#[test]
+fn equal_payments_to_one_address_are_separate_coins() {
+    let mut account = account();
+    let (first, utxo_hash) = kernel_paying(&mut account, 0, "1");
+    let (second, _) = kernel_paying(&mut account, 0, "1");
+
+    // Different blocks.
+    let k1 = first.clone().into_kernel();
+    let (in1, _, next) =
+        scan::scan_kernel(&mut account, &k1, &k1.outputs.clone(), 500, &[], NextKeyIndices::default(), 7, "00", 1);
+    let k2 = second.clone().into_kernel();
+    let (in2, _, _) = scan::scan_kernel(&mut account, &k2, &k2.outputs.clone(), 900, &in1, next, 9, "01", 2);
+    assert_eq!(in1.len(), 1);
+    assert_eq!(in2.len(), 1);
+    assert_eq!(in1[0].hash, scan::coin_key(utxo_hash, 500));
+    assert_eq!(in2[0].hash, scan::coin_key(utxo_hash, 900));
+    assert_ne!(in1[0].hash, in2[0].hash);
+    assert_ne!(in1[0].absolute_index_set(), in2[0].absolute_index_set());
+
+    // One transaction carrying both.
+    let mut both = first;
+    both.outputs.extend(second.outputs);
+    both.announcements.extend(second.announcements);
+    let kb = both.into_kernel();
+    let (inb, _, _) =
+        scan::scan_kernel(&mut account, &kb, &kb.outputs.clone(), 40, &[], NextKeyIndices::default(), 3, "02", 3);
+    let keys: Vec<&str> = inb.iter().map(|u| u.hash.as_str()).collect();
+    assert_eq!(keys, vec![scan::coin_key(utxo_hash, 40), scan::coin_key(utxo_hash, 41)]);
+
+    // Spending the second leaves the first.
+    let removal = RemovalRecord { absolute_indices: inb[1].absolute_index_set(), target_chunks: ChunkDictionary::default() };
+    let spend = TransactionKernelProxy {
+        inputs: vec![removal],
+        outputs: vec![],
+        announcements: vec![],
+        fee: NativeCurrencyAmount::zero(),
+        coinbase: None,
+        timestamp: Timestamp::now(),
+        mutator_set_hash: Digest::default(),
+        merge_bit: false,
+    }
+    .into_kernel();
+    let (_, spent, _) = scan::scan_kernel(&mut account, &spend, &[], 50, &inb, NextKeyIndices::default(), 4, "03", 4);
+    assert_eq!(spent, vec![scan::coin_key(utxo_hash, 41)]);
 }
 
 #[test]
@@ -216,7 +265,7 @@ fn scan_finds_payments_to_ec_hybrid_and_viewing_addresses() {
         let (incoming, _, next) =
             scan::scan_kernel(&mut account, &kernel, &records, 0, &[], NextKeyIndices::default(), 1, "00", 0);
         assert_eq!(incoming.len(), 1, "{kind:?}");
-        assert_eq!(incoming[0].hash, utxo_hash.to_hex());
+        assert_eq!(incoming[0].hash, scan::coin_key(utxo_hash, 0));
         assert_eq!(incoming[0].key_kind, kind);
         assert_eq!(incoming[0].key_index, 1);
         assert_eq!(next.get(kind), 2, "{kind:?}");

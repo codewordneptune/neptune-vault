@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { HistoryRecord, UtxoRecord } from '../storage/db';
-import { changeOf, groupHistory } from './history';
+import { changeOf, coinKeyOfReceipt, groupHistory } from './history';
 
 const A = 'acct';
 function sent(over: Partial<HistoryRecord>): HistoryRecord {
@@ -133,5 +133,12 @@ describe('groupHistory', () => {
   it('keeps the input order', () => {
     const rows = [received('a', '1', 10), sent({ changeNau: '4700' }), received('b', '2', 11)];
     expect(groupHistory(rows, []).map((e) => e.record.key)).toEqual([`${A}:recv:a`, `${A}:sent:tx1`, `${A}:recv:b`]);
+  });
+});
+
+describe('coinKeyOfReceipt', () => {
+  it('reads the whole coin key, which holds a colon of its own', () => {
+    expect(coinKeyOfReceipt({ key: 'acct:recv:abcd:41' })).toBe('abcd:41');
+    expect(coinKeyOfReceipt({ key: 'acct:recv:abcd' })).toBe('abcd');
   });
 });

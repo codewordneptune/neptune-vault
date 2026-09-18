@@ -58,6 +58,36 @@ describe('vault database', () => {
   });
 });
 
+describe('coin re-keying (version 3)', () => {
+  it('gives every coin its chain index and carries receipts and pending inputs along', async () => {
+    const { openDB } = await import('idb');
+    const { rekeyCoins } = await import('./db');
+    const name = 'neptune-vault-rekey-test';
+    const make = (db: import('idb').IDBPDatabase) => {
+      db.createObjectStore('utxos', { keyPath: 'key' }).createIndex('byAccount', 'accountId');
+      db.createObjectStore('history', { keyPath: 'key' }).createIndex('byAccount', 'accountId');
+    };
+    const v2 = await openDB(name, 2, { upgrade: make });
+    await v2.put('utxos', { key: 'a:aa', accountId: 'a', hash: 'aa', stored: { hash: 'aa', recovery: { aocl_index: 41 } } });
+    await v2.put('utxos', { key: 'a:bb:7', accountId: 'a', hash: 'bb:7', stored: { hash: 'bb:7', recovery: { aocl_index: 7 } } });
+    await v2.put('history', { key: 'a:recv:aa', accountId: 'a', kind: 'received', inputHashes: [] });
+    await v2.put('history', { key: 'a:sent:t1', accountId: 'a', kind: 'sent', inputHashes: ['aa', 'zz'] });
+    v2.close();
+
+    const v3 = await openDB(name, 3, {
+      async upgrade(_db, _old, _new, tx) {
+        await rekeyCoins(tx as never);
+      },
+    });
+    const coins = await v3.getAll('utxos');
+    expect(coins.map((c) => c.key).sort()).toEqual(['a:aa:41', 'a:bb:7']);
+    expect(coins.find((c) => c.key === 'a:aa:41')).toMatchObject({ hash: 'aa:41', stored: { hash: 'aa:41' } });
+    expect((await v3.getAllKeys('history')).sort()).toEqual(['a:recv:aa:41', 'a:sent:t1']);
+    expect((await v3.get('history', 'a:sent:t1')).inputHashes).toEqual(['aa:41', 'zz']);
+    v3.close();
+  });
+});
+
 describe('schema upgrade', () => {
   it('upgrades a version-1 database and keeps its data', async () => {
     const { openDB } = await import('idb');

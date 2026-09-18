@@ -13,7 +13,7 @@ import { InstallNudge } from '../components/InstallNudge';
 import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
-import { groupHistory, type HistoryEntry } from '../util/history';
+import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
 import { formatWhen } from '../util/time';
 
 export function Home() {
@@ -119,7 +119,7 @@ export function Home() {
   // carries its own commitment once scanned with a core that keeps it.
   const outputsOf = (e: HistoryEntry): { commitment: string; label: string }[] => {
     const coinOf = (row: HistoryRecord) => {
-      const hash = row.key.slice(row.key.lastIndexOf(':') + 1);
+      const hash = coinKeyOfReceipt(row);
       return (utxos.find((u) => u.hash === hash)?.stored as StoredUtxo | undefined)?.commitment;
     };
     if (e.kind === 'received') {

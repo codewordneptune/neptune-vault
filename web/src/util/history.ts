@@ -38,9 +38,15 @@ export function changeOf(sent: HistoryRecord, utxos: UtxoRecord[]): bigint | nul
   return change >= 0n ? change : null;
 }
 
+/** The coin key a received row stands for: what follows "recv:" in its key. The coin key holds a colon itself. */
+export function coinKeyOfReceipt(row: Pick<HistoryRecord, 'key'>): string {
+  const at = row.key.indexOf(':recv:');
+  return at < 0 ? row.key.slice(row.key.lastIndexOf(':') + 1) : row.key.slice(at + 6);
+}
+
 /** Whether a received row's coin was created by a transaction built from this seed: true, false, or undefined when the coin predates the flag. */
 function ownership(row: HistoryRecord, utxos: UtxoRecord[]): boolean | undefined {
-  const hash = row.key.slice(row.key.lastIndexOf(':') + 1);
+  const hash = coinKeyOfReceipt(row);
   const coin = utxos.find((u) => u.hash === hash);
   const h = (coin?.stored as { own_build_height?: number | null } | undefined)?.own_build_height;
   return h === undefined ? undefined : h !== null;
@@ -63,7 +69,7 @@ export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): Histor
       const sameBlock = rows.filter((r) => r.kind === 'received' && r.height === sent.height && !claimed.has(r.key));
       const recipientOutput = (sent.outputs ?? []).find((o) => o.role === 'recipient')?.commitment;
       const commitmentOf = (r: HistoryRecord) => {
-        const hash = r.key.slice(r.key.lastIndexOf(':') + 1);
+        const hash = coinKeyOfReceipt(r);
         return (utxos.find((u) => u.hash === hash)?.stored as { commitment?: string } | undefined)?.commitment;
       };
       const claim = (r: HistoryRecord) => {

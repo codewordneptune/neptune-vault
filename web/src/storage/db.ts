@@ -5,7 +5,7 @@
 // (StoredUtxo, ScannedBlock, SendSummary) are stored as it produces them.
 
 import type { NextKeyIndices } from '../wallet/core';
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from 'idb';
 
 export type Network = 'main' | 'testnet' | 'regtest';
 
@@ -55,6 +55,11 @@ export interface UtxoRecord {
   /** `${accountId}:${hash}` so the store can be keyed by one string. */
   key: string;
   accountId: string;
+  /**
+   * The core's key for the coin: the UTXO's hash, a colon, and the coin's
+   * index in the chain's list of coins. The hash alone repeats whenever one
+   * amount is paid to one address twice.
+   */
   hash: string;
   /** Opaque wallet-core StoredUtxo; passed back to it for scanning and spending. */
   stored: unknown;
@@ -177,8 +182,9 @@ interface VaultSchema extends DBSchema {
 export type VaultDb = IDBPDatabase<VaultSchema>;
 
 export const DB_NAME = 'neptune-vault';
-// Version history: 1 initial; 2 adds the contacts store.
-export const DB_VERSION = 2;
+// Version history: 1 initial; 2 adds the contacts store; 3 re-keys coins
+// so that equal payments to one address no longer share a key.
+export const DB_VERSION = 3;
 
 export const DEFAULT_NODE_URLS: Record<Network, string> = {
   main: 'https://wallet.neptunefundamentals.org',
@@ -212,7 +218,7 @@ function openVaultDbAt(version: number): Promise<VaultDb> {
   return openDB<VaultSchema>(DB_NAME, version, {
     // Each step runs once, in order, inside the upgrade transaction; a
     // store that exists is never recreated, so data is kept.
-    upgrade(db, oldVersion) {
+    async upgrade(db, oldVersion, _newVersion, transaction) {
       if (oldVersion < 1) {
         const accounts = db.createObjectStore('accounts', { keyPath: 'id' });
         accounts.createIndex('byNetwork', 'network');
@@ -229,12 +235,48 @@ function openVaultDbAt(version: number): Promise<VaultDb> {
         const contacts = db.createObjectStore('contacts', { keyPath: 'key' });
         contacts.createIndex('byAccount', 'accountId');
       }
+      if (oldVersion < 3) await rekeyCoins(transaction);
     },
     blocked() {
       // Another tab or the installed app still holds the old version open.
       alert('Neptune Vault is open in another tab or window. Close it and reload this one.');
     },
   });
+}
+
+/**
+ * Version 3: a coin used to be keyed by its UTXO hash alone, which two
+ * payments of one amount to one address share, so the second replaced the
+ * first. The key gains the coin's index in the chain's list of coins, and
+ * every reference to the old key follows: the history rows of receipts,
+ * and the inputs pending sends hold. A coin already replaced under the old
+ * key is not in the database to re-key; a rescan finds it again.
+ * Only database requests are awaited, so the upgrade transaction stays open.
+ */
+export async function rekeyCoins(tx: IDBPTransaction<VaultSchema, ArrayLike<StoreNames<VaultSchema>>, 'versionchange'>): Promise<void> {
+  const utxos = tx.objectStore('utxos');
+  const history = tx.objectStore('history');
+  // Old key to new key, per account.
+  const renamed = new Map<string, string>();
+  for (const u of await utxos.getAll()) {
+    if (u.hash.includes(':')) continue;
+    const stored = u.stored as { hash?: string; recovery?: { aocl_index?: number | string } };
+    const index = stored.recovery?.aocl_index;
+    if (index === undefined || index === null) continue;
+    const hash = `${u.hash}:${index}`;
+    renamed.set(`${u.accountId}:${u.hash}`, hash);
+    await utxos.delete(u.key);
+    await utxos.put({ ...u, key: `${u.accountId}:${hash}`, hash, stored: { ...stored, hash } });
+  }
+  if (renamed.size === 0) return;
+  for (const h of await history.getAll()) {
+    const inputHashes = h.inputHashes.map((old) => renamed.get(`${h.accountId}:${old}`) ?? old);
+    const receipt = h.key.startsWith(`${h.accountId}:recv:`) ? renamed.get(`${h.accountId}:${h.key.slice(h.accountId.length + 6)}`) : undefined;
+    const changed = inputHashes.some((x, i) => x !== h.inputHashes[i]);
+    if (!receipt && !changed) continue;
+    if (receipt) await history.delete(h.key);
+    await history.put({ ...h, key: receipt ? `${h.accountId}:recv:${receipt}` : h.key, inputHashes });
+  }
 }
 
 export async function loadSettings(db: VaultDb): Promise<SettingsRecord> {
