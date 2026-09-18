@@ -23,11 +23,5 @@
   "mimeTypes": {
     ".wasm": "application/wasm",
     ".webmanifest": "application/manifest+json"
-  },
-  "responseOverrides": {
-    "404": {
-      "rewrite": "/index.html",
-      "statusCode": 200
-    }
   }
 }
