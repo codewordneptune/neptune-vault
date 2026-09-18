@@ -42,6 +42,13 @@ const isolationHeaders = {
   'Cross-Origin-Embedder-Policy': 'require-corp',
 };
 
+// The preview server sends exactly the headers production sends, read from
+// the hosting config, so the Content-Security-Policy is tested against a
+// real build before it ships. The dev server cannot carry it: Vite's hot
+// reload needs inline scripts the policy exists to forbid.
+const hosting = JSON.parse(readFileSync(new URL('./public/staticwebapp.config.json', import.meta.url), 'utf8')) as { globalHeaders: Record<string, string> };
+const regtestProxy = { '/regtest-node': { target: 'http://127.0.0.1:9797', changeOrigin: true, rewrite: (p: string) => p.replace(/^\/regtest-node/, '') } };
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -87,9 +94,9 @@ export default defineConfig({
     // 9797 is the node's JSON-RPC listener (--listen-rpc); 9799 stays the
     // tarpc port used by neptune-cli.
     // The key is a prefix match, so it must not collide with /node_modules.
-    proxy: { '/regtest-node': { target: 'http://127.0.0.1:9797', changeOrigin: true, rewrite: (p) => p.replace(/^\/regtest-node/, '') } },
+    proxy: regtestProxy,
   },
-  preview: { headers: isolationHeaders, port: 4401 },
+  preview: { headers: hosting.globalHeaders, port: 4401, proxy: regtestProxy },
   worker: { format: 'es' },
   build: { target: 'es2022' },
 });
