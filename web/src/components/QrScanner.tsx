@@ -38,6 +38,16 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     }
   };
 
+  // The newest onResult, without being a reason to restart the camera. A
+  // caller that passes an inline function hands over a new one at every
+  // render; as a dependency of the effect below that stopped the camera and
+  // asked for it again each time, flickering the preview and, on some
+  // phones, the permission prompt.
+  const onResultRef = useRef(onResult);
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
+
   useEffect(() => {
     if (!opened) return;
     let stream: MediaStream | null = null;
@@ -48,7 +58,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     const finish = (text: string) => {
       if (stopped) return;
       stopped = true;
-      onResult(text);
+      onResultRef.current(text);
     };
 
     const tick = async () => {
@@ -84,9 +94,16 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: false,
         });
-        if (stopped) return;
+        // The camera can take a second or two to open, and the scanner may
+        // have been closed by then. The cleanup below ran when `stream` was
+        // still null, so nothing else will ever stop these tracks: without
+        // this the camera stays on, light and all, with no scanner on screen.
         const video = videoRef.current;
-        if (!video) return;
+        if (stopped || !video) {
+          stream.getTracks().forEach((t) => t.stop());
+          stream = null;
+          return;
+        }
         const track = stream.getVideoTracks()[0] ?? null;
         trackRef.current = track;
         const caps = (track?.getCapabilities?.() ?? {}) as { torch?: boolean };
@@ -105,7 +122,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
       stream?.getTracks().forEach((t) => t.stop());
       trackRef.current = null;
     };
-  }, [opened, onResult, attempt]);
+  }, [opened, attempt]);
 
   return (
     <Modal opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md">
