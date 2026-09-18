@@ -758,14 +758,22 @@ function WalletCard() {
 }
 
 function RescanCard() {
-  const { services, account, rescan: rescanFrom } = useApp();
+  const { services, account, utxos, rescan: rescanFrom } = useApp();
   const [open, setOpen] = useState(false);
   const [height, setHeight] = useState<number | string>(account?.birthdayHeight ?? 1);
   const [busy, setBusy] = useState(false);
   if (!account) return null;
   const from = account.birthdayHeight === 0 ? 'the current tip (not set yet)' : `block ${showBlock(account.birthdayHeight)}`;
+  // After a fast restore nothing was left out: the index was asked about the
+  // whole chain. Saying which blocks "were not scanned" read as a gap where
+  // coins might hide. The first payment's block comes from the coins
+  // themselves, so the sentence stays true as later payments arrive.
+  const firstPayment = utxos.length > 0 ? Math.min(...utxos.map((u) => u.confirmedHeight)) : null;
+  const restoredOn = account.restoredAt ? new Date(account.restoredAt).toLocaleDateString() : '';
   const how = account.restoredAt
-    ? `Restored through the node's coin index on ${new Date(account.restoredAt).toLocaleDateString()}; blocks before ${from} were not scanned.`
+    ? firstPayment !== null
+      ? `Restored through the node's coin index on ${restoredOn}. The index covers the whole chain; your first payment is in block ${showBlock(firstPayment)}.`
+      : `Restored through the node's coin index on ${restoredOn}. The index covers the whole chain, and it holds no payments to this wallet.`
     : `Scanned from ${from}. Funds sent before that block are not seen; rescan from an earlier block to find them.`;
 
   const [rescanError, setRescanError] = useState<string | null>(null);
