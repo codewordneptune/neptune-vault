@@ -299,6 +299,8 @@ fn input_planning_picks_largest_first_and_reports_shortfall() {
         amount: "2.5".into(),
         fee: "0.1".into(),
         accept_lustration: false,
+        amount_nau: None,
+        fee_nau: None,
     };
     let plan = plan_inputs(&unspent, &request, 0).unwrap();
     // Largest first: 5 alone covers 2.6, so one input, one lock-script proof.
@@ -313,6 +315,42 @@ fn input_planning_picks_largest_first_and_reports_shortfall() {
     let too_much = SendRequest { amount: "100".into(), ..request };
     let err = plan_inputs(&unspent, &too_much, 0).unwrap_err().to_string();
     assert!(err.contains("insufficient funds"), "{err}");
+
+    // The exact amounts from the review step win over the texts, which may
+    // be written the way the screen shows them and not the way this parses.
+    let exact = SendRequest {
+        recipient: String::new(),
+        amount: "5 500.5".into(),
+        fee: "not parsed at all".into(),
+        accept_lustration: false,
+        amount_nau: Some(amount::to_nau_string(amount::parse("5.5").unwrap())),
+        fee_nau: Some(amount::to_nau_string(amount::parse("0.1").unwrap())),
+    };
+    let (a, f) = exact.amounts().unwrap();
+    assert_eq!(amount::format(a), "5.5");
+    assert_eq!(amount::format(f), "0.1");
+    let plan = plan_inputs(&unspent, &exact, 0).unwrap();
+    assert_eq!(plan.inputs.len(), 2);
+    let negative = SendRequest { amount_nau: Some("-1".into()), ..exact };
+    assert!(negative.amounts().is_err());
+}
+
+/// A symmetric key decodes as an address upstream. It is a secret, and
+/// this app neither offers one nor takes one as a recipient.
+#[test]
+fn a_symmetric_key_is_not_a_recipient() {
+    use neptune_wallet::address::symmetric_key::SymmetricKey;
+    use neptune_wallet::address::ReceivingAddress;
+    use vault_core::account::parse_recipient;
+    let mut account = account();
+    let ordinary = account.address(KeyKind::Generation, 0).unwrap();
+    assert!(parse_recipient(&ordinary, Network::Main).is_ok());
+    let secret = ReceivingAddress::from(SymmetricKey::from_seed(Digest::default()));
+    let encoded = secret.to_bech32m(Network::Main).unwrap();
+    // Upstream takes it for an address; this app does not.
+    assert!(ReceivingAddress::from_bech32m(&encoded, Network::Main).is_ok());
+    let err = parse_recipient(&encoded, Network::Main).unwrap_err().to_string();
+    assert!(err.contains("symmetric key"), "{err}");
 }
 
 #[test]

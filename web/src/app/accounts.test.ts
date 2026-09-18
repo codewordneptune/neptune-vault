@@ -246,6 +246,46 @@ describe('account service', () => {
     expect(core.unlocked).toBeNull();
   });
 
+  it('locks by the wall clock, so time that passed while the device slept counts', async () => {
+    const { core, service } = await setup(60_000);
+    await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const realNow = Date.now;
+    try {
+      // The device sleeps for ten minutes: no timer fires, the clock moves.
+      Date.now = () => realNow() + 10 * 60_000;
+      // It wakes, and the app comes back into view.
+      service.lockIfIdle();
+      await new Promise((r) => setTimeout(r, 5));
+      expect(core.unlocked).toBeNull();
+      expect(service.currentAccountId).toBeNull();
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it('a password change does not undo what the sync wrote meanwhile, and is not undone by it', async () => {
+    const { core, service } = await setup();
+    const made = await service.createAccount(await service.generatePhrase(), 'old-password', 'regtest', 1);
+    // The sync writes key indices while the new password is being hashed.
+    let open!: () => void;
+    const changing = (async () => {
+      core.gate = new Promise((r) => (open = r));
+      return service.changePassword(made.id, 'old-password', 'new-password');
+    })();
+    await new Promise((r) => setTimeout(r, 5));
+    await db.put('accounts', { ...(await db.get('accounts', made.id))!, nextKeyIndices: { generation: 9, ec_hybrid: 2, viewing: 1 }, birthdayHeight: 77 });
+    open();
+    core.gate = null;
+    await changing;
+    const after = (await db.get('accounts', made.id))!;
+    expect(after.nextKeyIndices).toEqual({ generation: 9, ec_hybrid: 2, viewing: 1 });
+    expect(after.birthdayHeight).toBe(77);
+    await service.lock();
+    await service.unlock(made.id, 'new-password');
+    await service.lock();
+    await expect(service.unlock(made.id, 'old-password')).rejects.toBeInstanceOf(WrongPasswordError);
+  });
+
   it('lock always reaches the core, even when nothing is marked unlocked', async () => {
     const { core, service } = await setup();
     core.unlocked = ['left', 'behind'];

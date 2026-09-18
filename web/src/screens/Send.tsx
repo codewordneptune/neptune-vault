@@ -2,7 +2,7 @@
 // before a review step; the proof itself runs as a job in the app context
 // so it survives this screen being unmounted (backgrounding locks the app).
 
-import { Alert, Badge, Button, Drawer, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { Alert, Badge, Button, Checkbox, Drawer, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { IconAddressBook, IconLink, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -51,16 +51,23 @@ export function Send() {
     void services.contacts.findByAddress(account.id, lastRecipient).then((c) => setSavedName(c?.name ?? null));
   }, [services, account, lastRecipient]);
   const [amount, setAmount] = useState('');
-  // The fee level is remembered between sends (settings).
-  const [feePreset, setFeePreset] = useState(services.settings.feePreset ?? DEFAULT_PRESET);
-  const [fee, setFee] = useState(presetFee(services.settings.feePreset ?? DEFAULT_PRESET, services.settings.feeCustom));
+  // The fee level is remembered between sends (settings); a custom fee is
+  // not. It was typed for one payment, and coming back to find an unusual
+  // fee already chosen is how someone pays it twice without meaning to.
+  const rememberedPreset = services.settings.feePreset && services.settings.feePreset !== 'custom' ? services.settings.feePreset : DEFAULT_PRESET;
+  const [feePreset, setFeePreset] = useState(rememberedPreset);
+  const [fee, setFee] = useState(presetFee(rememberedPreset, undefined));
+  // An unusually high fee must be agreed to on the review sheet, in so many words.
+  const [feeAgreed, setFeeAgreed] = useState(false);
+  // "Max" in exact nau: the shown text has eight decimals and the balance has more.
+  const [maxExact, setMaxExact] = useState<{ text: string; nau: bigint } | null>(null);
   const [reviewName, setReviewName] = useState<string | null>(null);
   const [recipientError, setRecipientError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [feeError, setFeeError] = useState<string | null>(null);
   // Focused when Custom is chosen, not whenever the field happens to mount.
   const customFeeRef = useRef<HTMLInputElement>(null);
-  const [totals, setTotals] = useState<{ amountNau: bigint; feeNau: bigint } | null>(null);
+  const [totals, setTotals] = useState<{ amountNau: bigint; feeNau: bigint; feeHigh: boolean } | null>(null);
   const [askLustration, setAskLustration] = useState(false);
   const [scanning, setScanning] = useState(false);
 
@@ -93,7 +100,9 @@ export function Send() {
   };
 
   const checkAmounts = async (): Promise<boolean> => {
-    const a = await parsePositive(amount, 'amount');
+    const typed = await parsePositive(amount, 'amount');
+    // Max means everything: the exact figure, not the eight decimals on screen.
+    const a = maxExact && maxExact.text === amount && 'nau' in typed ? { nau: maxExact.nau } : typed;
     const f = await parsePositive(fee, 'fee');
     let amountMessage = 'message' in a ? a.message : null;
     const feeMessage = 'message' in f ? f.message : null;
@@ -101,7 +110,12 @@ export function Send() {
       if (a.nau + f.nau > balance.spendableNau) {
         amountMessage = `Amount plus fee exceeds the spendable balance of ${showNau(balance.spendableNau)} NPT`;
       } else {
-        setTotals({ amountNau: a.nau, feeNau: f.nau });
+        // Unusual: more than 1 NPT, or more than the payment itself and above every preset.
+        const one = BigInt(await services.core.parseAmount('1'));
+        const topPreset = BigInt(await services.core.parseAmount(FEE_PRESETS.reduce((m, p) => (Number(p.fee) > Number(m) ? p.fee : m), '0')));
+        const feeHigh = f.nau > one || (f.nau > a.nau && f.nau > topPreset);
+        setTotals({ amountNau: a.nau, feeNau: f.nau, feeHigh });
+        setFeeAgreed(false);
       }
     }
     setAmountError(amountMessage);
@@ -121,7 +135,9 @@ export function Send() {
       setAmountError(`The fee alone exceeds the spendable balance of ${showNau(balance.spendableNau)} NPT`);
       return;
     }
-    setAmount(formatNau(max));
+    const text = formatNau(max);
+    setAmount(text);
+    setMaxExact({ text, nau: max });
     setAmountError(null);
   };
 
@@ -141,7 +157,12 @@ export function Send() {
     setAskLustration(false);
     try {
       const sentTo = recipient.trim().toLowerCase();
-      await startSend({ recipient: recipient.trim(), amount: amount.trim(), fee: fee.trim(), accept_lustration: acceptLustration }, linkMeta?.message ?? null);
+      // The exact figures the review sheet showed go with the request, so the
+      // core sends those and never parses the texts a second time, its own way.
+      await startSend(
+        { recipient: recipient.trim(), amount: amount.trim(), fee: fee.trim(), accept_lustration: acceptLustration, amount_nau: totals?.amountNau.toString(), fee_nau: totals?.feeNau.toString() },
+        linkMeta?.message ?? null,
+      );
       setLastRecipient(sentTo);
       setRecipient('');
       setAmount('');
@@ -329,15 +350,22 @@ export function Send() {
             Uses {used === 1 ? '1 coin' : `${used} coins`} of {showNau(heldNau)} NPT, held until the transaction is confirmed, usually within a few blocks. Spendable meanwhile: {showNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {showNau(balance.spendableNau - totalNau)} NPT.
           </Text>
           {askLustration && (
-            <Alert color="yellow" title="One more thing">
-              Right now the network asks senders to publish which coins a transaction spends, in an extra public announcement. Nothing about the amount or the recipient changes; the announcement only says which of your coins were used.
+            <Alert color="yellow" title="Part of this send will be public">
+              Right now the network asks senders to publish, in an extra announcement anyone can read, the coins a transaction spends: how much each one holds, which of your addresses it was received on, and where in the chain it came from. Someone watching can then see how much went into this payment and tie it to the payments that funded it. The recipient and the amount you send are not published. It applies to this send only.
             </Alert>
+          )}
+          {totals.feeHigh && (
+            <Checkbox
+              checked={feeAgreed}
+              onChange={(e) => setFeeAgreed(e.currentTarget.checked)}
+              label={`The fee is ${showNau(totals.feeNau)} NPT, which is unusually high. Pay it anyway.`}
+            />
           )}
           <Group grow>
             <Button variant="default" onClick={() => setStep('form')}>
               Edit
             </Button>
-            <Button onClick={() => void send(askLustration)} loading={starting} disabled={running}>{askLustration ? 'Send anyway' : 'Send now'}</Button>
+            <Button onClick={() => void send(askLustration)} loading={starting} disabled={running || (totals.feeHigh && !feeAgreed)}>{askLustration ? 'Send anyway' : 'Send now'}</Button>
           </Group>
         </Stack>
     );
@@ -478,10 +506,10 @@ export function Send() {
                   const preset = FEE_PRESETS.find((x) => x.value === v);
                   if (preset && preset.fee) setFee(preset.fee);
                   else if (v === 'custom') {
-                    setFee(services.settings.feeCustom ?? '');
+                    setFee('');
                     setTimeout(() => customFeeRef.current?.focus(), 0);
                   }
-                  void services.updateSettings({ feePreset: v });
+                  if (v !== 'custom') void services.updateSettings({ feePreset: v });
                 }}
                 data={FEE_PRESETS.map((x) => ({
                   value: x.value,
@@ -502,7 +530,6 @@ export function Send() {
                 onChange={(e) => {
                   setFee(e.currentTarget.value);
                   setFeeError(null);
-                  void services.updateSettings({ feeCustom: e.currentTarget.value });
                 }}
                 onBlur={() => void checkAmounts()}
                 error={feeError}
@@ -526,6 +553,9 @@ export function Send() {
           setPicking(false);
           setRecipient(c.address);
           setRecipientError(null);
+          // The name and note came with a link, for the link's address. They
+          // say nothing about this contact and must not be saved with a payment to them.
+          setLinkMeta(null);
         }}
       />
       {lastRecipient && (

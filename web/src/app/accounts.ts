@@ -19,7 +19,9 @@ export class UnlockCancelledError extends Error {
 
 export class AccountService {
   private unlockedId: string | null = null;
-  private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  private idleTimer: ReturnType<typeof setInterval> | null = null;
+  /** When the person last did something, by the wall clock. */
+  private lastActivityAt = 0;
   private readonly listeners = new Set<LockListener>();
   private visibilityHandler: (() => void) | null = null;
   // While a send is running the seed must stay loaded, so the background
@@ -40,6 +42,25 @@ export class AccountService {
     private readonly passkeys: PasskeyProvider | null = null,
   ) {}
 
+  /**
+   * Change an account record: read, change and write inside one
+   * transaction. The sync writes to the same record (key indices, the
+   * start block, the restore marker), and the slow steps here take seconds:
+   * a password hash, a passkey sheet. Writing back a copy read before them
+   * would undo whatever the sync wrote meanwhile, and the other way round a
+   * stale copy written by the sync would undo a password change, leaving the
+   * old password the valid one. So the slow work is done first, and only
+   * then is the record read again and the one field set.
+   */
+  private async patch(accountId: string, change: (current: AccountRecord) => AccountRecord): Promise<AccountRecord | null> {
+    const tx = this.db.transaction('accounts', 'readwrite');
+    const current = await tx.store.get(accountId);
+    const next = current ? change(current) : null;
+    if (next) await tx.store.put(next);
+    await tx.done;
+    return next;
+  }
+
   passkeySupported(): Promise<boolean> {
     return this.passkeys ? this.passkeys.supported() : Promise.resolve(false);
   }
@@ -58,17 +79,15 @@ export class AccountService {
       const enrolment = await this.passkeys.enrol(`Neptune Vault (${record.network})`);
       const wrappedContentKey = await wrapContentKey(contentRaw, enrolment.secret);
       enrolment.secret.fill(0);
-      await this.db.put('accounts', { ...record, passkey: { credentialId: enrolment.credentialId, prfSalt: enrolment.prfSalt, wrappedContentKey } });
+      const passkey = { credentialId: enrolment.credentialId, prfSalt: enrolment.prfSalt, wrappedContentKey };
+      await this.patch(accountId, (current) => ({ ...current, passkey }));
     } finally {
       contentRaw.fill(0);
     }
   }
 
   async disablePasskey(accountId: string): Promise<void> {
-    const record = await this.db.get('accounts', accountId);
-    if (!record) return;
-    const { passkey: _dropped, ...rest } = record;
-    await this.db.put('accounts', rest);
+    await this.patch(accountId, ({ passkey: _dropped, ...rest }) => rest);
   }
 
   async unlockWithPasskey(accountId: string): Promise<void> {
@@ -148,7 +167,13 @@ export class AccountService {
     if (!record) throw new Error('account not found');
     const trimmed = name.trim().slice(0, 40);
     if (!trimmed) throw new Error('A wallet needs a name');
-    await this.db.put('accounts', { ...record, name: trimmed });
+    await this.patch(accountId, (current) => ({ ...current, name: trimmed }));
+  }
+
+  /** Set the stored copy of the main address to what the keys say it is. */
+  async repairAddress0(accountId: string, address0: string): Promise<void> {
+    if (this.unlockedId !== accountId) return;
+    await this.patch(accountId, (current) => ({ ...current, address0 }));
   }
 
   /** Proves the password opens this wallet; throws WrongPasswordError otherwise. */
@@ -266,7 +291,14 @@ export class AccountService {
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
     const envelope = await reWrapSeed(record.envelope, currentPassword, newPassword, this.derive, DEFAULT_KDF);
-    await this.db.put('accounts', { ...record, envelope });
+    let replaced = false;
+    await this.patch(accountId, (current) => {
+      // Only the envelope that was re-wrapped may be replaced.
+      if (current.envelope.kdf.salt !== record.envelope.kdf.salt) return current;
+      replaced = true;
+      return { ...current, envelope };
+    });
+    if (!replaced) throw new Error('The password was changed elsewhere in the meantime. Nothing was changed here; try again.');
   }
 
   /**
@@ -288,8 +320,21 @@ export class AccountService {
   touch(): void {
     if (this.unlockedId === null) return;
     this.lockPending = false;
-    this.clearIdleTimer();
-    this.idleTimer = setTimeout(() => this.requestLock(), this.lockTimeoutMs);
+    this.lastActivityAt = Date.now();
+    if (this.idleTimer === null) {
+      // A look at the clock every little while, not one long timer. A timer
+      // stops while the device sleeps and carries on where it left off, so
+      // a laptop closed for the night and opened in the morning would stay
+      // unlocked for the rest of its five minutes. The clock does not stop.
+      const every = Math.max(5, Math.min(15_000, Math.floor(this.lockTimeoutMs / 4)));
+      this.idleTimer = setInterval(() => this.lockIfIdle(), every);
+    }
+  }
+
+  /** Lock when the idle time has passed by the wall clock. Also asked when the app comes back into view. */
+  lockIfIdle(): void {
+    if (this.unlockedId === null) return;
+    if (Date.now() - this.lastActivityAt >= this.lockTimeoutMs) this.requestLock();
   }
 
   /**
@@ -314,16 +359,23 @@ export class AccountService {
     this.doc = doc;
     this.visibilityHandler = () => {
       if (doc.visibilityState === 'hidden') this.requestLock();
+      // Coming back: not every platform hid the page while it was away.
+      else this.lockIfIdle();
     };
+    const back = () => this.lockIfIdle();
+    const view = doc.defaultView;
     doc.addEventListener('visibilitychange', this.visibilityHandler);
+    view?.addEventListener('focus', back);
+    view?.addEventListener('pageshow', back);
     return () => {
       if (this.visibilityHandler) doc.removeEventListener('visibilitychange', this.visibilityHandler);
+      view?.removeEventListener('focus', back);
+      view?.removeEventListener('pageshow', back);
     };
   }
 
   async markBackupConfirmed(accountId: string): Promise<void> {
-    const record = await this.db.get('accounts', accountId);
-    if (record) await this.db.put('accounts', { ...record, backupConfirmed: true });
+    await this.patch(accountId, (current) => ({ ...current, backupConfirmed: true }));
   }
 
   /**
@@ -365,14 +417,12 @@ export class AccountService {
 
   /** Record that the export file was saved (R8), for the reminder and Settings. */
   async markBackedUp(accountId: string, when = Date.now()): Promise<void> {
-    const record = await this.db.get('accounts', accountId);
-    if (record) await this.db.put('accounts', { ...record, lastBackupAt: when });
+    await this.patch(accountId, (current) => ({ ...current, lastBackupAt: when }));
   }
 
   /** Snooze the Home backup reminder for a week. */
   async dismissBackupNudge(accountId: string, when = Date.now()): Promise<void> {
-    const record = await this.db.get('accounts', accountId);
-    if (record) await this.db.put('accounts', { ...record, backupNudgeDismissedAt: when });
+    await this.patch(accountId, (current) => ({ ...current, backupNudgeDismissedAt: when }));
   }
 
   /** Import an export file. The password is checked by unlocking. */
@@ -468,7 +518,7 @@ export class AccountService {
   }
 
   private clearIdleTimer(): void {
-    if (this.idleTimer) clearTimeout(this.idleTimer);
+    if (this.idleTimer) clearInterval(this.idleTimer);
     this.idleTimer = null;
   }
 }

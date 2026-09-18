@@ -67,7 +67,10 @@ jobs:
       - name: Install, test, build
         working-directory: web
         run: |
-          npm ci
+          # No install scripts: a dependency must not get to run code here just by
+          # being installed. Nothing this app uses needs one (checked with a clean
+          # install, the tests and a build).
+          npm ci --ignore-scripts
           npm test
           npm run build
 

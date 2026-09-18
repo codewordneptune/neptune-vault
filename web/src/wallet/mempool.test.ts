@@ -195,3 +195,71 @@ describe('MempoolWatcher', () => {
     expect(watcher.disabled).toBe(true);
   });
 });
+
+describe('MempoolWatcher, when things go wrong', () => {
+  it('passes over a kernel it cannot read, and does not stall on it at every poll', async () => {
+    const { node, core, watcher } = await setup();
+    node.ids = ['broken', 'good'];
+    core.scans.set('good', payment('c-good', '2'));
+    const scan = core.scanMempoolKernel.bind(core);
+    core.scanMempoolKernel = async (raw, u, n, t) => {
+      if (raw === 'kernel:broken') throw new Error('cannot decode mempool kernel');
+      return scan(raw, u, n, t);
+    };
+    const first = await watcher.poll();
+    expect(first.incoming).toBe(1);
+    await watcher.poll();
+    // Fetched once, not again at the head of every later poll.
+    expect(node.fetched.filter((id) => id === 'broken')).toHaveLength(1);
+  });
+
+  it('ends the round when the node stops answering, and tries the same kernel again next time', async () => {
+    const { node, core, watcher } = await setup();
+    node.ids = ['later'];
+    core.scans.set('later', payment('c-later', '1'));
+    const fetch = node.mempoolKernelRaw.bind(node);
+    let down = true;
+    node.mempoolKernelRaw = async (id) => {
+      if (down) throw Object.assign(new Error('No answer from the node'), { code: 'timeout' });
+      return fetch(id);
+    };
+    await expect(watcher.poll()).rejects.toThrow(/No answer/);
+    down = false;
+    expect((await watcher.poll()).incoming).toBe(1);
+  });
+
+  it("writes nothing once another wallet's keys are the ones loaded", async () => {
+    db = await openVaultDb();
+    await db.put('accounts', account);
+    const node = new FakeNode();
+    const core = new FakeCore();
+    let mine = true;
+    const watcher = new MempoolWatcher(db, node, core, 'acc', { isCurrent: () => mine });
+    node.ids = ['t1'];
+    core.scans.set('t1', payment('c1', '3'));
+    // The wallet is switched while the kernel is being scanned.
+    const scan = core.scanMempoolKernel.bind(core);
+    core.scanMempoolKernel = async (raw, u, n, t) => {
+      mine = false;
+      return scan(raw, u, n, t);
+    };
+    await watcher.poll();
+    expect(await db.get('history', incomingKey('acc', 'c1'))).toBeUndefined();
+  });
+
+  it('does not hold a coin the sync has marked spent in the meantime', async () => {
+    const { node, core, watcher } = await setup();
+    const coin = { key: 'acc:u1', accountId: 'acc', hash: 'u1', stored: { hash: 'u1' }, amountNau: '5', amount: '5', confirmedHeight: 4, confirmedTimestampMs: 0, releaseDateMs: null, spentHeight: null, spentTxid: null, pendingTxid: null };
+    await db.put('utxos', coin);
+    node.ids = ['spend'];
+    core.scans.set('spend', { incoming: [], spent: ['u1'], timestamp_ms: 1 });
+    // The sync confirms the spend between the watcher reading the coins and holding them.
+    const scan = core.scanMempoolKernel.bind(core);
+    core.scanMempoolKernel = async (raw, u, n, t) => {
+      await db.put('utxos', { ...coin, spentHeight: 9 });
+      return scan(raw, u, n, t);
+    };
+    await watcher.poll();
+    expect(await db.get('utxos', 'acc:u1')).toMatchObject({ spentHeight: 9, pendingTxid: null });
+  });
+});

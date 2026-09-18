@@ -147,6 +147,11 @@ export function AppProvider({ services, children }: { services: Services; childr
       if (!record) return;
       await stopSync();
       await services.accounts.deleteAccount(id);
+      // The removal promises that nothing of the wallet stays on the device:
+      // that includes the note about its last failed send, which names a
+      // recipient and an amount, and the mempool watcher kept for it.
+      if (services.settings.lastSendFailure?.accountId === id) await services.updateSettings({ lastSendFailure: undefined });
+      services.forgetAccount(id);
       const rest = byCreation(await services.db.getAllFromIndex('accounts', 'byNetwork', record.network));
       const next = rest[0] ?? null;
       await services.updateSettings({ currentAccountId: next?.id ?? null });

@@ -166,9 +166,22 @@ impl Account {
     }
 
     pub fn parse_address(&self, encoded: &str) -> Result<ReceivingAddress> {
-        ReceivingAddress::from_bech32m(encoded.trim(), self.network)
-            .with_context(|| format!("not a valid {} address", self.network))
+        parse_recipient(encoded, self.network)
     }
+}
+
+/// An address a payment can be sent to. A symmetric key decodes as a
+/// "receiving address" upstream, but it is a secret shared between two
+/// wallets, not something to type into a recipient field: whoever holds it
+/// can read and spend what is sent to it, and this app would keep it in
+/// clear among the contacts. This app offers no symmetric keys, and takes none.
+pub fn parse_recipient(encoded: &str, network: Network) -> Result<ReceivingAddress> {
+    let address = ReceivingAddress::from_bech32m(encoded.trim(), network)
+        .with_context(|| format!("not a valid {network} address"))?;
+    if matches!(address, ReceivingAddress::Symmetric(_)) {
+        bail!("this is a symmetric key, which is a secret and not an address to pay to");
+    }
+    Ok(address)
 }
 
 /// Words in a phrase.

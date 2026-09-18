@@ -26,6 +26,8 @@ export interface Services {
   mempoolWatcher(accountId: string): MempoolWatcher;
   contacts: ContactsService;
   networkName(): string;
+  /** Drop what is cached for a wallet that was removed from this device. */
+  forgetAccount(accountId: string): void;
 }
 
 /** The wasm core's spelling of the network (neptune-primitives `Network`). */
@@ -67,13 +69,16 @@ export async function createServices(): Promise<Services> {
       const key = `${accountId}:${settings.nodeUrls[settings.network]}`;
       let w = watchers.get(key);
       if (!w) {
-        w = new MempoolWatcher(db, services.node(), core, accountId);
+        w = new MempoolWatcher(db, services.node(), core, accountId, { isCurrent: () => accounts.currentAccountId === accountId });
         watchers.set(key, w);
       }
       return w;
     },
     sendService(accountId) {
       return new SendService(db, services.node(), core, prover, accountId, coreNetworkName(settings.network), ProverClient.defaultThreads(), settings.network === 'regtest');
+    },
+    forgetAccount(accountId) {
+      for (const key of [...watchers.keys()]) if (key.startsWith(`${accountId}:`)) watchers.delete(key);
     },
     networkName() {
       return coreNetworkName(settings.network);

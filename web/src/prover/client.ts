@@ -111,7 +111,12 @@ export class ProverClient {
             break;
           case 'error':
             finish();
-            reject(new Error(data.message));
+            // The first line only, and not much of it. A VM error prints the
+            // machine's state after it, stack included, and the stack of a
+            // proof about spending holds what unlocks the coins. That text
+            // would otherwise be shown, stored with the failed send, and
+            // pasted into bug reports.
+            reject(new Error((data.message.split(/\r?\n/)[0] ?? '').slice(0, 300) || 'The prover failed.'));
             break;
         }
       };

@@ -51,6 +51,31 @@ pub struct SendRequest {
     /// Whether lustration announcements may be added if the tip requires them.
     #[serde(default)]
     pub accept_lustration: bool,
+    /// The amount and the fee in nau, exactly as the review step showed
+    /// them. When present they are what is sent, and the decimal texts are
+    /// for the record only: parsing the same text twice, once for the screen
+    /// and once here, let the two disagree about what a space means.
+    #[serde(default)]
+    pub amount_nau: Option<String>,
+    #[serde(default)]
+    pub fee_nau: Option<String>,
+}
+
+impl SendRequest {
+    /// The amount and the fee: the exact nau when given, else the decimal texts.
+    pub fn amounts(&self) -> Result<(NativeCurrencyAmount, NativeCurrencyAmount)> {
+        let one = |nau: &Option<String>, text: &str| -> Result<NativeCurrencyAmount> {
+            let value = match nau {
+                Some(nau) => amount::from_nau_string(nau)?,
+                None => amount::parse(text)?,
+            };
+            if value.is_negative() {
+                bail!("amount must not be negative");
+            }
+            Ok(value)
+        };
+        Ok((one(&self.amount_nau, &self.amount)?, one(&self.fee_nau, &self.fee)?))
+    }
 }
 
 /// Inputs chosen for a send, plus the absolute index sets to pass as the
@@ -90,8 +115,7 @@ pub struct SendSummary {
 /// Pick inputs largest first until they cover amount plus fee, skipping
 /// time-locked UTXOs. `now_ms` is the wall clock for the time-lock check.
 pub fn plan_inputs(unspent: &[StoredUtxo], request: &SendRequest, now_ms: u64) -> Result<InputPlan> {
-    let amount = amount::parse(&request.amount)?;
-    let fee = amount::parse(&request.fee)?;
+    let (amount, fee) = request.amounts()?;
     let target = amount
         .checked_add(&fee)
         .ok_or_else(|| anyhow!("amount plus fee overflows"))?;
@@ -155,8 +179,7 @@ pub fn build_send(
 ) -> Result<SendPlan> {
     let network = account.network();
     let recipient = account.parse_address(&request.recipient)?;
-    let amount = amount::parse(&request.amount)?;
-    let fee = amount::parse(&request.fee)?;
+    let (amount, fee) = request.amounts()?;
 
     let tip_header: BlockHeader = tip_header.into();
     let synced_height: u64 = snapshot.synced_height.value();
@@ -173,7 +196,11 @@ pub fn build_send(
         );
     }
 
-    // Unlock the inputs with their keys and membership proofs.
+    // Unlock the inputs with their keys and membership proofs. Each proof is
+    // held against the mutator set it came with: one that does not verify
+    // would cost minutes of proving and end in a prover crash, whose text
+    // dumps the VM's state. Better to stop here, in a sentence.
+    let mutator_set = MutatorSetAccumulator::from(snapshot.synced_mutator_set);
     let mut unlocked = Vec::with_capacity(inputs.len());
     for (proof_data, input) in snapshot.membership_proofs.into_iter().zip(inputs) {
         let recovery = &input.recovery;
@@ -184,6 +211,9 @@ pub fn build_send(
                 recovery.receiver_preimage,
             )
             .ok_or_else(|| anyhow!("node returned a bad membership proof for {}", input.hash))?;
+        if !mutator_set.verify(neptune_wallet::tasm_lib::prelude::Tip5::hash(&recovery.utxo), &membership_proof) {
+            bail!("the node's membership proof for one of the coins does not verify against the node's own state. Nothing was sent. The coin may have been spent already (a rescan in Settings would show that), or the node is faulty.");
+        }
         let key = account.key(input.key_kind, input.key_index).clone();
         if key.lock_script_hash() != recovery.utxo.lock_script_hash() {
             bail!("input {} does not belong to {:?} key {}", input.hash, input.key_kind, input.key_index);
@@ -194,7 +224,6 @@ pub fn build_send(
             membership_proof,
         ));
     }
-    let mutator_set = MutatorSetAccumulator::from(snapshot.synced_mutator_set);
 
     // Recipient output, announced on chain. Owned if it is one of our keys.
     let recipient_utxo = Utxo::new_native_currency(recipient.lock_script_hash(), amount);

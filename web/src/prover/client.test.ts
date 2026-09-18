@@ -2,6 +2,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProofCancelledError, ProverClient } from './client';
 
+class FailingWorker {
+  onmessage: ((e: { data: unknown }) => void) | null = null;
+  onerror: unknown = null;
+  postMessage() {
+    queueMicrotask(() => this.onmessage?.({ data: { kind: 'error', message: 'VM error: assertion failed at 1234\nop stack: [secret, words, here]\nram: 0xdeadbeef' } }));
+  }
+  terminate() {}
+}
+
 class SilentWorker {
   static made: SilentWorker[] = [];
   terminated = false;
@@ -22,6 +31,12 @@ afterEach(() => {
 });
 
 describe('prover client', () => {
+  it('keeps the first line of a prover error and none of the machine state printed after it', async () => {
+    vi.stubGlobal('Worker', FailingWorker);
+    const failure = (await new ProverClient().prove({ witness: new Uint8Array([1]), network: 'regtest', blockHeight: 1, threads: 0 }, () => {}).catch((e) => e)) as Error;
+    expect(failure.message).toBe('VM error: assertion failed at 1234');
+  });
+
   it('cancel settles the running proof, so whatever waits on it can clean up', async () => {
     vi.stubGlobal('Worker', SilentWorker);
     const client = new ProverClient();

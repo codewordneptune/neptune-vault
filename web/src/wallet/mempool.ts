@@ -24,6 +24,8 @@ export interface MempoolWatcherOptions {
   /** Polls a commitment may be absent before its pending row is dropped. */
   patience?: number;
   now?: () => number;
+  /** Whether this wallet's keys are still the ones loaded in the core. Asked around every scan. */
+  isCurrent?: () => boolean;
 }
 
 export const INCOMING_KEY_PREFIX = 'incoming:';
@@ -42,6 +44,7 @@ export class MempoolWatcher {
   private readonly batchSize: number;
   private readonly patience: number;
   private readonly now: () => number;
+  private readonly isCurrent: () => boolean;
 
   constructor(
     private readonly db: VaultDb,
@@ -53,6 +56,19 @@ export class MempoolWatcher {
     this.batchSize = options.batchSize ?? 30;
     this.patience = options.patience ?? 2;
     this.now = options.now ?? (() => Date.now());
+    this.isCurrent = options.isCurrent ?? (() => true);
+  }
+
+  /**
+   * Hold a coin for a transaction, or let it go again, as one step. Reading
+   * the coin and writing it back in two steps let a sync that marked the
+   * coin spent in between be overwritten by the stale copy.
+   */
+  private async setHold(hash: string, from: string | null, to: string | null): Promise<void> {
+    const tx = this.db.transaction('utxos', 'readwrite');
+    const coin = await tx.store.get(`${this.accountId}:${hash}`);
+    if (coin && coin.pendingTxid === from && coin.spentHeight === null) await tx.store.put({ ...coin, pendingTxid: to });
+    await tx.done;
   }
 
   /** One round: new kernels scanned, pending rows kept in step, own sends checked. */
@@ -93,8 +109,24 @@ export class MempoolWatcher {
     let incomingNau = 0n;
     let lockedNau = 0n;
     for (const id of fresh) {
-      const raw = await this.node.mempoolKernelRaw(id);
-      const scan = await this.core.scanMempoolKernel(raw, unspent, nextKeyIndices, tipHeight);
+      // The core scans with whatever keys are loaded. If the wallet was
+      // switched or locked since this poll began, those are not this
+      // wallet's keys, and nothing they find belongs in its rows.
+      if (!this.isCurrent()) break;
+      let scan;
+      try {
+        const raw = await this.node.mempoolKernelRaw(id);
+        scan = await this.core.scanMempoolKernel(raw, unspent, nextKeyIndices, tipHeight);
+      } catch (e) {
+        // The node not answering ends this round; the id is tried again next
+        // time. A kernel that cannot be read is another matter: it would be
+        // first in line at every poll and stall the watcher for as long as
+        // it sat in the mempool, so it is passed over.
+        if (isUnreachable(e)) throw e;
+        this.seenIds.add(id);
+        continue;
+      }
+      if (!this.isCurrent()) break;
       this.seenIds.add(id);
       // Three kinds of output can be addressed to this wallet: one of a send
       // this device recorded (nothing to add), one this seed built elsewhere
@@ -134,10 +166,7 @@ export class MempoolWatcher {
             outputs: ownBack.map((o) => ({ commitment: o.commitment, role: 'change' as const })),
           };
           await this.db.put('history', row);
-          for (const h of spentHashes) {
-            const coin = await this.db.get('utxos', `${this.accountId}:${h}`);
-            if (coin && coin.pendingTxid === null) await this.db.put('utxos', { ...coin, pendingTxid: id });
-          }
+          for (const h of spentHashes) await this.setHold(h, null, id);
         }
       }
 
@@ -195,10 +224,7 @@ export class MempoolWatcher {
         await this.db.delete('history', row.key);
         this.lastSeen.delete(marker);
         // Coins held for a spend that went away are offered again.
-        for (const h of row.inputHashes) {
-          const coin = await this.db.get('utxos', `${this.accountId}:${h}`);
-          if (coin && coin.pendingTxid === row.txid && coin.spentHeight === null) await this.db.put('utxos', { ...coin, pendingTxid: null });
-        }
+        for (const h of row.inputHashes) await this.setHold(h, row.txid, null);
       }
     }
 
@@ -221,6 +247,12 @@ export class MempoolWatcher {
       await this.db.put('history', next);
     }
   }
+}
+
+/** The node did not answer at all, as opposed to answering with something unusable. */
+function isUnreachable(e: unknown): boolean {
+  const code = (e as { code?: unknown })?.code;
+  return code === 'network' || code === 'timeout' || code === 'http' || /wallet is locked/i.test((e as Error)?.message ?? '');
 }
 
 function isMethodNotFound(e: unknown): boolean {

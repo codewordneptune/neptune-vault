@@ -97,6 +97,9 @@ export interface SendRequest {
   amount: string;
   fee: string;
   accept_lustration: boolean;
+  /** The amount and fee in nau, exactly as reviewed. When present the core sends these and the texts are for the record. */
+  amount_nau?: string;
+  fee_nau?: string;
 }
 
 export interface InputPlan {

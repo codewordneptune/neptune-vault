@@ -63,6 +63,41 @@ async function readCapped(response: Response, limit: number): Promise<string> {
   return text + decoder.decode();
 }
 
+/**
+ * What a node says about an error, made fit to show. The text is the
+ * node's, and the node may be anyone's: it is cut short, stripped of control
+ * and direction-changing characters, and always introduced as the node's
+ * words, so it cannot pass for the wallet speaking.
+ */
+export function nodeSaid(text: unknown): string {
+  // eslint-disable-next-line no-control-regex
+  const clean = String(text ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim();
+  return clean.length > 200 ? clean.slice(0, 200) + '…' : clean;
+}
+
+/**
+ * Why `text` cannot be a node URL for `network`, or null when it can.
+ * https anywhere; plain http only to this machine, where nothing is on the
+ * wire; a bare path only on regtest, for the development proxy. No user
+ * name or password in the URL: it would be stored in clear and sent along.
+ */
+export function nodeUrlProblem(text: string, network: string): string | null {
+  const t = text.trim();
+  if (t === '') return 'Enter the node URL';
+  if (t.startsWith('/') && !t.startsWith('//')) return network === 'regtest' ? null : 'A node URL starts with https://';
+  let url: URL;
+  try {
+    url = new URL(t);
+  } catch {
+    return 'This is not a URL. A node URL starts with https://';
+  }
+  if (url.username !== '' || url.password !== '') return 'A node URL must not carry a user name or a password';
+  if (url.protocol === 'https:') return null;
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol === 'http:') return local ? null : 'Plain http is only for a node on this device. Use https://';
+  return 'A node URL starts with https://';
+}
+
 export class NodeError extends Error {
   constructor(
     message: string,
@@ -149,6 +184,9 @@ export class NodeClient {
         headers: { 'Content-Type': 'application/json' },
         body: requestBody,
         signal: controller.signal,
+        // A node that answers with a redirect is sending the wallet's
+        // questions somewhere the person did not choose.
+        redirect: 'error',
       });
     } catch (e) {
       const aborted = (e as Error).name === 'AbortError';
@@ -179,7 +217,7 @@ export class NodeClient {
       const body = JSON.parse(text) as { error?: { code: number; message: string; data?: unknown } };
       if (body.error) {
         const detail = body.error.data === undefined ? '' : ` (${JSON.stringify(body.error.data).slice(0, 300)})`;
-        throw new NodeError(`${method}: ${String(body.error.message).slice(0, 300)}${detail}`, body.error.code, method);
+        throw new NodeError(`${method} failed. The node said: "${nodeSaid(body.error.message)}"${nodeSaid(detail) ? ' ' + nodeSaid(detail) : ''}`, body.error.code, method);
       }
     }
     return text;

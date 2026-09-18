@@ -9,9 +9,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "wasm:prover": "wasm-pack build ../crates/vault-prover --target web --release --out-dir ../../web/public/wasm/prover",
-    "wasm:prover-legacy": "wasm-pack build ../crates/legacy/vault-prover-legacy --target web --release --out-dir ../../../web/public/wasm/prover-legacy",
-    "wasm:core": "wasm-pack build ../crates/vault-core --target web --release --out-dir ../../web/public/wasm/core"
+    "wasm:prover": "wasm-pack build ../crates/vault-prover --target web --release --out-dir ../../web/public/wasm/prover -- --locked",
+    "wasm:prover-legacy": "wasm-pack build ../crates/legacy/vault-prover-legacy --target web --release --out-dir ../../../web/public/wasm/prover-legacy -- --locked",
+    "wasm:core": "wasm-pack build ../crates/vault-core --target web --release --out-dir ../../web/public/wasm/core -- --locked"
   },
   "dependencies": {
     "@mantine/core": "^9.6.1",

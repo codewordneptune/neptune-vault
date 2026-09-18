@@ -51,27 +51,46 @@ export function Settings() {
 
   // Saving is explicit; the test result is kept per network.
   const [testing, setTesting] = useState(false);
-  const testNode = async () => {
+  // A node URL is looked at, then asked two things: whether it answers,
+  // and which network it runs. Only a URL that passes is ever saved, since
+  // a saved URL is used at once, by the sync, for this wallet.
+  const testNode = async (): Promise<boolean> => {
     setTesting(true);
     setProbe({ ok: true, text: 'Testing…' });
     let result: { ok: boolean; text: string; at: number };
     try {
-      const { NodeClient } = await import('../node/rpc');
-      const height = await new NodeClient(nodeUrl.trim()).probe();
+      const { NodeClient, nodeUrlProblem } = await import('../node/rpc');
+      const problem = nodeUrlProblem(nodeUrl, network);
+      if (problem) throw new Error(problem);
+      const node = new NodeClient(nodeUrl.trim());
+      const height = await node.probe();
+      const theirs = await node.network();
+      if (theirs !== null && !(theirs === network || (network === 'testnet' && theirs.startsWith('testnet')))) {
+        throw new Error(`This node runs the ${theirs} network, and the wallet is on ${NETWORK_LABELS[network]}.`);
+      }
       result = { ok: true, text: `Reachable, tip height ${showBlock(height)}`, at: Date.now() };
     } catch (e) {
       result = { ok: false, text: (e as Error).message, at: Date.now() };
     }
     setProbe(result);
     setTesting(false);
-    await services.updateSettings({ nodeProbe: { ...services.settings.nodeProbe, [network]: result } });
+    // Remembered for the next visit only when it is about the node in use:
+    // a failed try of some other URL says nothing about that one.
+    if (nodeUrl.trim() === (services.settings.nodeUrls[network] ?? '')) await services.updateSettings({ nodeProbe: { ...services.settings.nodeProbe, [network]: result } });
+    return result.ok;
   };
 
   const savedUrl = services.settings.nodeUrls[network] ?? '';
   const dirty = nodeUrl.trim() !== savedUrl;
   const saveAndTestNode = async () => {
-    await services.updateSettings({ nodeUrls: { ...services.settings.nodeUrls, [network]: nodeUrl.trim() } });
-    await testNode();
+    if (!(await testNode())) {
+      setProbe((p) => (p ? { ...p, text: `Not saved. ${p.text}` } : p));
+      return;
+    }
+    await services.updateSettings({
+      nodeUrls: { ...services.settings.nodeUrls, [network]: nodeUrl.trim() },
+      nodeProbe: { ...services.settings.nodeProbe, [network]: { ok: true, text: 'Reachable when it was saved', at: Date.now() } },
+    });
   };
 
   // The backup file's contacts are encrypted and the rest of it is sealed
@@ -341,7 +360,7 @@ export function Settings() {
           )}
           <Group>
             <Button onClick={() => void saveAndTestNode()} disabled={!dirty} loading={testing && dirty}>
-              Save and test
+              Test and save
             </Button>
             <Button variant="light" onClick={() => void testNode()} disabled={dirty} loading={testing && !dirty}>
               Test

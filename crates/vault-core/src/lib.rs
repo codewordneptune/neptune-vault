@@ -99,11 +99,7 @@ mod wasm {
     #[wasm_bindgen]
     pub fn is_valid_address(encoded: &str, network: &str) -> Result<bool, JsError> {
         let network = parse_network(network)?;
-        Ok(neptune_wallet::address::ReceivingAddress::from_bech32m(
-            encoded.trim(),
-            network,
-        )
-        .is_ok())
+        Ok(account::parse_recipient(encoded, network).is_ok())
     }
 
     /// Why `words` cannot be a seed phrase, or undefined when they can.
