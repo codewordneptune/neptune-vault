@@ -59,7 +59,8 @@ export async function createServices(): Promise<Services> {
       return settings;
     },
     syncEngine(accountId, onProgress) {
-      return new SyncEngine(db, services.node(), core, accountId, { onProgress });
+      // The node of the account's own network, whatever the settings say at this instant.
+      return new SyncEngine(db, (network) => new NodeClient(settings.nodeUrls[network]), core, accountId, { onProgress });
     },
     contacts: new ContactsService(db, core, () => coreNetworkName(services.settings.network)),
     mempoolWatcher(accountId) {

@@ -13,7 +13,7 @@ import { formatNau, useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
 import { abbreviateAddress, metaProblem, paymentQrPayload, paymentUri } from '../util/address';
 import { copyText } from '../util/clipboard';
-import type { KeyKind } from '../wallet/core';
+import { KEY_LOOKAHEAD, type KeyKind } from '../wallet/core';
 
 // Labelled by what the address is for; the protocol name is the caption.
 const KIND_LABELS: Record<KeyKind, string> = {
@@ -215,10 +215,17 @@ export function Receive() {
     }
   };
 
+  // The sync looks for payments on every address up to a few past the
+  // newest one that has received something. An address further out would
+  // never be looked at, and a payment to it never found, so none is offered.
+  const used = account ? nextKeyIndicesOf(account)[kind] : 0;
+  const furthest = used + KEY_LOOKAHEAD;
   const nextUnused = () => {
-    const used = account ? nextKeyIndicesOf(account)[kind] : 0;
-    setIndices({ ...indices, [kind]: Math.max(used, index + 1) });
+    setIndices({ ...indices, [kind]: Math.min(furthest, Math.max(used, index + 1)) });
   };
+  useEffect(() => {
+    if (index > furthest) setIndices((all) => ({ ...all, [kind]: furthest }));
+  }, [index, furthest, kind]);
 
   const requestInvalid = Boolean(amountError || noteError || labelError);
   const whichAddress = index === 0 ? `your main ${KIND_LABELS[kind]} address` : `${KIND_LABELS[kind]} address ${index}`;
@@ -324,7 +331,7 @@ export function Receive() {
 
         <Group justify="space-between" align="baseline">
           <Text size="xs" c="dimmed">
-            {tab === 'address' ? `This is ${whichAddress}.` : `The request is to ${whichAddress}.`} Funds sent to any of your addresses are found by the sync.
+            {tab === 'address' ? `This is ${whichAddress}.` : `The request is to ${whichAddress}.`} Funds sent to any address shown here are found by the sync.{index >= furthest ? " More addresses open up once one of these has received a payment." : ""}
           </Text>
           <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
             {index > 0 && (
@@ -332,9 +339,11 @@ export function Receive() {
                 Main address
               </UnstyledButton>
             )}
-            <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="xs" className="vault-tap-link">
-              Next unused
-            </UnstyledButton>
+            {index < furthest && (
+              <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="xs" className="vault-tap-link">
+                Next unused
+              </UnstyledButton>
+            )}
           </Group>
         </Group>
       </Stack>

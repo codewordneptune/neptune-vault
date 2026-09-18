@@ -54,6 +54,9 @@ export interface ScanExpectation {
   watch: string[];
 }
 
+/** How many addresses past the newest used one the scan looks at; the core's KEY_LOOKAHEAD. */
+export const KEY_LOOKAHEAD = 5;
+
 /** The core's message when a block does not follow the wallet's last one: a reorganisation, not an error. */
 export const NOT_LINKED = 'chain check: not linked';
 

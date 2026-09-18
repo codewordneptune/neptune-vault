@@ -7,7 +7,7 @@
 // bookkeeping (UTXO records, block records, history, sync state).
 
 import type { NodeClient } from '../node/rpc';
-import type { AccountRecord, BlockRecord, HistoryRecord, UtxoRecord, VaultDb } from '../storage/db';
+import type { AccountRecord, BlockRecord, HistoryRecord, Network, UtxoRecord, VaultDb } from '../storage/db';
 import { nextKeyIndicesOf } from '../storage/db';
 import { NOT_LINKED, type NextKeyIndices, type ScannedBlock, type StoredUtxo, type WalletCore } from './core';
 
@@ -30,7 +30,14 @@ function isMethodNotFound(e: unknown): boolean {
   return /method not found|-32601/i.test(message);
 }
 
+/** How many blocks below the tip a fast restore hands over to the ordinary scan. */
+export const RESTORE_HANDOVER = 10;
+
+/** A fast restore stops asking after this many rounds and says so, rather than reporting a restore it cannot vouch for. */
+const RESTORE_ROUNDS = 40;
+
 export class SyncEngine {
+  private node!: NodeClient;
   private readonly batchSize: number;
   private readonly keepBlocks: number;
   private readonly onProgress: (p: SyncProgress) => void;
@@ -40,9 +47,17 @@ export class SyncEngine {
   private stopRequested = false;
   private current: Promise<SyncProgress> | null = null;
 
+  /**
+   * `nodeSource` is a node, or how to get the node for a network. The
+   * second form lets the engine ask for the node of the account's own
+   * network, read from the database, rather than whatever network the
+   * settings name at that moment: while the app switches network or wallet
+   * those two can differ for an instant, and a pass begun then would hold
+   * one wallet's blocks against another network's chain.
+   */
   constructor(
     private readonly db: VaultDb,
-    private readonly node: NodeClient,
+    private readonly nodeSource: NodeClient | ((network: Network) => NodeClient),
     private readonly core: WalletCore,
     private readonly accountId: string,
     options: SyncOptions = {},
@@ -52,6 +67,7 @@ export class SyncEngine {
     this.batchSize = options.batchSize ?? 25;
     this.keepBlocks = options.keepBlocks ?? 1000;
     this.onProgress = options.onProgress ?? (() => {});
+    if (typeof nodeSource !== 'function') this.node = nodeSource;
   }
 
   /**
@@ -61,6 +77,10 @@ export class SyncEngine {
    */
   async stop(): Promise<void> {
     this.stopRequested = true;
+    // A request stalled on a dead connection would keep the pass, and with
+    // it whoever waits here (a wallet switch, a rescan, a removal), waiting
+    // for the full timeout. Cut it; the batch in flight is unwritten anyway.
+    this.node?.abortInFlight?.();
     await this.current?.catch(() => undefined);
   }
 
@@ -69,7 +89,7 @@ export class SyncEngine {
     if (this.running) return this.progress('scanning', await this.syncedHeight(), 0, 'already running');
     this.running = true;
     this.stopRequested = false;
-    this.current = this.pass();
+    this.current = this.exclusively(() => this.pass());
     try {
       return await this.current;
     } finally {
@@ -78,10 +98,25 @@ export class SyncEngine {
     }
   }
 
+  /**
+   * One scanner per wallet across tabs and the installed app. Two at once
+   * would interleave their writes to the same coins. Where the browser has
+   * no Web Locks the pass runs as before.
+   */
+  private async exclusively(run: () => Promise<SyncProgress>): Promise<SyncProgress> {
+    const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+    if (!locks) return run();
+    return locks.request('neptune-vault-sync:' + this.accountId, { ifAvailable: true }, async (lock) => {
+      if (lock === null) return { phase: 'scanning' as const, syncedHeight: await this.syncedHeight(), tipHeight: 0, message: 'Another window of this app is syncing this wallet.' };
+      return run();
+    });
+  }
+
   private async pass(): Promise<SyncProgress> {
     try {
       let account = await this.db.get('accounts', this.accountId);
       if (!account) throw new Error('account not found');
+      if (typeof this.nodeSource === 'function') this.node = this.nodeSource(account.network);
 
       // A node on another network would make every stored block look
       // orphaned and wipe the local view; ask before trusting anything.
@@ -106,11 +141,20 @@ export class SyncEngine {
       // A start height above the chain (a typo at import, or a rescan aimed
       // too far ahead) would leave the sync state in the future and skip
       // every block until the chain caught up; it means "from now".
-      if (account.birthdayHeight === 0 || account.birthdayHeight > tip.height) {
-        account.birthdayHeight = tip.height;
-        await this.db.put('accounts', account);
-      }
+      // Only before the first scan: once the wallet has a position on the
+      // chain, a node reporting a low tip (stale, wrong, or lying) must not
+      // rewrite where this wallet's history starts.
       let state = await this.db.get('syncState', this.accountId);
+      if (!state && (account.birthdayHeight === 0 || account.birthdayHeight > tip.height)) {
+        const tx = this.db.transaction('accounts', 'readwrite');
+        const current = await tx.store.get(this.accountId);
+        if (current) await tx.store.put({ ...current, birthdayHeight: tip.height });
+        await tx.done;
+        account = { ...account, birthdayHeight: tip.height };
+      }
+      if (state && state.syncedHeight > tip.height) {
+        throw new Error(`The node's chain ends at block ${tip.height}, below block ${state.syncedHeight} that this wallet has already scanned. The node may be out of date or on another chain; nothing was changed.`);
+      }
       if (!state) {
         state = { accountId: this.accountId, syncedHeight: account.birthdayHeight - 1, syncedHash: null, updatedAt: Date.now() };
       }
@@ -179,11 +223,15 @@ export class SyncEngine {
    * Returns 'done', 'stopped', or the reason it could not run.
    */
   private async restoreFast(account: AccountRecord, tipHeight: number): Promise<'done' | 'stopped' | string> {
-    const tipHash = await this.node.tipDigest();
-    const scanned = new Set<number>();
+    // Each height scanned, with the coins known at that moment. A block
+    // can need a second look: it was scanned for a payment before a coin
+    // it spends was known, because that coin sits on a key the first round
+    // did not ask about. It gets that look once the known coins change.
+    const scanned = new Map<number, string>();
     let nextKeyIndices = nextKeyIndicesOf(account);
     let lowest = tipHeight;
-    for (let round = 0; round < 12; round++) {
+    let settled = false;
+    for (let round = 0; round < RESTORE_ROUNDS; round++) {
       this.progress('restoring', scanned.size, tipHeight, 'Asking the node which blocks are yours');
       let heights: number[];
       try {
@@ -193,9 +241,16 @@ export class SyncEngine {
         throw e;
       }
       const unspent = await this.unspentStored();
-      if (unspent.length > 0) heights.push(...(await this.node.blockHeightsBySpends(await this.core.absoluteIndexSets(unspent))));
-      const todo = [...new Set(heights)].filter((h) => h >= 1 && h <= tipHeight && !scanned.has(h)).sort((a, b) => a - b);
-      if (todo.length === 0) break;
+      const known = unspent.map((u) => u.hash).sort().join(',');
+      const spendHeights = unspent.length > 0 ? await this.node.blockHeightsBySpends(await this.core.absoluteIndexSets(unspent)) : [];
+      const again = new Set(spendHeights.filter((h) => scanned.has(h) && scanned.get(h) !== known));
+      const todo = [...new Set([...heights, ...spendHeights])]
+        .filter((h) => Number.isSafeInteger(h) && h >= 1 && h <= tipHeight && (!scanned.has(h) || again.has(h)))
+        .sort((a, b) => a - b);
+      if (todo.length === 0) {
+        settled = true;
+        break;
+      }
       for (const [i, height] of todo.entries()) {
         if (this.stopRequested) return 'stopped';
         this.progress('restoring', scanned.size, tipHeight, 'Fast restore: block ' + (i + 1) + ' of ' + todo.length);
@@ -203,17 +258,26 @@ export class SyncEngine {
         if (this.stopRequested) return 'stopped';
         // A single block has no neighbour here to link to; the core still
         // checks it is the height asked for and that it was mined.
-        const result = await this.core.scanBlocks(blocksResponse, await this.unspentStored(), nextKeyIndices, { from: height, to: height, prev_hash: null, watch: await this.watchedCommitments() });
-        scanned.add(height);
+        const before = await this.unspentStored();
+        const result = await this.core.scanBlocks(blocksResponse, before, nextKeyIndices, { from: height, to: height, prev_hash: null, watch: await this.watchedCommitments() });
+        scanned.set(height, before.map((u) => u.hash).sort().join(','));
         if (result.blocks.length === 0) continue;
         nextKeyIndices = result.next_key_indices;
         await this.persist(result.blocks, nextKeyIndices);
         lowest = Math.min(lowest, height);
       }
     }
-    await this.db.put('syncState', { accountId: this.accountId, syncedHeight: tipHeight, syncedHash: tipHash, updatedAt: Date.now() });
-    const { restore: _done, ...fresh } = (await this.db.get('accounts', this.accountId)) ?? account;
-    await this.db.put('accounts', { ...fresh, birthdayHeight: lowest, restoredAt: Date.now() });
+    if (!settled) return 'The fast restore kept finding more after ' + RESTORE_ROUNDS + ' rounds and stopped, so it cannot vouch for the balance. Rescan from a block or a date instead.';
+    // Hand over a little below the tip: the ordinary scan then walks the
+    // last blocks, checks that they link, and leaves the block records a
+    // later reorganisation is measured against. Ending at the tip itself
+    // left nothing to roll back to if that tip was orphaned.
+    const handover = Math.max(0, tipHeight - RESTORE_HANDOVER);
+    const tx = this.db.transaction(['syncState', 'accounts'], 'readwrite');
+    await tx.objectStore('syncState').put({ accountId: this.accountId, syncedHeight: handover, syncedHash: null, updatedAt: Date.now() });
+    const { restore: _done, ...fresh } = (await tx.objectStore('accounts').get(this.accountId)) ?? account;
+    await tx.objectStore('accounts').put({ ...fresh, birthdayHeight: Math.max(1, Math.min(lowest, handover + 1)), restoredAt: Date.now() });
+    await tx.done;
     return 'done';
   }
 
@@ -252,14 +316,28 @@ export class SyncEngine {
     }
 
     const range = IDBKeyRange.bound([this.accountId, 0], [this.accountId, Infinity]);
-    const stored = await this.db.getAllFromIndex('blocks', 'byAccountHeight', range);
+    const stored = (await this.db.getAllFromIndex('blocks', 'byAccountHeight', range)).filter((b) => b.height < syncedHeight);
+    // Blocks are canonical up to the fork and not after it, so the newest
+    // canonical one is found by halving: about ten questions for a thousand
+    // stored blocks, where walking down could take a thousand.
     let target: BlockRecord | null = null;
-    for (let i = stored.length - 1; i >= 0; i--) {
-      if (stored[i].height >= syncedHeight) continue;
-      if (await this.node.isBlockCanonical(stored[i].hash)) {
-        target = stored[i];
-        break;
+    let low = 0;
+    let high = stored.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (await this.node.isBlockCanonical(stored[mid].hash)) {
+        target = stored[mid];
+        low = mid + 1;
+      } else {
+        high = mid - 1;
       }
+    }
+    // Not one block this wallet knows is on the node's chain. A real
+    // reorganisation never goes that deep; a node on another chain, out of
+    // date, or lying does exactly this. Dropping the whole local view on
+    // its word would be the node deciding; the person decides, by rescanning.
+    if (target === null && stored.length > 0) {
+      throw new Error('None of the blocks this wallet has scanned are on this node\'s chain. The node may be on another chain or out of date. Nothing was changed. If you trust this node, rescan from Settings.');
     }
     const account = await this.db.get('accounts', this.accountId);
     const floor = (account?.birthdayHeight ?? 1) - 1;
@@ -298,9 +376,20 @@ export class SyncEngine {
     const tx = this.db.transaction(['utxos', 'blocks', 'history', 'syncState', 'accounts'], 'readwrite');
     const utxoStore = tx.objectStore('utxos');
     const historyStore = tx.objectStore('history');
+    // Coins held by this device's pending sends. A coin written afresh (after
+    // a rollback removed it) is held again, or it would look spendable while
+    // a transaction that spends it is still out there.
+    const heldBy = new Map<string, string>();
+    for (const h of await historyStore.index('byAccount').getAll(this.accountId)) {
+      if (h.kind === 'sent' && h.status === 'pending' && h.txid !== '' && !h.key.includes(':outgoing:')) for (const input of h.inputHashes) heldBy.set(input, h.txid);
+    }
 
     for (const block of blocks) {
       for (const u of block.incoming) {
+        // The same block can be written twice: a fast restore looks again at
+        // a block once it knows more coins, and two tabs can scan at once.
+        // What is already known about the coin (spent, or held) stays.
+        const existing = await utxoStore.get(`${this.accountId}:${u.hash}`);
         const record: UtxoRecord = {
           key: `${this.accountId}:${u.hash}`,
           accountId: this.accountId,
@@ -311,9 +400,9 @@ export class SyncEngine {
           confirmedHeight: u.confirmed_height,
           confirmedTimestampMs: u.confirmed_timestamp_ms,
           releaseDateMs: u.release_date_ms,
-          spentHeight: null,
-          spentTxid: null,
-          pendingTxid: null,
+          spentHeight: existing?.spentHeight ?? null,
+          spentTxid: existing?.spentTxid ?? null,
+          pendingTxid: existing ? existing.pendingTxid : (heldBy.get(u.hash) ?? null),
         };
         await utxoStore.put(record);
         const received: HistoryRecord = {

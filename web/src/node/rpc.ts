@@ -32,6 +32,37 @@ export interface RpcMsMembershipSnapshot {
   membershipProofs: unknown[];
 }
 
+/**
+ * The most a node may answer with. A batch of 25 mainnet blocks is about
+ * 5 MB; this leaves room for fuller blocks and stops a node from filling
+ * the device's memory with one answer.
+ */
+export const MAX_RESPONSE_BYTES = 96 * 1024 * 1024;
+
+/** The body as text, read piece by piece so it can be refused once it outgrows `limit`. */
+async function readCapped(response: Response, limit: number): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const text = await response.text();
+    if (text.length > limit) throw new NodeError('The node answered with more data than this wallet accepts.', 'http', '');
+    return text;
+  }
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > limit) {
+      await reader.cancel().catch(() => undefined);
+      throw new NodeError('The node answered with more data than this wallet accepts.', 'http', '');
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
+}
+
 export class NodeError extends Error {
   constructor(
     message: string,
@@ -47,12 +78,16 @@ export interface NodeClientOptions {
   /** Per-call timeout in milliseconds. Block batches get four times this. */
   timeoutMs?: number;
   fetch?: typeof fetch;
+  /** The most a single answer may weigh; see MAX_RESPONSE_BYTES. */
+  maxResponseBytes?: number;
 }
 
 export class NodeClient {
   private nextId = 1;
+  private readonly inFlight = new Set<AbortController>();
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
+  private readonly maxResponseBytes: number;
 
   constructor(
     public readonly url: string,
@@ -60,6 +95,7 @@ export class NodeClient {
   ) {
     this.timeoutMs = options.timeoutMs ?? 30_000;
     this.fetchImpl = options.fetch ?? fetch.bind(globalThis);
+    this.maxResponseBytes = options.maxResponseBytes ?? MAX_RESPONSE_BYTES;
   }
 
   /** The node's host for messages; a relative dev-proxy path is shown as is. */
@@ -77,10 +113,29 @@ export class NodeClient {
    * 2^53), so whatever the wasm core will read must stay as text and never
    * pass through JSON.parse and JSON.stringify.
    */
+  /** Cut every request in flight: the caller is leaving and must not wait out a stalled connection. */
+  abortInFlight(): void {
+    for (const c of this.inFlight) c.abort();
+  }
+
   async callRaw(method: string, params: unknown[] = [], timeoutMs = this.timeoutMs, paramsText?: string): Promise<string> {
     const id = this.nextId++;
     const controller = new AbortController();
+    this.inFlight.add(controller);
+    // The timer covers the whole answer, body included. It used to stop
+    // when the headers arrived, and a body that stalled after that (a dead
+    // mobile connection, or a node that means to) hung the sync for good,
+    // and with it every wallet switch, rescan and removal waiting on it.
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await this.exchange(method, id, params, paramsText, controller, timeoutMs);
+    } finally {
+      clearTimeout(timer);
+      this.inFlight.delete(controller);
+    }
+  }
+
+  private async exchange(method: string, id: number, params: unknown[], paramsText: string | undefined, controller: AbortController, timeoutMs: number): Promise<string> {
     // `paramsText` is a parameter already serialised by the core, spliced in
     // as the single positional parameter so its big integers survive.
     const requestBody =
@@ -106,18 +161,26 @@ export class NodeClient {
         aborted ? 'timeout' : 'network',
         method,
       );
-    } finally {
-      clearTimeout(timer);
     }
     if (!response.ok) {
       throw new NodeError(`${method}: HTTP ${response.status}`, 'http', method);
     }
-    const text = await response.text();
-    // Parsed only to detect an error; the parsed result is not returned.
-    const body = JSON.parse(text) as { error?: { code: number; message: string; data?: unknown } };
-    if (body.error) {
-      const detail = body.error.data === undefined ? '' : ` (${JSON.stringify(body.error.data).slice(0, 300)})`;
-      throw new NodeError(`${method}: ${body.error.message}${detail}`, body.error.code, method);
+    let text: string;
+    try {
+      text = await readCapped(response, this.maxResponseBytes);
+    } catch (e) {
+      if (e instanceof NodeError) throw e;
+      const aborted = controller.signal.aborted;
+      throw new NodeError(aborted ? `The node at ${this.host()} stopped answering part way through (${timeoutMs / 1000} s)` : `The connection to the node at ${this.host()} broke part way through its answer`, aborted ? 'timeout' : 'network', method);
+    }
+    // An error answer is small; a block batch is megabytes and is parsed by
+    // the core, so it is not parsed a second time here just to look for one.
+    if (text.length < 65536 || text.slice(0, 256).includes('"error"')) {
+      const body = JSON.parse(text) as { error?: { code: number; message: string; data?: unknown } };
+      if (body.error) {
+        const detail = body.error.data === undefined ? '' : ` (${JSON.stringify(body.error.data).slice(0, 300)})`;
+        throw new NodeError(`${method}: ${String(body.error.message).slice(0, 300)}${detail}`, body.error.code, method);
+      }
     }
     return text;
   }

@@ -31,6 +31,9 @@ class FakeNode {
   getBlocksCalls: Array<[number, number]> = [];
   /** The coin index: heights flagged for this wallet, and spend heights per coin hash. */
   flagHeights: number[] = [];
+  /** Answers to successive flag questions, for a wallet whose later keys only come into view round by round. */
+  flagRounds: number[][] = [];
+  canonicalQuestions = 0;
   spendHeights = new Map<string, number[]>();
   noIndex = false;
   networkName: string | null = 'regtest';
@@ -44,6 +47,7 @@ class FakeNode {
   }
   async blockHeightsByFlags(_flagsJson: string): Promise<number[]> {
     if (this.noIndex) throw new Error("utxoindex_blockHeightsByFlags: Method not found");
+    if (this.flagRounds.length > 0) this.flagHeights = this.flagRounds.shift() as number[];
     return [...this.flagHeights];
   }
   async blockHeightsBySpends(indexSetsJson: string): Promise<number[]> {
@@ -67,6 +71,7 @@ class FakeNode {
     return { height: this.tip, prevBlockDigest: this.hashAt(this.tip - 1), timestamp: this.tip * 1000, difficulty: '1' };
   }
   async isBlockCanonical(digest: string) {
+    this.canonicalQuestions += 1;
     if (this.staleCanonicalAnswers > 0) {
       this.staleCanonicalAnswers -= 1;
       return true;
@@ -332,15 +337,22 @@ describe('sync engine', () => {
 
     const result = await engine.syncOnce();
     expect(result.phase).toBe('done');
-    // Round one: the flagged blocks in order. Round two: where coin a was spent. Then nothing new.
+    // Round one: the flagged blocks in order. Round two: where coin a was
+    // spent. Then nothing new, and the ordinary scan walks the last ten
+    // blocks, so there are block records to measure a reorganisation by.
     expect(node.getBlocksCalls).toEqual([
       [5, 5],
       [12, 12],
       [15, 15],
+      [11, 14],
+      [15, 18],
+      [19, 20],
     ]);
+    // Walking over blocks 12 and 15 a second time changed nothing.
     expect((await db.get('utxos', 'acc:a'))?.spentHeight).toBe(15);
     expect((await db.get('utxos', 'acc:b'))?.spentHeight).toBeNull();
     expect((await db.get('syncState', 'acc'))?.syncedHeight).toBe(20);
+    expect((await db.get('syncState', 'acc'))?.syncedHash).toBe('hash-20');
     const after = await db.get('accounts', 'acc');
     expect(after?.restore).toBeUndefined();
     expect(after?.birthdayHeight).toBe(5);
@@ -348,7 +360,85 @@ describe('sync engine', () => {
     // The ordinary pass takes over from the tip.
     node.extendTo(22);
     await engine.syncOnce();
-    expect(node.getBlocksCalls.slice(3)).toEqual([[21, 22]]);
+    expect(node.getBlocksCalls.slice(6)).toEqual([[21, 22]]);
+  });
+
+  it('fast restore looks again at a block that spent a coin it only found later', async () => {
+    const { node, core, engine } = await setup();
+    await db.put('accounts', { ...account, birthdayHeight: 0, restore: 'fast' });
+    node.extendTo(40);
+    // Coin x sits on a key the first round does not ask about. Block 15
+    // spends it and pays change to the main key, so round one scans 15 for
+    // the change, before x is known.
+    core.incoming.set(5, [utxo('x', 5, '10')]);
+    core.incoming.set(15, [utxo('change', 15, '4', 14)]);
+    core.spent.set(15, ['x']);
+    node.flagRounds = [[15], [15, 5], [15, 5]];
+    node.spendHeights.set('x', [15]);
+
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('done');
+    expect(node.getBlocksCalls.slice(0, 3)).toEqual([[15, 15], [5, 5], [15, 15]]);
+    expect((await db.get('utxos', 'acc:x'))?.spentHeight).toBe(15);
+    expect((await db.get('utxos', 'acc:change'))?.spentHeight).toBeNull();
+  });
+
+  it('a block written again keeps what is known about its coins, and a coin written afresh is held again by the send that spends it', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(8);
+    core.incoming.set(4, [utxo('early', 4, '5')]);
+    core.incoming.set(7, [utxo('late', 7, '2')]);
+    core.spent.set(6, ['early']);
+    await engine.syncOnce();
+    expect((await db.get('utxos', 'acc:early'))?.spentHeight).toBe(6);
+    await db.put('utxos', { ...(await db.get('utxos', 'acc:late'))!, pendingTxid: 'tx-p' });
+    await db.put('history', { key: 'acc:sent:tx-p', accountId: 'acc', kind: 'sent', status: 'pending', txid: 'tx-p', amountNau: '1', feeNau: '0', timestampMs: 0, height: null, inputHashes: ['late'], recipient: 'r', error: null });
+
+    // A reorganisation above block 6 removes coin "late"; the new chain has it again in block 7.
+    node.forkAbove(6, 9);
+    await engine.syncOnce();
+    expect((await db.get('utxos', 'acc:late'))?.pendingTxid).toBe('tx-p');
+    expect((await db.get('utxos', 'acc:early'))?.spentHeight).toBe(6);
+  });
+
+  it('never lowers the start height or drops the local view on a node\'s say-so', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(10);
+    core.incoming.set(5, [utxo('u1', 5, '2')]);
+    await engine.syncOnce();
+
+    // A node whose chain is shorter than what this wallet has scanned.
+    const stale = new FakeNode();
+    stale.extendTo(2);
+    const low = await new SyncEngine(db, stale as unknown as NodeClient, core as unknown as WalletCore, 'acc', { batchSize: 4, keepBlocks: 100 }).syncOnce();
+    expect(low.phase).toBe('error');
+    expect(low.message).toMatch(/below block 10/);
+    expect((await db.get('accounts', 'acc'))?.birthdayHeight).toBe(3);
+
+    // A node that knows none of this wallet's blocks.
+    const stranger = new FakeNode();
+    stranger.extendTo(12);
+    stranger.canonical.clear();
+    const lost = await new SyncEngine(db, stranger as unknown as NodeClient, core as unknown as WalletCore, 'acc', { batchSize: 4, keepBlocks: 100 }).syncOnce();
+    expect(lost.phase).toBe('error');
+    expect(lost.message).toMatch(/None of the blocks/);
+    expect(await db.get('utxos', 'acc:u1')).toBeDefined();
+    expect((await db.get('syncState', 'acc'))?.syncedHeight).toBe(10);
+  });
+
+  it('finds the fork by halving, not by walking down', async () => {
+    const { node, engine } = await setup();
+    node.extendTo(90);
+    await engine.syncOnce();
+    node.forkAbove(10, 95);
+    node.canonicalQuestions = 0;
+    const result = await engine.syncOnce();
+    expect(result.syncedHeight).toBe(95);
+    // 87 stored blocks below the tip: the tip, then about seven halvings.
+    expect(node.canonicalQuestions).toBeLessThan(12);
+    const blocks = await db.getAllFromIndex('blocks', 'byAccountHeight', IDBKeyRange.bound(['acc', 0], ['acc', Infinity]));
+    expect(blocks.find((b) => b.height === 10)?.hash).toBe('hash-10');
+    expect(blocks.find((b) => b.height === 11)?.hash).toBe('fork-11');
   });
 
   it('fast restore says so on a node without the index, and stays pending', async () => {
