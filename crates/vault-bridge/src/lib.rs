@@ -15,6 +15,8 @@
 //! JSON IPC carries cheaply; see the web app's `backend/native/bridge.ts`
 //! for the other side of that decision.
 
+pub mod envelope;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
@@ -219,6 +221,48 @@ impl Vault {
         Ok(())
     }
 
+    /// Open the envelope and load the account, so the phrase is never
+    /// handed out. The expensive Argon2id step happens here.
+    pub fn unlock_envelope(
+        &self,
+        env: &envelope::SeedEnvelope,
+        password: &str,
+        network: &str,
+    ) -> Result<()> {
+        let phrase = envelope::open_seed(env, password)?;
+        self.unlock(&phrase, network)
+    }
+
+    /// The same through a passkey's secret, which unwraps the content key
+    /// directly and so skips Argon2id.
+    pub fn unlock_envelope_with_secret(
+        &self,
+        env: &envelope::SeedEnvelope,
+        wrapped: &envelope::SealedBox,
+        secret: &[u8],
+        network: &str,
+    ) -> Result<()> {
+        envelope::assert_envelope(env)?;
+        let content = envelope::content_key_from_secret(wrapped, secret)?;
+        let phrase = envelope::phrase_from_content_key(env, &content)?;
+        self.unlock(&phrase, network)
+    }
+
+    /// Check the password and, when `want_phrase`, give the words back for
+    /// showing. The one place the phrase leaves this crate, and only
+    /// because a person asked to read it off the screen.
+    pub fn open_envelope(
+        &self,
+        env: &envelope::SeedEnvelope,
+        password: &str,
+        want_phrase: bool,
+    ) -> Result<Option<Vec<String>>> {
+        let content = envelope::content_key(env, password)?;
+        if !want_phrase {
+            return Ok(None);
+        }
+        envelope::phrase_from_content_key(env, &content).map(Some)
+    }
     /// Drop the account, and the seed with it.
     pub fn lock(&self) -> Result<()> {
         let mut guard = self.account.lock().map_err(|_| BridgeError::locked())?;
