@@ -134,7 +134,16 @@ export class SendService {
 
       // Before the delta fork the rules want claim version 5, produced by the
       // pre-fork prover package; after it, version 8 from the current one.
-      const version = (await this.core.claimVersion?.(this.network, tipHeader.height)) ?? 8;
+      //
+      // The height that decides this is the one the transaction will be
+      // confirmed at, not the tip: a transaction cannot be mined into the
+      // block that already exists, so the earliest block that can carry it
+      // is the next one, and it is that block's rules it has to satisfy.
+      // One block either side of the fork, those are different rules, and a
+      // proof made for the wrong one is dropped with the mempool when the
+      // fork arrives.
+      const confirmationHeight = tipHeader.height + 1;
+      const version = (await this.core.claimVersion?.(this.network, confirmationHeight)) ?? 8;
       onProgress({ stage: 'proving', claimVersion: version, note: again });
       if (version !== 5 && version !== 8) throw new Error(`This wallet cannot prove transactions for claim version ${version}`);
       stopIfCancelled();
@@ -143,7 +152,7 @@ export class SendService {
         proving = this.useMockProofs
           ? { proofCollection: await this.core.mockProofCollection(built.witness), seconds: 0, memoryMb: 0, threads: 0 }
           : await this.prover.prove(
-              { witness: built.witness, network: this.network, blockHeight: tipHeader.height, threads: this.threads, legacy: version === 5, inputs: plan.inputs.length },
+              { witness: built.witness, network: this.network, blockHeight: confirmationHeight, threads: this.threads, legacy: version === 5, inputs: plan.inputs.length },
               (p) => onProgress({ stage: 'proving', proving: p, note: again }),
             );
       } catch (e) {
