@@ -1,0 +1,21 @@
+[package]
+name = "vault-shell"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The native shell for Neptune Vault: a window, and the commands that reach the bridge"
+
+[lib]
+# Desktop runs the binary; Android and iOS load this as a library, which is
+# why the app is started from lib.rs rather than main.rs.
+name = "vault_shell_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+vault-bridge = { path = "../../crates/vault-bridge" }

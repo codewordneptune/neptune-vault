@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/vault-prover", "crates/vault-core", "crates/vault-bridge", "crates/vault-fixtures"]
+members = ["crates/vault-prover", "crates/vault-core", "crates/vault-bridge", "crates/vault-fixtures", "shells/tauri"]
 # Vendored crates are used through [patch.crates-io] below, not as members,
 # but they live inside the workspace tree and must be excluded explicitly so
 # `cargo test` can run inside them.
@@ -13,6 +13,17 @@ neptune-consensus = { path = "crates/vendor/neptune-consensus" }
 neptune-primitives = { path = "crates/vendor/neptune-primitives" }
 twenty-first = { path = "crates/vendor/twenty-first" }
 triton-vm = { path = "crates/vendor/triton-vm" }
+
+# Triton VM generates its constraint code in a build script, recursively and
+# deeply enough that an unoptimized build of it overflows the 1 MB stack a
+# Windows main thread gets. Optimizing build scripts and proc macros fixes
+# that, and makes them quicker besides; it does not affect the crates
+# themselves.
+[profile.dev.build-override]
+opt-level = 1
+
+[profile.release.build-override]
+opt-level = 1
 
 [profile.release]
 trim-paths = "all"
