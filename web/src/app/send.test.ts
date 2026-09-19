@@ -37,6 +37,16 @@ class FakeCore implements Partial<WalletCore> {
   async mockProofCollection(_witness: Uint8Array) {
     return new Uint8Array([7, 7, 7]);
   }
+  /** Heights the send flow asked about, in order. */
+  askedHeights: number[] = [];
+  /**
+   * What the real core does: the rule set of the block at that height, and
+   * so the claim version its proofs must carry. Delta starts at 55,000.
+   */
+  async claimVersion(_network: string, blockHeight: number) {
+    this.askedHeights.push(blockHeight);
+    return blockHeight < 55000 ? 5 : 8;
+  }
 }
 
 class FakeNode {
@@ -78,10 +88,13 @@ class FakeNode {
 class FakeProver implements Prover {
   fail = false;
   calls = 0;
+  /** What the last proof was asked to prove, for the tests about the fork. */
+  last: { blockHeight?: number; legacy?: boolean } | null = null;
   /** Runs while the proof is "being made": where a test presses Cancel. */
   during: (() => void) | null = null;
-  async prove(req: { witness: Uint8Array }, onProgress: (p: never) => void) {
+  async prove(req: { witness: Uint8Array; blockHeight?: number; legacy?: boolean }, onProgress: (p: never) => void) {
     this.calls += 1;
+    this.last = { blockHeight: req.blockHeight, legacy: req.legacy };
     this.during?.();
     onProgress({ index: 1, total: 6, name: 'x', elapsedSeconds: 1, memoryMb: 900, threads: 4 } as never);
     if (this.fail) throw new Error('out of memory');
@@ -243,6 +256,32 @@ describe('send service', () => {
     const outcome = await mockService.send(request, () => {});
     expect(outcome.txid).toBe('tx-abc');
     expect(node.submitted[0]).toEqual({ kernel: [4], proof: [7, 7, 7] });
+  });
+
+  // A transaction cannot be mined into the tip. The earliest block that can
+  // carry it is the next one, so it is that block's rules it has to satisfy,
+  // and at the fork the two differ.
+  it('proves for the block the transaction can be mined into, not for the tip', async () => {
+    const { core, node, prover, service } = await setup();
+    node.heights = [54999];
+    await service.send(request, () => {});
+    expect(core.askedHeights).toEqual([55000]);
+    expect(prover.last).toEqual({ blockHeight: 55000, legacy: false });
+  });
+
+  it('asks the pre-fork prover while the next block is still pre-fork', async () => {
+    const { core, node, prover, service } = await setup();
+    node.heights = [54000];
+    await service.send(request, () => {});
+    expect(core.askedHeights).toEqual([54001]);
+    expect(prover.last).toEqual({ blockHeight: 54001, legacy: true });
+  });
+
+  it('proves under one rule set: the prover is given the height the version was chosen for', async () => {
+    const { core, node, prover, service } = await setup();
+    node.heights = [54999];
+    await service.send(request, () => {});
+    expect(prover.last?.blockHeight).toBe(core.askedHeights[0]);
   });
 
   it('forget releases the inputs of a pending send', async () => {
