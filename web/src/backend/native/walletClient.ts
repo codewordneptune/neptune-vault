@@ -9,6 +9,10 @@ import type { SeedEnvelope } from '../../storage/db';
 import type {
   InputPlan,
   KeyKind,
+  LedgerAnswer,
+  LedgerOp,
+  WalletChange,
+  WalletPart,
   MempoolScan,
   NextKeyIndices,
   ScanExpectation,
@@ -73,8 +77,40 @@ export class NativeWalletClient implements WalletCore {
     return call('wallet_phrase_problem', { words });
   }
 
-  unlock(phrase: string[], network: string): Promise<void> {
-    return call('wallet_unlock', { phrase, network });
+  unlock(phrase: string[], network: string, contentKey?: Uint8Array): Promise<void> {
+    const key = contentKey ? toBase64(contentKey) : null;
+    contentKey?.fill(0);
+    return call('wallet_unlock', { phrase, network, contentKey: key });
+  }
+
+  // The wallet's data: the engine's sealed logs, kept by the shell in files.
+
+  storeOpen(accountId: string): Promise<WalletPart[]> {
+    return call('store_open', { accountId });
+  }
+
+  storeMigrate(accountId: string, parts: WalletPart[], dump: unknown): Promise<void> {
+    return call('store_migrate', { accountId, parts, dump });
+  }
+
+  storeRebuild(accountId: string, dump: unknown): Promise<void> {
+    return call('store_rebuild', { accountId, dump });
+  }
+
+  storeRead(accountId: string, part: WalletPart): Promise<unknown[]> {
+    return call('store_read', { accountId, part });
+  }
+
+  storeCommit(accountId: string, changes: WalletChange[]): Promise<void> {
+    return call('store_commit', { accountId, changes });
+  }
+
+  storeRemove(accountId: string): Promise<void> {
+    return call('store_remove', { accountId });
+  }
+
+  ledger<O extends LedgerOp>(accountId: string, op: O): Promise<LedgerAnswer<O>> {
+    return call('wallet_ledger', { accountId, op });
   }
 
   unlockEnvelope(envelope: SeedEnvelope, password: string, network: string): Promise<void> {
