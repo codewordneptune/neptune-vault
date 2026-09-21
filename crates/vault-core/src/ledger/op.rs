@@ -35,6 +35,8 @@ pub enum Op {
     Spendable { now: u64 },
     ForkCandidates { below: i64 },
     RollbackFloor,
+    /// Output commitments of the pending sends, which a scan watches for.
+    WatchedCommitments,
     /// The index request of the keys the wallet watches, as JSON text: the
     /// identifiers are 64-bit values a JavaScript number cannot hold.
     AnnouncementFlags,
@@ -94,6 +96,7 @@ pub fn run(state: &WalletState, wallet_id: &str, op: Op, keys: Option<&mut Accou
         Op::Spendable { now } => read(spendable(state, now)),
         Op::ForkCandidates { below } => read(fork_candidates(state, below)),
         Op::RollbackFloor => read(rollback_floor(state)?),
+        Op::WatchedCommitments => read(watched_commitments(state)),
         Op::AnnouncementFlags => {
             let flags = scan::announcement_flags(keys.ok_or_else(keys_needed)?, &next_key_indices(state)?);
             read(serde_json::to_string(&flags).context("ledger: cannot write the flags")?)

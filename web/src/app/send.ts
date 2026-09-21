@@ -2,10 +2,15 @@
 // the witness, prove in the prover worker, assemble, submit, and record the
 // pending transaction with its inputs reserved. On any failure before
 // submission nothing stays reserved.
+//
+// The coins and the pending row are the engine's to write. Holding a
+// send's inputs, releasing them, and recording what became of it are each
+// one operation, decided against the wallet as it is: a sync that marked a
+// coin spent a moment earlier is not undone by a send that read it before.
 
 import { NodeError, type NodeClient } from '../node/rpc';
-import type { Prover, ProveOutcome, ProveProgress } from '../backend/types';
-import type { HistoryRecord, VaultDb } from '../storage/db';
+import type { LedgerAnswer, LedgerOp, Prover, ProveOutcome, ProveProgress } from '../backend/types';
+import type { HistoryRecord } from '../storage/db';
 import type { SendRequest, StoredUtxo, WalletCore } from '../backend/types';
 
 export type SendStage = 'planning' | 'membership-proofs' | 'building' | 'proving' | 'submitting' | 'done';
@@ -70,7 +75,6 @@ export class RequiresLustrationError extends Error {
 
 export class SendService {
   constructor(
-    private readonly db: VaultDb,
     private readonly node: NodeClient,
     private readonly core: WalletCore,
     private readonly prover: Prover,
@@ -81,12 +85,14 @@ export class SendService {
     private readonly useMockProofs = false,
   ) {}
 
+  private ledger<O extends LedgerOp>(op: O): Promise<LedgerAnswer<O>> {
+    if (!this.core.ledger) return Promise.reject(new Error('This build of the wallet core keeps no wallet data.'));
+    return this.core.ledger(this.accountId, op);
+  }
+
   /** Unspent, unreserved, unlocked UTXOs available to spend. */
-  async spendable(nowMs = Date.now()): Promise<StoredUtxo[]> {
-    const rows = await this.db.getAllFromIndex('utxos', 'byAccount', this.accountId);
-    return rows
-      .filter((r) => r.spentHeight === null && r.pendingTxid === null && (r.releaseDateMs === null || r.releaseDateMs <= nowMs))
-      .map((r) => r.stored as StoredUtxo);
+  spendable(nowMs = Date.now()): Promise<StoredUtxo[]> {
+    return this.ledger({ op: 'spendable', now: nowMs });
   }
 
   /**
@@ -207,12 +213,6 @@ export class SendService {
 
   /** Mark the inputs reserved and add the pending history entry (R18). */
   private async recordPending(txid: string, request: SendRequest, inputHashes: string[], amountNau: string, feeNau: string, changeNau: string | null, commitments: string[], note: string | null): Promise<void> {
-    const tx = this.db.transaction(['utxos', 'history'], 'readwrite');
-    for (const hash of inputHashes) {
-      const key = `${this.accountId}:${hash}`;
-      const row = await tx.objectStore('utxos').get(key);
-      if (row) await tx.objectStore('utxos').put({ ...row, pendingTxid: txid });
-    }
     const entry: HistoryRecord = {
       key: `${this.accountId}:sent:${txid}`,
       accountId: this.accountId,
@@ -231,37 +231,17 @@ export class SendService {
       outputs: commitments.map((commitment, i) => ({ commitment, role: i === 0 ? 'recipient' : 'change' })),
       note,
     };
-    await tx.objectStore('history').put(entry);
-    await tx.done;
+    // The inputs held and the row written, together.
+    await this.ledger({ op: 'recordPending', entry });
   }
 
   /** The node refused it: release the inputs and drop the row, as if it had never been written. */
   private async discardPending(txid: string): Promise<void> {
-    const tx = this.db.transaction(['utxos', 'history'], 'readwrite');
-    const entry = await tx.objectStore('history').get(`${this.accountId}:sent:${txid}`);
-    if (entry) {
-      for (const hash of entry.inputHashes) {
-        const row = await tx.objectStore('utxos').get(`${this.accountId}:${hash}`);
-        if (row && row.pendingTxid === txid && row.spentHeight === null) await tx.objectStore('utxos').put({ ...row, pendingTxid: null });
-      }
-      await tx.objectStore('history').delete(entry.key);
-    }
-    await tx.done;
+    await this.ledger({ op: 'discardPending', txid });
   }
 
   /** Give up on a pending send: release its inputs and mark it failed. */
   async forget(txid: string): Promise<void> {
-    const tx = this.db.transaction(['utxos', 'history'], 'readwrite');
-    const entry = await tx.objectStore('history').get(`${this.accountId}:sent:${txid}`);
-    if (!entry) return;
-    for (const hash of entry.inputHashes) {
-      const key = `${this.accountId}:${hash}`;
-      const row = await tx.objectStore('utxos').get(key);
-      if (row && row.pendingTxid === txid && row.spentHeight === null) {
-        await tx.objectStore('utxos').put({ ...row, pendingTxid: null });
-      }
-    }
-    await tx.objectStore('history').put({ ...entry, status: 'failed', error: 'You gave up on this send.' });
-    await tx.done;
+    await this.ledger({ op: 'forgetSend', txid });
   }
 }

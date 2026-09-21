@@ -18,9 +18,40 @@ import 'fake-indexeddb/auto';
 
 import { readFileSync } from 'node:fs';
 
+import type { VaultDb } from '../storage/db';
 import { LogStore } from '../storage/logStore';
 import { EngineHost, KEYED_OPS } from './browser/engineHost';
-import type { LedgerAnswer, LedgerOp, WalletChange, WalletCore, WalletPart } from './types';
+import type { LedgerAnswer, LedgerOp, StoredUtxo, WalletChange, WalletCore, WalletPart } from './types';
+
+/**
+ * A coin as the core reports it, from the core's own serialisation
+ * (ledger::tests::print_the_wire_shape_of_a_coin). The recovery data is a
+ * native-currency coin under a zero lock script: enough for bookkeeping.
+ * Fields of the report can be replaced; `commitment` is empty unless given.
+ */
+export function coin(hash: string, height: number, fields: Partial<StoredUtxo> = {}): StoredUtxo {
+  const zero = '0'.repeat(80);
+  return {
+    hash,
+    commitment: '',
+    recovery: {
+      utxo: { lock_script_hash: zero, coins: [{ type_script_hash: '35ab20eaca74e39c97b1b1c6eeb337853babec0d1b4152b6218f12ab673618df11bb3a534af30f64', state: [1, 0, 0, 0] }] },
+      sender_randomness: zero,
+      receiver_preimage: zero,
+      aocl_index: height,
+    },
+    amount_nau: '1',
+    amount: '1',
+    key_kind: 'generation',
+    key_index: 0,
+    release_date_ms: null,
+    confirmed_height: height,
+    confirmed_block: `hash-${height}`,
+    confirmed_timestamp_ms: height * 1000,
+    own_build_height: null,
+    ...fields,
+  } as unknown as StoredUtxo;
+}
 
 type CoreModule = typeof import('../../public/wasm/core/vault_core');
 
@@ -34,7 +65,11 @@ async function core(): Promise<CoreModule> {
   return m;
 }
 
-/** Answers for the operations that scan, in place of keys and blocks the tests do not have. */
+/**
+ * Answers for the operations that scan, in place of keys and blocks the
+ * tests do not have. Any other operation can be answered too, where a test
+ * needs to stand in for something the node would compute from real data.
+ */
 export type Scans = Partial<{ [K in LedgerOp['op']]: (op: Extract<LedgerOp, { op: K }>) => unknown }>;
 
 export interface TestEngine {
@@ -58,11 +93,9 @@ export async function testEngine(scans: Scans = {}): Promise<TestEngine> {
   const logStore = LogStore.open(name);
   const host = new EngineHost(m, () => logStore, () => null);
   const ledger = async <O extends LedgerOp>(accountId: string, op: O): Promise<LedgerAnswer<O>> => {
-    if (KEYED_OPS.has(op.op)) {
-      const answer = (scans as Record<string, ((o: O) => unknown) | undefined>)[op.op];
-      if (!answer) throw new Error('wallet is locked');
-      return answer(op) as LedgerAnswer<O>;
-    }
+    const answer = (scans as Record<string, ((o: O) => unknown) | undefined>)[op.op];
+    if (answer) return (await answer(op)) as LedgerAnswer<O>;
+    if (KEYED_OPS.has(op.op)) throw new Error('wallet is locked');
     return host.ledger(accountId, op) as Promise<LedgerAnswer<O>>;
   };
   return {
@@ -84,6 +117,50 @@ export async function testEngine(scans: Scans = {}): Promise<TestEngine> {
       host.keep(null);
       void logStore.then((s) => s.close());
       indexedDB.deleteDatabase(name);
+    },
+  };
+}
+
+type Row = Record<string, unknown> & { key?: string };
+
+/**
+ * The old stores, as a test reads and writes them, answered from the engine.
+ * The tests of the sync, the mempool watcher and a send were written against
+ * the app's database; this lets their bodies stay as they were while what
+ * they check is what the engine did. The account record keeps living in the
+ * database, with how it is scanned laid over it from the engine, as the app
+ * shows it.
+ */
+export function chainView(engine: TestEngine, db: VaultDb, accountId: string) {
+  const all = async (part: WalletPart) => (await engine.store.storeRead(accountId, part)) as Row[];
+  const put = (change: Record<string, unknown>) => engine.store.storeCommit(accountId, [change as unknown as WalletChange]);
+  return {
+    async get(store: string, key: string): Promise<any> {
+      if (store === 'accounts') {
+        const record = await db.get('accounts', key);
+        const [scan] = await all('scan');
+        if (!record || !scan) return record;
+        const { restore: _stale, restoredAt: _staleToo, ...rest } = record;
+        return { ...rest, ...scan };
+      }
+      if (store === 'syncState') return (await all('sync'))[0];
+      return (await all(store as WalletPart)).find((r) => r.key === key);
+    },
+    async getAllFromIndex(store: string, ..._index: unknown[]): Promise<any[]> {
+      return all(store as WalletPart);
+    },
+    async put(store: string, record: any): Promise<void> {
+      if (store === 'accounts') {
+        await db.put('accounts', record);
+        const { birthdayHeight, nextKeyIndices, restore, restoredAt } = record;
+        await put({ op: 'putScan', scan: { birthdayHeight, nextKeyIndices, ...(restore ? { restore } : {}), ...(restoredAt ? { restoredAt } : {}) } });
+        return;
+      }
+      if (store === 'utxos') return put({ op: 'putUtxo', utxo: record });
+      if (store === 'history') return put({ op: 'putHistory', entry: record });
+      if (store === 'syncState') return put({ op: 'putSync', sync: record });
+      if (store === 'blocks') return put({ op: 'putBlock', block: record });
+      throw new Error(`chainView: no store ${store}`);
     },
   };
 }

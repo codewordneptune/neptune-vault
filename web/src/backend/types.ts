@@ -166,6 +166,7 @@ export type LedgerOp =
   | { op: 'spendable'; now: number }
   | { op: 'forkCandidates'; below: number }
   | { op: 'rollbackFloor' }
+  | { op: 'watchedCommitments' }
   | { op: 'announcementFlags' }
   | { op: 'absoluteIndexSets' }
   | { op: 'scanBlocks'; blocksResponse: string; from: number; to: number; prevHash: string | null }
@@ -190,6 +191,7 @@ export interface LedgerAnswers {
   spendable: StoredUtxo[];
   forkCandidates: [number, string][];
   rollbackFloor: number;
+  watchedCommitments: string[];
   /** JSON text: the identifiers are 64-bit values a JavaScript number cannot hold. */
   announcementFlags: string;
   /** JSON text, for the same reason. */
@@ -215,7 +217,7 @@ export interface LedgerAnswers {
 export type LedgerAnswer<O extends LedgerOp> = LedgerAnswers[O['op']];
 
 /** The parts the app reads from the engine today. The rest are still read from the app's own database. */
-export const ENGINE_PARTS: WalletPart[] = ['contacts'];
+export const ENGINE_PARTS: WalletPart[] = ['contacts', 'scan', 'sync', 'utxos', 'blocks', 'history'];
 
 /** One edit to a wallet's sealed log; the names are the engine's. */
 export type WalletChange =

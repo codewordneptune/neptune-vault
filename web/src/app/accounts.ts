@@ -471,17 +471,13 @@ export class AccountService {
    * chain. Funds are unaffected; only the local view is rebuilt.
    */
   async rescanFrom(accountId: string, height: number, fast = false): Promise<void> {
-    const record = await this.db.get('accounts', accountId);
-    if (!record) throw new Error('account not found');
-    const tx = this.db.transaction(['accounts', 'syncState', 'utxos', 'history', 'blocks'], 'readwrite');
-    const { restore: _previous, restoredAt: _how, ...rest } = record;
-    await tx.objectStore('accounts').put({ ...rest, birthdayHeight: Math.max(0, Math.floor(height)), nextKeyIndices: FRESH_KEY_INDICES, ...(fast ? { restore: 'fast' as const } : {}) });
-    await tx.objectStore('syncState').delete(accountId);
-    for (const key of await tx.objectStore('utxos').index('byAccount').getAllKeys(accountId)) await tx.objectStore('utxos').delete(key);
-    for (const key of await tx.objectStore('history').index('byAccount').getAllKeys(accountId)) await tx.objectStore('history').delete(key);
-    const blockKeys = await tx.objectStore('blocks').index('byAccountHeight').getAllKeys(IDBKeyRange.bound([accountId, 0], [accountId, Number.MAX_SAFE_INTEGER]));
-    for (const key of blockKeys) await tx.objectStore('blocks').delete(key);
-    await tx.done;
+    if (!(await this.db.get('accounts', accountId))) throw new Error('account not found');
+    // What scanning found goes, what a person made stays, and the scan state
+    // starts again, in one step. The engine's; a wallet is unlocked to do it.
+    if (this.engine.where(accountId, 'utxos') !== 'engine' || !this.core.ledger) {
+      throw new Error('This wallet\'s coins could not be read, so there is nothing to rescan into. Unlock it again, and see Settings, Diagnostics.');
+    }
+    await this.core.ledger(accountId, { op: 'resetForRescan', height: Math.max(0, Math.floor(height)), fast });
   }
 
   /** Record that the export file was saved (R8), for the reminder and Settings. */
