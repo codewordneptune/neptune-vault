@@ -209,8 +209,9 @@ pub struct HistoryEntry {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncState {
-    /// Last height fully scanned, or birthday minus one.
-    pub synced_height: u64,
+    /// Last height fully scanned, or birthday minus one: -1 when the wallet
+    /// has rolled back to before the first block.
+    pub synced_height: i64,
     pub synced_hash: Option<String>,
     pub updated_at: u64,
     #[serde(flatten)]
@@ -266,7 +267,8 @@ pub enum WalletChange {
     DeleteUtxo { hash: String },
     PutBlock { block: Block },
     /// A reorganisation: blocks above the fork point are no longer true.
-    DeleteBlocksAbove { height: u64 },
+    /// Below zero, that is every block.
+    DeleteBlocksAbove { height: i64 },
     /// Trimming: blocks this old no longer help measure a reorganisation.
     DeleteBlocksUpTo { height: u64 },
     PutHistory { entry: HistoryEntry },
@@ -362,11 +364,14 @@ impl Model for WalletState {
                 WalletChange::PutBlock { block } => {
                     self.blocks.insert(block.height, block);
                 }
-                WalletChange::DeleteBlocksAbove { height } => {
-                    self.blocks.split_off(&(height + 1));
-                }
+                WalletChange::DeleteBlocksAbove { height } => match u64::try_from(height) {
+                    Ok(height) => {
+                        self.blocks.split_off(&height.saturating_add(1));
+                    }
+                    Err(_) => self.blocks.clear(),
+                },
                 WalletChange::DeleteBlocksUpTo { height } => {
-                    self.blocks = self.blocks.split_off(&(height + 1));
+                    self.blocks = self.blocks.split_off(&height.saturating_add(1));
                 }
                 WalletChange::PutHistory { entry } => {
                     self.history.insert(entry.key.clone(), entry);

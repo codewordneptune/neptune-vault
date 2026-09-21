@@ -9,6 +9,7 @@ pub mod account;
 pub mod amount;
 pub mod chain;
 pub mod kdf;
+pub mod ledger;
 pub mod migrate;
 pub mod scan;
 pub mod send;
