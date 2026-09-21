@@ -195,6 +195,8 @@ pub struct SyncState {
     pub synced_height: u64,
     pub synced_hash: Option<String>,
     pub updated_at: u64,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
