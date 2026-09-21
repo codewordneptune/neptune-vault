@@ -70,7 +70,7 @@ export async function createServices(owner: WindowOwner): Promise<Services> {
       // The node of the account's own network, whatever the settings say at this instant.
       return new SyncEngine(db, (network) => new NodeClient(settings.nodeUrls[network]), core, accountId, { onProgress });
     },
-    contacts: new ContactsService(db, core, () => coreNetworkName(services.settings.network)),
+    contacts: new ContactsService(db, core, () => coreNetworkName(services.settings.network), accounts.engine),
     mempoolWatcher(accountId) {
       const key = `${accountId}:${settings.nodeUrls[settings.network]}`;
       let w = watchers.get(key);

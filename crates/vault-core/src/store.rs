@@ -225,6 +225,12 @@ pub struct WalletState {
     /// it is locked, by name: the last failed send, with its amount and
     /// recipient, is the first of these.
     pub private: BTreeMap<String, Value>,
+    /// Which parts of this wallet have moved here from the app's old
+    /// database and are now kept here and nowhere else. The app moves over
+    /// one part at a time; a part that is not named is still read from
+    /// where it always was.
+    #[serde(default)]
+    pub migrated: std::collections::BTreeSet<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -248,6 +254,8 @@ pub enum WalletChange {
     DeleteContact { id: String },
     PutPrivate { key: String, value: Value },
     DeletePrivate { key: String },
+    /// From here on this part of the wallet lives in this log.
+    MarkMigrated { part: String },
 }
 
 // ---------------------------------------------------------------------------
@@ -355,6 +363,9 @@ impl Model for WalletState {
                 }
                 WalletChange::DeletePrivate { key } => {
                     self.private.remove(&key);
+                }
+                WalletChange::MarkMigrated { part } => {
+                    self.migrated.insert(part);
                 }
             }
         }
@@ -584,6 +595,15 @@ impl<M: Model> Log<M> {
         let bytes = self.write(seq, CHANGES, &body)?;
         let changes = body.changes.expect("built as a batch just above");
         Ok(Prepared { seq, bytes, changes })
+    }
+
+    /// What the state would be with this batch applied, without applying it:
+    /// for checking a migration before a byte of it is written.
+    pub fn preview(&self, changes: &[M::Change]) -> Result<M> {
+        self.state.check(changes)?;
+        let mut state = self.state.clone();
+        state.apply(changes.to_vec());
+        Ok(state)
     }
 
     /// Apply a batch that storage now holds. Batches are confirmed in the

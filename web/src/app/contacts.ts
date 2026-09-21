@@ -5,6 +5,7 @@
 import type { ContactRecord, VaultDb } from '../storage/db';
 import { addressKindLabel } from '../util/address';
 import type { WalletCore } from '../backend/types';
+import type { EngineParts } from './engineParts';
 
 /**
  * What makes two contact names the same name. A contact is picked by its
@@ -38,10 +39,23 @@ export class ContactsService {
     private readonly core: WalletCore,
     /** The wallet core's spelling of the current network. */
     private readonly networkName: () => string,
+    /** Where each wallet's contacts are kept: the engine's sealed log, or still this database. */
+    private readonly engine: EngineParts,
   ) {}
 
+  private inEngine(accountId: string): boolean {
+    return this.engine.where(accountId, 'contacts') === 'engine';
+  }
+
+  private async put(record: ContactRecord): Promise<void> {
+    if (this.inEngine(record.accountId)) await this.core.storeCommit!(record.accountId, [{ op: 'putContact', contact: record }]);
+    else await this.db.put('contacts', record);
+  }
+
   async list(accountId: string): Promise<ContactRecord[]> {
-    const rows = await this.db.getAllFromIndex('contacts', 'byAccount', accountId);
+    const rows = this.inEngine(accountId)
+      ? ((await this.core.storeRead!(accountId, 'contacts')) as ContactRecord[])
+      : await this.db.getAllFromIndex('contacts', 'byAccount', accountId);
     return rows.sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -76,22 +90,27 @@ export class ContactsService {
       createdAt: now,
       updatedAt: now,
     };
-    await this.db.put('contacts', record);
+    await this.put(record);
     return record;
   }
 
   async rename(key: string, name: string): Promise<void> {
     const cleanName = name.trim();
     if (!cleanName) throw new Error('Enter a name');
-    const record = await this.db.get('contacts', key);
+    // A contact's key is its wallet's id, a colon, and its own.
+    const accountId = key.slice(0, key.indexOf(':'));
+    const record = (await this.list(accountId)).find((c) => c.key === key);
     if (!record) throw new Error('contact not found');
     const namesake = await this.findByName(record.accountId, cleanName, key);
     if (namesake) throw new Error(`You already have a contact called "${namesake.name}". Give this one another name.`);
-    await this.db.put('contacts', { ...record, name: cleanName, updatedAt: Date.now() });
+    await this.put({ ...record, name: cleanName, updatedAt: Date.now() });
   }
 
   async remove(key: string): Promise<void> {
-    await this.db.delete('contacts', key);
+    const at = key.indexOf(':');
+    const accountId = key.slice(0, at);
+    if (this.inEngine(accountId)) await this.core.storeCommit!(accountId, [{ op: 'deleteContact', id: key.slice(at + 1) }]);
+    else await this.db.delete('contacts', key);
   }
 
   /** Restore contacts from a backup file; duplicates by address are skipped. */

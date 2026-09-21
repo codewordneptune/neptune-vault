@@ -1,7 +1,7 @@
 // Main-thread proxy for the wallet worker. Implements WalletCore by posting
 // one request per call and resolving on the matching reply.
 
-import type { InputPlan, KeyKind, NextKeyIndices, ScanExpectation, ScanResult, SendPlan, SendRequest, StoredUtxo, WalletCore, MempoolScan } from '../types';
+import type { InputPlan, KeyKind, NextKeyIndices, ScanExpectation, ScanResult, SendPlan, SendRequest, StoredUtxo, WalletChange, WalletCore, WalletPart, MempoolScan } from '../types';
 import type { SeedEnvelope } from '../../storage/db';
 import { WrongPasswordError } from '../../storage/envelope';
 import type { WorkerRequest, WorkerResponse } from './walletWorker';
@@ -111,7 +111,23 @@ export class WalletWorkerClient implements WalletCore {
   phraseProblem(words: string[]) {
     return this.call<string | null>('phraseProblem', [words]);
   }
-  unlock(phrase: string[], network: string) {
+  storeOpen(accountId: string) {
+    return this.call<WalletPart[]>('storeOpen', [accountId]);
+  }
+  storeMigrate(accountId: string, part: WalletPart, dump: unknown) {
+    return this.call<void>('storeMigrate', [accountId, part, dump]);
+  }
+  storeRead(accountId: string, part: WalletPart) {
+    return this.call<unknown[]>('storeRead', [accountId, part]);
+  }
+  storeCommit(accountId: string, changes: WalletChange[]) {
+    return this.call<void>('storeCommit', [accountId, changes]);
+  }
+  storeRemove(accountId: string) {
+    return this.call<void>('storeRemove', [accountId]);
+  }
+  unlock(phrase: string[], network: string, contentKey?: Uint8Array) {
+    if (contentKey) return this.call<void>('unlock', [phrase, network, contentKey], [contentKey.buffer as ArrayBuffer]);
     return this.call<void>('unlock', [phrase, network]);
   }
   lock() {

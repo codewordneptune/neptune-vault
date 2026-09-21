@@ -145,6 +145,22 @@ export async function sealSeed(
   deriveKey: DeriveKey,
   kdf: KdfParams = DEFAULT_KDF,
 ): Promise<SeedEnvelope> {
+  const { envelope, contentKey } = await sealSeedKeepingKey(phrase, password, deriveKey, kdf);
+  contentKey.fill(0);
+  return envelope;
+}
+
+/**
+ * The same, and the content key with it. The wallet's sealed log is keyed
+ * from the content key, so whoever is about to unlock the new wallet needs
+ * it once. Zero it when done.
+ */
+export async function sealSeedKeepingKey(
+  phrase: string[],
+  password: string,
+  deriveKey: DeriveKey,
+  kdf: KdfParams = DEFAULT_KDF,
+): Promise<{ envelope: SeedEnvelope; contentKey: Uint8Array }> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const wrapRaw = await deriveKey(te.encode(password), salt, kdf.mKib, kdf.tCost, kdf.pCost);
   const contentRaw = crypto.getRandomValues(new Uint8Array(32));
@@ -153,12 +169,14 @@ export async function sealSeed(
   const wrappedContentKey = await aesEncrypt(wrapKey, contentRaw);
   const seed = await aesEncrypt(contentKey, te.encode(phrase.join(' ')));
   wrapRaw.fill(0);
-  contentRaw.fill(0);
   return {
-    version: 1,
-    kdf: { name: 'argon2id', mKib: kdf.mKib, tCost: kdf.tCost, pCost: kdf.pCost, salt: toB64(salt) },
-    wrappedContentKey,
-    seed,
+    envelope: {
+      version: 1,
+      kdf: { name: 'argon2id', mKib: kdf.mKib, tCost: kdf.tCost, pCost: kdf.pCost, salt: toB64(salt) },
+      wrappedContentKey,
+      seed,
+    },
+    contentKey: contentRaw,
   };
 }
 
@@ -171,6 +189,13 @@ export class WrongPasswordError extends Error {
 
 /** Recover the phrase. Throws WrongPasswordError when the password is wrong. */
 export async function openSeed(envelope: SeedEnvelope, password: string, deriveKey: DeriveKey): Promise<string[]> {
+  const { phrase, contentKey } = await openSeedKeepingKey(envelope, password, deriveKey);
+  contentKey.fill(0);
+  return phrase;
+}
+
+/** The same, and the content key with it, from the one password hash. Zero it when done. */
+export async function openSeedKeepingKey(envelope: SeedEnvelope, password: string, deriveKey: DeriveKey): Promise<{ phrase: string[]; contentKey: Uint8Array }> {
   assertEnvelope(envelope);
   const { mKib, tCost, pCost, salt } = envelope.kdf;
   const wrapRaw = await deriveKey(te.encode(password), fromB64(salt), mKib, tCost, pCost);
@@ -183,16 +208,16 @@ export async function openSeed(envelope: SeedEnvelope, password: string, deriveK
     throw new WrongPasswordError();
   }
   const contentKey = await importAesKey(contentRaw, ['decrypt']);
-  contentRaw.fill(0);
   let phrase: Uint8Array;
   try {
     phrase = await aesDecrypt(contentKey, envelope.seed);
   } catch {
+    contentRaw.fill(0);
     // The password was right and the seed still does not open: the data is
     // damaged, or it is a newer backup file dressed as an older one.
     throw new Error('The password is right, but the seed in this wallet data does not open: the data is damaged or has been changed.');
   }
-  return td.decode(phrase).split(' ');
+  return { phrase: td.decode(phrase).split(' '), contentKey: contentRaw };
 }
 
 /** The raw content key, after checking the password. Zero it when done. */
@@ -221,6 +246,17 @@ export async function openSeedWithSecret(
   wrapped: { iv: string; ciphertext: string },
   secret: Uint8Array,
 ): Promise<string[]> {
+  const { phrase, contentKey } = await openSeedWithSecretKeepingKey(envelope, wrapped, secret);
+  contentKey.fill(0);
+  return phrase;
+}
+
+/** The same, and the content key with it. Zero it when done. */
+export async function openSeedWithSecretKeepingKey(
+  envelope: SeedEnvelope,
+  wrapped: { iv: string; ciphertext: string },
+  secret: Uint8Array,
+): Promise<{ phrase: string[]; contentKey: Uint8Array }> {
   assertEnvelope(envelope);
   const key = await importAesKey(secret, ['decrypt']);
   let contentRaw: Uint8Array;
@@ -230,8 +266,12 @@ export async function openSeedWithSecret(
     throw new Error('This passkey no longer matches the wallet; unlock with the password and set the passkey up again.');
   }
   const contentKey = await importAesKey(contentRaw, ['decrypt']);
-  contentRaw.fill(0);
-  return td.decode(await aesDecrypt(contentKey, envelope.seed)).split(' ');
+  try {
+    return { phrase: td.decode(await aesDecrypt(contentKey, envelope.seed)).split(' '), contentKey: contentRaw };
+  } catch (e) {
+    contentRaw.fill(0);
+    throw e;
+  }
 }
 
 /** Re-wrap the content key under a new password; the seed ciphertext stays. */

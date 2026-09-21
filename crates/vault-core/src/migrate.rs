@@ -181,6 +181,36 @@ pub fn wallet_changes(dump: &Dump, wallet_id: &str) -> Result<Vec<WalletChange>>
     Ok(changes)
 }
 
+/// The parts a wallet moves over in. The app changes where it reads one part
+/// at a time, and a part moves at the moment its reads do: moved any
+/// earlier, the copy would go stale while the old database went on changing.
+pub const PARTS: [&str; 7] = ["details", "sync", "utxos", "blocks", "history", "contacts", "private"];
+
+/// One part of one wallet, as a batch for its sealed log. The batch ends by
+/// marking the part as moved, so that the move and the mark are one write.
+pub fn part_changes(dump: &Dump, wallet_id: &str, part: &str) -> Result<Vec<WalletChange>> {
+    if !PARTS.contains(&part) {
+        bail!("migrate: there is no part called {part}");
+    }
+    let mut changes: Vec<WalletChange> = wallet_changes(dump, wallet_id)?
+        .into_iter()
+        .filter(|change| {
+            part == match change {
+                WalletChange::PutDetails { .. } => "details",
+                WalletChange::PutSync { .. } => "sync",
+                WalletChange::PutUtxo { .. } => "utxos",
+                WalletChange::PutBlock { .. } => "blocks",
+                WalletChange::PutHistory { .. } => "history",
+                WalletChange::PutContact { .. } => "contacts",
+                WalletChange::PutPrivate { .. } => "private",
+                _ => "",
+            }
+        })
+        .collect();
+    changes.push(WalletChange::MarkMigrated { part: part.to_string() });
+    Ok(changes)
+}
+
 // ---------------------------------------------------------------------------
 // Backwards: the records the new state amounts to
 // ---------------------------------------------------------------------------
@@ -230,8 +260,57 @@ pub fn verify_device(dump: &Dump, device: &DeviceState) -> Result<()> {
     same("wallets", ids(&dump.accounts), new_ids, "id")
 }
 
+/// The records of one part of a wallet's state, in the app's shape.
+pub fn part_records(state: &WalletState, part: &str) -> Result<Vec<Value>> {
+    let written = |records: Vec<Result<Value>>| records.into_iter().collect::<Result<Vec<_>>>();
+    match part {
+        "details" => written(state.details.iter().map(as_record).collect()),
+        "sync" => written(state.sync.iter().map(as_record).collect()),
+        "utxos" => written(state.utxos.values().map(as_record).collect()),
+        "blocks" => written(state.blocks.values().map(as_record).collect()),
+        "history" => written(state.history.values().map(as_record).collect()),
+        "contacts" => written(state.contacts.values().map(as_record).collect()),
+        "private" => Ok(state.private.iter().map(|(key, value)| json!({ "key": key, "value": value })).collect()),
+        _ => bail!("migrate: there is no part called {part}"),
+    }
+}
+
+/// Whether one part of a wallet's new state says, record for record, what
+/// the old database said. A part switches over only when this passes.
+pub fn verify_part(dump: &Dump, wallet_id: &str, part: &str, state: &WalletState) -> Result<()> {
+    let all = |records: &[Value]| owned(records, wallet_id).cloned().collect::<Vec<_>>();
+    let new = part_records(state, part)?;
+    match part {
+        "details" => {
+            let old: Map<String, Value> = normal_account(account(dump, wallet_id)?)?
+                .into_iter()
+                .filter(|(name, _)| !HEADER_FIELDS.contains(&name.as_str()))
+                .collect();
+            if new != vec![Value::Object(old)] {
+                bail!("migrate: the record of wallet {wallet_id} did not come through unchanged");
+            }
+            Ok(())
+        }
+        "sync" => same("sync positions", all(&dump.sync_state), new, "accountId"),
+        "utxos" => same("coins", all(&dump.utxos), new, "key"),
+        "blocks" => same("blocks", all(&dump.blocks), new, "key"),
+        "history" => same("history entries", all(&dump.history), new, "key"),
+        "contacts" => same("contacts", all(&dump.contacts), new, "key"),
+        "private" => {
+            let failure = dump
+                .settings
+                .as_ref()
+                .and_then(|s| s.get(LAST_SEND_FAILURE))
+                .filter(|f| f.get("accountId").and_then(Value::as_str) == Some(wallet_id));
+            let old: Vec<Value> = failure.iter().map(|f| json!({ "key": LAST_SEND_FAILURE, "value": f })).collect();
+            same("private notes", old, new, "key")
+        }
+        _ => bail!("migrate: there is no part called {part}"),
+    }
+}
+
 /// Whether a wallet's new state says, record for record, what the old
-/// database said about it. The switch-over happens only when this passes.
+/// database said about it, in every part and in its header too.
 pub fn verify_wallet(dump: &Dump, header: &WalletHeader, state: &WalletState) -> Result<()> {
     let id = header.id.as_str();
     let details = state.details.as_ref().ok_or_else(|| anyhow!("migrate: wallet {id} has no details"))?;
@@ -239,14 +318,9 @@ pub fn verify_wallet(dump: &Dump, header: &WalletHeader, state: &WalletState) ->
     if old_account != account_record(header, details)? {
         bail!("migrate: the record of wallet {id} did not come through unchanged");
     }
-
-    let all = |records: &[Value]| owned(records, id).cloned().collect::<Vec<_>>();
-    let written = |records: Vec<Result<Value>>| records.into_iter().collect::<Result<Vec<_>>>();
-    same("coins", all(&dump.utxos), written(state.utxos.values().map(as_record).collect())?, "key")?;
-    same("blocks", all(&dump.blocks), written(state.blocks.values().map(as_record).collect())?, "key")?;
-    same("history entries", all(&dump.history), written(state.history.values().map(as_record).collect())?, "key")?;
-    same("contacts", all(&dump.contacts), written(state.contacts.values().map(as_record).collect())?, "key")?;
-    same("sync positions", all(&dump.sync_state), written(state.sync.iter().map(as_record).collect())?, "accountId")?;
+    for part in PARTS {
+        verify_part(dump, id, part, state)?;
+    }
     Ok(())
 }
 
@@ -390,6 +464,37 @@ mod tests {
         assert!(error.contains("coin a:c1:10"), "{error}");
         // The other wallet is not held back by it.
         wallet_changes(&dump, "old").unwrap();
+    }
+
+    #[test]
+    fn one_part_moves_alone_and_says_that_it_has() {
+        let dump = dump();
+        let key = LogKey::derive(&[3u8; 32], "a").unwrap();
+        let mut wallet = Log::<WalletState>::open(&wallet_log("a"), Some(key), Vec::new()).unwrap();
+        let changes = part_changes(&dump, "a", "contacts").unwrap();
+
+        // Checked against what it would become, before a byte is written.
+        let would_be = wallet.preview(&changes).unwrap();
+        verify_part(&dump, "a", "contacts", &would_be).unwrap();
+        assert!(wallet.state().contacts.is_empty(), "a preview changes nothing");
+
+        let batch = wallet.prepare(changes).unwrap();
+        wallet.confirm(batch).unwrap();
+        let state = wallet.state();
+        assert_eq!(state.contacts.len(), 1);
+        assert!(state.migrated.contains("contacts"));
+        assert!(state.utxos.is_empty() && state.details.is_none(), "nothing else came along");
+        assert!(!state.migrated.contains("utxos"));
+        assert!(part_changes(&dump, "a", "pets").is_err());
+    }
+
+    #[test]
+    fn a_wallet_with_nothing_in_a_part_still_marks_it_moved() {
+        let dump = dump();
+        let changes = part_changes(&dump, "old", "contacts").unwrap();
+        assert_eq!(changes, vec![WalletChange::MarkMigrated { part: "contacts".into() }]);
+        let state = Log::<WalletState>::open("wallet:old", None, Vec::new()).unwrap().preview(&changes).unwrap();
+        verify_part(&dump, "old", "contacts", &state).unwrap();
     }
 
     #[test]

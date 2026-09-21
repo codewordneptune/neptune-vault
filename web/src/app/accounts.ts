@@ -1,8 +1,10 @@
 // Account lifecycle: create or import, unlock, lock, and the auto-lock
 // policy (R11: five minutes idle, immediately on backgrounding).
 
-import { FRESH_KEY_INDICES, type AccountRecord, type Network, type SeedEnvelope, type VaultDb } from '../storage/db';
-import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeed, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
+import { FRESH_KEY_INDICES, type AccountRecord, type ContactRecord, type Network, type SeedEnvelope, type VaultDb } from '../storage/db';
+import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeedKeepingKey, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
+import { ENGINE_PARTS, type WalletPart } from '../backend/types';
+import { EngineParts } from './engineParts';
 import type { PasskeyProvider } from './passkey';
 import { addressKindLabel } from '../util/address';
 import { distinctNames } from './contacts';
@@ -41,7 +43,38 @@ export class AccountService {
     private readonly core: WalletCore,
     private readonly lockTimeoutMs: number,
     private readonly passkeys: PasskeyProvider | null = null,
+    /** Which parts of the unlocked wallet the engine holds; shared with the services that read them. */
+    readonly engine: EngineParts = new EngineParts(typeof core.storeOpen === 'function'),
   ) {}
+
+  /**
+   * Open the unlocked wallet's sealed log, and move over any part the app
+   * now reads from the engine that is still in the database. A part moves
+   * only if it comes through unchanged, record for record; one that does
+   * not stays where it was, and the wallet works as before.
+   */
+  private async openStore(accountId: string): Promise<void> {
+    if (!this.core.storeOpen || !this.core.storeMigrate) return;
+    const moved = await this.core.storeOpen(accountId);
+    for (const part of ENGINE_PARTS) {
+      if (moved.includes(part)) continue;
+      try {
+        await this.core.storeMigrate(accountId, part, await this.dump(accountId, part));
+      } catch (e) {
+        const why = e instanceof Error ? e.message : String(e);
+        console.warn(`The ${part} of wallet ${accountId} stay in the database: ${why}`);
+        this.engine.stays(accountId, part, why);
+      }
+    }
+    this.engine.opened(accountId, await this.core.storeOpen(accountId));
+  }
+
+  /** What the database holds of one part of one wallet, for the engine to take over and check itself against. */
+  private async dump(accountId: string, part: WalletPart): Promise<unknown> {
+    const accounts = [await this.db.get('accounts', accountId)];
+    if (part === 'contacts') return { accounts, contacts: await this.db.getAllFromIndex('contacts', 'byAccount', accountId) };
+    throw new Error(`the app does not move ${part} yet`);
+  }
 
   /**
    * Change an account record: read, change and write inside one
@@ -107,6 +140,8 @@ export class AccountService {
         secret.fill(0);
       }
     });
+    await this.openStore(accountId);
+    if (epoch !== this.epoch) throw new UnlockCancelledError();
     this.setUnlocked(accountId);
   }
 
@@ -205,6 +240,10 @@ export class AccountService {
    */
   async deleteAccount(accountId: string): Promise<void> {
     if (this.unlockedId === accountId) await this.lock();
+    // The sealed log first. Should the rest fail, a wallet with no log is a
+    // wallet whose moved parts are empty; the other way round would leave a
+    // log nobody can reach.
+    await this.core.storeRemove?.(accountId);
     const tx = this.db.transaction(['accounts', 'syncState', 'utxos', 'history', 'blocks', 'contacts'], 'readwrite');
     await tx.objectStore('accounts').delete(accountId);
     await tx.objectStore('syncState').delete(accountId);
@@ -220,8 +259,10 @@ export class AccountService {
     // Read before the first await: a lock that arrives at any point after this cancels what follows.
     const epoch = this.epoch;
     const name = await this.nextName(network);
-    const envelope = await sealSeed(phrase, password, this.derive, DEFAULT_KDF);
-    await this.load(epoch, () => this.core.unlock(phrase, network));
+    // The new wallet's log is keyed from the content key, which is made here
+    // with the envelope and handed to the core once, along with the phrase.
+    const { envelope, contentKey } = await sealSeedKeepingKey(phrase, password, this.derive, DEFAULT_KDF);
+    await this.load(epoch, () => this.core.unlock(phrase, network, contentKey));
     // From here the keys are in the core. Whatever fails below, they must
     // not stay there with no lock armed.
     try {
@@ -239,6 +280,7 @@ export class AccountService {
         ...(options.fastRestore ? { restore: 'fast' as const } : {}),
       };
       await this.db.put('accounts', record);
+      await this.openStore(record.id);
       if (epoch !== this.epoch) throw new UnlockCancelledError();
       this.setUnlocked(record.id);
       return record;
@@ -257,6 +299,8 @@ export class AccountService {
       if (this.core.unlockEnvelope) await this.core.unlockEnvelope(record.envelope, password, record.network);
       else await this.core.unlock(await openSeed(record.envelope, password, this.derive), record.network);
     });
+    await this.openStore(accountId);
+    if (epoch !== this.epoch) throw new UnlockCancelledError();
     this.setUnlocked(accountId);
     // Not awaited: the wallet is open, and this is housekeeping.
     void this.strengthen(accountId, password).catch(() => undefined);
@@ -314,6 +358,7 @@ export class AccountService {
     this.lockPending = false;
     this.clearIdleTimer();
     for (const l of this.listeners) l(true);
+    this.engine.forgetAll();
     await this.forget();
   }
 
@@ -387,7 +432,10 @@ export class AccountService {
   async exportFile(accountId: string, password: string): Promise<ExportFile> {
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
-    const contacts = await this.db.getAllFromIndex('contacts', 'byAccount', accountId);
+    const contacts =
+      this.engine.where(accountId, 'contacts') === 'engine'
+        ? ((await this.core.storeRead!(accountId, 'contacts')) as ContactRecord[])
+        : await this.db.getAllFromIndex('contacts', 'byAccount', accountId);
     return sealBackup(
       { network: record.network, birthdayHeight: record.birthdayHeight, exportedAt: Date.now() },
       record.envelope,
@@ -497,16 +545,23 @@ export class AccountService {
       }
       // No two contacts of a wallet share a name; a file from before that rule may hold namesakes.
       const valid = distinctNames(usable);
-      // The wallet and its contacts arrive together or not at all.
+      const rows: ContactRecord[] = valid.map((c) => {
+        const id = crypto.randomUUID();
+        const now = Date.now();
+        return { key: `${record.id}:${id}`, id, accountId: record.id, name: c.name, address: c.address, kind: addressKindLabel(c.address), createdAt: now, updatedAt: now };
+      });
+      // The wallet and its contacts arrive together or not at all: a failure
+      // below removes the wallet that was made, and its log with it.
       const tx = this.db.transaction(['accounts', 'contacts'], 'readwrite');
       await tx.objectStore('accounts').put(record);
       recordId = record.id;
-      for (const c of valid) {
-        const id = crypto.randomUUID();
-        const now = Date.now();
-        await tx.objectStore('contacts').put({ key: `${record.id}:${id}`, id, accountId: record.id, name: c.name, address: c.address, kind: addressKindLabel(c.address), createdAt: now, updatedAt: now });
-      }
+      if (!this.core.storeCommit) for (const row of rows) await tx.objectStore('contacts').put(row);
       await tx.done;
+      await this.openStore(record.id);
+      if (this.core.storeCommit && rows.length > 0) {
+        if (this.engine.where(record.id, 'contacts') === 'engine') await this.core.storeCommit(record.id, rows.map((contact) => ({ op: 'putContact' as const, contact })));
+        else for (const row of rows) await this.db.put('contacts', row);
+      }
       if (epoch !== this.epoch) throw new UnlockCancelledError();
       this.setUnlocked(record.id);
       void this.strengthen(record.id, password).catch(() => undefined);
