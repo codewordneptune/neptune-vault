@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { NodeClient, RpcBlockHeader, RpcWalletBlock } from '../node/rpc';
 import { openVaultDb, type AccountRecord, type VaultDb } from '../storage/db';
-import { NOT_LINKED, type NextKeyIndices, type ScanExpectation, type ScanResult, type StoredUtxo, type WalletCore } from './core';
+import { NOT_LINKED, type NextKeyIndices, type ScanExpectation, type ScanResult, type StoredUtxo, type WalletCore } from '../backend/types';
 import { SyncEngine } from './sync';
 
 // A chain the fake node serves and a fake core that "finds" what we tell it.

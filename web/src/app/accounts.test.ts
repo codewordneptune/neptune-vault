@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { openVaultDb, type VaultDb } from '../storage/db';
 import type { SeedEnvelope } from '../storage/db';
 import { openSeed, WrongPasswordError } from '../storage/envelope';
-import type { WalletCore } from '../wallet/core';
+import type { WalletCore } from '../backend/types';
 import { AccountService, UnlockCancelledError } from './accounts';
 import type { PasskeyProvider } from './passkey';
 
@@ -79,6 +79,42 @@ class FakeWorkerCore extends FakeCore {
   }
 }
 
+/** A core with the engine's store, as far as the account service can tell: it records what it is asked. */
+class FakeStoreCore extends FakeCore {
+  moved: string[] = [];
+  contentKeys = 0;
+  migrations: { accountId: string; part: string; dump: { accounts: unknown[]; contacts: unknown[] } }[] = [];
+  commits: unknown[][] = [];
+  removed: string[] = [];
+  failOpen: string | null = null;
+  failMigrate: string | null = null;
+  async unlock(phrase: string[], _network?: string, contentKey?: Uint8Array) {
+    if (contentKey) this.contentKeys += 1;
+    this.unlocked = phrase;
+  }
+  async unlockEnvelope(envelope: SeedEnvelope, password: string) {
+    this.unlocked = await openSeed(envelope, password, (pw, salt) => this.deriveKey(pw, salt));
+  }
+  async storeOpen() {
+    if (this.failOpen) throw new Error(this.failOpen);
+    return [...this.moved];
+  }
+  async storeMigrate(accountId: string, part: string, dump: { accounts: unknown[]; contacts: unknown[] }) {
+    if (this.failMigrate) throw new Error(this.failMigrate);
+    this.migrations.push({ accountId, part, dump });
+    this.moved.push(part);
+  }
+  async storeRead() {
+    return [];
+  }
+  async storeCommit(_accountId: string, changes: unknown[]) {
+    this.commits.push(changes);
+  }
+  async storeRemove(accountId: string) {
+    this.removed.push(accountId);
+  }
+}
+
 let db: VaultDb;
 afterEach(() => {
   db?.close();
@@ -91,6 +127,72 @@ async function setup(lockTimeoutMs = 5 * 60 * 1000) {
   const service = new AccountService(db, core as unknown as WalletCore, lockTimeoutMs);
   return { core, service };
 }
+
+describe('the engine store, as the account service drives it', () => {
+  async function withStore() {
+    db = await openVaultDb();
+    const core = new FakeStoreCore();
+    const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+    return { core, service };
+  }
+
+  it('hands a new wallet its content key, opens its log, and moves its contacts over', async () => {
+    const { core, service } = await withStore();
+    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    expect(core.contentKeys).toBe(1);
+    expect(core.migrations.map((m) => m.part)).toEqual(['contacts']);
+    expect(service.engine.where(record.id, 'contacts')).toBe('engine');
+  });
+
+  it('moves what the database holds when an existing wallet is unlocked, once', async () => {
+    const { core, service } = await withStore();
+    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    await service.lock();
+    core.moved = [];
+    core.migrations = [];
+    await db.put('contacts', { key: `${record.id}:1`, id: '1', accountId: record.id, name: 'Al', address: 'nolgar1al', kind: 'k', createdAt: 1, updatedAt: 1 });
+    await db.put('contacts', { key: 'someone-else:1', id: '1', accountId: 'someone-else', name: 'Not mine', address: 'nolgar1x', kind: 'k', createdAt: 1, updatedAt: 1 });
+
+    await service.unlock(record.id, 'pw');
+    expect(core.migrations).toHaveLength(1);
+    expect(core.migrations[0].dump.contacts).toHaveLength(1);
+    expect(core.migrations[0].dump.accounts).toHaveLength(1);
+
+    await service.lock();
+    expect(() => service.engine.where(record.id, 'contacts')).toThrow('wallet is locked');
+    await service.unlock(record.id, 'pw');
+    expect(core.migrations).toHaveLength(1);
+  });
+
+  it('a part that will not move stays in the database, and the wallet opens all the same', async () => {
+    const { core, service } = await withStore();
+    core.failMigrate = 'migrate: contact x:9 is not in a shape this build knows';
+    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    expect(service.currentAccountId).toBe(record.id);
+    expect(service.engine.where(record.id, 'contacts')).toBe('database');
+    expect(service.engine.problems(record.id)[0]).toContain('x:9');
+  });
+
+  it('a log that will not open does not lock anyone out of their wallet', async () => {
+    const { core, service } = await withStore();
+    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    await service.lock();
+    core.failOpen = 'the disk is full';
+    await service.unlock(record.id, 'pw');
+    expect(service.currentAccountId).toBe(record.id);
+    // But its contacts are not guessed at from the rows left behind.
+    expect(() => service.engine.where(record.id, 'contacts')).toThrow('the disk is full');
+    expect(service.engine.describe(record.id, 'contacts')).toBe('Not readable');
+  });
+
+  it('deleting a wallet drops its log, locked or not', async () => {
+    const { core, service } = await withStore();
+    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    await service.lock();
+    await service.deleteAccount(record.id);
+    expect(core.removed).toEqual([record.id]);
+  });
+});
 
 describe('account service', () => {
   it('names wallets in order per network, renames, and removes one without touching another', async () => {

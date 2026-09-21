@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { openVaultDb, type AccountRecord, type VaultDb } from '../storage/db';
-import type { MempoolScan, NextKeyIndices, StoredUtxo } from './core';
+import type { MempoolScan, NextKeyIndices, StoredUtxo } from '../backend/types';
 import { incomingKey, MempoolWatcher, outgoingKey, type MempoolNode } from './mempool';
 
 const account: AccountRecord = {

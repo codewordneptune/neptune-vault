@@ -9,7 +9,7 @@
 // same commitment when the output is finally confirmed.
 
 import type { HistoryRecord, VaultDb } from '../storage/db';
-import type { NextKeyIndices, StoredUtxo, WalletCore } from './core';
+import type { NextKeyIndices, StoredUtxo, WalletCore } from '../backend/types';
 import { nextKeyIndicesOf } from '../storage/db';
 
 export interface MempoolNode {

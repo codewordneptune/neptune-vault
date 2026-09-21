@@ -8,12 +8,14 @@
 // unlock. It reaches the page only when it has to be seen: once when a new
 // wallet's words are written down, and when the person asks to see them.
 
-import { openSeed, openSeedWithSecret, WrongPasswordError, type DeriveKey } from '../storage/envelope';
-import type { SeedEnvelope } from '../storage/db';
+import { openSeed, openSeedKeepingKey, openSeedWithSecretKeepingKey, WrongPasswordError, type DeriveKey } from '../../storage/envelope';
+import type { SeedEnvelope } from '../../storage/db';
+import { LogStore } from '../../storage/logStore';
 
 // Served untransformed from the public dir, like the prover package.
-type CoreModule = typeof import('../../public/wasm/core/vault_core');
+type CoreModule = typeof import('../../../public/wasm/core/vault_core');
 type Account = InstanceType<CoreModule['Account']>;
+type WalletLog = InstanceType<CoreModule['WalletLog']>;
 
 
 export interface WorkerRequest {
@@ -34,6 +36,67 @@ export interface WorkerResponse {
 
 let ready: Promise<CoreModule> | null = null;
 let account: Account | null = null;
+
+// The unlocked wallet's data. The content key is what the seed envelope
+// protects; the key of the wallet's sealed log is derived from it, inside
+// the wasm core, and neither ever goes back to the page. Locking ends this
+// worker, and all of this with it.
+let contentKey: Uint8Array | null = null;
+const logs = new Map<string, { log: WalletLog; sinceSnapshot: number }>();
+let logStore: Promise<LogStore> | null = null;
+/** Batches kept between snapshots; the engine's COMPACT_EVERY. */
+const COMPACT_EVERY = 256;
+
+function keep(key: Uint8Array | null): void {
+  contentKey?.fill(0);
+  contentKey = key;
+  for (const held of logs.values()) held.log.free();
+  logs.clear();
+}
+
+function storage(): Promise<LogStore> {
+  logStore ??= LogStore.open();
+  return logStore;
+}
+
+// Requests are handled as they arrive and each one waits on storage, so two
+// writes to one log could both be prepared as entry n. One at a time, per log.
+const queues = new Map<string, Promise<unknown>>();
+function inTurn<T>(accountId: string, run: () => Promise<T>): Promise<T> {
+  const next = (queues.get(accountId) ?? Promise.resolve()).then(run, run);
+  queues.set(accountId, next.catch(() => undefined));
+  return next;
+}
+
+function openLog(accountId: string): { log: WalletLog; sinceSnapshot: number } {
+  const held = logs.get(accountId);
+  if (!held) throw new Error('wallet is locked');
+  return held;
+}
+
+/** Write the batch the log has prepared, and only then let it take effect. */
+async function write(held: { log: WalletLog; sinceSnapshot: number }, bytes: Uint8Array): Promise<void> {
+  const store = await storage();
+  const seq = held.log.pending_seq();
+  if (seq === undefined) throw new Error('no batch is waiting');
+  try {
+    await store.append(held.log.name(), seq, bytes);
+  } catch (e) {
+    held.log.abandon();
+    throw e;
+  }
+  held.log.confirm();
+  held.sinceSnapshot += 1;
+  if (held.sinceSnapshot >= COMPACT_EVERY) {
+    // Best effort: a log longer than it needs to be is still a correct log.
+    try {
+      await store.compact(held.log.name(), held.log.seq(), held.log.snapshot());
+      held.sinceSnapshot = 0;
+    } catch {
+      // Tried again after the next write.
+    }
+  }
+}
 
 function ensureReady(): Promise<CoreModule> {
   const p =
@@ -81,26 +144,69 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
     case 'unlock': {
       account?.free();
       account = new m.Account(args[0] as string[], args[1] as string);
+      keep((args[2] as Uint8Array | undefined) ?? null);
       return { result: null };
     }
     case 'unlockEnvelope': {
       const [envelope, password, network] = args as [SeedEnvelope, string, string];
       const derive: DeriveKey = (pw, salt, mKib, tCost, pCost) => m.derive_key(pw, salt, mKib, tCost, pCost);
-      const phrase = await openSeed(envelope, password, derive);
+      const opened = await openSeedKeepingKey(envelope, password, derive);
       account?.free();
-      account = new m.Account(phrase, network);
+      account = new m.Account(opened.phrase, network);
+      keep(opened.contentKey);
       return { result: null };
     }
     case 'unlockEnvelopeWithSecret': {
       const [envelope, wrapped, secret, network] = args as [SeedEnvelope, { iv: string; ciphertext: string }, Uint8Array, string];
       try {
-        const phrase = await openSeedWithSecret(envelope, wrapped, secret);
+        const opened = await openSeedWithSecretKeepingKey(envelope, wrapped, secret);
         account?.free();
-        account = new m.Account(phrase, network);
+        account = new m.Account(opened.phrase, network);
+        keep(opened.contentKey);
       } finally {
         secret.fill(0);
       }
       return { result: null };
+    }
+    case 'storeOpen': {
+      const accountId = args[0] as string;
+      return inTurn(accountId, async () => {
+        if (!logs.has(accountId)) {
+          if (!contentKey) throw new Error('wallet is locked');
+          const entries = await (await storage()).load(`wallet:${accountId}`);
+          logs.set(accountId, { log: new m.WalletLog(accountId, contentKey, entries), sinceSnapshot: entries.length });
+        }
+        return { result: openLog(accountId).log.migrated() };
+      });
+    }
+    case 'storeMigrate': {
+      const [accountId, part, dump] = args as [string, string, unknown];
+      return inTurn(accountId, async () => {
+        const held = openLog(accountId);
+        if (!held.log.migrated().includes(part)) await write(held, held.log.prepare_migration(JSON.stringify(dump), part));
+        return { result: null };
+      });
+    }
+    case 'storeRead': {
+      const [accountId, part] = args as [string, string];
+      return inTurn(accountId, async () => ({ result: JSON.parse(openLog(accountId).log.read(part)) as unknown[] }));
+    }
+    case 'storeCommit': {
+      const [accountId, changes] = args as [string, unknown[]];
+      return inTurn(accountId, async () => {
+        const held = openLog(accountId);
+        await write(held, held.log.prepare(JSON.stringify(changes)));
+        return { result: null };
+      });
+    }
+    case 'storeRemove': {
+      const accountId = args[0] as string;
+      return inTurn(accountId, async () => {
+        logs.get(accountId)?.log.free();
+        logs.delete(accountId);
+        await (await storage()).remove(`wallet:${accountId}`);
+        return { result: null };
+      });
     }
     case 'openEnvelope': {
       // For showing the words, and for proving a password: the one place the phrase goes back to the page.
@@ -112,6 +218,7 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
     case 'lock':
       account?.free();
       account = null;
+      keep(null);
       return { result: null };
     case 'isUnlocked':
       return { result: account !== null };

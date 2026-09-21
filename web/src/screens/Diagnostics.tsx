@@ -10,7 +10,9 @@ import { showInt } from '../util/format';
 
 export function Diagnostics() {
   const navigate = useNavigate();
-  const { services } = useApp();
+  const { services, account } = useApp();
+  const accountId = account?.id ?? null;
+  const engine = services.accounts.engine;
   const isolated = self.crossOriginIsolated;
   const cores = navigator.hardwareConcurrency ?? 1;
   const installed = matchMedia('(display-mode: standalone)').matches;
@@ -32,6 +34,9 @@ export function Diagnostics() {
           <Fact label="Memory, as the browser reports it" value={memoryGb === undefined ? 'Not reported' : `${memoryGb} GB or more`} state={memoryGb === undefined ? undefined : memoryGb >= 4 ? 'ok' : 'warn'} />
           <Fact label="Running as" value={installed ? 'Installed app' : 'Browser tab'} state={installed ? 'ok' : 'warn'} />
           <Fact label="App version" value={`${__APP_VERSION__} (${__APP_COMMIT__}), built ${new Date(__APP_BUILT_AT__).toLocaleString()}`} />
+          <Fact label="Wallet core" value={services.backendKind === 'native' ? 'Native, in the app' : 'WebAssembly, in a worker'} />
+          {accountId && <Fact label="Contacts" value={engine.describe(accountId, 'contacts')} state={engine.describe(accountId, 'contacts') === 'In the sealed log' ? 'ok' : 'warn'} />}
+          {accountId && engine.problems(accountId).map((problem) => <Fact key={problem} label="Did not move" value={problem} state="warn" />)}
         </Stack>
         <Title order={3}>Last proof on this device</Title>
         {last ? (

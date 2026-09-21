@@ -9,8 +9,17 @@ pub mod account;
 pub mod amount;
 pub mod chain;
 pub mod kdf;
+pub mod migrate;
 pub mod scan;
 pub mod send;
+pub mod store;
+
+/// Version of this package, for the diagnostics screen. Read here rather
+/// than in each wrapper, so every caller reports the core it is actually
+/// running.
+pub fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
 
 #[cfg(target_arch = "wasm32")]
 mod wasm {
@@ -21,8 +30,10 @@ mod wasm {
     use crate::amount;
     use crate::chain;
     use crate::kdf;
+    use crate::migrate;
     use crate::scan;
     use crate::send;
+    use crate::store;
 
     /// A JSON-RPC response as the node sends it; only `result` matters here.
     #[derive(serde::Deserialize)]
@@ -43,7 +54,7 @@ mod wasm {
     /// Version of the wallet core package, for the diagnostics screen.
     #[wasm_bindgen]
     pub fn core_version() -> String {
-        env!("CARGO_PKG_VERSION").to_string()
+        crate::version().to_string()
     }
 
     /// A fresh 18-word seed phrase.
@@ -274,6 +285,103 @@ mod wasm {
         /// `SendSummary` as JSON.
         pub fn summary(&self) -> Result<String, JsError> {
             serde_json::to_string(&self.0.summary).map_err(|e| JsError::new(&e.to_string()))
+        }
+    }
+
+    /// One wallet's sealed log, held by the wallet worker while that wallet
+    /// is unlocked. The worker owns the storage and the order of things:
+    /// it asks for a batch to be prepared, writes the bytes, and only then
+    /// confirms. The key is derived in here from the content key and is
+    /// never handed back out.
+    #[wasm_bindgen]
+    pub struct WalletLog {
+        wallet_id: String,
+        log: store::Log<store::WalletState>,
+        pending: Option<store::Prepared<store::WalletState>>,
+    }
+
+    #[wasm_bindgen]
+    impl WalletLog {
+        /// Open a wallet's log from what storage holds. `entries` is an array
+        /// of Uint8Array, in any order; empty for a wallet that has no log yet.
+        #[wasm_bindgen(constructor)]
+        pub fn open(wallet_id: &str, content_key: &[u8], entries: js_sys::Array) -> Result<WalletLog, JsError> {
+            console_error_panic_hook::set_once();
+            let key = store::LogKey::derive(content_key, wallet_id).map_err(js_err)?;
+            let entries = entries.iter().map(|e| js_sys::Uint8Array::new(&e).to_vec()).collect();
+            let log = store::Log::open(&store::wallet_log(wallet_id), Some(key), entries).map_err(js_err)?;
+            Ok(WalletLog { wallet_id: wallet_id.to_string(), log, pending: None })
+        }
+
+        /// The name storage keeps this log under.
+        pub fn name(&self) -> String {
+            self.log.name().to_string()
+        }
+
+        /// The number of the last entry applied.
+        pub fn seq(&self) -> f64 {
+            self.log.seq() as f64
+        }
+
+        /// The parts of this wallet that live in this log and nowhere else.
+        pub fn migrated(&self) -> Vec<String> {
+            self.log.state().migrated.iter().cloned().collect()
+        }
+
+        /// The records of one part, as a JSON array in the app's own shape.
+        pub fn read(&self, part: &str) -> Result<String, JsError> {
+            let records = migrate::part_records(self.log.state(), part).map_err(js_err)?;
+            serde_json::to_string(&records).map_err(|e| JsError::new(&e.to_string()))
+        }
+
+        fn hold(&mut self, prepared: store::Prepared<store::WalletState>) -> Vec<u8> {
+            let bytes = prepared.bytes.clone();
+            self.pending = Some(prepared);
+            bytes
+        }
+
+        /// Check and seal a batch of changes (a JSON array). Returns the bytes
+        /// to write as entry `pending_seq`; nothing changes until `confirm`.
+        pub fn prepare(&mut self, changes_json: &str) -> Result<Vec<u8>, JsError> {
+            let changes: Vec<store::WalletChange> = serde_json::from_str(changes_json)
+                .map_err(|e| JsError::new(&format!("cannot decode the changes: {e}")))?;
+            let prepared = self.log.prepare(changes).map_err(js_err)?;
+            Ok(self.hold(prepared))
+        }
+
+        /// The same for one part coming over from the app's old database.
+        /// `dump_json` is what that database holds. The batch is checked
+        /// against the dump, record for record, before it is prepared, so a
+        /// part that would not come through unchanged is never written.
+        pub fn prepare_migration(&mut self, dump_json: &str, part: &str) -> Result<Vec<u8>, JsError> {
+            let dump: migrate::Dump = serde_json::from_str(dump_json)
+                .map_err(|e| JsError::new(&format!("cannot decode the old database: {e}")))?;
+            let changes = migrate::part_changes(&dump, &self.wallet_id, part).map_err(js_err)?;
+            let would_be = self.log.preview(&changes).map_err(js_err)?;
+            migrate::verify_part(&dump, &self.wallet_id, part, &would_be).map_err(js_err)?;
+            let prepared = self.log.prepare(changes).map_err(js_err)?;
+            Ok(self.hold(prepared))
+        }
+
+        /// The number the prepared batch is to be written under.
+        pub fn pending_seq(&self) -> Option<f64> {
+            self.pending.as_ref().map(|p| p.seq as f64)
+        }
+
+        /// Apply the prepared batch, now that storage holds it.
+        pub fn confirm(&mut self) -> Result<(), JsError> {
+            let prepared = self.pending.take().ok_or_else(|| JsError::new("no batch is waiting"))?;
+            self.log.confirm(prepared).map_err(js_err)
+        }
+
+        /// Drop the prepared batch: the write failed, and nothing changed.
+        pub fn abandon(&mut self) {
+            self.pending = None;
+        }
+
+        /// The whole state, sealed, numbered as the last batch it includes.
+        pub fn snapshot(&self) -> Result<Vec<u8>, JsError> {
+            self.log.snapshot().map_err(js_err)
         }
     }
 

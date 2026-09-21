@@ -1,24 +1,29 @@
 // Wires the long-lived objects together: database, settings, wallet worker,
 // node client, account service. Screens reach them through AppContext.
 
+import { createBackend, type BackendKind } from '../backend';
+import type { Prover, WalletCore } from '../backend/types';
 import { NodeClient } from '../node/rpc';
-import { ProverClient } from '../prover/client';
 import { loadSettings, openVaultDb, requestPersistentStorage, saveSettings, type Network, type SettingsRecord, type VaultDb } from '../storage/db';
-import { WalletWorkerClient } from '../wallet/workerClient';
 import { ContactsService } from './contacts';
 import { WebAuthnPasskeys } from './passkey';
 import { MempoolWatcher } from '../wallet/mempool';
 import { SyncEngine, type SyncProgress } from '../wallet/sync';
 import { AccountService } from './accounts';
 import { SendService } from './send';
+import type { WindowOwner } from './windowOwner';
 
 export interface Services {
   db: VaultDb;
   settings: SettingsRecord;
-  core: WalletWorkerClient;
+  core: WalletCore;
   accounts: AccountService;
-  prover: ProverClient;
+  prover: Prover;
+  /** Whether the wallet's Rust runs as wasm here or natively in a shell. */
+  backendKind: BackendKind;
   persistent: boolean;
+  /** This window's hold on the wallet; a send marks it busy so the wallet is not taken mid-way. */
+  window: WindowOwner;
   node(): NodeClient;
   updateSettings(patch: Partial<SettingsRecord>): Promise<SettingsRecord>;
   syncEngine(accountId: string, onProgress: (p: SyncProgress) => void): SyncEngine;
@@ -35,14 +40,13 @@ export function coreNetworkName(network: Network): string {
   return network === 'main' ? 'main' : network === 'testnet' ? 'testnet' : 'regtest';
 }
 
-export async function createServices(): Promise<Services> {
+export async function createServices(owner: WindowOwner): Promise<Services> {
   const watchers = new Map<string, MempoolWatcher>();
   const db = await openVaultDb();
   const persistent = await requestPersistentStorage();
   let settings = await loadSettings(db);
-  const core = new WalletWorkerClient();
+  const { core, prover, backendKind } = await createBackend().then((b) => ({ core: b.core, prover: b.prover, backendKind: b.kind }));
   const accounts = new AccountService(db, core, settings.lockTimeoutMs, new WebAuthnPasskeys());
-  const prover = new ProverClient();
 
   const services: Services = {
     db,
@@ -50,7 +54,9 @@ export async function createServices(): Promise<Services> {
     core,
     accounts,
     prover,
+    backendKind,
     persistent,
+    window: owner,
     node() {
       return new NodeClient(settings.nodeUrls[settings.network]);
     },
@@ -64,7 +70,7 @@ export async function createServices(): Promise<Services> {
       // The node of the account's own network, whatever the settings say at this instant.
       return new SyncEngine(db, (network) => new NodeClient(settings.nodeUrls[network]), core, accountId, { onProgress });
     },
-    contacts: new ContactsService(db, core, () => coreNetworkName(services.settings.network)),
+    contacts: new ContactsService(db, core, () => coreNetworkName(services.settings.network), accounts.engine),
     mempoolWatcher(accountId) {
       const key = `${accountId}:${settings.nodeUrls[settings.network]}`;
       let w = watchers.get(key);
@@ -75,7 +81,7 @@ export async function createServices(): Promise<Services> {
       return w;
     },
     sendService(accountId) {
-      return new SendService(db, services.node(), core, prover, accountId, coreNetworkName(settings.network), ProverClient.defaultThreads(), settings.network === 'regtest');
+      return new SendService(db, services.node(), core, prover, accountId, coreNetworkName(settings.network), prover.defaultThreads(), settings.network === 'regtest');
     },
     forgetAccount(accountId) {
       for (const key of [...watchers.keys()]) if (key.startsWith(`${accountId}:`)) watchers.delete(key);

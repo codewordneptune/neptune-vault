@@ -2,7 +2,7 @@
 // package so the sync engine and the UI can be tested with a fake, and so
 // the real one can live in a Web Worker.
 
-import type { SeedEnvelope } from '../storage/db';
+import type { ContactRecord, SeedEnvelope } from '../storage/db';
 
 export interface ScannedBlock {
   height: number;
@@ -128,6 +128,20 @@ export interface SendPlan {
   summary: SendSummary;
 }
 
+/**
+ * The parts of a wallet that can live in the engine's sealed log. The app
+ * moves over one part at a time; `ENGINE_PARTS` says which have.
+ */
+export type WalletPart = 'details' | 'sync' | 'utxos' | 'blocks' | 'history' | 'contacts' | 'private';
+
+/** The parts the app reads from the engine today. The rest are still read from the app's own database. */
+export const ENGINE_PARTS: WalletPart[] = ['contacts'];
+
+/** One edit to a wallet's sealed log; the names are the engine's. */
+export type WalletChange =
+  | { op: 'putContact'; contact: ContactRecord }
+  | { op: 'deleteContact'; id: string };
+
 /** Everything the app asks of the wallet core, unlocked or not. */
 export interface WalletCore {
   /** Version of the wasm wallet core package. */
@@ -142,8 +156,13 @@ export interface WalletCore {
   /** Why `words` cannot be a seed phrase, in plain words, or null when they can. */
   phraseProblem(words: string[]): Promise<string | null>;
 
-  /** Load the account into memory. Replaces any previously unlocked one. */
-  unlock(phrase: string[], network: string): Promise<void>;
+  /**
+   * Load the account into memory. Replaces any previously unlocked one.
+   * `contentKey` is the key the wallet's sealed log is derived from: a new
+   * wallet's envelope is sealed on the page, so the page has it once, and
+   * hands it over with the phrase. It is zeroed on the way.
+   */
+  unlock(phrase: string[], network: string, contentKey?: Uint8Array): Promise<void>;
   /**
    * Open the envelope and load the account inside the core, so the phrase
    * never reaches the page. Throws WrongPasswordError. Optional: a core
@@ -177,7 +196,73 @@ export interface WalletCore {
     request: SendRequest,
     nowMs: number,
   ): Promise<SendPlan>;
+  // The wallet's data in the engine. Optional while it arrives: a core
+  // without these keeps every part in the app's own database, as before.
+
+  /** Open the unlocked wallet's sealed log. Returns the parts that live in it. */
+  storeOpen?(accountId: string): Promise<WalletPart[]>;
+  /**
+   * Move one part over from the app's database. `dump` is what that
+   * database holds for this wallet. Checked record for record before a byte
+   * is written; throws, having changed nothing, when it would not come
+   * through unchanged.
+   */
+  storeMigrate?(accountId: string, part: WalletPart, dump: unknown): Promise<void>;
+  /** The records of one part, in the app's own shape. */
+  storeRead?(accountId: string, part: WalletPart): Promise<unknown[]>;
+  /** Write a batch of changes: on disk by the time this resolves, whole or not at all. */
+  storeCommit?(accountId: string, changes: WalletChange[]): Promise<void>;
+  /** Forget a wallet's log entirely. Needs no key: works on a locked wallet. */
+  storeRemove?(accountId: string): Promise<void>;
+
   /** Mock ProofCollection for mock-proof networks (regtest), where real proofs are rejected. */
   mockProofCollection(witness: Uint8Array): Promise<Uint8Array>;
   assembleSubmission(kernel: Uint8Array, proofCollection: Uint8Array): Promise<unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// The prover. It takes a witness and returns a proof collection, and is the
+// slowest thing the wallet does, so its progress is reported as it goes.
+// ---------------------------------------------------------------------------
+
+export interface ProveRequest {
+  /** How many inputs the transaction spends, to weight the progress bar; optional. */
+  inputs?: number;
+  witness: Uint8Array;
+  network: string;
+  blockHeight: number;
+  threads: number;
+  /** Use the pre-fork prover package (claim version 5). */
+  legacy?: boolean;
+}
+
+export interface ProveProgress {
+  index: number;
+  total: number;
+  name: string;
+  /** Share of the proving work finished, 0 to 1, by the measured cost of each sub-proof; not a time. */
+  work?: number;
+  /** Seconds spent on finished sub-proofs so far. */
+  elapsedSeconds: number;
+  memoryMb: number;
+  threads: number;
+}
+
+export interface ProveOutcome {
+  proofCollection: Uint8Array;
+  seconds: number;
+  memoryMb: number;
+  threads: number;
+}
+
+/**
+ * The prover as the send flow needs it. In a browser this is wasm in a
+ * worker; in a native shell it is the same Rust compiled for the device.
+ */
+export interface Prover {
+  prove(request: ProveRequest, onProgress: (p: ProveProgress) => void): Promise<ProveOutcome>;
+  /** Abandon the running proof. Settles the promise `prove` returned. */
+  cancel(): void;
+  /** How many threads to ask for, as this implementation counts them. */
+  defaultThreads(): number;
 }

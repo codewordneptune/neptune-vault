@@ -4,9 +4,9 @@
 // submission nothing stays reserved.
 
 import { NodeError, type NodeClient } from '../node/rpc';
-import type { ProveOutcome, ProveProgress } from '../prover/client';
+import type { Prover, ProveOutcome, ProveProgress } from '../backend/types';
 import type { HistoryRecord, VaultDb } from '../storage/db';
-import type { SendRequest, StoredUtxo, WalletCore } from '../wallet/core';
+import type { SendRequest, StoredUtxo, WalletCore } from '../backend/types';
 
 export type SendStage = 'planning' | 'membership-proofs' | 'building' | 'proving' | 'submitting' | 'done';
 
@@ -31,14 +31,6 @@ export interface SendOutcome {
   txid: string;
   proving: ProveOutcome;
   claimVersion: number;
-}
-
-/** The prover as the send flow needs it; the real one is ProverClient. */
-export interface Prover {
-  prove(
-    request: { witness: Uint8Array; network: string; blockHeight: number; threads: number; legacy?: boolean; inputs?: number },
-    onProgress: (p: ProveProgress) => void,
-  ): Promise<ProveOutcome>;
 }
 
 /** A send is already running; this one was not started and changed nothing. */

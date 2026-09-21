@@ -1,0 +1,46 @@
+{
+  "wrap_key": "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dw=",
+  "envelope": {
+    "version": 1,
+    "kdf": {
+      "name": "argon2id",
+      "mKib": 65536,
+      "tCost": 3,
+      "pCost": 1,
+      "salt": "FmL3vbW67fgOTJ6CV/+uJg=="
+    },
+    "wrappedContentKey": {
+      "iv": "pC8sJEHweOJqW352",
+      "ciphertext": "fcHwnmgUpmgKpdDNSjo7Q7smli1simOLYhERQi/In9eVudgF1dP4V+XAaNoyz8fU"
+    },
+    "seed": {
+      "iv": "nFKwS8dCI4MdZlYi",
+      "ciphertext": "v7xi0XASRZixbi0XWptIh0PcYNcy30RmoD/e7MwZWALtTcrbif5GPL/s74D5SBxbZcTw+lJR7zNIwy51mxqtehQvIfHDSuIsJa+Jik+7KFzY5bXdwhqjg6jHXVO2LmCM+/DEEouQKiWotqP1tQf46K88iZr3pr3hU1TY0hp17ZUw92+aAfF0jKoRBgTRUy6N3g=="
+    }
+  },
+  "phrase": [
+    "abandon",
+    "ability",
+    "able",
+    "about",
+    "above",
+    "absent",
+    "absorb",
+    "abstract",
+    "absurd",
+    "abuse",
+    "access",
+    "accident",
+    "account",
+    "accuse",
+    "achieve",
+    "acid",
+    "acoustic",
+    "acquire"
+  ],
+  "passkey_wrapped": {
+    "iv": "xNc4h0T3LwBzJzQG",
+    "ciphertext": "IxNKzE2QpqHPXzNdlDlgYsm5owj6pNL1oemX53hxtC3lbUyFDBDGK/phB/UTQloN"
+  },
+  "passkey_secret": "BRAbJjE8R1JdaHN+iZSfqrXAy9bh7PcCDRgjLjlET1o="
+}
