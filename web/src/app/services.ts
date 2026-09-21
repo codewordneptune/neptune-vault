@@ -11,6 +11,7 @@ import { MempoolWatcher } from '../wallet/mempool';
 import { SyncEngine, type SyncProgress } from '../wallet/sync';
 import { AccountService } from './accounts';
 import { SendService } from './send';
+import type { WindowOwner } from './windowOwner';
 
 export interface Services {
   db: VaultDb;
@@ -21,6 +22,8 @@ export interface Services {
   /** Whether the wallet's Rust runs as wasm here or natively in a shell. */
   backendKind: BackendKind;
   persistent: boolean;
+  /** This window's hold on the wallet; a send marks it busy so the wallet is not taken mid-way. */
+  window: WindowOwner;
   node(): NodeClient;
   updateSettings(patch: Partial<SettingsRecord>): Promise<SettingsRecord>;
   syncEngine(accountId: string, onProgress: (p: SyncProgress) => void): SyncEngine;
@@ -37,7 +40,7 @@ export function coreNetworkName(network: Network): string {
   return network === 'main' ? 'main' : network === 'testnet' ? 'testnet' : 'regtest';
 }
 
-export async function createServices(): Promise<Services> {
+export async function createServices(owner: WindowOwner): Promise<Services> {
   const watchers = new Map<string, MempoolWatcher>();
   const db = await openVaultDb();
   const persistent = await requestPersistentStorage();
@@ -53,6 +56,7 @@ export async function createServices(): Promise<Services> {
     prover,
     backendKind,
     persistent,
+    window: owner,
     node() {
       return new NodeClient(settings.nodeUrls[settings.network]);
     },

@@ -210,6 +210,7 @@ export function AppProvider({ services, children }: { services: Services; childr
       if (!accountId) throw new Error('no account');
       if (sending.current) throw new SendBusyError();
       sending.current = true;
+      services.window.busy = true;
       const abort = new AbortController();
       sendAbort.current = abort;
       const service = services.sendService(accountId);
@@ -275,6 +276,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         throw e;
       } finally {
         sending.current = false;
+        services.window.busy = false;
         sendAbort.current = null;
         await wake?.release().catch(() => undefined);
         services.accounts.setLockDeferred(false);
