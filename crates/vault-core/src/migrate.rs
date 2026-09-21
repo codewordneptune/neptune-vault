@@ -244,6 +244,45 @@ pub fn part_changes(dump: &Dump, wallet_id: &str, part: &str) -> Result<Vec<Wall
     Ok(changes)
 }
 
+/// The restore marker of a chain being rebuilt because it could not be moved.
+/// Like `fast`, it asks the sync to restore through the node's coin index; unlike
+/// `fast`, which a person asked for and is told about when the node has no
+/// index, a rebuild nobody asked for falls back to a plain scan from the start.
+pub const REBUILD: &str = "rebuild";
+
+/// When a wallet's chain would not come through unchanged: start the
+/// engine's copy afresh and let the sync rebuild it from the chain, which is
+/// the truth about coins. What only this device knew (notes on sends, the
+/// record of sends that failed, holds on coins of sends in flight) is not
+/// rebuilt. Nothing is deleted from the old database.
+///
+/// The scan starts where the wallet's record says, with the key counters it
+/// recorded, since watching more keys can only find more. Where the record
+/// cannot be read either, from the first block, with fresh counters: slow,
+/// but it misses nothing.
+pub fn rebuild_changes(dump: &Dump, wallet_id: &str) -> Vec<WalletChange> {
+    let record = account(dump, wallet_id).ok().and_then(|a| normal_account(a).ok());
+    let birthday = record
+        .as_ref()
+        .and_then(|r| r.get("birthdayHeight"))
+        .and_then(Value::as_u64)
+        .filter(|&h| h > 0)
+        .unwrap_or(1);
+    let next_key_indices = record
+        .as_ref()
+        .and_then(|r| r.get("nextKeyIndices"))
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or(crate::ledger::FRESH_KEY_INDICES);
+    let mut changes = vec![
+        WalletChange::Reset,
+        WalletChange::PutScan {
+            scan: ScanState { birthday_height: birthday, next_key_indices, restore: Some(REBUILD.to_string()), restored_at: None },
+        },
+    ];
+    changes.extend(CHAIN.iter().map(|part| WalletChange::MarkMigrated { part: part.to_string() }));
+    changes
+}
+
 // ---------------------------------------------------------------------------
 // Backwards: the records the new state amounts to
 // ---------------------------------------------------------------------------
@@ -573,6 +612,35 @@ mod tests {
             .unwrap();
         verify_part(&dump, "old", "scan", &other).unwrap();
         assert!(serde_json::to_value(other.scan.unwrap()).unwrap().get("restore").is_none());
+    }
+
+    #[test]
+    fn a_chain_that_will_not_move_is_rebuilt_from_where_the_record_says() {
+        let mut dump = dump();
+        dump.utxos[0].as_object_mut().unwrap().remove("amountNau");
+        assert!(parts_changes(&dump, "a", &CHAIN).is_err(), "the move itself is refused");
+
+        let state = Log::<WalletState>::open("wallet:a", None, Vec::new())
+            .unwrap()
+            .preview(&rebuild_changes(&dump, "a"))
+            .unwrap();
+        let scan = state.scan.unwrap();
+        assert_eq!((scan.birthday_height, scan.next_key_indices.generation, scan.restore.as_deref()), (40000, 3, Some(REBUILD)));
+        assert!(state.utxos.is_empty() && state.history.is_empty() && state.sync.is_none());
+        assert!(CHAIN.iter().all(|p| state.migrated.contains(*p)), "the engine is now the truth for the chain");
+        assert!(!state.migrated.contains("contacts"), "and for nothing else");
+    }
+
+    #[test]
+    fn a_rebuild_with_no_readable_record_starts_from_the_first_block() {
+        let mut dump = dump();
+        dump.accounts[1]["birthdayHeight"] = json!(0);
+        let state = Log::<WalletState>::open("wallet:old", None, Vec::new()).unwrap().preview(&rebuild_changes(&dump, "old")).unwrap();
+        assert_eq!(state.scan.unwrap().birthday_height, 1, "an unknown start would mean the tip, and skip everything");
+        let nothing = Dump::default();
+        let state = Log::<WalletState>::open("wallet:x", None, Vec::new()).unwrap().preview(&rebuild_changes(&nothing, "x")).unwrap();
+        let scan = state.scan.unwrap();
+        assert_eq!((scan.birthday_height, scan.next_key_indices), (1, crate::ledger::FRESH_KEY_INDICES));
     }
 
     #[test]

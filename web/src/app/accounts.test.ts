@@ -90,6 +90,9 @@ class FakeStoreCore extends FakeCore {
   removed: string[] = [];
   failOpen: string | null = null;
   failMigrate: string | null = null;
+  /** Refuse only the migration of a group that includes this part. */
+  failMigrateOf: string | null = null;
+  rebuilt: string[] = [];
   async unlock(phrase: string[], _network?: string, contentKey?: Uint8Array) {
     if (contentKey) this.contentKeys += 1;
     this.unlocked = phrase;
@@ -103,6 +106,7 @@ class FakeStoreCore extends FakeCore {
   }
   async storeMigrate(accountId: string, parts: string[], dump: { accounts: unknown[]; contacts: unknown[] }) {
     if (this.failMigrate) throw new Error(this.failMigrate);
+    if (this.failMigrateOf && parts.includes(this.failMigrateOf)) throw new Error(`migrate: ${this.failMigrateOf} did not come through unchanged`);
     this.migrations.push({ accountId, parts, dump });
     this.moved.push(...parts);
   }
@@ -114,6 +118,10 @@ class FakeStoreCore extends FakeCore {
   }
   async storeRemove(accountId: string) {
     this.removed.push(accountId);
+  }
+  async storeRebuild(accountId: string) {
+    this.rebuilt.push(accountId);
+    this.moved.push(...CHAIN_PARTS);
   }
 }
 
@@ -166,6 +174,16 @@ describe('the engine store, as the account service drives it', () => {
     expect(() => service.engine.where(record.id, 'contacts')).toThrow('wallet is locked');
     await service.unlock(record.id, 'pw');
     expect(core.migrations).toHaveLength(2);
+  });
+
+  it('a chain that will not move is rebuilt from the chain, and says so', async () => {
+    const { core, service } = await withStore();
+    core.failMigrateOf = 'utxos';
+    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    expect(core.rebuilt).toEqual([record.id]);
+    expect(service.engine.where(record.id, 'utxos')).toBe('engine');
+    expect(service.engine.where(record.id, 'contacts'), 'contacts moved on their own').toBe('engine');
+    expect(service.engine.problems(record.id)[0]).toMatch(/rebuilt from the chain.*utxos did not come through/);
   });
 
   it('a part that will not move stays in the database, and the wallet opens all the same', async () => {

@@ -53,6 +53,7 @@ pub enum Op {
     PersistScan { result: ScanResult, keep_blocks: Option<u64>, now: u64 },
     FinishFastRestore { handover: i64, lowest: u64, now: u64 },
     ResetForRescan { height: u64, fast: bool },
+    ClearRestore,
 
     // Sends.
     RecordPending { entry: Value },
@@ -145,6 +146,7 @@ pub fn run(state: &WalletState, wallet_id: &str, op: Op, keys: Option<&mut Accou
         }
         Op::FinishFastRestore { handover, lowest, now } => wrote(finish_fast_restore(state, wallet_id, handover, lowest, now)?),
         Op::ResetForRescan { height, fast } => wrote(reset_for_rescan(state, height, fast)?),
+        Op::ClearRestore => wrote(clear_restore(state)?),
 
         Op::RecordPending { entry } => wrote(record_pending(state, history_entry(entry)?)),
         Op::DiscardPending { txid } => wrote(discard_pending(state, wallet_id, &txid)),

@@ -138,7 +138,12 @@ afterEach(() => {
   indexedDB.deleteDatabase('neptune-vault');
 });
 
-async function setup() {
+/** A wallet whose chain would not move and is being rebuilt from the chain. */
+function setupRebuilding() {
+  return setup({ rebuild: true });
+}
+
+async function setup(options: { rebuild?: boolean } = {}) {
   db = await openVaultDb();
   await db.put('accounts', account);
   const node = new FakeNode();
@@ -151,7 +156,8 @@ async function setup() {
   vault.unlock();
   await vault.store.storeOpen('acc');
   // The wallet as the app moves it over on unlocking: its chain, from nothing.
-  await vault.store.storeMigrate('acc', CHAIN_PARTS, { accounts: [account] });
+  if (options.rebuild) await vault.store.storeRebuild('acc', { accounts: [account] });
+  else await vault.store.storeMigrate('acc', CHAIN_PARTS, { accounts: [account] });
   view = chainView(vault, db, 'acc');
   const engine = new SyncEngine(db, node as unknown as NodeClient, vault.store as unknown as WalletCore, 'acc', { batchSize: 4, keepBlocks: 100 });
   return { node, core, engine };
@@ -479,6 +485,44 @@ describe('sync engine', () => {
     node.getBlocksRaw = fetchBlocks;
     expect((await engine.syncOnce()).phase).toBe('done');
     expect((await view.get('syncState', 'acc'))?.syncedHeight).toBe(20);
+  });
+
+  it('a rebuild restores through the coin index when the node has one', async () => {
+    const { node, core, engine } = await setupRebuilding();
+    node.extendTo(20);
+    core.incoming.set(12, [utxo('b', 12, '3')]);
+    node.flagHeights = [12];
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('done');
+    expect(node.getBlocksCalls[0]).toEqual([12, 12]);
+    expect(await view.get('utxos', 'acc:b')).toBeDefined();
+    const after = await view.get('accounts', 'acc');
+    expect(after.restore).toBeUndefined();
+    // Handed over ten below the tip; the start moves down to that, or to the lowest block that mattered.
+    expect(after.birthdayHeight).toBe(11);
+  });
+
+  it('a rebuild on a node without a coin index carries on as a plain scan from the start, rather than stopping', async () => {
+    const { node, core, engine } = await setupRebuilding();
+    node.extendTo(8);
+    node.noIndex = true;
+    core.incoming.set(5, [utxo('u1', 5, '2')]);
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('done');
+    expect(result.syncedHeight).toBe(8);
+    expect(node.getBlocksCalls[0]).toEqual([3, 6]);
+    expect(await view.get('utxos', 'acc:u1')).toBeDefined();
+    expect((await view.get('accounts', 'acc')).restore).toBeUndefined();
+  });
+
+  it('a fast restore a person asked for still stops and says so on a node without an index', async () => {
+    const { node, engine } = await setup();
+    await view.put('accounts', { ...account, restore: 'fast' });
+    node.extendTo(8);
+    node.noIndex = true;
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('error');
+    expect(result.message).toMatch(/coin index/);
   });
 
   it('reports node errors without corrupting state', async () => {

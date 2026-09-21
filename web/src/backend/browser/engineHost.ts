@@ -112,6 +112,15 @@ export class EngineHost {
     });
   }
 
+  /** Start the chain afresh, for the sync to rebuild it from the chain. */
+  rebuild(accountId: string, dump: unknown): Promise<void> {
+    return this.inTurn(accountId, async () => {
+      const held = this.held(accountId);
+      held.log.prepare_rebuild(JSON.stringify(dump));
+      await this.write(held);
+    });
+  }
+
   read(accountId: string, part: WalletPart): Promise<unknown[]> {
     return this.inTurn(accountId, async () => JSON.parse(this.held(accountId).log.read(part)) as unknown[]);
   }

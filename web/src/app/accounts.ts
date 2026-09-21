@@ -69,10 +69,23 @@ export class AccountService {
     const groups = [ENGINE_PARTS.filter((p) => !CHAIN_PARTS.includes(p)).map((p) => [p]), ENGINE_PARTS.some((p) => CHAIN_PARTS.includes(p)) ? [CHAIN_PARTS] : []].flat();
     for (const parts of groups) {
       if (parts.every((p) => moved.includes(p))) continue;
+      const dump = await this.dump(accountId, parts);
       try {
-        await this.core.storeMigrate(accountId, parts, await this.dump(accountId, parts));
+        await this.core.storeMigrate(accountId, parts, dump);
       } catch (e) {
         const why = e instanceof Error ? e.message : String(e);
+        // The chain is the truth about coins, so a chain that will not move
+        // is rebuilt from it rather than left unreadable. Nothing is deleted.
+        if (parts.some((p) => CHAIN_PARTS.includes(p)) && this.core.storeRebuild) {
+          try {
+            await this.core.storeRebuild(accountId, dump);
+            console.warn(`The coins and history of wallet ${accountId} are being rebuilt from the chain: ${why}`);
+            this.engine.rebuilding(accountId, why);
+            continue;
+          } catch {
+            // Neither moved nor rebuilt: say why it did not move.
+          }
+        }
         console.warn(`The ${parts.join(', ')} of wallet ${accountId} stay in the database: ${why}`);
         for (const part of parts) this.engine.stays(accountId, part, why);
       }

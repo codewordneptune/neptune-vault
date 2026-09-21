@@ -469,6 +469,17 @@ pub fn reset_for_rescan(state: &WalletState, height: u64, fast: bool) -> Result<
     Ok(tx.done(()))
 }
 
+/// Drop the restore marker: a rebuild on a node with no coin index goes on
+/// as a plain scan from the start height.
+pub fn clear_restore(state: &WalletState) -> Result<Outcome> {
+    let scan = scan_of(state)?;
+    let mut tx = Tx::new(state);
+    if scan.restore.is_some() {
+        tx.push(WalletChange::PutScan { scan: ScanState { restore: None, ..scan } });
+    }
+    Ok(tx.done(()))
+}
+
 // ---------------------------------------------------------------------------
 // Sends
 // ---------------------------------------------------------------------------

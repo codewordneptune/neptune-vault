@@ -151,7 +151,12 @@ export interface Position {
 export interface ScanSettings {
   birthdayHeight: number;
   nextKeyIndices: NextKeyIndices;
-  restore?: 'fast';
+  /**
+   * `fast` when a person asked for a restore through the node's coin index;
+   * `rebuild` when the wallet's chain could not be moved into the engine and
+   * is being rebuilt, which falls back to a plain scan on a node without one.
+   */
+  restore?: 'fast' | 'rebuild';
   restoredAt?: number;
 }
 
@@ -176,6 +181,7 @@ export type LedgerOp =
   | { op: 'persistScan'; result: ScanResult; keepBlocks?: number; now: number }
   | { op: 'finishFastRestore'; handover: number; lowest: number; now: number }
   | { op: 'resetForRescan'; height: number; fast: boolean }
+  | { op: 'clearRestore' }
   | { op: 'recordPending'; entry: HistoryRecord }
   | { op: 'discardPending'; txid: string }
   | { op: 'forgetSend'; txid: string }
@@ -203,6 +209,7 @@ export interface LedgerAnswers {
   persistScan: null;
   finishFastRestore: null;
   resetForRescan: null;
+  clearRestore: null;
   recordPending: null;
   discardPending: null;
   forgetSend: null;
@@ -294,6 +301,12 @@ export interface WalletCore {
   storeRead?(accountId: string, part: WalletPart): Promise<unknown[]>;
   /** Write a batch of changes: on disk by the time this resolves, whole or not at all. */
   storeCommit?(accountId: string, changes: WalletChange[]): Promise<void>;
+  /**
+   * When the chain would not move: start the engine's copy afresh from what
+   * the wallet's record says, for the sync to rebuild from the chain. `dump`
+   * is as for storeMigrate. Nothing is deleted from the app's database.
+   */
+  storeRebuild?(accountId: string, dump: unknown): Promise<void>;
   /** Forget a wallet's log entirely. Needs no key: works on a locked wallet. */
   storeRemove?(accountId: string): Promise<void>;
   /** One ledger operation on the unlocked wallet's data. */

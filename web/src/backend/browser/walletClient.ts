@@ -120,6 +120,9 @@ export class WalletWorkerClient implements WalletCore {
   ledger<O extends LedgerOp>(accountId: string, op: O) {
     return this.call<LedgerAnswer<O>>('storeLedger', [accountId, op]);
   }
+  storeRebuild(accountId: string, dump: unknown) {
+    return this.call<void>('storeRebuild', [accountId, dump]);
+  }
   storeRead(accountId: string, part: WalletPart) {
     return this.call<unknown[]>('storeRead', [accountId, part]);
   }

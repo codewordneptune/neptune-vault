@@ -402,6 +402,15 @@ mod wasm {
             self.pending.as_ref().map(|p| p.bytes.clone())
         }
 
+        /// When the chain would not move: start it afresh from what the
+        /// wallet's record says, for the sync to rebuild from the chain.
+        pub fn prepare_rebuild(&mut self, dump_json: &str) -> Result<Vec<u8>, JsError> {
+            let dump: migrate::Dump = serde_json::from_str(dump_json)
+                .map_err(|e| JsError::new(&format!("cannot decode the old database: {e}")))?;
+            let prepared = self.log.prepare(migrate::rebuild_changes(&dump, &self.wallet_id)).map_err(js_err)?;
+            Ok(self.hold(prepared))
+        }
+
         /// The number the prepared batch is to be written under.
         pub fn pending_seq(&self) -> Option<f64> {
             self.pending.as_ref().map(|p| p.seq as f64)

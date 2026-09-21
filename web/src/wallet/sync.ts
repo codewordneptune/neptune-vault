@@ -37,6 +37,9 @@ function isMethodNotFound(e: unknown): boolean {
 /** How many blocks below the tip a fast restore hands over to the ordinary scan. */
 export const RESTORE_HANDOVER = 10;
 
+/** What a fast restore says on a node with no coin index. */
+const NO_INDEX = 'This node has no coin index, so a fast restore cannot run here. Rescan from a block or a date instead, or choose another node in Settings.';
+
 /** A fast restore stops asking after this many rounds and says so, rather than reporting a restore it cannot vouch for. */
 const RESTORE_ROUNDS = 40;
 
@@ -146,10 +149,14 @@ export class SyncEngine {
       }
 
       const tip = await this.node.tipHeader();
-      if ((await this.scanSettings()).restore === 'fast') {
+      const restore = (await this.scanSettings()).restore;
+      if (restore === 'fast' || restore === 'rebuild') {
         const outcome = await this.restoreFast(tip.height);
         if (outcome === 'stopped') return { phase: 'restoring', syncedHeight: 0, tipHeight: tip.height };
-        if (outcome !== 'done') return this.progress('error', 0, tip.height, outcome);
+        // A rebuild nobody asked for does not stop at a node without an
+        // index: it goes on as a plain scan from the start height.
+        if (outcome === NO_INDEX && restore === 'rebuild') await this.ledger({ op: 'clearRestore' });
+        else if (outcome !== 'done') return this.progress('error', 0, tip.height, outcome);
       }
       // The engine sets a missing or too-high start height to the tip, but
       // only before the first scan, and refuses a node whose tip is below
@@ -234,7 +241,7 @@ export class SyncEngine {
       try {
         heights = await this.node.blockHeightsByFlags(await this.ledger({ op: 'announcementFlags' }));
       } catch (e) {
-        if (isMethodNotFound(e)) return 'This node has no coin index, so a fast restore cannot run here. Rescan from a block or a date instead, or choose another node in Settings.';
+        if (isMethodNotFound(e)) return NO_INDEX;
         throw e;
       }
       const unspent = await this.ledger({ op: 'unspentHashes' });

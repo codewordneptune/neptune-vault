@@ -125,6 +125,10 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       const [accountId, parts, dump] = args as [string, WalletPart[], unknown];
       return { result: await engine(m).migrate(accountId, parts, dump) };
     }
+    case 'storeRebuild': {
+      const [accountId, dump] = args as [string, unknown];
+      return { result: await engine(m).rebuild(accountId, dump) };
+    }
     case 'storeRead': {
       const [accountId, part] = args as [string, WalletPart];
       return { result: await engine(m).read(accountId, part) };

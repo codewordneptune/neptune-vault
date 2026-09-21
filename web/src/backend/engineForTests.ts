@@ -74,7 +74,7 @@ export type Scans = Partial<{ [K in LedgerOp['op']]: (op: Extract<LedgerOp, { op
 
 export interface TestEngine {
   /** The store and ledger methods of the core, backed by the real engine. */
-  store: Required<Pick<WalletCore, 'storeOpen' | 'storeMigrate' | 'storeRead' | 'storeCommit' | 'storeRemove' | 'ledger'>>;
+  store: Required<Pick<WalletCore, 'storeOpen' | 'storeMigrate' | 'storeRebuild' | 'storeRead' | 'storeCommit' | 'storeRemove' | 'ledger'>>;
   /** Unlock: hand over a content key, as the worker is handed one. */
   unlock(contentKey?: Uint8Array): void;
   lock(): void;
@@ -102,6 +102,7 @@ export async function testEngine(scans: Scans = {}): Promise<TestEngine> {
     store: {
       storeOpen: (accountId: string) => host.open(accountId),
       storeMigrate: (accountId: string, parts: WalletPart[], dump: unknown) => host.migrate(accountId, parts, dump),
+      storeRebuild: (accountId: string, dump: unknown) => host.rebuild(accountId, dump),
       storeRead: (accountId: string, part: WalletPart) => host.read(accountId, part),
       storeCommit: (accountId: string, changes: WalletChange[]) => host.commit(accountId, changes),
       storeRemove: (accountId: string) => host.remove(accountId),

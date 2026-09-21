@@ -40,7 +40,8 @@ export interface AccountRecord {
    * which blocks are this wallet's and scans only those, instead of every
    * block from the start height. Cleared when it has run.
    */
-  restore?: 'fast';
+  /** Or 'rebuild': the engine's marker for a chain being rebuilt, seen only in the account as the screens are given it. */
+  restore?: 'fast' | 'rebuild';
   /** When the local view was last rebuilt through the node's coin index; absent when it was scanned from the start block. */
   restoredAt?: number;
   /** When an export file was last saved, or the file's date for an imported account. Absent: never. */
