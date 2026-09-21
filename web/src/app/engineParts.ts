@@ -19,6 +19,7 @@ import type { WalletPart } from '../backend/types';
 export class EngineParts {
   private readonly moved = new Map<string, Set<WalletPart>>();
   private readonly stayed = new Map<string, Map<WalletPart, string>>();
+  private readonly unopened = new Map<string, string>();
 
   /** `available` is whether the core has a store at all. */
   constructor(private readonly available: boolean) {}
@@ -27,7 +28,22 @@ export class EngineParts {
     if (!this.available) return 'database';
     if (this.moved.get(accountId)?.has(part)) return 'engine';
     if (this.stayed.get(accountId)?.has(part)) return 'database';
+    // The log could not be opened. What has moved into it cannot be reached,
+    // and the rows it left behind are not the truth, so this is an error
+    // with its reason, and not a reason to go and read them.
+    const unopened = this.unopened.get(accountId);
+    if (unopened) throw new Error(`This wallet's ${part} cannot be read right now: ${unopened}`);
     throw new Error('wallet is locked');
+  }
+
+  /**
+   * The wallet's log would not open. The wallet itself still unlocks: its
+   * keys and its coins do not depend on the log while only some parts have
+   * moved, and being locked out of funds over a list of contacts would be
+   * the wrong way round.
+   */
+  unopenable(accountId: string, why: string): void {
+    this.unopened.set(accountId, why);
   }
 
   /** The parts of this wallet that the engine holds, as of this unlock. */
@@ -44,12 +60,23 @@ export class EngineParts {
 
   /** Why parts of this wallet stayed behind, for Diagnostics. */
   problems(accountId: string): string[] {
-    return [...(this.stayed.get(accountId) ?? [])].map(([part, why]) => `${part}: ${why}`);
+    const unopened = this.unopened.get(accountId);
+    return [...(unopened ? [`the sealed log did not open: ${unopened}`] : []), ...[...(this.stayed.get(accountId) ?? [])].map(([part, why]) => `${part}: ${why}`)];
+  }
+
+  /** Where a part is kept, in words, for Diagnostics. Never throws. */
+  describe(accountId: string, part: WalletPart): string {
+    try {
+      return this.where(accountId, part) === 'engine' ? 'In the sealed log' : 'In the app database';
+    } catch {
+      return 'Not readable';
+    }
   }
 
   /** Locking ends the worker that held the logs: nothing is open until the next unlock. */
   forgetAll(): void {
     this.moved.clear();
     this.stayed.clear();
+    this.unopened.clear();
   }
 }

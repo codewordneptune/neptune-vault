@@ -55,7 +55,16 @@ export class AccountService {
    */
   private async openStore(accountId: string): Promise<void> {
     if (!this.core.storeOpen || !this.core.storeMigrate) return;
-    const moved = await this.core.storeOpen(accountId);
+    let moved: WalletPart[];
+    try {
+      moved = await this.core.storeOpen(accountId);
+    } catch (e) {
+      // The wallet still unlocks. See EngineParts.unopenable.
+      const why = e instanceof Error ? e.message : String(e);
+      console.warn(`The sealed log of wallet ${accountId} did not open: ${why}`);
+      this.engine.unopenable(accountId, why);
+      return;
+    }
     for (const part of ENGINE_PARTS) {
       if (moved.includes(part)) continue;
       try {
