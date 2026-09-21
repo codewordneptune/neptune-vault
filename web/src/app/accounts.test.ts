@@ -83,7 +83,7 @@ class FakeWorkerCore extends FakeCore {
 class FakeStoreCore extends FakeCore {
   moved: string[] = [];
   contentKeys = 0;
-  migrations: { accountId: string; part: string; dump: { accounts: unknown[]; contacts: unknown[] } }[] = [];
+  migrations: { accountId: string; parts: string[]; dump: { accounts: unknown[]; contacts: unknown[] } }[] = [];
   commits: unknown[][] = [];
   removed: string[] = [];
   failOpen: string | null = null;
@@ -99,10 +99,10 @@ class FakeStoreCore extends FakeCore {
     if (this.failOpen) throw new Error(this.failOpen);
     return [...this.moved];
   }
-  async storeMigrate(accountId: string, part: string, dump: { accounts: unknown[]; contacts: unknown[] }) {
+  async storeMigrate(accountId: string, parts: string[], dump: { accounts: unknown[]; contacts: unknown[] }) {
     if (this.failMigrate) throw new Error(this.failMigrate);
-    this.migrations.push({ accountId, part, dump });
-    this.moved.push(part);
+    this.migrations.push({ accountId, parts, dump });
+    this.moved.push(...parts);
   }
   async storeRead() {
     return [];
@@ -140,7 +140,7 @@ describe('the engine store, as the account service drives it', () => {
     const { core, service } = await withStore();
     const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
     expect(core.contentKeys).toBe(1);
-    expect(core.migrations.map((m) => m.part)).toEqual(['contacts']);
+    expect(core.migrations.map((m) => m.parts)).toEqual([['contacts']]);
     expect(service.engine.where(record.id, 'contacts')).toBe('engine');
   });
 

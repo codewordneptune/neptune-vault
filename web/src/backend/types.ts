@@ -2,7 +2,7 @@
 // package so the sync engine and the UI can be tested with a fake, and so
 // the real one can live in a Web Worker.
 
-import type { ContactRecord, SeedEnvelope } from '../storage/db';
+import type { ContactRecord, HistoryRecord, SeedEnvelope } from '../storage/db';
 
 export interface ScannedBlock {
   height: number;
@@ -132,7 +132,87 @@ export interface SendPlan {
  * The parts of a wallet that can live in the engine's sealed log. The app
  * moves over one part at a time; `ENGINE_PARTS` says which have.
  */
-export type WalletPart = 'details' | 'sync' | 'utxos' | 'blocks' | 'history' | 'contacts' | 'private';
+export type WalletPart = 'details' | 'scan' | 'sync' | 'utxos' | 'blocks' | 'history' | 'contacts' | 'private';
+
+/**
+ * Parts written together, which therefore move together, in one batch: the
+ * sync writes the scan state, its position, the coins, the blocks and the
+ * history in a single step. The engine's migrate::CHAIN.
+ */
+export const CHAIN_PARTS: WalletPart[] = ['scan', 'sync', 'utxos', 'blocks', 'history'];
+
+/** Where a pass begins: the last height scanned, and the hash the next block must follow. */
+export interface Position {
+  syncedHeight: number;
+  syncedHash: string | null;
+}
+
+/** How a wallet is scanned, as the engine keeps it. */
+export interface ScanSettings {
+  birthdayHeight: number;
+  nextKeyIndices: NextKeyIndices;
+  restore?: 'fast';
+  restoredAt?: number;
+}
+
+/**
+ * One operation of the engine's ledger: every change to a wallet's coins,
+ * history and scan position is one of these, decided against the wallet as
+ * it is and applied only once written down. The names are the engine's
+ * (ledger::op::Op).
+ */
+export type LedgerOp =
+  | { op: 'unspentHashes' }
+  | { op: 'spendable'; now: number }
+  | { op: 'forkCandidates'; below: number }
+  | { op: 'rollbackFloor' }
+  | { op: 'announcementFlags' }
+  | { op: 'absoluteIndexSets' }
+  | { op: 'scanBlocks'; blocksResponse: string; from: number; to: number; prevHash: string | null }
+  | { op: 'scanMempoolKernel'; kernelResponse: string }
+  | { op: 'startPass'; tipHeight: number }
+  | { op: 'rollBack'; height: number; hash: string | null; now: number }
+  | { op: 'persistScan'; result: ScanResult; keepBlocks?: number; now: number }
+  | { op: 'finishFastRestore'; handover: number; lowest: number; now: number }
+  | { op: 'resetForRescan'; height: number; fast: boolean }
+  | { op: 'recordPending'; entry: HistoryRecord }
+  | { op: 'discardPending'; txid: string }
+  | { op: 'forgetSend'; txid: string }
+  | { op: 'recordOutgoing'; row: HistoryRecord }
+  | { op: 'recordIncoming'; row: HistoryRecord }
+  | { op: 'dropRow'; key: string }
+  | { op: 'expireRow'; key: string }
+  | { op: 'markMempoolChecked'; asked: string[]; present: string[]; at: number };
+
+/** What each operation answers. */
+export interface LedgerAnswers {
+  unspentHashes: string[];
+  spendable: StoredUtxo[];
+  forkCandidates: [number, string][];
+  rollbackFloor: number;
+  /** JSON text: the identifiers are 64-bit values a JavaScript number cannot hold. */
+  announcementFlags: string;
+  /** JSON text, for the same reason. */
+  absoluteIndexSets: string;
+  scanBlocks: ScanResult;
+  scanMempoolKernel: MempoolScan;
+  startPass: Position;
+  rollBack: null;
+  persistScan: null;
+  finishFastRestore: null;
+  resetForRescan: null;
+  recordPending: null;
+  discardPending: null;
+  forgetSend: null;
+  /** Whether the row was written; false when it was there already. */
+  recordOutgoing: boolean;
+  recordIncoming: boolean;
+  dropRow: null;
+  expireRow: null;
+  markMempoolChecked: null;
+}
+
+export type LedgerAnswer<O extends LedgerOp> = LedgerAnswers[O['op']];
 
 /** The parts the app reads from the engine today. The rest are still read from the app's own database. */
 export const ENGINE_PARTS: WalletPart[] = ['contacts'];
@@ -207,13 +287,15 @@ export interface WalletCore {
    * is written; throws, having changed nothing, when it would not come
    * through unchanged.
    */
-  storeMigrate?(accountId: string, part: WalletPart, dump: unknown): Promise<void>;
+  storeMigrate?(accountId: string, parts: WalletPart[], dump: unknown): Promise<void>;
   /** The records of one part, in the app's own shape. */
   storeRead?(accountId: string, part: WalletPart): Promise<unknown[]>;
   /** Write a batch of changes: on disk by the time this resolves, whole or not at all. */
   storeCommit?(accountId: string, changes: WalletChange[]): Promise<void>;
   /** Forget a wallet's log entirely. Needs no key: works on a locked wallet. */
   storeRemove?(accountId: string): Promise<void>;
+  /** One ledger operation on the unlocked wallet's data. */
+  ledger?<O extends LedgerOp>(accountId: string, op: O): Promise<LedgerAnswer<O>>;
 
   /** Mock ProofCollection for mock-proof networks (regtest), where real proofs are rejected. */
   mockProofCollection(witness: Uint8Array): Promise<Uint8Array>;

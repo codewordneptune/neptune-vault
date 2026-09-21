@@ -3,7 +3,7 @@
 
 import { FRESH_KEY_INDICES, type AccountRecord, type ContactRecord, type Network, type SeedEnvelope, type VaultDb } from '../storage/db';
 import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeedKeepingKey, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
-import { ENGINE_PARTS, type WalletPart } from '../backend/types';
+import { CHAIN_PARTS, ENGINE_PARTS, type WalletPart } from '../backend/types';
 import { EngineParts } from './engineParts';
 import type { PasskeyProvider } from './passkey';
 import { addressKindLabel } from '../util/address';
@@ -65,24 +65,35 @@ export class AccountService {
       this.engine.unopenable(accountId, why);
       return;
     }
-    for (const part of ENGINE_PARTS) {
-      if (moved.includes(part)) continue;
+    // Parts written together move together, in one batch, or not at all.
+    const groups = [ENGINE_PARTS.filter((p) => !CHAIN_PARTS.includes(p)).map((p) => [p]), ENGINE_PARTS.some((p) => CHAIN_PARTS.includes(p)) ? [CHAIN_PARTS] : []].flat();
+    for (const parts of groups) {
+      if (parts.every((p) => moved.includes(p))) continue;
       try {
-        await this.core.storeMigrate(accountId, part, await this.dump(accountId, part));
+        await this.core.storeMigrate(accountId, parts, await this.dump(accountId, parts));
       } catch (e) {
         const why = e instanceof Error ? e.message : String(e);
-        console.warn(`The ${part} of wallet ${accountId} stay in the database: ${why}`);
-        this.engine.stays(accountId, part, why);
+        console.warn(`The ${parts.join(', ')} of wallet ${accountId} stay in the database: ${why}`);
+        for (const part of parts) this.engine.stays(accountId, part, why);
       }
     }
     this.engine.opened(accountId, await this.core.storeOpen(accountId));
   }
 
   /** What the database holds of one part of one wallet, for the engine to take over and check itself against. */
-  private async dump(accountId: string, part: WalletPart): Promise<unknown> {
+  private async dump(accountId: string, parts: WalletPart[]): Promise<unknown> {
     const accounts = [await this.db.get('accounts', accountId)];
-    if (part === 'contacts') return { accounts, contacts: await this.db.getAllFromIndex('contacts', 'byAccount', accountId) };
-    throw new Error(`the app does not move ${part} yet`);
+    const dump: Record<string, unknown> = { accounts };
+    for (const part of parts) {
+      if (part === 'contacts') dump.contacts = await this.db.getAllFromIndex('contacts', 'byAccount', accountId);
+      else if (part === 'utxos') dump.utxos = await this.db.getAllFromIndex('utxos', 'byAccount', accountId);
+      else if (part === 'history') dump.history = await this.db.getAllFromIndex('history', 'byAccount', accountId);
+      else if (part === 'blocks') dump.blocks = await this.db.getAllFromIndex('blocks', 'byAccountHeight', IDBKeyRange.bound([accountId, 0], [accountId, Infinity]));
+      else if (part === 'sync') dump.syncState = [await this.db.get('syncState', accountId)].filter(Boolean);
+      else if (part === 'scan') continue; // Read from the account record, which is always in the dump.
+      else throw new Error(`the app does not move ${part} yet`);
+    }
+    return dump;
   }
 
   /**

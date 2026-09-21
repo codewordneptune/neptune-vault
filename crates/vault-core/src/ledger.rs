@@ -607,5 +607,7 @@ pub fn history_entry(record: Value) -> Result<HistoryEntry> {
     serde_json::from_value(record).context("store: the history entry is not in a shape this build knows")
 }
 
+pub mod op;
+
 #[cfg(test)]
 mod tests;

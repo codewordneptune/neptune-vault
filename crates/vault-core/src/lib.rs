@@ -31,6 +31,7 @@ mod wasm {
     use crate::amount;
     use crate::chain;
     use crate::kdf;
+    use crate::ledger;
     use crate::migrate;
     use crate::scan;
     use crate::send;
@@ -354,14 +355,51 @@ mod wasm {
         /// `dump_json` is what that database holds. The batch is checked
         /// against the dump, record for record, before it is prepared, so a
         /// part that would not come through unchanged is never written.
-        pub fn prepare_migration(&mut self, dump_json: &str, part: &str) -> Result<Vec<u8>, JsError> {
+        pub fn prepare_migration(&mut self, dump_json: &str, parts_json: &str) -> Result<Vec<u8>, JsError> {
             let dump: migrate::Dump = serde_json::from_str(dump_json)
                 .map_err(|e| JsError::new(&format!("cannot decode the old database: {e}")))?;
-            let changes = migrate::part_changes(&dump, &self.wallet_id, part).map_err(js_err)?;
+            let parts: Vec<String> = serde_json::from_str(parts_json)
+                .map_err(|e| JsError::new(&format!("cannot decode the parts: {e}")))?;
+            let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
+            let changes = migrate::parts_changes(&dump, &self.wallet_id, &parts).map_err(js_err)?;
             let would_be = self.log.preview(&changes).map_err(js_err)?;
-            migrate::verify_part(&dump, &self.wallet_id, part, &would_be).map_err(js_err)?;
+            for part in &parts {
+                migrate::verify_part(&dump, &self.wallet_id, part, &would_be).map_err(js_err)?;
+            }
             let prepared = self.log.prepare(changes).map_err(js_err)?;
             Ok(self.hold(prepared))
+        }
+
+        /// Run one ledger operation (a JSON `{ "op": ... }`) against the wallet
+        /// as it is. When it changes anything, the batch is prepared and
+        /// waits for the worker to write it: `pending_bytes`, then `confirm`.
+        /// Returns the operation's answer as JSON.
+        pub fn run(&mut self, op_json: &str) -> Result<String, JsError> {
+            self.run_op(op_json, None)
+        }
+
+        /// The same for an operation that needs the wallet's keys.
+        pub fn run_with_keys(&mut self, account: &mut Account, op_json: &str) -> Result<String, JsError> {
+            self.run_op(op_json, Some(&mut account.0))
+        }
+
+        fn run_op(&mut self, op_json: &str, keys: Option<&mut crate::account::Account>) -> Result<String, JsError> {
+            if self.pending.is_some() {
+                return Err(JsError::new("a batch is already waiting to be written"));
+            }
+            let op: ledger::op::Op = serde_json::from_str(op_json)
+                .map_err(|e| JsError::new(&format!("cannot decode the operation: {e}")))?;
+            let outcome = ledger::op::run(self.log.state(), &self.wallet_id, op, keys).map_err(js_err)?;
+            if !outcome.changes.is_empty() {
+                let prepared = self.log.prepare(outcome.changes).map_err(js_err)?;
+                self.hold(prepared);
+            }
+            serde_json::to_string(&outcome.value).map_err(|e| JsError::new(&e.to_string()))
+        }
+
+        /// The bytes of the batch waiting to be written, if any.
+        pub fn pending_bytes(&self) -> Option<Vec<u8>> {
+            self.pending.as_ref().map(|p| p.bytes.clone())
         }
 
         /// The number the prepared batch is to be written under.

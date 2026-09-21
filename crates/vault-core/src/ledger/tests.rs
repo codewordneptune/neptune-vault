@@ -378,3 +378,9 @@ fn a_wallet_with_no_scan_state_is_refused_rather_than_guessed_at() {
     assert!(start_pass(&state, 10).is_err());
     assert!(persist_scan(&state, W, &[block(1, vec![], &[], &[])], FRESH_KEY_INDICES, KEEP_BLOCKS, 0).is_err());
 }
+
+#[test]
+#[ignore = "prints the wire shape of a coin, for the web tests' fixtures"]
+fn print_the_wire_shape_of_a_coin() {
+    println!("{}", serde_json::to_string(&coin("a", 5000, 120)).unwrap());
+}
