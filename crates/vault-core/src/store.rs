@@ -123,19 +123,37 @@ pub enum DeviceChange {
 // A wallet: sealed until it is unlocked
 // ---------------------------------------------------------------------------
 
-/// The part of a wallet's own record that says something about it.
+/// The part of a wallet's own record that says something about it, other
+/// than how it is scanned.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WalletDetails {
-    /// First height worth scanning; 0 is "unknown" and becomes the tip at first sync.
-    pub birthday_height: u64,
     /// Address of key 0.
     pub address0: String,
-    pub next_key_indices: NextKeyIndices,
     #[serde(default)]
     pub backup_confirmed: bool,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// How a wallet is scanned: where its history starts, which keys to watch,
+/// and whether a restore through the node's coin index is due. The sync
+/// writes these in the same breath as the coins it finds, so they are kept
+/// with the coins and not with the rest of the wallet's record: a key
+/// counter that fell behind its coins would leave later payments unseen.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanState {
+    /// First height worth scanning; 0 is "unknown" and becomes the tip at first sync.
+    pub birthday_height: u64,
+    /// The next unused derivation index per key kind, advanced by scanning.
+    pub next_key_indices: NextKeyIndices,
+    /// `fast` while a restore through the node's coin index is due.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restore: Option<String>,
+    /// When the wallet was last rebuilt through the coin index.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restored_at: Option<u64>,
 }
 
 /// A coin, with the bookkeeping the wallet keeps about it.
@@ -212,6 +230,8 @@ pub struct Contact {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct WalletState {
     pub details: Option<WalletDetails>,
+    #[serde(default)]
+    pub scan: Option<ScanState>,
     pub sync: Option<SyncState>,
     /// By coin key.
     pub utxos: BTreeMap<String, Utxo>,
@@ -237,6 +257,7 @@ pub struct WalletState {
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum WalletChange {
     PutDetails { details: WalletDetails },
+    PutScan { scan: ScanState },
     /// Forget what scanning found (coins, blocks, history, position) and keep
     /// what a person made (details, contacts): a rescan starts here.
     Reset,
@@ -324,6 +345,7 @@ impl Model for WalletState {
         for change in changes {
             match change {
                 WalletChange::PutDetails { details } => self.details = Some(details),
+                WalletChange::PutScan { scan } => self.scan = Some(scan),
                 WalletChange::Reset => {
                     self.sync = None;
                     self.utxos.clear();
@@ -818,9 +840,7 @@ mod tests {
 
     fn details() -> WalletDetails {
         serde_json::from_value(json!({
-            "birthdayHeight": 100,
             "address0": "nolgam1secretaddress",
-            "nextKeyIndices": { "generation": 1, "ec_hybrid": 0, "viewing": 0 },
             "backupConfirmed": true,
             "lastBackupAt": 42
         }))
