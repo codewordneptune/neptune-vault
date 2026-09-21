@@ -11,6 +11,7 @@ pub mod chain;
 pub mod kdf;
 pub mod scan;
 pub mod send;
+pub mod store;
 
 /// Version of this package, for the diagnostics screen. Read here rather
 /// than in each wrapper, so every caller reports the core it is actually
