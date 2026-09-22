@@ -2,7 +2,7 @@
 // confirm it word by word, set a password.
 
 import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
-import { IconCopy, IconFileUpload } from '@tabler/icons-react';
+import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -227,19 +227,25 @@ export function Onboarding() {
             <Button variant="light" onClick={() => setStep('file')}>Restore from a backup file</Button>
             {/* Most people want Mainnet and should not meet the question first.
                 Off Mainnet it is open, so a tester sees where the wallet will go. */}
-            <details className="vault-more vault-advanced" open={network !== 'main'}>
-              <summary>Advanced{network !== 'main' ? ` · ${NETWORK_LABELS[network]}` : ''}</summary>
-              <Select
-                mt="xs"
-                label="Network"
-                data={NETWORK_OPTIONS}
-                value={network}
-                onChange={(v) => {
-                  if (!v) return;
-                  setNetwork(v as Network);
-                  void switchNetwork(v as Network);
-                }}
-              />
+            {/* Named for what it holds, and stating it: a fact to a newcomer, a
+                choice to a tester. Its contents sit under its words, not beside them. */}
+            <details className="vault-setting" open={network !== 'main'}>
+              <summary>
+                <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
+                Network: {NETWORK_LABELS[network]}
+              </summary>
+              <div className="vault-setting-body">
+                <Select
+                  aria-label="Network"
+                  data={NETWORK_OPTIONS}
+                  value={network}
+                  onChange={(v) => {
+                    if (!v) return;
+                    setNetwork(v as Network);
+                    void switchNetwork(v as Network);
+                  }}
+                />
+              </div>
             </details>
             {draft && (
               <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>

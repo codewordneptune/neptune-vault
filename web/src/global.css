@@ -1076,9 +1076,46 @@ html {
 }
 
 /* Advanced settings tucked under a choice most people make without them. */
-.vault-advanced summary {
-  color: var(--v-muted);
+/* A setting tucked under a choice most people make without it: named for
+   what it holds, in the muted colour, not a link. Its own chevron instead of
+   the browser's marker, so the contents can be indented to line up with its
+   words: 14 px of icon and 6 px of gap. More room above than between the
+   buttons, since it is not one of them. */
+.vault-setting {
+  margin-top: 8px;
+}
+.vault-setting summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  cursor: pointer;
+  list-style: none;
   font-size: var(--v-fs-sm);
+  font-weight: 500;
+  color: var(--v-muted);
+}
+.vault-setting summary::-webkit-details-marker {
+  display: none;
+}
+.vault-setting summary:hover {
+  color: var(--v-text);
+}
+.vault-setting-chevron {
+  flex: none;
+  transition: rotate 150ms ease;
+}
+.vault-setting[open] .vault-setting-chevron {
+  rotate: 90deg;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vault-setting-chevron {
+    transition: none;
+  }
+}
+.vault-setting-body {
+  margin-top: 8px;
+  padding-left: 20px;
 }
 
 /* Room at the foot for the tab bar, on a phone. */
