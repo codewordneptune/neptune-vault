@@ -390,25 +390,31 @@ export function Receive() {
           </>
         )}
 
-        <Group justify={rotationNote ? 'space-between' : 'flex-start'} align="baseline">
+        {/* The sentence about the address showing, then what can be done about it, on the line beneath. */}
+        <Stack gap={4}>
           {rotationNote && (
             <Text size="sm" c="dimmed">
               {rotationNote}
             </Text>
           )}
-          <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
+          <Group gap={6} wrap="nowrap">
             {index > 0 && (
-              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
                 Main address
               </UnstyledButton>
             )}
+            {index > 0 && index < furthest && (
+              <Text span size="sm" c="dimmed" aria-hidden>
+                ·
+              </Text>
+            )}
             {index < furthest && (
-              <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+              <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="sm" className={index > 0 ? 'vault-tap-link' : 'vault-tap-link vault-tap-link-start'}>
                 New address
               </UnstyledButton>
             )}
           </Group>
-        </Group>
+        </Stack>
         <QrFullScreen
           opened={enlarged !== null && Boolean(enlarged === 'request' ? requestQr : qr)}
           onClose={() => setEnlarged(null)}
