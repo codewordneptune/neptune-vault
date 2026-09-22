@@ -1,5 +1,6 @@
 // Account lifecycle: create or import, unlock, lock, and the auto-lock
-// policy (R11: five minutes idle, immediately on backgrounding).
+// policy (R11: after an idle time the person chooses, five minutes unless
+// changed, and immediately on backgrounding).
 
 import { FRESH_KEY_INDICES, type AccountRecord, type ContactRecord, type Network, type SeedEnvelope, type VaultDb } from '../storage/db';
 import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeedKeepingKey, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
@@ -18,6 +19,18 @@ export class UnlockCancelledError extends Error {
     super('Interrupted: the app went to the background, or another wallet was picked. Try again.');
     this.name = 'UnlockCancelledError';
   }
+}
+
+/**
+ * The idle times a person can choose. No "never": a wallet in a browser left
+ * unlocked on a shared or lost device is what the lock is there for, and
+ * locking on backgrounding stays whatever is chosen here.
+ */
+export const LOCK_CHOICES_MS = [1, 5, 15, 30].map((minutes) => minutes * 60 * 1000);
+export const DEFAULT_LOCK_MS = 5 * 60 * 1000;
+/** A stored idle time, or the default when it is not one of the choices. */
+export function lockTimeoutOf(ms: number | undefined): number {
+  return ms !== undefined && LOCK_CHOICES_MS.includes(ms) ? ms : DEFAULT_LOCK_MS;
 }
 
 export class AccountService {
@@ -41,7 +54,7 @@ export class AccountService {
   constructor(
     private readonly db: VaultDb,
     private readonly core: WalletCore,
-    private readonly lockTimeoutMs: number,
+    private lockTimeoutMs: number,
     private readonly passkeys: PasskeyProvider | null = null,
     /** Which parts of the unlocked wallet the engine holds; shared with the services that read them. */
     readonly engine: EngineParts = new EngineParts(typeof core.storeOpen === 'function'),
@@ -404,10 +417,23 @@ export class AccountService {
       // A look at the clock every little while, not one long timer. A timer
       // stops while the device sleeps and carries on where it left off, so
       // a laptop closed for the night and opened in the morning would stay
-      // unlocked for the rest of its five minutes. The clock does not stop.
+      // unlocked for the rest of its idle time. The clock does not stop.
       const every = Math.max(5, Math.min(15_000, Math.floor(this.lockTimeoutMs / 4)));
       this.idleTimer = setInterval(() => this.lockIfIdle(), every);
     }
+  }
+
+  /**
+   * A new idle time, chosen in Settings. It counts from the last activity,
+   * which the choice itself is; the clock checks follow the new time.
+   */
+  setLockTimeout(ms: number): void {
+    this.lockTimeoutMs = ms;
+    if (this.idleTimer !== null) {
+      clearInterval(this.idleTimer);
+      this.idleTimer = null;
+    }
+    this.touch();
   }
 
   /** Lock when the idle time has passed by the wall clock. Also asked when the app comes back into view. */

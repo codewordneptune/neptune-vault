@@ -5,6 +5,7 @@ import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, Ico
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
 import { Caution } from '../components/Notice';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
@@ -321,9 +322,7 @@ export function Settings() {
             <IconLock size={18} stroke={1.8} aria-hidden />
             Security
           </Title>
-          <Text size="sm" c="dimmed">
-            The wallet locks after 5 minutes idle, and whenever the app goes to the background.
-          </Text>
+          <AutoLockSetting />
           <ChangePassword />
           <PasskeyCard />
           <Group>
@@ -421,6 +420,33 @@ export function Settings() {
           </Text>
         </Stack>
       </Paper>
+    </Stack>
+  );
+}
+
+// How long the wallet may sit idle before it locks. It locks on going to the
+// background whatever is chosen, which the line under the choice says.
+function AutoLockSetting() {
+  const { services } = useApp();
+  const [ms, setMs] = useState(lockTimeoutOf(services.settings.lockTimeoutMs));
+  return (
+    <Stack gap={6}>
+      <Select
+        label="Lock after"
+        data={LOCK_CHOICES_MS.map((choice) => ({ value: String(choice), label: `${choice / 60_000} ${choice === 60_000 ? 'minute' : 'minutes'} idle` }))}
+        value={String(ms)}
+        allowDeselect={false}
+        onChange={(v) => {
+          if (!v) return;
+          const next = Number(v);
+          setMs(next);
+          services.accounts.setLockTimeout(next);
+          void services.updateSettings({ lockTimeoutMs: next });
+        }}
+      />
+      <Text size="sm" c="dimmed">
+        It also locks whenever the app goes to the background.
+      </Text>
     </Stack>
   );
 }
