@@ -64,21 +64,21 @@ function KindNote({ kind, extra }: { kind: KeyKind; extra?: string }) {
   return kind === 'viewing' ? <Caution>{text}</Caution> : <Info>{text}</Info>;
 }
 
-// A code on the card. Tapping it opens the full-screen view; the expand mark
-// says so to the eye. The mark sits under the code's corner, never on it: a
-// Standard address makes a code so dense that covering any of it can stop a
-// camera reading it.
+// A code on the card, like a printed one: the white runs on below it into a
+// slim footer that says it opens full screen. The hint sits under the code,
+// never on it: a Standard address makes a code so dense that covering any
+// of it can stop a camera reading it.
 function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => void }) {
   return (
-    <div className="vault-qr-inline vault-qr-wrap">
-      <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-qr-code">
-        <img src={src} alt={alt} />
-      </UnstyledButton>
-      {/* For the eye and the mouse; the code itself is the control for the keyboard and screen readers. */}
-      <ActionIcon variant="default" radius="xl" size="md" className="vault-qr-expand" onClick={onOpen} tabIndex={-1} aria-hidden>
+    <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-qr-inline vault-qr-code">
+      <img src={src} alt={alt} />
+      <span className="vault-qr-foot" aria-hidden>
         <IconArrowsMaximize size={14} stroke={2} />
-      </ActionIcon>
-    </div>
+        {/* The word for how this device is used: a tap on a phone, a click with a mouse. */}
+        <span className="vault-qr-foot-touch">Tap to enlarge</span>
+        <span className="vault-qr-foot-mouse">Click to enlarge</span>
+      </span>
+    </UnstyledButton>
   );
 }
 

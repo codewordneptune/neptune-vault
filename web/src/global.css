@@ -1300,33 +1300,47 @@ html {
   margin: -4px -4px 0 0;
 }
 
-/* A code on the Receive card: the code is the control (tap for full screen),
-   and the expand mark sits under its bottom-right corner, never over the
-   modules, since covering part of a dense code can stop it scanning. */
-.vault-qr-wrap {
-  position: relative;
-  width: 100%;
-  padding-bottom: 34px;
-}
+/* A code on the Receive card, like a printed one: the code is the control
+   (full screen), and its white runs on into a slim footer with the hint,
+   below the modules and never over them, since covering part of a dense
+   code can stop it scanning. The footer's grey is 5.5:1 on the white. */
 .vault-qr-code {
   display: block;
   width: 100%;
+  background: #fff;
   cursor: zoom-in;
 }
 .vault-qr-code img {
   display: block;
   width: 100%;
   height: auto;
-  background: #fff;
 }
 .vault-qr-code:focus-visible {
   outline: 2px solid var(--v-accent);
   outline-offset: 3px;
 }
-.vault-qr-expand {
-  position: absolute;
-  right: 0;
-  bottom: 0;
+.vault-qr-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 2px 0 10px;
+  font-size: var(--v-fs-sm);
+  color: #5a6a7e;
+}
+.vault-qr-code:hover .vault-qr-foot {
+  color: #15202e;
+}
+.vault-qr-foot-mouse {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .vault-qr-foot-touch {
+    display: none;
+  }
+  .vault-qr-foot-mouse {
+    display: inline;
+  }
 }
 /* The address as one box that opens in place: shortened, or in full. */
 .vault-address-box {
