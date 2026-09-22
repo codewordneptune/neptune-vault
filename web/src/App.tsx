@@ -51,9 +51,9 @@ export function App() {
   const showTabs = Boolean(account) && !locked;
 
   return (
-    <Box onClick={touch} onKeyDown={touch} pb={showTabs ? 84 : 0}>
+    <Box onClick={touch} onKeyDown={touch} className={showTabs ? 'vault-shell has-tabs' : 'vault-shell'}>
       <header className="vault-topbar">
-        <Container size="xs" py="sm">
+        <Container size="xs" py="sm" className="vault-topbar-inner">
           <Group justify="space-between" align="center">
             <h1 className="vault-brand">
               <Logo size={26} />
@@ -65,7 +65,8 @@ export function App() {
       </header>
       <UpdateStrip />
       <SendStrip />
-      <Container component="main" size="xs" py="md">
+      {/* Home spreads into two columns on a wide screen; every other screen stays one column, centred. */}
+      <Container component="main" size="xs" py="md" className={pathname === '/' && !locked && account ? 'vault-main-wide' : undefined}>
         <Routes>
           {/* Adding a wallet is for whoever can unlock the one that is there: a locked app offers nothing else. */}
           <Route path="/onboarding" element={account && !addingWallet ? <Navigate to="/" replace /> : account && locked ? <Unlock /> : <Onboarding />} />
@@ -85,8 +86,8 @@ export function App() {
       </Container>
       {showTabs && (
         <nav className="vault-tabbar" aria-label="Main">
-          <Container size="xs" px={0}>
-            <Group gap={0} wrap="nowrap">
+          <Container size="xs" px={0} className="vault-tabbar-inner">
+            <Group gap={0} wrap="nowrap" className="vault-tabs">
               {TABS.map(({ to, label, Icon }) => (
                 <NavLink key={to} to={to} end className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`}>
                   <Icon size={22} stroke={1.6} />

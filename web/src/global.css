@@ -1051,3 +1051,74 @@ html {
   color: var(--v-muted);
   font-size: var(--v-fs-sm);
 }
+
+/* Room at the foot for the tab bar, on a phone. */
+.vault-shell.has-tabs {
+  padding-bottom: 84px;
+}
+.vault-home-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-md);
+}
+
+/* A wide window is not a big phone: from 900 px the tabs become a rail on
+   the left, the header spans the window, and Home sets its balance beside
+   its history. Send, Receive and Settings stay one centred column. */
+@media (min-width: 900px) {
+  .vault-shell.has-tabs {
+    padding-bottom: 0;
+    padding-left: 88px;
+  }
+  .vault-shell.has-tabs .vault-topbar {
+    margin-left: -88px;
+  }
+  .vault-topbar-inner.vault-topbar-inner {
+    max-width: none;
+    padding-inline: 24px;
+  }
+  .vault-tabbar {
+    top: 0;
+    right: auto;
+    width: 88px;
+    z-index: 30;
+    padding: 72px 0 0;
+    border-top: 0;
+    border-right: 1px solid var(--v-surface-2);
+    background: var(--v-page);
+  }
+  .vault-tabbar-inner.vault-tabbar-inner {
+    max-width: none;
+  }
+  .vault-tabs.vault-tabs {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .vault-tab {
+    flex: none;
+    width: 100%;
+    padding: 12px 4px;
+  }
+  /* The active line runs down the rail's inner edge instead of along the top. */
+  .vault-tab::before {
+    top: 12px;
+    bottom: 12px;
+    left: 0;
+    right: auto;
+    width: 3px;
+    height: auto;
+    border-radius: 0 3px 3px 0;
+  }
+  .vault-main-wide.vault-main-wide {
+    max-width: 1000px;
+  }
+  .vault-main-wide .vault-home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    align-items: start;
+  }
+  .vault-main-wide .vault-home-main {
+    position: sticky;
+    top: 80px;
+  }
+}

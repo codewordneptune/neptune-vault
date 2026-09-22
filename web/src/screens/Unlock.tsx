@@ -14,6 +14,7 @@ function isCancellation(e: unknown): boolean {
 }
 
 import { useApp } from '../app/AppContext';
+import { Logo } from '../components/Logo';
 import { byCreation, walletName, type AccountRecord } from '../storage/db';
 import { UnlockCancelledError } from '../app/accounts';
 import { WrongPasswordError } from '../storage/envelope';
@@ -87,6 +88,7 @@ export function Unlock() {
         >
           <Stack>
             <Stack gap={6} align="center">
+              <Logo size={40} />
               <Text size="sm" c="dimmed">
                 Welcome back
               </Text>
