@@ -210,6 +210,16 @@ export function Receive() {
   }, [tab, address, linkAmount, linkNote, linkLabel]);
 
   const copy = () => void copyText(address, 'Address copied');
+  // Where the system share sheet exists, the address can go straight into a
+  // message; where it does not, Share would only copy, which Copy already does.
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const shareAddress = async () => {
+    try {
+      await navigator.share({ text: address });
+    } catch {
+      // Cancelled by the user; nothing to report.
+    }
+  };
 
   // The system share sheet where it exists; otherwise the link is copied.
   const share = async () => {
@@ -295,9 +305,16 @@ export function Receive() {
                 Could not derive this address: {addressError}
               </Text>
             )}
-            <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} fullWidth disabled={!address}>
-              Copy address
-            </Button>
+            <Group grow>
+              <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address}>
+                Copy address
+              </Button>
+              {canShare && (
+                <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void shareAddress()} disabled={!address}>
+                  Share
+                </Button>
+              )}
+            </Group>
             <KindNote kind={kind} extra={CODE_HINTS[kind]} />
           </>
         )}
