@@ -1045,3 +1045,9 @@ html {
 .vault-lock-other:hover {
   color: var(--v-text);
 }
+
+/* Advanced settings tucked under a choice most people make without them. */
+.vault-advanced summary {
+  color: var(--v-muted);
+  font-size: var(--v-fs-sm);
+}
