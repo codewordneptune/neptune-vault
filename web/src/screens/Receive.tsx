@@ -375,8 +375,10 @@ export function Receive() {
           opened={enlarged !== null && Boolean(enlarged === 'request' ? requestQr : qr)}
           onClose={() => setEnlarged(null)}
           src={enlarged === 'request' ? requestQr : qr}
-          // The name people choose by, and the protocol's own in brackets, as everywhere else in the app.
-          title={enlarged === 'request' ? `Payment request, ${KIND_LABELS[kind]} (${KIND_PROTOCOL[kind]})` : `${KIND_LABELS[kind]} (${KIND_PROTOCOL[kind]}) address`}
+          // The name people choose by as the title, and the protocol's own on a
+          // quieter line beneath, for checking against another wallet or the node.
+          title={enlarged === 'request' ? 'Payment request' : `${KIND_LABELS[kind]} address`}
+          subtitle={enlarged === 'request' ? `${KIND_LABELS[kind]} address · ${KIND_PROTOCOL[kind]}` : KIND_PROTOCOL[kind]}
           // The title says what kind of address it is; under the code goes the
           // address itself, and for a request the amount asked for above it.
           caption={`${enlarged === 'request' && linkAmount ? `${linkAmount} NPT
