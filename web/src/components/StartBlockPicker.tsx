@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { showBlock } from '../app/AppContext';
 import type { NodeClient } from '../node/rpc';
 import { startOfDayMs } from '../util/blockdate';
+import { formatDate } from '../util/time';
 
 export function StartBlockPicker({
   value,
@@ -87,7 +88,7 @@ export function StartBlockPicker({
       )}
       {status.kind === 'found' && (
         <Text size="sm" c="dimmed">
-          The first block of {new Date(startOfDayMs(status.day) as number).toLocaleDateString()} is {showBlock(status.height)}.
+          The first block of {formatDate(startOfDayMs(status.day) as number)} is {showBlock(status.height)}.
         </Text>
       )}
       {status.kind === 'failed' && (

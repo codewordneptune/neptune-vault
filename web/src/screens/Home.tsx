@@ -14,7 +14,7 @@ import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
-import { dayKey, dayLabel, formatTime, formatWhen } from '../util/time';
+import { dayKey, dayLabel, formatDate, formatDateTime, formatTime, formatWhen } from '../util/time';
 
 export function Home() {
   const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, sendJob, dismissSendJob, loaded } = useApp();
@@ -109,7 +109,7 @@ export function Home() {
     const date = h.releaseDateMs ?? utxos.find((u) => u.hash === coinKeyOfReceipt(h))?.releaseDateMs ?? null;
     return date !== null && date > Date.now() ? date : null;
   };
-  const showDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const showDate = formatDate;
 
   const busy = sync?.phase === 'checking' || sync?.phase === 'restoring' || sync?.phase === 'scanning';
   const syncText =
@@ -195,7 +195,7 @@ export function Home() {
       {failure && failure.accountId === account?.id && (
         <Alert color="red" title="Not sent" withCloseButton onClose={dismissFailure}>
           <Text size="sm">
-            {failure.amount} NPT to {abbreviateAddress(failure.recipient)}, {new Date(failure.at).toLocaleString()}. {failure.message}
+            {failure.amount} NPT to {abbreviateAddress(failure.recipient)}, {formatDateTime(failure.at)}. {failure.message}
           </Text>
         </Alert>
       )}
@@ -379,10 +379,10 @@ export function Home() {
         {detail && (
           <Stack gap="sm">
             <DetailRow label="Status" value={statusOf(detail.record)} />
-            <DetailRow label="When" value={new Date(detail.record.timestampMs).toLocaleString()} />
+            <DetailRow label="When" value={formatDateTime(detail.record.timestampMs)} />
             {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
             {lockOf(detail.record) !== null && (
-              <DetailRow label="Time lock" value={`Not spendable before ${new Date(lockOf(detail.record) as number).toLocaleString()}. The payer set this; confirmations do not shorten it.`} />
+              <DetailRow label="Time lock" value={`Not spendable before ${formatDateTime(lockOf(detail.record) as number)}. The payer set this; confirmations do not shorten it.`} />
             )}
             {detail.kind === 'sent' && (
               <DetailRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />

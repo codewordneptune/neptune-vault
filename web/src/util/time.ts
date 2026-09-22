@@ -1,9 +1,33 @@
-// Dates for lists: what a person needs at a glance. The full timestamp
-// belongs in a detail view.
+// Dates and times, for every screen. The app is in English, so day and
+// month names are English whatever the device's language; left to the
+// device, a Finnish phone wrote "lauantai" under "Yesterday". Only the clock
+// follows the device: 12 hours with AM and PM where it uses them ("8:55 PM"),
+// otherwise 24 ("20:55"). Dates put the day first: "22 Sept 2026".
 
-/** A time of day as this device writes it: "8:55 PM", or "20:55" where the clock has 24 hours. */
+const deviceUses12Hours = (() => {
+  try {
+    const cycle = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle;
+    return cycle === 'h12' || cycle === 'h11';
+  } catch {
+    return false;
+  }
+})();
+const TIME_LOCALE = deviceUses12Hours ? 'en-US' : 'en-GB';
+const DATE_LOCALE = 'en-GB';
+
+/** A time of day: "8:55 PM", or "20:55" where the device keeps a 24-hour clock. */
 export function formatTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return new Date(ms).toLocaleTimeString(TIME_LOCALE, { hour: 'numeric', minute: '2-digit' });
+}
+
+/** A date: "22 Sept 2026". */
+export function formatDate(ms: number): string {
+  return new Date(ms).toLocaleDateString(DATE_LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** A date and time: "22 Sept 2026, 8:55 PM". */
+export function formatDateTime(ms: number): string {
+  return `${formatDate(ms)}, ${formatTime(ms)}`;
 }
 
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -30,29 +54,30 @@ export function dayKey(ms: number): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
+const dayMonth = (ms: number) => new Date(ms).toLocaleDateString(DATE_LOCALE, { day: 'numeric', month: 'short' });
+const weekday = (ms: number, width: 'long' | 'short') => new Date(ms).toLocaleDateString(DATE_LOCALE, { weekday: width });
+
 /**
  * A day as people say it, for a heading over that day's rows: "Today",
  * "Yesterday", the weekday within the last week ("Monday"), then the date
  * ("21 Aug"), with the year only when it is not this one.
  */
 export function dayLabel(ms: number, now = Date.now()): string {
-  const d = new Date(ms);
   const days = daysBack(ms, now);
   if (days === 0) return 'Today';
   if (days === 1) return 'Yesterday';
-  if (days !== null) return d.toLocaleDateString(undefined, { weekday: 'long' });
-  if (d.getFullYear() === new Date(now).getFullYear()) return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  if (days !== null) return weekday(ms, 'long');
+  if (new Date(ms).getFullYear() === new Date(now).getFullYear()) return dayMonth(ms);
+  return formatDate(ms);
 }
 
 /** A moment in one phrase, where it stands alone: "Today 8:55 PM", "Mon 8:55 PM", "21 Aug 8:55 PM". */
 export function formatWhen(ms: number, now = Date.now()): string {
-  const d = new Date(ms);
   const time = formatTime(ms);
   const days = daysBack(ms, now);
   if (days === 0) return `Today ${time}`;
   if (days === 1) return `Yesterday ${time}`;
-  if (days !== null) return `${d.toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
-  if (d.getFullYear() === new Date(now).getFullYear()) return `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ${time}`;
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  if (days !== null) return `${weekday(ms, 'short')} ${time}`;
+  if (new Date(ms).getFullYear() === new Date(now).getFullYear()) return `${dayMonth(ms)} ${time}`;
+  return formatDate(ms);
 }

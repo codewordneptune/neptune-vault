@@ -15,6 +15,7 @@ import { StartBlockPicker } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
+import { formatDate, formatDateTime, formatTime } from '../util/time';
 import type { Network } from '../storage/db';
 
 export function Settings() {
@@ -23,7 +24,7 @@ export function Settings() {
   // The same confirmation the header menu gives: switching locks and hides this wallet.
   const [pendingNetwork, setPendingNetwork] = useState<Network | null>(null);
   const navigate = useNavigate();
-  const lastBackup = account?.lastBackupAt ? new Date(account.lastBackupAt).toLocaleString() : null;
+  const lastBackup = account?.lastBackupAt ? formatDateTime(account.lastBackupAt) : null;
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
   const [probe, setProbe] = useState<{ ok: boolean; text: string; at?: number } | null>(services.settings.nodeProbe?.[network] ?? null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
@@ -354,7 +355,7 @@ export function Settings() {
           {probe && (
             <Text size="sm" c={probe.ok ? 'dimmed' : 'red'}>
               {probe.text}
-              {probe.at && probe.text !== 'Testing…' ? ` · checked ${new Date(probe.at).toLocaleTimeString()}` : ''}
+              {probe.at && probe.text !== 'Testing…' ? ` · checked ${formatTime(probe.at)}` : ''}
             </Text>
           )}
           <Group>
@@ -415,7 +416,7 @@ export function Settings() {
             </Anchor>
           </Group>
           <Text size="xs" c="dimmed">
-            Version {__APP_VERSION__} ({__APP_COMMIT__}), built {new Date(__APP_BUILT_AT__).toLocaleDateString()}.
+            Version {__APP_VERSION__} ({__APP_COMMIT__}), built {formatDate(Date.parse(__APP_BUILT_AT__))}.
           </Text>
         </Stack>
       </Paper>
@@ -768,7 +769,7 @@ function RescanCard() {
   // coins might hide. The first payment's block comes from the coins
   // themselves, so the sentence stays true as later payments arrive.
   const firstPayment = utxos.length > 0 ? Math.min(...utxos.map((u) => u.confirmedHeight)) : null;
-  const restoredOn = account.restoredAt ? new Date(account.restoredAt).toLocaleDateString() : '';
+  const restoredOn = account.restoredAt ? formatDate(account.restoredAt) : '';
   const how = account.restoredAt
     ? firstPayment !== null
       ? `Restored on ${restoredOn} with a fast restore, which checks the whole chain. First payment: block ${showBlock(firstPayment)}.`

@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 import { showInt } from '../util/format';
+import { formatDateTime } from '../util/time';
 
 export function Diagnostics() {
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export function Diagnostics() {
           <Fact label="Cores" value={String(cores)} />
           <Fact label="Memory, as the browser reports it" value={memoryGb === undefined ? 'Not reported' : `${memoryGb} GB or more`} state={memoryGb === undefined ? undefined : memoryGb >= 4 ? 'ok' : 'warn'} />
           <Fact label="Running as" value={installed ? 'Installed app' : 'Browser tab'} state={installed ? 'ok' : 'warn'} />
-          <Fact label="App version" value={`${__APP_VERSION__} (${__APP_COMMIT__}), built ${new Date(__APP_BUILT_AT__).toLocaleString()}`} />
+          <Fact label="App version" value={`${__APP_VERSION__} (${__APP_COMMIT__}), built ${formatDateTime(Date.parse(__APP_BUILT_AT__))}`} />
           <Fact label="Wallet core" value={services.backendKind === 'native' ? 'Native, in the app' : 'WebAssembly, in a worker'} />
           {accountId && <Fact label="Contacts" value={engine.describe(accountId, 'contacts')} state={engine.describe(accountId, 'contacts') === 'In the sealed log' ? 'ok' : 'warn'} />}
           {accountId && engine.problems(accountId).map((problem) => <Fact key={problem} label="Did not move" value={problem} state="warn" />)}
@@ -42,7 +43,7 @@ export function Diagnostics() {
         {last ? (
           <Stack gap="sm">
             <Fact
-              label={new Date(last.at).toLocaleString()}
+              label={formatDateTime(last.at)}
               value={
                 last.error
                   ? `Failed: ${last.error}`
