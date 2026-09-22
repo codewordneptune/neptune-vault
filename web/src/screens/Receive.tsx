@@ -4,8 +4,8 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { Button, Code, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconCopy, IconShare } from '@tabler/icons-react';
+import { ActionIcon, Button, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconArrowsMaximize, IconChevronDown, IconCopy, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
@@ -62,6 +62,24 @@ function KindNote({ kind, extra }: { kind: KeyKind; extra?: string }) {
     );
   }
   return kind === 'viewing' ? <Caution>{text}</Caution> : <Info>{text}</Info>;
+}
+
+// A code on the card. Tapping it opens the full-screen view; the expand mark
+// says so to the eye. The mark sits under the code's corner, never on it: a
+// Standard address makes a code so dense that covering any of it can stop a
+// camera reading it.
+function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => void }) {
+  return (
+    <div className="vault-qr-inline vault-qr-wrap">
+      <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-qr-code">
+        <img src={src} alt={alt} />
+      </UnstyledButton>
+      {/* For the eye and the mouse; the code itself is the control for the keyboard and screen readers. */}
+      <ActionIcon variant="default" radius="xl" size="md" className="vault-qr-expand" onClick={onOpen} tabIndex={-1} aria-hidden>
+        <IconArrowsMaximize size={14} stroke={2} />
+      </ActionIcon>
+    </div>
+  );
 }
 
 type Tab = 'address' | 'request';
@@ -281,27 +299,35 @@ export function Receive() {
 
         {tab === 'address' && (
           <>
-            {qr && (
-              <>
-                <UnstyledButton onClick={() => setEnlarged('address')} aria-label="Show the QR code full screen" className="vault-qr-inline" style={{ display: 'block', width: '100%' }}>
-                  <img src={qr} alt={`${KIND_LABELS[kind]} address QR code`} style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
-                </UnstyledButton>
-                <UnstyledButton onClick={() => setEnlarged('address')} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
-                  Show full screen
-                </UnstyledButton>
-              </>
-            )}
-            <Text ff="monospace" size="sm" ta="center" style={{ wordBreak: 'break-all' }}>
-              {address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}
-            </Text>
-            <UnstyledButton onClick={() => setShowFull((v) => !v)} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
-              {showFull ? 'Hide full address' : 'Show full address'}
-            </UnstyledButton>
-            {showFull && (
-              <Code block style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap', fontSize: 11 }}>
-                {address}
-              </Code>
-            )}
+            {qr && <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => setEnlarged('address')} />}
+            {/* The address as one object that opens: shortened, and in full
+                inside the same box once its chevron (or the box) is tapped. */}
+            <div
+              className="vault-address-box"
+              onClick={() => {
+                // A drag that selected part of the address is not a tap.
+                if (address && !window.getSelection()?.toString()) setShowFull((v) => !v);
+              }}
+            >
+              <span className={showFull ? 'vault-address-text full' : 'vault-address-text'}>
+                {address ? (showFull ? address : abbreviateAddress(address)) : addressError ? 'No address' : 'Deriving the address…'}
+              </span>
+              {address && (
+                <ActionIcon
+                  variant="subtle"
+                  size="lg"
+                  className="vault-tap vault-address-toggle"
+                  aria-label={showFull ? 'Show the address shortened' : 'Show the full address'}
+                  aria-expanded={showFull}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowFull((v) => !v);
+                  }}
+                >
+                  <IconChevronDown size={18} stroke={1.8} className={showFull ? 'vault-chevron open' : 'vault-chevron'} />
+                </ActionIcon>
+              )}
+            </div>
             {addressError && (
               <Text size="sm" c="red">
                 Could not derive this address: {addressError}
@@ -354,16 +380,7 @@ export function Receive() {
                 Share
               </Button>
             </Group>
-            {requestQr && !requestInvalid && (
-              <>
-                <UnstyledButton onClick={() => setEnlarged('request')} aria-label="Show the QR code full screen" className="vault-qr-inline" style={{ display: 'block', width: '100%' }}>
-                  <img src={requestQr} alt="Payment request QR code" style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
-                </UnstyledButton>
-                <UnstyledButton onClick={() => setEnlarged('request')} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
-                  Show full screen
-                </UnstyledButton>
-              </>
-            )}
+            {requestQr && !requestInvalid && <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => setEnlarged('request')} />}
             {requestQrNote && !requestInvalid && (
               <Text size="sm" c="dimmed">
                 {requestQrNote}

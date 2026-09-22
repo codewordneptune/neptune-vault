@@ -1299,3 +1299,56 @@ html {
   flex: none;
   margin: -4px -4px 0 0;
 }
+
+/* A code on the Receive card: the code is the control (tap for full screen),
+   and the expand mark sits under its bottom-right corner, never over the
+   modules, since covering part of a dense code can stop it scanning. */
+.vault-qr-wrap {
+  position: relative;
+  width: 100%;
+  padding-bottom: 34px;
+}
+.vault-qr-code {
+  display: block;
+  width: 100%;
+  cursor: zoom-in;
+}
+.vault-qr-code img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+}
+.vault-qr-code:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 3px;
+}
+.vault-qr-expand {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+/* The address as one box that opens in place: shortened, or in full. */
+.vault-address-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 0 0 0 12px;
+  background: var(--v-field);
+  border-radius: var(--v-radius-xs);
+  cursor: pointer;
+}
+.vault-address-text {
+  flex: 1;
+  min-width: 0;
+  padding-block: 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--v-fs-sm);
+  line-height: 1.5;
+  word-break: break-all;
+}
+/* In full it is for reading and selecting, so the cursor says text. */
+.vault-address-text.full {
+  font-size: 11px;
+  cursor: text;
+}
