@@ -3,8 +3,12 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { openVaultDb, type AccountRecord, type VaultDb } from '../storage/db';
-import type { MempoolScan, NextKeyIndices, StoredUtxo } from '../backend/types';
-import { incomingKey, MempoolWatcher, outgoingKey, type MempoolNode } from './mempool';
+import { CHAIN_PARTS, type MempoolScan } from '../backend/types';
+import { chainView, testEngine, type TestEngine } from '../backend/engineForTests';
+import { incomingKey, MempoolWatcher, outgoingKey, type MempoolNode, type MempoolWatcherOptions } from './mempool';
+
+// The watcher decides what it has seen; the real engine, compiled to wasm,
+// writes it. These tests read back what the engine wrote.
 
 const account: AccountRecord = {
   id: 'acc',
@@ -33,10 +37,11 @@ class FakeNode implements MempoolNode {
   }
 }
 
+/** Stands in for the core's scan of a kernel, which needs real keys. */
 class FakeCore {
   /** kernel id -> what the scan finds. */
   scans = new Map<string, MempoolScan>();
-  async scanMempoolKernel(raw: string, _unspent: StoredUtxo[], _next: NextKeyIndices, _tip: number): Promise<MempoolScan> {
+  async scanMempoolKernel(raw: string): Promise<MempoolScan> {
     return this.scans.get(raw.replace('kernel:', '')) ?? { incoming: [], spent: [], timestamp_ms: 0 };
   }
 }
@@ -48,17 +53,25 @@ const payment = (commitment: string, amount: string, ts = 5000): MempoolScan => 
 });
 
 let db: VaultDb;
+let vault: TestEngine;
+let view: ReturnType<typeof chainView>;
 afterEach(() => {
+  vault?.close();
   db?.close();
   indexedDB.deleteDatabase('neptune-vault');
 });
 
-async function setup() {
+async function setup(options: MempoolWatcherOptions = { batchSize: 2, patience: 2, now: () => 99 }) {
   db = await openVaultDb();
   await db.put('accounts', account);
   const node = new FakeNode();
   const core = new FakeCore();
-  const watcher = new MempoolWatcher(db, node, core, 'acc', { batchSize: 2, patience: 2, now: () => 99 });
+  vault = await testEngine({ scanMempoolKernel: (op) => core.scanMempoolKernel(op.kernelResponse) });
+  vault.unlock();
+  await vault.store.storeOpen('acc');
+  await vault.store.storeMigrate('acc', CHAIN_PARTS, { accounts: [account] });
+  view = chainView(vault, db, 'acc');
+  const watcher = new MempoolWatcher(node, vault.store, 'acc', options);
   return { node, core, watcher };
 }
 
@@ -68,7 +81,7 @@ describe('MempoolWatcher', () => {
     node.ids = ['t1'];
     core.scans.set('t1', payment('c1', '2'));
     expect(await watcher.poll()).toEqual({ scanned: 1, incoming: 1, incomingNau: '2000000000000000000000000000000', lockedNau: '0' });
-    const row = (await db.get('history', incomingKey('acc', 'c1')))!;
+    const row = (await view.get('history', incomingKey('acc', 'c1')))!;
     expect(row.kind).toBe('received');
     expect(row.status).toBe('pending');
     expect(row.txid).toBe('t1');
@@ -98,7 +111,7 @@ describe('MempoolWatcher', () => {
     node.ids = ['t2'];
     core.scans.set('t2', payment('c1', '2'));
     await watcher.poll();
-    const rows = (await db.getAllFromIndex('history', 'byAccount', 'acc')).filter((h) => h.status === 'pending');
+    const rows = (await view.getAllFromIndex('history', 'byAccount', 'acc')).filter((h) => h.status === 'pending');
     expect(rows).toHaveLength(1);
   });
 
@@ -109,14 +122,14 @@ describe('MempoolWatcher', () => {
     await watcher.poll();
     node.ids = [];
     await watcher.poll();
-    expect(await db.get('history', incomingKey('acc', 'c1'))).toBeDefined();
+    expect(await view.get('history', incomingKey('acc', 'c1'))).toBeDefined();
     await watcher.poll();
-    expect(await db.get('history', incomingKey('acc', 'c1'))).toBeUndefined();
+    expect(await view.get('history', incomingKey('acc', 'c1'))).toBeUndefined();
   });
 
   it('marks whether the node still holds the wallet\'s own pending send', async () => {
     const { node, watcher } = await setup();
-    await db.put('history', {
+    await view.put('history', {
       key: 'acc:sent:tx9',
       accountId: 'acc',
       kind: 'sent',
@@ -132,50 +145,50 @@ describe('MempoolWatcher', () => {
       outputs: [{ commitment: 'out9', role: 'recipient' }],
     });
     await watcher.poll();
-    let row = (await db.get('history', 'acc:sent:tx9'))!;
+    let row = (await view.get('history', 'acc:sent:tx9'))!;
     expect(row.mempoolCheckedAt).toBe(99);
     expect(row.mempoolSeenAt).toBeNull();
 
     node.held.add('out9');
     await watcher.poll();
-    row = (await db.get('history', 'acc:sent:tx9'))!;
+    row = (await view.get('history', 'acc:sent:tx9'))!;
     expect(row.mempoolSeenAt).toBe(99);
   });
 
   it('ignores the change of a send this wallet built', async () => {
     const { node, core, watcher } = await setup();
-    await db.put('history', {
+    await view.put('history', {
       key: 'acc:sent:tx9', accountId: 'acc', kind: 'sent', status: 'pending', txid: 'tx9', amountNau: '1', feeNau: '1', timestampMs: 1, height: null,
       inputHashes: ['u1'], recipient: 'r', error: null, outputs: [{ commitment: 'pay', role: 'recipient' }, { commitment: 'chg', role: 'change' }],
     });
     node.ids = ['tx9'];
     core.scans.set('tx9', { incoming: [{ commitment: 'chg', amount_nau: '5', amount: '5', key_kind: 'generation', key_index: 0, own: false }], spent: ['u1'], timestamp_ms: 1 });
     expect((await watcher.poll()).incoming).toBe(0);
-    const rows = (await db.getAllFromIndex('history', 'byAccount', 'acc')).filter((h) => h.kind === 'received');
+    const rows = (await view.getAllFromIndex('history', 'byAccount', 'acc')).filter((h) => h.kind === 'received');
     expect(rows).toHaveLength(0);
   });
 
   it('shows a spend built elsewhere as one pending sent row and holds its coins', async () => {
     const { node, core, watcher } = await setup();
-    await db.put('utxos', { key: 'acc:u1', accountId: 'acc', hash: 'u1', stored: {}, amountNau: '5000', amount: '5', confirmedHeight: 1, confirmedTimestampMs: 0, releaseDateMs: null, spentHeight: null, spentTxid: null, pendingTxid: null });
+    await view.put('utxos', { key: 'acc:u1', accountId: 'acc', hash: 'u1', stored: {}, amountNau: '5000', amount: '5', confirmedHeight: 1, confirmedTimestampMs: 0, releaseDateMs: null, spentHeight: null, spentTxid: null, pendingTxid: null });
     node.ids = ['tz'];
     core.scans.set('tz', { incoming: [{ commitment: 'back', amount_nau: '4300', amount: '4.3', key_kind: 'generation', key_index: 0, own: true }], spent: ['u1'], timestamp_ms: 7 });
     expect((await watcher.poll()).incoming).toBe(0);
-    const row = (await db.get('history', outgoingKey('acc', 'u1')))!;
+    const row = (await view.get('history', outgoingKey('acc', 'u1')))!;
     expect(row.kind).toBe('sent');
     expect(row.status).toBe('pending');
     expect(row.amountNau).toBe('700');
     expect(row.changeNau).toBe('4300');
     expect(row.recipient).toBeNull();
-    expect(await db.get('history', incomingKey('acc', 'back'))).toBeUndefined();
-    expect((await db.get('utxos', 'acc:u1'))!.pendingTxid).toBe('tz');
+    expect(await view.get('history', incomingKey('acc', 'back'))).toBeUndefined();
+    expect((await view.get('utxos', 'acc:u1'))!.pendingTxid).toBe('tz');
 
     // Gone from the mempool without a block: row dropped, coin released.
     node.ids = [];
     await watcher.poll();
     await watcher.poll();
-    expect(await db.get('history', outgoingKey('acc', 'u1'))).toBeUndefined();
-    expect((await db.get('utxos', 'acc:u1'))!.pendingTxid).toBeNull();
+    expect(await view.get('history', outgoingKey('acc', 'u1'))).toBeUndefined();
+    expect((await view.get('utxos', 'acc:u1'))!.pendingTxid).toBeNull();
   });
 
   it('never reports an output this seed built as incoming, even with no send recorded', async () => {
@@ -183,7 +196,7 @@ describe('MempoolWatcher', () => {
     node.ids = ['own'];
     core.scans.set('own', { incoming: [{ commitment: 'c9', amount_nau: '5', amount: '5', key_kind: 'generation', key_index: 0, own: true }], spent: [], timestamp_ms: 1 });
     expect((await watcher.poll()).incoming).toBe(0);
-    expect(await db.get('history', incomingKey('acc', 'c9'))).toBeUndefined();
+    expect(await view.get('history', incomingKey('acc', 'c9'))).toBeUndefined();
   });
 
   it('switches itself off when the node has no mempool namespace', async () => {
@@ -202,9 +215,9 @@ describe('MempoolWatcher, when things go wrong', () => {
     node.ids = ['broken', 'good'];
     core.scans.set('good', payment('c-good', '2'));
     const scan = core.scanMempoolKernel.bind(core);
-    core.scanMempoolKernel = async (raw, u, n, t) => {
+    core.scanMempoolKernel = async (raw) => {
       if (raw === 'kernel:broken') throw new Error('cannot decode mempool kernel');
-      return scan(raw, u, n, t);
+      return scan(raw);
     };
     const first = await watcher.poll();
     expect(first.incoming).toBe(1);
@@ -229,37 +242,33 @@ describe('MempoolWatcher, when things go wrong', () => {
   });
 
   it("writes nothing once another wallet's keys are the ones loaded", async () => {
-    db = await openVaultDb();
-    await db.put('accounts', account);
-    const node = new FakeNode();
-    const core = new FakeCore();
     let mine = true;
-    const watcher = new MempoolWatcher(db, node, core, 'acc', { isCurrent: () => mine });
+    const { node, core, watcher } = await setup({ isCurrent: () => mine });
     node.ids = ['t1'];
     core.scans.set('t1', payment('c1', '3'));
     // The wallet is switched while the kernel is being scanned.
     const scan = core.scanMempoolKernel.bind(core);
-    core.scanMempoolKernel = async (raw, u, n, t) => {
+    core.scanMempoolKernel = async (raw) => {
       mine = false;
-      return scan(raw, u, n, t);
+      return scan(raw);
     };
     await watcher.poll();
-    expect(await db.get('history', incomingKey('acc', 'c1'))).toBeUndefined();
+    expect(await view.get('history', incomingKey('acc', 'c1'))).toBeUndefined();
   });
 
   it('does not hold a coin the sync has marked spent in the meantime', async () => {
     const { node, core, watcher } = await setup();
     const coin = { key: 'acc:u1', accountId: 'acc', hash: 'u1', stored: { hash: 'u1' }, amountNau: '5', amount: '5', confirmedHeight: 4, confirmedTimestampMs: 0, releaseDateMs: null, spentHeight: null, spentTxid: null, pendingTxid: null };
-    await db.put('utxos', coin);
+    await view.put('utxos', coin);
     node.ids = ['spend'];
     core.scans.set('spend', { incoming: [], spent: ['u1'], timestamp_ms: 1 });
     // The sync confirms the spend between the watcher reading the coins and holding them.
     const scan = core.scanMempoolKernel.bind(core);
-    core.scanMempoolKernel = async (raw, u, n, t) => {
-      await db.put('utxos', { ...coin, spentHeight: 9 });
-      return scan(raw, u, n, t);
+    core.scanMempoolKernel = async (raw) => {
+      await view.put('utxos', { ...coin, spentHeight: 9 });
+      return scan(raw);
     };
     await watcher.poll();
-    expect(await db.get('utxos', 'acc:u1')).toMatchObject({ spentHeight: 9, pendingTxid: null });
+    expect(await view.get('utxos', 'acc:u1')).toMatchObject({ spentHeight: 9, pendingTxid: null });
   });
 });

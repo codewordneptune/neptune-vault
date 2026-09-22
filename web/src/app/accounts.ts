@@ -3,7 +3,7 @@
 
 import { FRESH_KEY_INDICES, type AccountRecord, type ContactRecord, type Network, type SeedEnvelope, type VaultDb } from '../storage/db';
 import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeedKeepingKey, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
-import { ENGINE_PARTS, type WalletPart } from '../backend/types';
+import { CHAIN_PARTS, ENGINE_PARTS, type WalletPart } from '../backend/types';
 import { EngineParts } from './engineParts';
 import type { PasskeyProvider } from './passkey';
 import { addressKindLabel } from '../util/address';
@@ -65,24 +65,48 @@ export class AccountService {
       this.engine.unopenable(accountId, why);
       return;
     }
-    for (const part of ENGINE_PARTS) {
-      if (moved.includes(part)) continue;
+    // Parts written together move together, in one batch, or not at all.
+    const groups = [ENGINE_PARTS.filter((p) => !CHAIN_PARTS.includes(p)).map((p) => [p]), ENGINE_PARTS.some((p) => CHAIN_PARTS.includes(p)) ? [CHAIN_PARTS] : []].flat();
+    for (const parts of groups) {
+      if (parts.every((p) => moved.includes(p))) continue;
+      const dump = await this.dump(accountId, parts);
       try {
-        await this.core.storeMigrate(accountId, part, await this.dump(accountId, part));
+        await this.core.storeMigrate(accountId, parts, dump);
       } catch (e) {
         const why = e instanceof Error ? e.message : String(e);
-        console.warn(`The ${part} of wallet ${accountId} stay in the database: ${why}`);
-        this.engine.stays(accountId, part, why);
+        // The chain is the truth about coins, so a chain that will not move
+        // is rebuilt from it rather than left unreadable. Nothing is deleted.
+        if (parts.some((p) => CHAIN_PARTS.includes(p)) && this.core.storeRebuild) {
+          try {
+            await this.core.storeRebuild(accountId, dump);
+            console.warn(`The coins and history of wallet ${accountId} are being rebuilt from the chain: ${why}`);
+            this.engine.rebuilding(accountId, why);
+            continue;
+          } catch {
+            // Neither moved nor rebuilt: say why it did not move.
+          }
+        }
+        console.warn(`The ${parts.join(', ')} of wallet ${accountId} stay in the database: ${why}`);
+        for (const part of parts) this.engine.stays(accountId, part, why);
       }
     }
     this.engine.opened(accountId, await this.core.storeOpen(accountId));
   }
 
   /** What the database holds of one part of one wallet, for the engine to take over and check itself against. */
-  private async dump(accountId: string, part: WalletPart): Promise<unknown> {
+  private async dump(accountId: string, parts: WalletPart[]): Promise<unknown> {
     const accounts = [await this.db.get('accounts', accountId)];
-    if (part === 'contacts') return { accounts, contacts: await this.db.getAllFromIndex('contacts', 'byAccount', accountId) };
-    throw new Error(`the app does not move ${part} yet`);
+    const dump: Record<string, unknown> = { accounts };
+    for (const part of parts) {
+      if (part === 'contacts') dump.contacts = await this.db.getAllFromIndex('contacts', 'byAccount', accountId);
+      else if (part === 'utxos') dump.utxos = await this.db.getAllFromIndex('utxos', 'byAccount', accountId);
+      else if (part === 'history') dump.history = await this.db.getAllFromIndex('history', 'byAccount', accountId);
+      else if (part === 'blocks') dump.blocks = await this.db.getAllFromIndex('blocks', 'byAccountHeight', IDBKeyRange.bound([accountId, 0], [accountId, Infinity]));
+      else if (part === 'sync') dump.syncState = [await this.db.get('syncState', accountId)].filter(Boolean);
+      else if (part === 'scan') continue; // Read from the account record, which is always in the dump.
+      else throw new Error(`the app does not move ${part} yet`);
+    }
+    return dump;
   }
 
   /**
@@ -460,17 +484,13 @@ export class AccountService {
    * chain. Funds are unaffected; only the local view is rebuilt.
    */
   async rescanFrom(accountId: string, height: number, fast = false): Promise<void> {
-    const record = await this.db.get('accounts', accountId);
-    if (!record) throw new Error('account not found');
-    const tx = this.db.transaction(['accounts', 'syncState', 'utxos', 'history', 'blocks'], 'readwrite');
-    const { restore: _previous, restoredAt: _how, ...rest } = record;
-    await tx.objectStore('accounts').put({ ...rest, birthdayHeight: Math.max(0, Math.floor(height)), nextKeyIndices: FRESH_KEY_INDICES, ...(fast ? { restore: 'fast' as const } : {}) });
-    await tx.objectStore('syncState').delete(accountId);
-    for (const key of await tx.objectStore('utxos').index('byAccount').getAllKeys(accountId)) await tx.objectStore('utxos').delete(key);
-    for (const key of await tx.objectStore('history').index('byAccount').getAllKeys(accountId)) await tx.objectStore('history').delete(key);
-    const blockKeys = await tx.objectStore('blocks').index('byAccountHeight').getAllKeys(IDBKeyRange.bound([accountId, 0], [accountId, Number.MAX_SAFE_INTEGER]));
-    for (const key of blockKeys) await tx.objectStore('blocks').delete(key);
-    await tx.done;
+    if (!(await this.db.get('accounts', accountId))) throw new Error('account not found');
+    // What scanning found goes, what a person made stays, and the scan state
+    // starts again, in one step. The engine's; a wallet is unlocked to do it.
+    if (this.engine.where(accountId, 'utxos') !== 'engine' || !this.core.ledger) {
+      throw new Error('This wallet\'s coins could not be read, so there is nothing to rescan into. Unlock it again, and see Settings, Diagnostics.');
+    }
+    await this.core.ledger(accountId, { op: 'resetForRescan', height: Math.max(0, Math.floor(height)), fast });
   }
 
   /** Record that the export file was saved (R8), for the reminder and Settings. */

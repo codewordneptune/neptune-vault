@@ -123,19 +123,37 @@ pub enum DeviceChange {
 // A wallet: sealed until it is unlocked
 // ---------------------------------------------------------------------------
 
-/// The part of a wallet's own record that says something about it.
+/// The part of a wallet's own record that says something about it, other
+/// than how it is scanned.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WalletDetails {
-    /// First height worth scanning; 0 is "unknown" and becomes the tip at first sync.
-    pub birthday_height: u64,
     /// Address of key 0.
     pub address0: String,
-    pub next_key_indices: NextKeyIndices,
     #[serde(default)]
     pub backup_confirmed: bool,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// How a wallet is scanned: where its history starts, which keys to watch,
+/// and whether a restore through the node's coin index is due. The sync
+/// writes these in the same breath as the coins it finds, so they are kept
+/// with the coins and not with the rest of the wallet's record: a key
+/// counter that fell behind its coins would leave later payments unseen.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanState {
+    /// First height worth scanning; 0 is "unknown" and becomes the tip at first sync.
+    pub birthday_height: u64,
+    /// The next unused derivation index per key kind, advanced by scanning.
+    pub next_key_indices: NextKeyIndices,
+    /// `fast` while a restore through the node's coin index is due.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restore: Option<String>,
+    /// When the wallet was last rebuilt through the coin index.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restored_at: Option<u64>,
 }
 
 /// A coin, with the bookkeeping the wallet keeps about it.
@@ -191,8 +209,9 @@ pub struct HistoryEntry {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncState {
-    /// Last height fully scanned, or birthday minus one.
-    pub synced_height: u64,
+    /// Last height fully scanned, or birthday minus one: -1 when the wallet
+    /// has rolled back to before the first block.
+    pub synced_height: i64,
     pub synced_hash: Option<String>,
     pub updated_at: u64,
     #[serde(flatten)]
@@ -212,6 +231,8 @@ pub struct Contact {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct WalletState {
     pub details: Option<WalletDetails>,
+    #[serde(default)]
+    pub scan: Option<ScanState>,
     pub sync: Option<SyncState>,
     /// By coin key.
     pub utxos: BTreeMap<String, Utxo>,
@@ -237,6 +258,7 @@ pub struct WalletState {
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum WalletChange {
     PutDetails { details: WalletDetails },
+    PutScan { scan: ScanState },
     /// Forget what scanning found (coins, blocks, history, position) and keep
     /// what a person made (details, contacts): a rescan starts here.
     Reset,
@@ -245,7 +267,8 @@ pub enum WalletChange {
     DeleteUtxo { hash: String },
     PutBlock { block: Block },
     /// A reorganisation: blocks above the fork point are no longer true.
-    DeleteBlocksAbove { height: u64 },
+    /// Below zero, that is every block.
+    DeleteBlocksAbove { height: i64 },
     /// Trimming: blocks this old no longer help measure a reorganisation.
     DeleteBlocksUpTo { height: u64 },
     PutHistory { entry: HistoryEntry },
@@ -324,6 +347,7 @@ impl Model for WalletState {
         for change in changes {
             match change {
                 WalletChange::PutDetails { details } => self.details = Some(details),
+                WalletChange::PutScan { scan } => self.scan = Some(scan),
                 WalletChange::Reset => {
                     self.sync = None;
                     self.utxos.clear();
@@ -340,11 +364,14 @@ impl Model for WalletState {
                 WalletChange::PutBlock { block } => {
                     self.blocks.insert(block.height, block);
                 }
-                WalletChange::DeleteBlocksAbove { height } => {
-                    self.blocks.split_off(&(height + 1));
-                }
+                WalletChange::DeleteBlocksAbove { height } => match u64::try_from(height) {
+                    Ok(height) => {
+                        self.blocks.split_off(&height.saturating_add(1));
+                    }
+                    Err(_) => self.blocks.clear(),
+                },
                 WalletChange::DeleteBlocksUpTo { height } => {
-                    self.blocks = self.blocks.split_off(&(height + 1));
+                    self.blocks = self.blocks.split_off(&height.saturating_add(1));
                 }
                 WalletChange::PutHistory { entry } => {
                     self.history.insert(entry.key.clone(), entry);
@@ -818,9 +845,7 @@ mod tests {
 
     fn details() -> WalletDetails {
         serde_json::from_value(json!({
-            "birthdayHeight": 100,
             "address0": "nolgam1secretaddress",
-            "nextKeyIndices": { "generation": 1, "ec_hybrid": 0, "viewing": 0 },
             "backupConfirmed": true,
             "lastBackupAt": 42
         }))

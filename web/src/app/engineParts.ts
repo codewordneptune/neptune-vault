@@ -20,6 +20,7 @@ export class EngineParts {
   private readonly moved = new Map<string, Set<WalletPart>>();
   private readonly stayed = new Map<string, Map<WalletPart, string>>();
   private readonly unopened = new Map<string, string>();
+  private readonly rebuilt = new Map<string, string>();
 
   /** `available` is whether the core has a store at all. */
   constructor(private readonly available: boolean) {}
@@ -46,6 +47,16 @@ export class EngineParts {
     this.unopened.set(accountId, why);
   }
 
+  /**
+   * The chain would not move, and is being rebuilt from the chain instead.
+   * Not a problem for the wallet, which will show the right balance once the
+   * sync has run, but worth saying, since notes on sends and the record of
+   * failed ones are not rebuilt.
+   */
+  rebuilding(accountId: string, why: string): void {
+    this.rebuilt.set(accountId, why);
+  }
+
   /** The parts of this wallet that the engine holds, as of this unlock. */
   opened(accountId: string, parts: WalletPart[]): void {
     this.moved.set(accountId, new Set(parts));
@@ -61,7 +72,12 @@ export class EngineParts {
   /** Why parts of this wallet stayed behind, for Diagnostics. */
   problems(accountId: string): string[] {
     const unopened = this.unopened.get(accountId);
-    return [...(unopened ? [`the sealed log did not open: ${unopened}`] : []), ...[...(this.stayed.get(accountId) ?? [])].map(([part, why]) => `${part}: ${why}`)];
+    const rebuilt = this.rebuilt.get(accountId);
+    return [
+      ...(unopened ? [`the sealed log did not open: ${unopened}`] : []),
+      ...(rebuilt ? [`coins and history are being rebuilt from the chain, because they would not move: ${rebuilt}`] : []),
+      ...[...(this.stayed.get(accountId) ?? [])].map(([part, why]) => `${part}: ${why}`),
+    ];
   }
 
   /** Where a part is kept, in words, for Diagnostics. Never throws. */
@@ -78,5 +94,6 @@ export class EngineParts {
     this.moved.clear();
     this.stayed.clear();
     this.unopened.clear();
+    this.rebuilt.clear();
   }
 }

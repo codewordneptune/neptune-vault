@@ -1,7 +1,7 @@
 // Main-thread proxy for the wallet worker. Implements WalletCore by posting
 // one request per call and resolving on the matching reply.
 
-import type { InputPlan, KeyKind, NextKeyIndices, ScanExpectation, ScanResult, SendPlan, SendRequest, StoredUtxo, WalletChange, WalletCore, WalletPart, MempoolScan } from '../types';
+import type { InputPlan, KeyKind, LedgerAnswer, LedgerOp, NextKeyIndices, ScanExpectation, ScanResult, SendPlan, SendRequest, StoredUtxo, WalletChange, WalletCore, WalletPart, MempoolScan } from '../types';
 import type { SeedEnvelope } from '../../storage/db';
 import { WrongPasswordError } from '../../storage/envelope';
 import type { WorkerRequest, WorkerResponse } from './walletWorker';
@@ -114,8 +114,14 @@ export class WalletWorkerClient implements WalletCore {
   storeOpen(accountId: string) {
     return this.call<WalletPart[]>('storeOpen', [accountId]);
   }
-  storeMigrate(accountId: string, part: WalletPart, dump: unknown) {
-    return this.call<void>('storeMigrate', [accountId, part, dump]);
+  storeMigrate(accountId: string, parts: WalletPart[], dump: unknown) {
+    return this.call<void>('storeMigrate', [accountId, parts, dump]);
+  }
+  ledger<O extends LedgerOp>(accountId: string, op: O) {
+    return this.call<LedgerAnswer<O>>('storeLedger', [accountId, op]);
+  }
+  storeRebuild(accountId: string, dump: unknown) {
+    return this.call<void>('storeRebuild', [accountId, dump]);
   }
   storeRead(accountId: string, part: WalletPart) {
     return this.call<unknown[]>('storeRead', [accountId, part]);

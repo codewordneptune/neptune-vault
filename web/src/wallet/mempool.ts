@@ -7,10 +7,14 @@
 // node rewrites kernels (and their ids) as blocks arrive, but the
 // commitment of an output never changes, and the block scan carries the
 // same commitment when the output is finally confirmed.
+//
+// What this watcher sees it keeps in memory; what it writes, the engine
+// writes, deciding against the wallet as it is at that moment. A row it
+// means to add is added only if it is not there already, and a coin it
+// means to hold is held only if nothing has spent or taken it meanwhile.
 
-import type { HistoryRecord, VaultDb } from '../storage/db';
-import type { NextKeyIndices, StoredUtxo, WalletCore } from '../backend/types';
-import { nextKeyIndicesOf } from '../storage/db';
+import type { HistoryRecord, UtxoRecord } from '../storage/db';
+import type { LedgerAnswer, LedgerOp, WalletCore } from '../backend/types';
 
 export interface MempoolNode {
   mempoolTransactions(): Promise<string[]>;
@@ -47,9 +51,8 @@ export class MempoolWatcher {
   private readonly isCurrent: () => boolean;
 
   constructor(
-    private readonly db: VaultDb,
     private readonly node: MempoolNode,
-    private readonly core: Pick<WalletCore, 'scanMempoolKernel'>,
+    private readonly core: Pick<WalletCore, 'ledger' | 'storeRead'>,
     private readonly accountId: string,
     options: MempoolWatcherOptions = {},
   ) {
@@ -59,16 +62,13 @@ export class MempoolWatcher {
     this.isCurrent = options.isCurrent ?? (() => true);
   }
 
-  /**
-   * Hold a coin for a transaction, or let it go again, as one step. Reading
-   * the coin and writing it back in two steps let a sync that marked the
-   * coin spent in between be overwritten by the stale copy.
-   */
-  private async setHold(hash: string, from: string | null, to: string | null): Promise<void> {
-    const tx = this.db.transaction('utxos', 'readwrite');
-    const coin = await tx.store.get(`${this.accountId}:${hash}`);
-    if (coin && coin.pendingTxid === from && coin.spentHeight === null) await tx.store.put({ ...coin, pendingTxid: to });
-    await tx.done;
+  private ledger<O extends LedgerOp>(op: O): Promise<LedgerAnswer<O>> {
+    if (!this.core.ledger) return Promise.reject(new Error('This build of the wallet core keeps no wallet data.'));
+    return this.core.ledger(this.accountId, op);
+  }
+
+  private async rows(): Promise<HistoryRecord[]> {
+    return (await this.core.storeRead!(this.accountId, 'history')) as HistoryRecord[];
   }
 
   /** One round: new kernels scanned, pending rows kept in step, own sends checked. */
@@ -87,20 +87,14 @@ export class MempoolWatcher {
     this.polls += 1;
     const current = new Set(ids);
 
-    const account = await this.db.get('accounts', this.accountId);
-    const utxoRows = await this.db.getAllFromIndex('utxos', 'byAccount', this.accountId);
-    const unspent = utxoRows.filter((r) => r.spentHeight === null).map((r) => r.stored as StoredUtxo);
-    const nextKeyIndices: NextKeyIndices = account ? nextKeyIndicesOf(account) : { generation: 0, ec_hybrid: 0, viewing: 0 };
-    // The core recognises this seed's own outputs against the tip it last
-    // synced to (and a little below); the window inside is generous.
-    const tipHeight = (await this.db.get('syncState', this.accountId))?.syncedHeight ?? 0;
+    const utxoRows = (await this.core.storeRead!(this.accountId, 'utxos')) as UtxoRecord[];
 
     // Unseen kernels, a batch at a time so a busy mempool never means one
     // long burst of downloads; the rest are picked up by the next polls.
     const fresh = ids.filter((id) => !this.seenIds.has(id)).slice(0, this.batchSize);
     // Outputs of this wallet's own pending sends (their change, or a payment
     // to itself) are addressed to this wallet too, and are not incoming.
-    const allHistory = await this.db.getAllFromIndex('history', 'byAccount', this.accountId);
+    const allHistory = await this.rows();
     const ownOutputs = new Set(
       allHistory.filter((h) => h.kind === 'sent' && h.status === 'pending' && h.recipient !== null).flatMap((h) => (h.outputs ?? []).map((o) => o.commitment)),
     );
@@ -115,8 +109,9 @@ export class MempoolWatcher {
       if (!this.isCurrent()) break;
       let scan;
       try {
-        const raw = await this.node.mempoolKernelRaw(id);
-        scan = await this.core.scanMempoolKernel(raw, unspent, nextKeyIndices, tipHeight);
+        const kernelResponse = await this.node.mempoolKernelRaw(id);
+        // Against the wallet's coins, keys and synced tip as they are now.
+        scan = await this.ledger({ op: 'scanMempoolKernel', kernelResponse });
       } catch (e) {
         // The node not answering ends this round; the id is tried again next
         // time. A kernel that cannot be read is another matter: it would be
@@ -145,7 +140,7 @@ export class MempoolWatcher {
         const spentHashes = [...scan.spent].sort();
         const key = outgoingKey(this.accountId, spentHashes[0]);
         for (const o of ownBack) this.lastSeen.set(o.commitment, this.polls);
-        if (!(await this.db.get('history', key))) {
+        {
           const spentNau = spentHashes.reduce((sum, h) => sum + (amountOf.get(h) ?? 0n), 0n);
           const backNau = ownBack.reduce((sum, o) => sum + BigInt(o.amount_nau), 0n);
           const change = backNau <= spentNau ? backNau : 0n;
@@ -165,15 +160,14 @@ export class MempoolWatcher {
             changeNau: change > 0n ? change.toString() : null,
             outputs: ownBack.map((o) => ({ commitment: o.commitment, role: 'change' as const })),
           };
-          await this.db.put('history', row);
-          for (const h of spentHashes) await this.setHold(h, null, id);
+          // Written, and its coins held, unless the row is there already.
+          await this.ledger({ op: 'recordOutgoing', row });
         }
       }
 
       for (const out of arriving) {
         this.lastSeen.set(out.commitment, this.polls);
         const key = incomingKey(this.accountId, out.commitment);
-        if (await this.db.get('history', key)) continue;
         const row: HistoryRecord = {
           key,
           accountId: this.accountId,
@@ -190,7 +184,7 @@ export class MempoolWatcher {
           outputs: [{ commitment: out.commitment, role: 'recipient' }],
           releaseDateMs: out.release_date_ms ?? null,
         };
-        await this.db.put('history', row);
+        if (!(await this.ledger({ op: 'recordIncoming', row }))) continue;
         incoming += 1;
         incomingNau += BigInt(out.amount_nau);
         if (out.release_date_ms && out.release_date_ms > Date.now()) lockedNau += BigInt(out.amount_nau);
@@ -203,7 +197,7 @@ export class MempoolWatcher {
 
     // A pending row whose transaction the node no longer holds, and which
     // no block confirmed, goes after a little patience.
-    const pending = (await this.db.getAllFromIndex('history', 'byAccount', this.accountId)).filter(
+    const pending = (await this.rows()).filter(
       (h) => h.status === 'pending' && (h.key.includes(`:${INCOMING_KEY_PREFIX}`) || h.key.includes(`:${OUTGOING_KEY_PREFIX}`)),
     );
     for (const row of pending) {
@@ -211,7 +205,7 @@ export class MempoolWatcher {
       // An "incoming" row for this wallet's own change (written before own
       // sends were recognised) goes at once.
       if (row.kind === 'received' && ownOutputs.has(marker)) {
-        await this.db.delete('history', row.key);
+        await this.ledger({ op: 'dropRow', key: row.key });
         this.lastSeen.delete(marker);
         continue;
       }
@@ -221,10 +215,10 @@ export class MempoolWatcher {
       }
       const seen = this.lastSeen.get(marker) ?? this.polls;
       if (this.polls - seen >= this.patience) {
-        await this.db.delete('history', row.key);
+        // Dropped, and the coins it held offered again, unless something
+        // else has taken them meanwhile.
+        await this.ledger({ op: 'expireRow', key: row.key });
         this.lastSeen.delete(marker);
-        // Coins held for a spend that went away are offered again.
-        for (const h of row.inputHashes) await this.setHold(h, row.txid, null);
       }
     }
 
@@ -232,20 +226,17 @@ export class MempoolWatcher {
     return { scanned: fresh.length, incoming, incomingNau: incomingNau.toString(), lockedNau: lockedNau.toString() };
   }
 
-  /** Whether the node still holds each of this wallet's pending sends. */
+  /**
+   * Whether the node still holds each of this wallet's pending sends. The
+   * engine records the answer only on rows that are still pending: a send
+   * the sync confirmed while the node was being asked keeps its confirmation.
+   */
   private async checkOwnSends(): Promise<void> {
-    const rows = (await this.db.getAllFromIndex('history', 'byAccount', this.accountId)).filter(
-      (h) => h.kind === 'sent' && h.status === 'pending' && (h.outputs?.length ?? 0) > 0,
-    );
+    const rows = (await this.rows()).filter((h) => h.kind === 'sent' && h.status === 'pending' && (h.outputs?.length ?? 0) > 0);
     if (rows.length === 0) return;
     const wanted = rows.flatMap((h) => (h.outputs ?? []).map((o) => o.commitment));
     const present = await this.node.mempoolHasOutputs(wanted);
-    const at = this.now();
-    for (const row of rows) {
-      const held = (row.outputs ?? []).some((o) => present.has(o.commitment));
-      const next: HistoryRecord = { ...row, mempoolSeenAt: held ? at : row.mempoolSeenAt ?? null, mempoolCheckedAt: at };
-      await this.db.put('history', next);
-    }
+    await this.ledger({ op: 'markMempoolChecked', asked: rows.map((r) => r.key), present: [...present], at: this.now() });
   }
 }
 

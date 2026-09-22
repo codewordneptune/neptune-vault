@@ -6,7 +6,7 @@ import { groupDigits, showInt } from '../util/format';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { byCreation, type AccountRecord, type HistoryRecord, type Network, type UtxoRecord } from '../storage/db';
-import type { SendRequest } from '../backend/types';
+import type { ScanSettings, SendRequest } from '../backend/types';
 import type { SyncEngine, SyncProgress } from '../wallet/sync';
 import { RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
@@ -184,10 +184,38 @@ export function AppProvider({ services, children }: { services: Services; childr
       setHistory([]);
       return;
     }
-    const fresh = await services.db.get('accounts', accountId);
-    if (fresh) setAccount((prev) => (prev && JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh));
-    setUtxos(await services.db.getAllFromIndex('utxos', 'byAccount', accountId));
-    const rows = await services.db.getAllFromIndex('history', 'byAccount', accountId);
+    const record = await services.db.get('accounts', accountId);
+    // Where the wallet's chain data is kept: the engine's sealed log, or,
+    // on a core without one, the app's database. A locked wallet's is not
+    // readable at all, and shows nothing rather than a stale copy.
+    let where: 'engine' | 'database' | null;
+    try {
+      where = services.accounts.engine.where(accountId, 'utxos');
+    } catch {
+      where = null;
+    }
+    let fresh = record;
+    let coins: UtxoRecord[] = [];
+    let rows: HistoryRecord[] = [];
+    if (where === 'engine') {
+      // How the wallet is scanned (start height, key counters, restore) is
+      // the engine's now; the copy on the account record is left behind.
+      const [scan] = (await services.core.storeRead!(accountId, 'scan')) as ScanSettings[];
+      if (record && scan) {
+        const { restore: _stale, restoredAt: _staleToo, ...rest } = record;
+        fresh = { ...rest, ...scan };
+      }
+      coins = (await services.core.storeRead!(accountId, 'utxos')) as UtxoRecord[];
+      rows = (await services.core.storeRead!(accountId, 'history')) as HistoryRecord[];
+    } else if (where === 'database') {
+      coins = await services.db.getAllFromIndex('utxos', 'byAccount', accountId);
+      rows = await services.db.getAllFromIndex('history', 'byAccount', accountId);
+    }
+    if (fresh) {
+      const next = fresh;
+      setAccount((prev) => (prev && JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    }
+    setUtxos(coins);
     rows.sort((a, b) => b.timestampMs - a.timestampMs);
     setHistory(rows);
     setLoadedFor(accountId);

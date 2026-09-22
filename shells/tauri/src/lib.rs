@@ -9,13 +9,14 @@ use std::sync::Arc;
 
 use serde_json::Value;
 use tauri::ipc::Channel;
+use tauri::Manager;
 use tauri::State;
 use vault_bridge::envelope::{SealedBox, SeedEnvelope};
 use vault_bridge::{BridgeError, Prover, ProveEvent, ProveOutcome, SendPlan, Vault};
 
 /// What the app holds for as long as it is running: one wallet, one prover.
 struct App {
-    vault: Vault,
+    vault: Arc<Vault>,
     prover: Arc<Prover>,
 }
 
@@ -78,9 +79,14 @@ fn wallet_phrase_problem(words: Vec<String>) -> Option<String> {
     vault_bridge::phrase_problem(&words)
 }
 
+/// `content_key` comes with a new wallet, whose envelope was sealed on the
+/// page: the key its data is sealed under, handed over once.
 #[tauri::command]
-fn wallet_unlock(app: State<'_, App>, phrase: Vec<String>, network: String) -> Result<()> {
-    app.vault.unlock(&phrase, &network)
+fn wallet_unlock(app: State<'_, App>, phrase: Vec<String>, network: String, content_key: Option<String>) -> Result<()> {
+    match content_key {
+        Some(key) => app.vault.unlock_with_content_key(&phrase, &network, bytes("the content key", &key)?),
+        None => app.vault.unlock(&phrase, &network),
+    }
 }
 
 #[tauri::command]
@@ -209,6 +215,53 @@ fn wallet_assemble_submission(kernel: String, proof_collection: String) -> Resul
 }
 
 // ---------------------------------------------------------------------------
+// The wallet's data
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn store_open(app: State<'_, App>, account_id: String) -> Result<Vec<String>> {
+    app.vault.store_open(&account_id)
+}
+
+#[tauri::command]
+fn store_migrate(app: State<'_, App>, account_id: String, parts: Vec<String>, dump: Value) -> Result<()> {
+    app.vault.store_migrate(&account_id, parts, dump)
+}
+
+#[tauri::command]
+fn store_rebuild(app: State<'_, App>, account_id: String, dump: Value) -> Result<()> {
+    app.vault.store_rebuild(&account_id, dump)
+}
+
+#[tauri::command]
+fn store_read(app: State<'_, App>, account_id: String, part: String) -> Result<Vec<Value>> {
+    app.vault.store_read(&account_id, &part)
+}
+
+#[tauri::command]
+fn store_commit(app: State<'_, App>, account_id: String, changes: Value) -> Result<()> {
+    app.vault.store_commit(&account_id, changes)
+}
+
+#[tauri::command]
+fn store_remove(app: State<'_, App>, account_id: String) -> Result<()> {
+    app.vault.store_remove(&account_id)
+}
+
+/// One ledger operation. On a blocking thread: scanning a batch of blocks
+/// takes a while, and a synchronous command would hold the window's thread.
+#[tauri::command]
+async fn wallet_ledger(app: State<'_, App>, account_id: String, op: Value) -> Result<Value> {
+    let vault = app.vault.clone();
+    tauri::async_runtime::spawn_blocking(move || vault.ledger(&account_id, op))
+        .await
+        .map_err(|e| BridgeError {
+            name: "Error".to_string(),
+            message: format!("the wallet's thread stopped: {e}"),
+        })?
+}
+
+// ---------------------------------------------------------------------------
 // The prover
 // ---------------------------------------------------------------------------
 
@@ -264,9 +317,16 @@ fn prover_cancel(app: State<'_, App>) {
 
 pub fn run() {
     tauri::Builder::default()
-        .manage(App {
-            vault: Vault::new(),
-            prover: Arc::new(Prover::new()),
+        .setup(|app| {
+            // The wallet's sealed logs live in the app's own data folder, a
+            // path this app chose, and not in the web view's storage.
+            let logs = app.path().app_data_dir()?.join("logs");
+            let vault = Vault::with_store_dir(logs).map_err(|e| e.message)?;
+            app.manage(App {
+                vault: Arc::new(vault),
+                prover: Arc::new(Prover::new()),
+            });
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             wallet_core_version,
@@ -292,6 +352,13 @@ pub fn run() {
             wallet_build_send,
             wallet_mock_proof_collection,
             wallet_assemble_submission,
+            store_open,
+            store_migrate,
+            store_rebuild,
+            store_read,
+            store_commit,
+            store_remove,
+            wallet_ledger,
             prover_prove,
             prover_cancel,
         ])

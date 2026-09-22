@@ -6,6 +6,8 @@ import { openVaultDb, type VaultDb } from '../storage/db';
 import type { SeedEnvelope } from '../storage/db';
 import { openSeed, WrongPasswordError } from '../storage/envelope';
 import type { WalletCore } from '../backend/types';
+import { CHAIN_PARTS } from '../backend/types';
+import { chainView, testEngine } from '../backend/engineForTests';
 import { AccountService, UnlockCancelledError } from './accounts';
 import type { PasskeyProvider } from './passkey';
 
@@ -83,11 +85,14 @@ class FakeWorkerCore extends FakeCore {
 class FakeStoreCore extends FakeCore {
   moved: string[] = [];
   contentKeys = 0;
-  migrations: { accountId: string; part: string; dump: { accounts: unknown[]; contacts: unknown[] } }[] = [];
+  migrations: { accountId: string; parts: string[]; dump: { accounts: unknown[]; contacts: unknown[] } }[] = [];
   commits: unknown[][] = [];
   removed: string[] = [];
   failOpen: string | null = null;
   failMigrate: string | null = null;
+  /** Refuse only the migration of a group that includes this part. */
+  failMigrateOf: string | null = null;
+  rebuilt: string[] = [];
   async unlock(phrase: string[], _network?: string, contentKey?: Uint8Array) {
     if (contentKey) this.contentKeys += 1;
     this.unlocked = phrase;
@@ -99,10 +104,11 @@ class FakeStoreCore extends FakeCore {
     if (this.failOpen) throw new Error(this.failOpen);
     return [...this.moved];
   }
-  async storeMigrate(accountId: string, part: string, dump: { accounts: unknown[]; contacts: unknown[] }) {
+  async storeMigrate(accountId: string, parts: string[], dump: { accounts: unknown[]; contacts: unknown[] }) {
     if (this.failMigrate) throw new Error(this.failMigrate);
-    this.migrations.push({ accountId, part, dump });
-    this.moved.push(part);
+    if (this.failMigrateOf && parts.includes(this.failMigrateOf)) throw new Error(`migrate: ${this.failMigrateOf} did not come through unchanged`);
+    this.migrations.push({ accountId, parts, dump });
+    this.moved.push(...parts);
   }
   async storeRead() {
     return [];
@@ -112,6 +118,10 @@ class FakeStoreCore extends FakeCore {
   }
   async storeRemove(accountId: string) {
     this.removed.push(accountId);
+  }
+  async storeRebuild(accountId: string) {
+    this.rebuilt.push(accountId);
+    this.moved.push(...CHAIN_PARTS);
   }
 }
 
@@ -140,7 +150,8 @@ describe('the engine store, as the account service drives it', () => {
     const { core, service } = await withStore();
     const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
     expect(core.contentKeys).toBe(1);
-    expect(core.migrations.map((m) => m.part)).toEqual(['contacts']);
+    // Contacts on their own, and the chain as one batch: the parts the sync writes together.
+    expect(core.migrations.map((m) => m.parts)).toEqual([['contacts'], CHAIN_PARTS]);
     expect(service.engine.where(record.id, 'contacts')).toBe('engine');
   });
 
@@ -154,14 +165,25 @@ describe('the engine store, as the account service drives it', () => {
     await db.put('contacts', { key: 'someone-else:1', id: '1', accountId: 'someone-else', name: 'Not mine', address: 'nolgar1x', kind: 'k', createdAt: 1, updatedAt: 1 });
 
     await service.unlock(record.id, 'pw');
-    expect(core.migrations).toHaveLength(1);
-    expect(core.migrations[0].dump.contacts).toHaveLength(1);
-    expect(core.migrations[0].dump.accounts).toHaveLength(1);
+    expect(core.migrations).toHaveLength(2);
+    const contacts = core.migrations.find((m) => m.parts.includes('contacts'))!;
+    expect(contacts.dump.contacts).toHaveLength(1);
+    expect(contacts.dump.accounts).toHaveLength(1);
 
     await service.lock();
     expect(() => service.engine.where(record.id, 'contacts')).toThrow('wallet is locked');
     await service.unlock(record.id, 'pw');
-    expect(core.migrations).toHaveLength(1);
+    expect(core.migrations).toHaveLength(2);
+  });
+
+  it('a chain that will not move is rebuilt from the chain, and says so', async () => {
+    const { core, service } = await withStore();
+    core.failMigrateOf = 'utxos';
+    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    expect(core.rebuilt).toEqual([record.id]);
+    expect(service.engine.where(record.id, 'utxos')).toBe('engine');
+    expect(service.engine.where(record.id, 'contacts'), 'contacts moved on their own').toBe('engine');
+    expect(service.engine.problems(record.id)[0]).toMatch(/rebuilt from the chain.*utxos did not come through/);
   });
 
   it('a part that will not move stays in the database, and the wallet opens all the same', async () => {
@@ -494,17 +516,32 @@ describe('account service', () => {
     expect(service.currentAccountId).toBe(record.id);
   });
 
-  it('rescans from a block by dropping the local view', async () => {
-    const { service } = await setup();
-    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 40);
-    await db.put('syncState', { accountId: record.id, syncedHeight: 50, syncedHash: 'h', updatedAt: 1 });
-    await db.put('history', { key: `${record.id}:recv:x`, accountId: record.id, kind: 'received', status: 'confirmed', txid: '', amountNau: '1', feeNau: null, timestampMs: 1, height: 45, inputHashes: [], recipient: null, error: null });
-    await db.put('blocks', { key: `${record.id}:45`, accountId: record.id, height: 45, hash: 'b', prevHash: 'a', timestampMs: 1 });
-    await service.rescanFrom(record.id, 44);
-    expect((await db.get('accounts', record.id))?.birthdayHeight).toBe(44);
-    expect(await db.get('syncState', record.id)).toBeUndefined();
-    expect(await db.getAllFromIndex('history', 'byAccount', record.id)).toEqual([]);
-    expect((await db.getAll('blocks')).filter((b) => b.accountId === record.id)).toEqual([]);
+  it('rescans from a block by dropping the local view, in the engine', async () => {
+    db = await openVaultDb();
+    const vault = await testEngine();
+    try {
+      // The core's keys faked, its store the real engine's; unlocking hands the engine the content key.
+      const core = Object.assign(new FakeCore(), vault.store, {
+        async unlock(this: FakeCore, phrase: string[], _network?: string, contentKey?: Uint8Array) {
+          this.unlocked = phrase;
+          vault.unlock(contentKey);
+        },
+      });
+      const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+      const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 40);
+      const view = chainView(vault, db, record.id);
+      await view.put('syncState', { accountId: record.id, syncedHeight: 50, syncedHash: 'h', updatedAt: 1 });
+      await view.put('history', { key: `${record.id}:recv:x`, accountId: record.id, kind: 'received', status: 'confirmed', txid: '', amountNau: '1', feeNau: null, timestampMs: 1, height: 45, inputHashes: [], recipient: null, error: null });
+      await view.put('blocks', { key: `${record.id}:45`, accountId: record.id, height: 45, hash: 'b', prevHash: 'a', timestampMs: 1 });
+
+      await service.rescanFrom(record.id, 44);
+      expect((await view.get('accounts', record.id))?.birthdayHeight).toBe(44);
+      expect(await view.get('syncState', record.id)).toBeUndefined();
+      expect(await view.getAllFromIndex('history')).toEqual([]);
+      expect(await view.getAllFromIndex('blocks')).toEqual([]);
+    } finally {
+      vault.close();
+    }
   });
 
   it('records the last backup on export and on import', async () => {

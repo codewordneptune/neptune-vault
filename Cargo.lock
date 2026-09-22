@@ -5663,6 +5663,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "bincode",
+ "hex",
  "neptune-consensus",
  "neptune-primitives",
  "neptune-rpc-api",

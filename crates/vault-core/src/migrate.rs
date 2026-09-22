@@ -30,6 +30,7 @@ use serde_json::Value;
 
 use crate::store::Block;
 use crate::store::Contact;
+use crate::store::ScanState;
 use crate::store::DeviceChange;
 use crate::store::DeviceState;
 use crate::store::HistoryEntry;
@@ -48,6 +49,22 @@ pub const LAST_SEND_FAILURE: &str = "lastSendFailure";
 /// The fields of the app's account record that a lock screen needs. The
 /// rest of the record is the wallet's own business and is sealed with it.
 const HEADER_FIELDS: [&str; 6] = ["id", "network", "createdAt", "envelope", "name", "passkey"];
+
+/// The fields of the account record that say how the wallet is scanned.
+/// They move with the coins, as the scan state, and not with the details.
+const SCAN_FIELDS: [&str; 4] = ["birthdayHeight", "nextKeyIndices", "restore", "restoredAt"];
+
+/// The details: what is neither the lock screen's nor the scan's.
+fn details_fields(account: Map<String, Value>) -> Map<String, Value> {
+    account
+        .into_iter()
+        .filter(|(name, _)| !HEADER_FIELDS.contains(&name.as_str()) && !SCAN_FIELDS.contains(&name.as_str()))
+        .collect()
+}
+
+fn scan_fields(account: Map<String, Value>) -> Map<String, Value> {
+    account.into_iter().filter(|(name, _)| SCAN_FIELDS.contains(&name.as_str())).collect()
+}
 
 /// Everything the app's database holds, as it holds it.
 #[derive(Debug, Default, Deserialize)]
@@ -150,13 +167,12 @@ fn typed<T: serde::de::DeserializeOwned>(record: &Value, what: &str) -> Result<T
 
 /// Everything one wallet owns, as one batch for its sealed log.
 pub fn wallet_changes(dump: &Dump, wallet_id: &str) -> Result<Vec<WalletChange>> {
-    let details: Map<String, Value> = normal_account(account(dump, wallet_id)?)?
-        .into_iter()
-        .filter(|(name, _)| !HEADER_FIELDS.contains(&name.as_str()))
-        .collect();
-    let details: WalletDetails = serde_json::from_value(Value::Object(details))
+    let record = normal_account(account(dump, wallet_id)?)?;
+    let details: WalletDetails = serde_json::from_value(Value::Object(details_fields(record.clone())))
         .with_context(|| format!("migrate: wallet {wallet_id} is not in a shape this build knows"))?;
-    let mut changes = vec![WalletChange::PutDetails { details }];
+    let scan: ScanState = serde_json::from_value(Value::Object(scan_fields(record)))
+        .with_context(|| format!("migrate: how wallet {wallet_id} is scanned is not in a shape this build knows"))?;
+    let mut changes = vec![WalletChange::PutDetails { details }, WalletChange::PutScan { scan }];
 
     for record in owned(&dump.sync_state, wallet_id) {
         changes.push(WalletChange::PutSync { sync: typed::<SyncState>(record, "the sync position of")? });
@@ -184,7 +200,23 @@ pub fn wallet_changes(dump: &Dump, wallet_id: &str) -> Result<Vec<WalletChange>>
 /// The parts a wallet moves over in. The app changes where it reads one part
 /// at a time, and a part moves at the moment its reads do: moved any
 /// earlier, the copy would go stale while the old database went on changing.
-pub const PARTS: [&str; 7] = ["details", "sync", "utxos", "blocks", "history", "contacts", "private"];
+pub const PARTS: [&str; 8] = ["details", "scan", "sync", "utxos", "blocks", "history", "contacts", "private"];
+
+/// Parts that are written together and so must move together, in one batch:
+/// the sync writes the scan state, its position, the coins, the blocks and
+/// the history in a single step, and a move that split them could leave
+/// them out of step with each other.
+pub const CHAIN: [&str; 5] = ["scan", "sync", "utxos", "blocks", "history"];
+
+/// Several parts of one wallet as one batch, each ending with its mark, so
+/// that parts written together elsewhere move together here.
+pub fn parts_changes(dump: &Dump, wallet_id: &str, parts: &[&str]) -> Result<Vec<WalletChange>> {
+    let mut changes = Vec::new();
+    for part in parts {
+        changes.extend(part_changes(dump, wallet_id, part)?);
+    }
+    Ok(changes)
+}
 
 /// One part of one wallet, as a batch for its sealed log. The batch ends by
 /// marking the part as moved, so that the move and the mark are one write.
@@ -197,6 +229,7 @@ pub fn part_changes(dump: &Dump, wallet_id: &str, part: &str) -> Result<Vec<Wall
         .filter(|change| {
             part == match change {
                 WalletChange::PutDetails { .. } => "details",
+                WalletChange::PutScan { .. } => "scan",
                 WalletChange::PutSync { .. } => "sync",
                 WalletChange::PutUtxo { .. } => "utxos",
                 WalletChange::PutBlock { .. } => "blocks",
@@ -211,6 +244,45 @@ pub fn part_changes(dump: &Dump, wallet_id: &str, part: &str) -> Result<Vec<Wall
     Ok(changes)
 }
 
+/// The restore marker of a chain being rebuilt because it could not be moved.
+/// Like `fast`, it asks the sync to restore through the node's coin index; unlike
+/// `fast`, which a person asked for and is told about when the node has no
+/// index, a rebuild nobody asked for falls back to a plain scan from the start.
+pub const REBUILD: &str = "rebuild";
+
+/// When a wallet's chain would not come through unchanged: start the
+/// engine's copy afresh and let the sync rebuild it from the chain, which is
+/// the truth about coins. What only this device knew (notes on sends, the
+/// record of sends that failed, holds on coins of sends in flight) is not
+/// rebuilt. Nothing is deleted from the old database.
+///
+/// The scan starts where the wallet's record says, with the key counters it
+/// recorded, since watching more keys can only find more. Where the record
+/// cannot be read either, from the first block, with fresh counters: slow,
+/// but it misses nothing.
+pub fn rebuild_changes(dump: &Dump, wallet_id: &str) -> Vec<WalletChange> {
+    let record = account(dump, wallet_id).ok().and_then(|a| normal_account(a).ok());
+    let birthday = record
+        .as_ref()
+        .and_then(|r| r.get("birthdayHeight"))
+        .and_then(Value::as_u64)
+        .filter(|&h| h > 0)
+        .unwrap_or(1);
+    let next_key_indices = record
+        .as_ref()
+        .and_then(|r| r.get("nextKeyIndices"))
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or(crate::ledger::FRESH_KEY_INDICES);
+    let mut changes = vec![
+        WalletChange::Reset,
+        WalletChange::PutScan {
+            scan: ScanState { birthday_height: birthday, next_key_indices, restore: Some(REBUILD.to_string()), restored_at: None },
+        },
+    ];
+    changes.extend(CHAIN.iter().map(|part| WalletChange::MarkMigrated { part: part.to_string() }));
+    changes
+}
+
 // ---------------------------------------------------------------------------
 // Backwards: the records the new state amounts to
 // ---------------------------------------------------------------------------
@@ -219,10 +291,11 @@ fn as_record<T: serde::Serialize>(value: &T) -> Result<Value> {
     serde_json::to_value(value).context("migrate: cannot write a record back out")
 }
 
-/// The app's account record, put back together from its two halves.
-pub fn account_record(header: &WalletHeader, details: &WalletDetails) -> Result<Value> {
+/// The app's account record, put back together from its three parts.
+pub fn account_record(header: &WalletHeader, details: &WalletDetails, scan: &ScanState) -> Result<Value> {
     let mut record = object(&as_record(header)?, "a header")?.clone();
     record.extend(object(&as_record(details)?, "the details")?.clone());
+    record.extend(object(&as_record(scan)?, "the scan state")?.clone());
     Ok(Value::Object(record))
 }
 
@@ -265,6 +338,7 @@ pub fn part_records(state: &WalletState, part: &str) -> Result<Vec<Value>> {
     let written = |records: Vec<Result<Value>>| records.into_iter().collect::<Result<Vec<_>>>();
     match part {
         "details" => written(state.details.iter().map(as_record).collect()),
+        "scan" => written(state.scan.iter().map(as_record).collect()),
         "sync" => written(state.sync.iter().map(as_record).collect()),
         "utxos" => written(state.utxos.values().map(as_record).collect()),
         "blocks" => written(state.blocks.values().map(as_record).collect()),
@@ -282,12 +356,16 @@ pub fn verify_part(dump: &Dump, wallet_id: &str, part: &str, state: &WalletState
     let new = part_records(state, part)?;
     match part {
         "details" => {
-            let old: Map<String, Value> = normal_account(account(dump, wallet_id)?)?
-                .into_iter()
-                .filter(|(name, _)| !HEADER_FIELDS.contains(&name.as_str()))
-                .collect();
+            let old = details_fields(normal_account(account(dump, wallet_id)?)?);
             if new != vec![Value::Object(old)] {
                 bail!("migrate: the record of wallet {wallet_id} did not come through unchanged");
+            }
+            Ok(())
+        }
+        "scan" => {
+            let old = scan_fields(normal_account(account(dump, wallet_id)?)?);
+            if new != vec![Value::Object(old)] {
+                bail!("migrate: how wallet {wallet_id} is scanned did not come through unchanged");
             }
             Ok(())
         }
@@ -314,8 +392,9 @@ pub fn verify_part(dump: &Dump, wallet_id: &str, part: &str, state: &WalletState
 pub fn verify_wallet(dump: &Dump, header: &WalletHeader, state: &WalletState) -> Result<()> {
     let id = header.id.as_str();
     let details = state.details.as_ref().ok_or_else(|| anyhow!("migrate: wallet {id} has no details"))?;
+    let scan = state.scan.as_ref().ok_or_else(|| anyhow!("migrate: wallet {id} has no scan state"))?;
     let old_account = Value::Object(normal_account(account(dump, id)?)?);
-    if old_account != account_record(header, details)? {
+    if old_account != account_record(header, details, scan)? {
         bail!("migrate: the record of wallet {id} did not come through unchanged");
     }
     for part in PARTS {
@@ -405,9 +484,10 @@ mod tests {
         let (device, wallet) = migrated(&dump, "old");
         verify_wallet(&dump, &device.wallets["old"], &wallet).unwrap();
         let details = wallet.details.unwrap();
-        assert_eq!(details.next_key_indices.generation, 7);
+        assert_eq!(wallet.scan.unwrap().next_key_indices.generation, 7);
         assert!(!details.backup_confirmed);
         assert!(!details.extra.contains_key("nextKeyIndex"));
+        assert!(!details.extra.contains_key("nextKeyIndices"));
     }
 
     #[test]
@@ -495,6 +575,72 @@ mod tests {
         assert_eq!(changes, vec![WalletChange::MarkMigrated { part: "contacts".into() }]);
         let state = Log::<WalletState>::open("wallet:old", None, Vec::new()).unwrap().preview(&changes).unwrap();
         verify_part(&dump, "old", "contacts", &state).unwrap();
+    }
+
+    #[test]
+    fn the_chain_moves_in_one_batch_with_its_scan_state() {
+        let dump = dump();
+        let changes = parts_changes(&dump, "a", &CHAIN).unwrap();
+        let marks: Vec<_> = changes.iter().filter_map(|c| match c {
+            WalletChange::MarkMigrated { part } => Some(part.as_str()),
+            _ => None,
+        }).collect();
+        assert_eq!(marks, CHAIN);
+        let state = Log::<WalletState>::open("wallet:a", None, Vec::new()).unwrap().preview(&changes).unwrap();
+        for part in CHAIN {
+            verify_part(&dump, "a", part, &state).unwrap();
+        }
+        let scan = state.scan.unwrap();
+        assert_eq!((scan.birthday_height, scan.next_key_indices.generation), (40000, 3));
+        assert!(state.details.is_none() && state.contacts.is_empty(), "only the chain came along");
+    }
+
+    #[test]
+    fn a_restore_marker_travels_with_the_scan_state_and_its_absence_does_too() {
+        let mut dump = dump();
+        dump.accounts[0]["restore"] = json!("fast");
+        let state = Log::<WalletState>::open("wallet:a", None, Vec::new())
+            .unwrap()
+            .preview(&part_changes(&dump, "a", "scan").unwrap())
+            .unwrap();
+        assert_eq!(state.scan.as_ref().unwrap().restore.as_deref(), Some("fast"));
+        verify_part(&dump, "a", "scan", &state).unwrap();
+        // The other wallet has neither field, and none is invented for it.
+        let other = Log::<WalletState>::open("wallet:old", None, Vec::new())
+            .unwrap()
+            .preview(&part_changes(&dump, "old", "scan").unwrap())
+            .unwrap();
+        verify_part(&dump, "old", "scan", &other).unwrap();
+        assert!(serde_json::to_value(other.scan.unwrap()).unwrap().get("restore").is_none());
+    }
+
+    #[test]
+    fn a_chain_that_will_not_move_is_rebuilt_from_where_the_record_says() {
+        let mut dump = dump();
+        dump.utxos[0].as_object_mut().unwrap().remove("amountNau");
+        assert!(parts_changes(&dump, "a", &CHAIN).is_err(), "the move itself is refused");
+
+        let state = Log::<WalletState>::open("wallet:a", None, Vec::new())
+            .unwrap()
+            .preview(&rebuild_changes(&dump, "a"))
+            .unwrap();
+        let scan = state.scan.unwrap();
+        assert_eq!((scan.birthday_height, scan.next_key_indices.generation, scan.restore.as_deref()), (40000, 3, Some(REBUILD)));
+        assert!(state.utxos.is_empty() && state.history.is_empty() && state.sync.is_none());
+        assert!(CHAIN.iter().all(|p| state.migrated.contains(*p)), "the engine is now the truth for the chain");
+        assert!(!state.migrated.contains("contacts"), "and for nothing else");
+    }
+
+    #[test]
+    fn a_rebuild_with_no_readable_record_starts_from_the_first_block() {
+        let mut dump = dump();
+        dump.accounts[1]["birthdayHeight"] = json!(0);
+        let state = Log::<WalletState>::open("wallet:old", None, Vec::new()).unwrap().preview(&rebuild_changes(&dump, "old")).unwrap();
+        assert_eq!(state.scan.unwrap().birthday_height, 1, "an unknown start would mean the tip, and skip everything");
+        let nothing = Dump::default();
+        let state = Log::<WalletState>::open("wallet:x", None, Vec::new()).unwrap().preview(&rebuild_changes(&nothing, "x")).unwrap();
+        let scan = state.scan.unwrap();
+        assert_eq!((scan.birthday_height, scan.next_key_indices), (1, crate::ledger::FRESH_KEY_INDICES));
     }
 
     #[test]

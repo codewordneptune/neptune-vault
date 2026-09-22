@@ -75,13 +75,13 @@ export async function createServices(owner: WindowOwner): Promise<Services> {
       const key = `${accountId}:${settings.nodeUrls[settings.network]}`;
       let w = watchers.get(key);
       if (!w) {
-        w = new MempoolWatcher(db, services.node(), core, accountId, { isCurrent: () => accounts.currentAccountId === accountId });
+        w = new MempoolWatcher(services.node(), core, accountId, { isCurrent: () => accounts.currentAccountId === accountId });
         watchers.set(key, w);
       }
       return w;
     },
     sendService(accountId) {
-      return new SendService(db, services.node(), core, prover, accountId, coreNetworkName(settings.network), prover.defaultThreads(), settings.network === 'regtest');
+      return new SendService(services.node(), core, prover, accountId, coreNetworkName(settings.network), prover.defaultThreads(), settings.network === 'regtest');
     },
     forgetAccount(accountId) {
       for (const key of [...watchers.keys()]) if (key.startsWith(`${accountId}:`)) watchers.delete(key);

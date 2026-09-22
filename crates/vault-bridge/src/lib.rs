@@ -16,6 +16,7 @@
 //! for the other side of that decision.
 
 pub mod envelope;
+pub mod wallet_store;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -192,15 +193,45 @@ pub struct SendPlan {
     pub summary: Value,
 }
 
-/// The wallet as the shell holds it: an account, or none while locked.
-#[derive(Default)]
+/// The wallet as the shell holds it: an account, or none while locked, and
+/// the engine's store of its data.
+///
+/// Two locks, taken in one order only: the store's, then the account's.
+/// Only a ledger operation that needs the wallet's keys holds both.
 pub struct Vault {
     account: Mutex<Option<account::Account>>,
+    store: Mutex<wallet_store::WalletStore>,
+}
+
+impl Default for Vault {
+    /// A vault whose store keeps nothing past the process: for tests.
+    fn default() -> Self {
+        Self::with_persist(Box::new(vault_core::store::MemoryPersist::default()))
+    }
 }
 
 impl Vault {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// A vault whose store keeps its logs as files under `dir`.
+    pub fn with_store_dir(dir: std::path::PathBuf) -> Result<Self> {
+        Ok(Self::with_persist(Box::new(wallet_store::FilePersist::new(dir)?)))
+    }
+
+    fn with_persist(persist: Box<dyn vault_core::store::Persist + Send>) -> Self {
+        Self { account: Mutex::new(None), store: Mutex::new(wallet_store::WalletStore::new(persist)) }
+    }
+
+    fn store(&self) -> Result<std::sync::MutexGuard<'_, wallet_store::WalletStore>> {
+        self.store.lock().map_err(|_| BridgeError::plain("the store is unusable after an earlier failure"))
+    }
+
+    /// Keep the content key of the wallet now unlocked, for its sealed log.
+    fn keep(&self, content_key: Option<zeroize::Zeroizing<Vec<u8>>>) -> Result<()> {
+        self.store()?.keep(content_key);
+        Ok(())
     }
 
     /// Run `f` against the unlocked account, or fail because there is none.
@@ -212,13 +243,23 @@ impl Vault {
         }
     }
 
-    /// Load an account from its phrase, replacing any already unlocked.
+    /// Load an account from its phrase, replacing any already unlocked. Its
+    /// data stays closed: that needs the content key, which comes with
+    /// `unlock_with_content_key` or out of the envelope.
     pub fn unlock(&self, words: &[String], network: &str) -> Result<()> {
         let network = parse_network(network)?;
         let account = account::Account::from_phrase(words, network)?;
         let mut guard = self.account.lock().map_err(|_| BridgeError::locked())?;
         *guard = Some(account);
-        Ok(())
+        drop(guard);
+        self.keep(None)
+    }
+
+    /// The same, with the content key a new wallet's envelope was just sealed
+    /// under, so that its data can be opened too.
+    pub fn unlock_with_content_key(&self, words: &[String], network: &str, content_key: Vec<u8>) -> Result<()> {
+        self.unlock(words, network)?;
+        self.keep(Some(zeroize::Zeroizing::new(content_key)))
     }
 
     /// Open the envelope and load the account, so the phrase is never
@@ -229,8 +270,10 @@ impl Vault {
         password: &str,
         network: &str,
     ) -> Result<()> {
-        let phrase = envelope::open_seed(env, password)?;
-        self.unlock(&phrase, network)
+        let content = envelope::content_key(env, password)?;
+        let phrase = envelope::phrase_from_content_key(env, &content)?;
+        self.unlock(&phrase, network)?;
+        self.keep(Some(content))
     }
 
     /// The same through a passkey's secret, which unwraps the content key
@@ -245,7 +288,8 @@ impl Vault {
         envelope::assert_envelope(env)?;
         let content = envelope::content_key_from_secret(wrapped, secret)?;
         let phrase = envelope::phrase_from_content_key(env, &content)?;
-        self.unlock(&phrase, network)
+        self.unlock(&phrase, network)?;
+        self.keep(Some(content))
     }
 
     /// Check the password and, when `want_phrase`, give the words back for
@@ -263,11 +307,54 @@ impl Vault {
         }
         envelope::phrase_from_content_key(env, &content).map(Some)
     }
-    /// Drop the account, and the seed with it.
+    /// Drop the account, and the seed with it, and close its data.
     pub fn lock(&self) -> Result<()> {
         let mut guard = self.account.lock().map_err(|_| BridgeError::locked())?;
         *guard = None;
-        Ok(())
+        drop(guard);
+        self.keep(None)
+    }
+
+    // The engine's store: the same operations the browser's worker offers.
+
+    pub fn store_open(&self, wallet_id: &str) -> Result<Vec<String>> {
+        self.store()?.open(wallet_id)
+    }
+
+    pub fn store_migrate(&self, wallet_id: &str, parts: Vec<String>, dump: Value) -> Result<()> {
+        self.store()?.migrate(wallet_id, parts, dump)
+    }
+
+    pub fn store_rebuild(&self, wallet_id: &str, dump: Value) -> Result<()> {
+        self.store()?.rebuild(wallet_id, dump)
+    }
+
+    pub fn store_read(&self, wallet_id: &str, part: &str) -> Result<Vec<Value>> {
+        self.store()?.read(wallet_id, part)
+    }
+
+    pub fn store_commit(&self, wallet_id: &str, changes: Value) -> Result<()> {
+        self.store()?.commit(wallet_id, changes)
+    }
+
+    pub fn store_remove(&self, wallet_id: &str) -> Result<()> {
+        self.store()?.remove(wallet_id)
+    }
+
+    /// One ledger operation. The store's lock, then the account's when the
+    /// operation needs the wallet's keys: the only place both are held.
+    pub fn ledger(&self, wallet_id: &str, op: Value) -> Result<Value> {
+        let needs_keys = serde_json::from_value::<vault_core::ledger::op::Op>(op.clone())
+            .map(|o| o.needs_keys())
+            .unwrap_or(false);
+        let mut store = self.store()?;
+        if needs_keys {
+            let mut account = self.account.lock().map_err(|_| BridgeError::locked())?;
+            let keys = account.as_mut().ok_or_else(|| BridgeError::plain("wallet is locked"))?;
+            store.ledger(wallet_id, op, Some(keys))
+        } else {
+            store.ledger(wallet_id, op, None)
+        }
     }
 
     pub fn is_unlocked(&self) -> bool {
