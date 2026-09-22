@@ -589,7 +589,7 @@ function ImportStep({
             </Group>
             <Text size="sm" c={lookup.kind === 'failed' ? 'red' : 'dimmed'}>
               {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
-              {lookup.kind === 'found' && `Every block from ${showBlock(lookup.height)}, the first of ${monthName}, is downloaded and scanned on this device. The node learns nothing about your coins.`}
+              {lookup.kind === 'found' && `The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.`}
               {lookup.kind === 'failed' && lookup.message}
               {lookup.kind === 'idle' && 'Scanning starts at the first block of that month, on this device. The node learns nothing about your coins.'}
             </Text>
