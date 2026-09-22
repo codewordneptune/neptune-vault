@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
+import { Caution } from '../components/Notice';
 import { WordGrid } from '../components/WordGrid';
 import { startOfDayMs } from '../util/blockdate';
 import { copyText } from '../util/clipboard';
@@ -299,7 +300,7 @@ export function Onboarding() {
               ))}
             </Group>
             {allPlaced && !confirmed && (
-              <Alert color="yellow">Some words are in the wrong place. Tap a word to take it out and try again.</Alert>
+              <Caution>Some words are in the wrong place. Tap a word to take it out and try again.</Caution>
             )}
             <Group>
               <Button variant="subtle" onClick={() => setStep('show')}>Show the words again</Button>

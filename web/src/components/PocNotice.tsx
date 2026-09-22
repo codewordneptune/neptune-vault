@@ -2,9 +2,10 @@
 // in full the first time on a device; after that as one line that expands
 // on tap, so the balance stays on the first screen of a phone.
 
-import { Alert, Text } from '@mantine/core';
-import { IconAlertTriangle, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
+
+import { Caution } from './Notice';
 
 const SEEN_KEY = 'neptune-vault.poc-notice-seen';
 
@@ -27,9 +28,7 @@ export function PocNotice() {
   }, []);
   const Chevron = expanded ? IconChevronUp : IconChevronDown;
   return (
-    <Alert
-      color="orange"
-      icon={<IconAlertTriangle size={18} />}
+    <Caution
       title={
         <span className="vault-poc-title">
           Early version, not yet audited
@@ -48,9 +47,7 @@ export function PocNotice() {
         }
       }}
     >
-      {expanded && (
-        <Text size="sm">No security audit yet, and changes every week. Use it only with amounts you can afford to lose, and keep your seed phrase somewhere safe.</Text>
-      )}
-    </Alert>
+      {expanded && 'No security audit yet, and changes every week. Use it only with amounts you can afford to lose, and keep your seed phrase somewhere safe.'}
+    </Caution>
   );
 }

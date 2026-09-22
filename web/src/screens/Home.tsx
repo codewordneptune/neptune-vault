@@ -9,6 +9,7 @@ import { showBlock, showNau, useApp } from '../app/AppContext';
 import type { StoredUtxo } from '../backend/types';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
+import { Caution } from '../components/Notice';
 import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
@@ -187,14 +188,14 @@ export function Home() {
       {/* One notice at a time: the backup first, since a lost seed phrase is worse than a missing install. */}
       {!showBackupNudge && <InstallNudge />}
       {showBackupNudge && (
-        <Alert color="yellow" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
-          <Text size="sm">Clearing the browser's site data deletes it. Export a backup file so you can restore the wallet and its contacts.</Text>
-          <Text size="sm" mt="xs">
+        <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
+          Clearing the browser's site data deletes it. Export a backup file so you can restore the wallet and its contacts.
+          <div>
             <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
               Export backup file
             </UnstyledButton>
-          </Text>
-        </Alert>
+          </div>
+        </Caution>
       )}
       {/* On a wide screen: the balance and its actions on the left, the history beside it. */}
       <div className="vault-home-grid">

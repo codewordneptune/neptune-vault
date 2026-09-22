@@ -1,11 +1,12 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
-import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconWallet } from '@tabler/icons-react';
+import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconWallet } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { showBlock, useApp } from '../app/AppContext';
+import { Caution } from '../components/Notice';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
 import { requestPersistentStorage, walletName } from '../storage/db';
@@ -223,11 +224,9 @@ export function Settings() {
               Persistent storage is granted, so the browser will not evict this wallet's data on its own. Clearing the browser's site data still deletes it; keep the seed phrase or a backup file.
             </Text>
           ) : (
-            <Alert color="yellow" icon={<IconAlertTriangle size={18} />} title="The browser may evict this wallet">
-              <Text size="sm">
-                Without persistent storage the browser may delete this wallet's data when space runs low. Installing the app usually earns it; a backup file or the seed phrase restores everything.
-              </Text>
-              <Group mt="xs" gap="sm" align="center">
+            <Caution title="The browser may evict this wallet">
+              Without persistent storage the browser may delete this wallet's data when space runs low. Installing the app usually earns it; a backup file or the seed phrase restores everything.
+              <Group mt={4} gap="sm" align="center">
                 {installState().kind === 'promptable' && (
                   <Button size="sm" variant="light" className="vault-tap" onClick={() => void promptInstall()}>
                     Install app
@@ -242,7 +241,7 @@ export function Settings() {
                   </Text>
                 )}
               </Group>
-            </Alert>
+            </Caution>
           )}
           <Text size="sm" c="dimmed">
             {lastBackup ? `Last backup file of ${account ? walletName(account) : 'this wallet'}: ${lastBackup}` : `No backup file of ${account ? walletName(account) : 'this wallet'} saved yet.`}

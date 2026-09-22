@@ -10,6 +10,7 @@ import { useLocation } from 'react-router-dom';
 import { formatNau, showNau, useApp } from '../app/AppContext';
 import { RequiresLustrationError, SendBusyError } from '../app/send';
 import { ContactPicker } from '../components/ContactPicker';
+import { Caution } from '../components/Notice';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
 import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
@@ -365,7 +366,7 @@ export function Send() {
             Uses {used === 1 ? '1 coin' : `${used} coins`} of {showNau(heldNau)} NPT, held until the transaction is confirmed, usually within a few blocks. Spendable meanwhile: {showNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {showNau(balance.spendableNau - totalNau)} NPT.
           </Text>
           {askLustration && (
-            <Alert color="yellow" title="Part of this send will be public">
+            <Caution title="Part of this send will be public">
               <Stack gap={6}>
                 <span>Anyone can see which coins paid for it and how much they held. The recipient and the amount you send stay private.</span>
                 <details className="vault-more">
@@ -375,7 +376,7 @@ export function Send() {
                   </p>
                 </details>
               </Stack>
-            </Alert>
+            </Caution>
           )}
           {totals.feeHigh && (
             <Checkbox
@@ -566,7 +567,7 @@ export function Send() {
               />
             )}
             {!online && (
-              <Alert color="yellow">You are offline. Sending needs the node; Review comes back when the connection does.</Alert>
+              <Caution>You are offline. Sending needs the node; Review comes back when the connection does.</Caution>
             )}
             <Button type="submit" disabled={!online || !recipient || !amount || !fee || Boolean(recipientError || amountError || feeError)}>
               Review

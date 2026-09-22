@@ -4,12 +4,13 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { Alert, Button, Code, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconAlertTriangle, IconCopy, IconInfoCircle, IconShare } from '@tabler/icons-react';
+import { Button, Code, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconCopy, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
 import { QrFullScreen } from '../components/QrFullScreen';
+import { Caution, Info } from '../components/Notice';
 
 import { formatNau, useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
@@ -46,9 +47,9 @@ const CODE_HINTS: Partial<Record<KeyKind, string>> = {
 };
 
 // The note's shape says how much care the kind needs: plain text for
-// Standard, which only reassures; a panel with an info mark for Short,
-// which asks for one sender per address; a warning panel for View-only,
-// whose exposure cannot be taken back.
+// Standard, which only reassures; text with an info mark for Short, which
+// asks for one sender per address; a caution for View-only, whose exposure
+// cannot be taken back.
 function KindNote({ kind, extra }: { kind: KeyKind; extra?: string }) {
   const text = extra ? `${KIND_NOTES[kind]} ${extra}` : KIND_NOTES[kind];
   if (kind === 'generation') {
@@ -58,15 +59,7 @@ function KindNote({ kind, extra }: { kind: KeyKind; extra?: string }) {
       </Text>
     );
   }
-  return kind === 'viewing' ? (
-    <Alert color="yellow" icon={<IconAlertTriangle size={18} />}>
-      {text}
-    </Alert>
-  ) : (
-    <Alert color="blue" icon={<IconInfoCircle size={18} />}>
-      {text}
-    </Alert>
-  );
+  return kind === 'viewing' ? <Caution>{text}</Caution> : <Info>{text}</Info>;
 }
 
 type Tab = 'address' | 'request';
