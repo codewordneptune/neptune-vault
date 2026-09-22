@@ -222,9 +222,9 @@ export function Onboarding() {
                 ? 'Another seed phrase, with its own password and its own backup. The wallet you have stays on this device; the header menu switches between them.'
                 : 'Your keys stay on this device. The seed phrase restores the wallet anywhere, and a backup file is an encrypted copy of it.'}
             </Text>
-            <Button onClick={startCreate} loading={busy}>With a new seed phrase</Button>
-            <Button variant="light" onClick={() => setStep('import')}>With a seed phrase you have</Button>
-            <Button variant="light" onClick={() => setStep('file')}>From a backup file</Button>
+            <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
+            <Button variant="light" onClick={() => setStep('import')}>Restore with a seed phrase</Button>
+            <Button variant="light" onClick={() => setStep('file')}>Restore from a backup file</Button>
             {/* Most people want Mainnet and should not meet the question first.
                 Off Mainnet it is open, so a tester sees where the wallet will go. */}
             <details className="vault-more vault-advanced" open={network !== 'main'}>
