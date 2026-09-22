@@ -51,7 +51,8 @@ export function QrFullScreen({
         <button type="button" className="vault-qr-full-code" onClick={onClose} aria-label="Close the full screen code">
           <img src={src} alt={subtitle ? `${title}, ${subtitle}` : title} />
         </button>
-        <Text size="sm" ta="center" className="vault-qr-full-caption">
+        {/* 16 px: read at arm's length and compared character by character, and a monospace face looks smaller than its size. */}
+        <Text fz="1rem" ta="center" className="vault-qr-full-caption">
           {caption}
         </Text>
         <Text size="sm" ta="center" className="vault-qr-full-hint">
