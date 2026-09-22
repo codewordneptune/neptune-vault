@@ -258,11 +258,11 @@ export function Home() {
               )}
               {(incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n) && (
                 <>
-                  <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link" aria-expanded={why}>
+                  <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-expanded={why}>
                     {why ? 'Less' : 'What does this mean?'}
                   </UnstyledButton>
                   {why && (
-                    <Text size="xs" c="dimmed">
+                    <Text size="sm" c="dimmed">
                       {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
                       {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT was paid to you with a time lock set by the payer. It is yours, but the network will not let it be spent before its release date, so it is not counted as spendable. `}
                       {balance.reservedNau > 0n &&
@@ -399,7 +399,7 @@ export function Home() {
                   <IconChevronDown size={16} stroke={1.8} aria-hidden className={tech ? 'vault-chevron open' : 'vault-chevron'} />
                 </UnstyledButton>
                 {tech && (
-                  <Text size="xs" c="dimmed">
+                  <Text size="sm" c="dimmed">
                     A payment puts new coins on the chain. These are their identifiers, called commitments, for looking one up in a block explorer. They reveal no amount and no address.
                   </Text>
                 )}

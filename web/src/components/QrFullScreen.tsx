@@ -54,7 +54,7 @@ export function QrFullScreen({
         <Text size="sm" ta="center" className="vault-qr-full-caption">
           {caption}
         </Text>
-        <Text size="xs" ta="center" className="vault-qr-full-hint">
+        <Text size="sm" ta="center" className="vault-qr-full-hint">
           Turn the screen brightness up if the code will not read.
         </Text>
       </Stack>

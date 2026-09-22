@@ -81,17 +81,17 @@ export function StartBlockPicker({
         disabled={disabled}
       />
       {status.kind === 'looking' && (
-        <Text size="xs" c="dimmed">
+        <Text size="sm" c="dimmed">
           Asking the node…
         </Text>
       )}
       {status.kind === 'found' && (
-        <Text size="xs" c="dimmed">
+        <Text size="sm" c="dimmed">
           The first block of {new Date(startOfDayMs(status.day) as number).toLocaleDateString()} is {showBlock(status.height)}.
         </Text>
       )}
       {status.kind === 'failed' && (
-        <Text size="xs" c="red">
+        <Text size="sm" c="red">
           {status.message}
         </Text>
       )}

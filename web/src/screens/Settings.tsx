@@ -236,7 +236,7 @@ export function Settings() {
                   Request again
                 </Button>
                 {persistAsked && (
-                  <Text size="xs" c="dimmed">
+                  <Text size="sm" c="dimmed">
                     Still not granted.
                   </Text>
                 )}
@@ -301,11 +301,11 @@ export function Settings() {
                 <Button variant="subtle" size="compact-sm" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
                   Copy words
                 </Button>
-                <Text size="xs" c="dimmed">
+                <Text size="sm" c="dimmed">
                   Other apps can read the clipboard; clear it afterwards.
                 </Text>
               </Group>
-              <Text size="xs" c="dimmed" aria-live="off">
+              <Text size="sm" c="dimmed" aria-live="off">
                 Hidden again in {Math.max(0, phraseLeft)} s, or when you leave this screen.
               </Text>
             </Stack>
@@ -545,7 +545,7 @@ function InstallCard() {
           </Button>
         </Group>
         {declined && (
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Not installed. The option is also in the browser menu whenever you want it.
           </Text>
         )}

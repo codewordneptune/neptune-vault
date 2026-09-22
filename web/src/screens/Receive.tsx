@@ -356,7 +356,7 @@ export function Receive() {
               </>
             )}
             {requestQrNote && !requestInvalid && (
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 {requestQrNote}
               </Text>
             )}
@@ -365,17 +365,17 @@ export function Receive() {
         )}
 
         <Group justify="space-between" align="baseline">
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             {tab === 'address' ? `This is ${whichAddress}.` : `The request is to ${whichAddress}.`} Funds sent to any address shown here are found by the sync.{index >= furthest ? " More addresses open up once one of these has received a payment." : ""}
           </Text>
           <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
             {index > 0 && (
-              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="xs" className="vault-tap-link">
+              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
                 Main address
               </UnstyledButton>
             )}
             {index < furthest && (
-              <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="xs" className="vault-tap-link">
+              <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
                 Next unused
               </UnstyledButton>
             )}

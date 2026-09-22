@@ -266,7 +266,7 @@ export function Onboarding() {
               <Button variant="subtle" size="compact-sm" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
                 Copy words
               </Button>
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 Other apps can read the clipboard; paste into a password manager, then clear it.
               </Text>
             </Group>
@@ -274,7 +274,7 @@ export function Onboarding() {
             <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); setStep('welcome'); }}>
               Cancel
             </Button>
-            <Text size="xs" c="dimmed" ta="center">
+            <Text size="sm" c="dimmed" ta="center">
               If you cancel, the words above will not be used.
             </Text>
           </Stack>

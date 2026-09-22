@@ -362,7 +362,7 @@ export function Send() {
               </div>
             </div>
           )}
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Uses {used === 1 ? '1 coin' : `${used} coins`} of {showNau(heldNau)} NPT, held until the transaction is confirmed, usually within a few blocks. Spendable meanwhile: {showNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {showNau(balance.spendableNau - totalNau)} NPT.
           </Text>
           {askLustration && (
