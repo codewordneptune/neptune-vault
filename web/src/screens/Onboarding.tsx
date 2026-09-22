@@ -558,7 +558,7 @@ function ImportStep({
         <Radio.Group label="When did this wallet first receive funds?" value={when} onChange={(v) => setWhen(v as FirstFunds)}>
           <Stack gap="xs" mt="xs">
             <Radio value="unknown" label="I don't know: find everything" />
-            <Radio value="month" label="I remember the month" />
+            <Radio value="month" label="I know roughly when" />
             <Radio value="never" label="Never: this seed phrase is new" />
           </Stack>
         </Radio.Group>
