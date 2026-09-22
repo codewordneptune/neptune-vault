@@ -25,7 +25,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
       <Stack gap={0}>
         {contacts && contacts.length === 0 && (
           <Text size="sm" c="dimmed">
-            No saved recipients yet. You can save one after sending, or add one in Contacts.
+            No contacts yet. Save a recipient after you send, or add one in Contacts.
           </Text>
         )}
         {(contacts ?? []).map((c) => (

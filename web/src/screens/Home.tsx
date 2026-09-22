@@ -177,7 +177,7 @@ export function Home() {
     h.status === 'confirmed' ? (h.height !== null ? `Confirmed in block ${showBlock(h.height)}` : 'Confirmed') : h.status === 'pending' ? 'Pending, waiting for a block' : 'Failed';
   const nodeStatusOf = (h: HistoryRecord) => {
     if (h.kind !== 'sent' || h.status !== 'pending' || !h.mempoolCheckedAt) return null;
-    return h.mempoolSeenAt ? `In the node's mempool, checked ${formatWhen(h.mempoolCheckedAt)}` : 'Not seen in the node\'s mempool yet';
+    return h.mempoolSeenAt ? `The node has it, waiting for a block (checked ${formatWhen(h.mempoolCheckedAt)})` : 'The node has not seen it yet';
   };
 
   return (
@@ -197,7 +197,7 @@ export function Home() {
       {!showBackupNudge && <InstallNudge />}
       {showBackupNudge && (
         <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
-          Clearing the browser's site data deletes it. Export a backup file so you can restore the wallet and its contacts.
+          This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared.
           <div>
             <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
               Export backup file
@@ -272,7 +272,7 @@ export function Home() {
                 {why && (
                   <Text size="sm" c="dimmed">
                     {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
-                    {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT was paid to you with a time lock set by the payer. It is yours, but the network will not let it be spent before its release date, so it is not counted as spendable. `}
+                    {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT is yours but time-locked by the payer. It cannot be spent before its release date, so it is not counted as spendable. `}
                     {balance.reservedNau > 0n &&
                       `${amount(balance.reservedNau)} NPT is held by ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}${pendingSends.length === 1 ? `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee` : ''}. Once ${pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, ${amount(afterPendingNau)} NPT is spendable.`}
                   </Text>
@@ -466,7 +466,7 @@ export function Home() {
               />
             )}
             {detail.kind === 'sent' && !detail.record.recipient && (
-              <DetailRow label="Recipient" value="Not known on this device. The send was made elsewhere, or before this wallet was restored; the chain carries neither the recipient nor the fee, so the amount above includes the fee." />
+              <DetailRow label="Recipient" value="Not recorded. The send was made on another device or before a restore, so the amount above includes the fee." />
             )}
             {detail.record.note && <DetailRow label="Note from the link" value={detail.record.note} isolate />}
             {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
@@ -481,7 +481,7 @@ export function Home() {
                 </UnstyledButton>
                 {tech && (
                   <Text size="sm" c="dimmed">
-                    A payment puts new coins on the chain. These are their identifiers, called commitments, for looking one up in a block explorer. They reveal no amount and no address.
+                    Identifiers of the coins this payment created, for looking them up in a block explorer. They reveal no amount and no address.
                   </Text>
                 )}
                 {tech &&
@@ -513,10 +513,10 @@ export function Home() {
           <Stack>
             <Text size="sm">
               {givingUp.mempoolCheckedAt && !givingUp.mempoolSeenAt
-                ? 'The node no longer holds this transaction, so giving up only tidies your list. The coins held for it become spendable again.'
+                ? 'The node no longer has this transaction. Giving up removes it from your list and frees the coins held for it.'
                 : givingUp.mempoolSeenAt
-                  ? 'The node still holds this transaction. The coins held for it become spendable here again, but if the network confirms it anyway, it still goes through and shows up as sent.'
-                  : 'The coins held for it become spendable again. If the transaction is confirmed anyway, it still goes through and shows up as sent.'}
+                  ? 'The node still has this transaction, so it may still go through. Giving up frees its coins here, but if it confirms anyway, it shows up as sent.'
+                  : 'Giving up frees the coins held for it. If it confirms anyway, it still goes through and shows up as sent.'}
             </Text>
             <Text size="sm" c="dimmed">
               This send: {showNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee`}. Held for it: {showNau(reservedFor(givingUp))} NPT, which becomes spendable again.

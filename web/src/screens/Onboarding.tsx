@@ -202,7 +202,7 @@ export function Onboarding() {
       }
       navigate('/');
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. It is the password the file was exported under.' : (e as Error).message);
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Use the password the backup was exported with.' : (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -220,7 +220,7 @@ export function Onboarding() {
             <Text size="sm" c="dimmed">
               {adding
                 ? 'Another seed phrase, with its own password and its own backup. The wallet you have stays on this device; the header menu switches between them.'
-                : 'This wallet keeps your keys on this device only. The seed phrase is what restores it; a backup file holds the seed phrase encrypted.'}
+                : 'Your keys stay on this device. The seed phrase restores the wallet anywhere, and a backup file is an encrypted copy of it.'}
             </Text>
             <Button onClick={startCreate} loading={busy}>With a new seed phrase</Button>
             <Button variant="light" onClick={() => setStep('import')}>With a seed phrase you have</Button>
@@ -354,7 +354,7 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
     <Paper>
       <Stack>
         <Title order={2}>Restore a backup file</Title>
-        <Text size="sm" c="dimmed">A file exported by this app, opened with the password it was saved under. It brings back the seed phrase, the network, the start block and your contacts.</Text>
+        <Text size="sm" c="dimmed">Restores the wallet with its network, start block and contacts. It opens with the password it was saved under.</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">
           <Button variant="default" leftSection={<IconFileUpload size={16} stroke={1.8} />} onClick={() => fileInput.current?.click()}>
@@ -377,7 +377,7 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
         />
         <Text size="sm" c="dimmed">
           {fast
-            ? "The node's coin index says which blocks hold payments to you, and only those are fetched: seconds, not hours. The node learns which coins are yours, though not the amounts."
+            ? "Takes seconds: only the blocks holding your payments are fetched. The node learns which coins are yours, not the amounts."
             : 'Every block from the start block in the file is downloaded and scanned on this device. The node learns nothing about your coins.'}
         </Text>
         <Button disabled={!file || !password} loading={busy} onClick={() => file && onFile(file, password, fast)}>
@@ -415,7 +415,7 @@ function PasswordStep({ busy, onSubmit, stepLabel, actionLabel, onBack }: { busy
         <span className="vault-eyebrow">{stepLabel}</span>
         <Title order={2}>Choose a password</Title>
         <Text size="sm" c="dimmed">
-          It only protects the seed phrase stored on this device and is asked for on every unlock. It cannot be recovered, but the seed phrase can always restore the wallet, so a forgotten password costs a re-import, not your funds.
+          Asked on every unlock, and it cannot be recovered. Forgetting it is not fatal: your seed phrase restores the wallet.
         </Text>
         <PasswordInput
           label="Password (at least 8 characters)"
@@ -576,7 +576,7 @@ function ImportStep({
             />
             <Text size="sm" c="dimmed">
               {fast
-                ? "The node's coin index says which blocks hold payments to you, and only those are fetched: seconds, not hours. The node learns which coins are yours, though not the amounts."
+                ? "Takes seconds: only the blocks holding your payments are fetched. The node learns which coins are yours, not the amounts."
                 : 'Every block from the first is downloaded and scanned on this device: about 8 to 10 GB on Mainnet. The node learns nothing about your coins.'}
             </Text>
           </>

@@ -59,7 +59,7 @@ export function Contacts() {
           {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
           {contacts === null ? null : contacts.length === 0 ? (
             <Text size="sm" c="dimmed">
-              No saved recipients yet. Add one here, or save a recipient after sending. Contacts are also offered when you choose a recipient on Send.
+              No contacts yet. Add one here, or save a recipient after you send.
             </Text>
           ) : (
             <div>

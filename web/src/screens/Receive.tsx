@@ -205,11 +205,11 @@ export function Receive() {
       } catch {
         try {
           await render(paymentQrPayload(address, linkAmount));
-          setRequestQrNote(withText ? 'The name and note do not fit in the code for this address; the link carries them.' : null);
+          setRequestQrNote(withText ? 'This code cannot hold the name and note, so a payer scanning it will not see them. Share the link instead.' : null);
         } catch {
           try {
             await render(paymentQrPayload(address));
-            setRequestQrNote(linkAmount || withText ? 'The amount, name and note do not fit in the code for this address; the link carries them.' : null);
+            setRequestQrNote(linkAmount || withText ? 'This code cannot hold the amount, name and note, so a payer scanning it will not see them. Share the link instead.' : null);
           } catch {
             setRequestQr('');
           }
@@ -221,10 +221,13 @@ export function Receive() {
     };
   }, [tab, address, linkAmount, linkNote, linkLabel]);
 
-  const copy = () => void copyText(address, 'Address copied');
   // Where the system share sheet exists, the address can go straight into a
   // message; where it does not, Share would only copy, which Copy already does.
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  // The text on this screen is the shortened address, so a failed copy points
+  // to what carries it in full, never to long-pressing the text.
+  const copyFailed = canShare ? 'Could not copy. Use Share instead, or let the payer scan the code.' : 'Could not copy. Try again, or let the payer scan the code.';
+  const copy = () => void copyText(address, 'Address copied', copyFailed);
   const shareAddress = async () => {
     try {
       await navigator.share({ text: address });
@@ -242,7 +245,7 @@ export function Receive() {
         // Cancelled by the user; nothing to report.
       }
     } else {
-      await copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied');
+      await copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed);
     }
   };
 
@@ -357,7 +360,7 @@ export function Receive() {
               </Text>
             )}
             <Group grow className="vault-receive-col">
-              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={requestInvalid}>
+              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed)} disabled={requestInvalid}>
                 Copy link
               </Button>
               <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid}>

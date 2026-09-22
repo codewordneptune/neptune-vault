@@ -215,7 +215,7 @@ export async function openSeedKeepingKey(envelope: SeedEnvelope, password: strin
     contentRaw.fill(0);
     // The password was right and the seed still does not open: the data is
     // damaged, or it is a newer backup file dressed as an older one.
-    throw new Error('The password is right, but the seed in this wallet data does not open: the data is damaged or has been changed.');
+    throw new Error('The password is right, but the stored wallet is damaged or has been changed, so it cannot be opened. Restore it from your seed phrase or a backup file.');
   }
   return { phrase: td.decode(phrase).split(' '), contentKey: contentRaw };
 }

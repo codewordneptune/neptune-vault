@@ -19,7 +19,7 @@ export function abbreviateAddress(address: string): string {
   const firstLen = hrpLen + 8;
   const lastLen = 8;
   if (address.length <= firstLen + lastLen) return address;
-  return `${address.slice(0, firstLen)}...${address.slice(-lastLen)}`;
+  return `${address.slice(0, firstLen)}…${address.slice(-lastLen)}`;
 }
 
 /**

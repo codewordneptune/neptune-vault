@@ -38,7 +38,7 @@ function isMethodNotFound(e: unknown): boolean {
 export const RESTORE_HANDOVER = 10;
 
 /** What a fast restore says on a node with no coin index. */
-const NO_INDEX = 'This node has no coin index, so a fast restore cannot run here. Rescan from a block or a date instead, or choose another node in Settings.';
+const NO_INDEX = 'This node does not support fast restore. Rescan from a block or a date instead, or choose another node in Settings.';
 
 /** A fast restore stops asking after this many rounds and says so, rather than reporting a restore it cannot vouch for. */
 const RESTORE_ROUNDS = 40;
@@ -270,7 +270,7 @@ export class SyncEngine {
         lowest = Math.min(lowest, height);
       }
     }
-    if (!settled) return 'The fast restore kept finding more after ' + RESTORE_ROUNDS + ' rounds and stopped, so it cannot vouch for the balance. Rescan from a block or a date instead.';
+    if (!settled) return 'Fast restore stopped after ' + RESTORE_ROUNDS + ' rounds without finishing, so the balance may be incomplete. Rescan from a block or a date instead.';
     // Hand over a little below the tip: the ordinary scan then walks the
     // last blocks, checks that they link, and leaves the block records a
     // later reorganisation is measured against. Ending at the tip itself
@@ -328,7 +328,7 @@ export class SyncEngine {
     // date, or lying does exactly this. Dropping the whole local view on
     // its word would be the node deciding; the person decides, by rescanning.
     if (target === null && stored.length > 0) {
-      throw new Error('None of the blocks this wallet has scanned are on this node\'s chain. The node may be on another chain or out of date. Nothing was changed. If you trust this node, rescan from Settings.');
+      throw new Error('None of the blocks this wallet has scanned are on this node\'s chain. The node may be on another chain or out of date. Nothing was changed. If you trust this node, rescan in Settings.');
     }
     const height = target?.[0] ?? (await this.ledger({ op: 'rollbackFloor' }));
     await this.rollBack(height, target?.[1] ?? null);

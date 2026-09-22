@@ -281,7 +281,7 @@ export function Send() {
     const totalNau = totals.amountNau + totals.feeNau;
     const kind = addressKindLabel(recipient);
     // The coins the core will pick (largest first, then oldest), so the
-    // review can say what is held while the send is pending.
+    // review can say what stays spendable while the send is pending.
     const nowMs = Date.now();
     const coins = utxos
       .filter((u) => u.spentHeight === null && u.pendingTxid === null && (u.releaseDateMs === null || u.releaseDateMs <= nowMs))
@@ -291,16 +291,14 @@ export function Send() {
         return x === y ? a.confirmedHeight - b.confirmedHeight : y > x ? 1 : -1;
       });
     let heldNau = 0n;
-    let used = 0;
     for (const c of coins) {
       if (heldNau >= totalNau) break;
       heldNau += BigInt(c.amountNau);
-      used += 1;
     }
     reviewSheet = (
         <Stack>
           <Text size="sm" c="dimmed">
-            Check everything once more. Proving can take a few minutes on a phone. The payment cannot be changed once it starts.
+            Check the details. Once sending starts, the payment cannot be changed. It can take a few minutes on a phone.
           </Text>
           <div className="vault-review">
             <div>
@@ -363,7 +361,7 @@ export function Send() {
             </div>
           )}
           <Text size="sm" c="dimmed">
-            Uses {used === 1 ? '1 coin' : `${used} coins`} of {showNau(heldNau)} NPT, held until the transaction is confirmed, usually within a few blocks. Spendable meanwhile: {showNau(balance.spendableNau - heldNau)} NPT. Once confirmed: {showNau(balance.spendableNau - totalNau)} NPT.
+            Spendable while this is pending: {showNau(balance.spendableNau - heldNau)} NPT. After it confirms, usually within a few blocks: {showNau(balance.spendableNau - totalNau)} NPT.
           </Text>
           {askLustration && (
             <Caution title="Part of this send will be public">

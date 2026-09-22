@@ -28,7 +28,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
           <Stack>
             <Title order={2}>Something went wrong</Title>
             <Text size="sm" c="dimmed">
-              The screen could not be drawn. Your wallet data is untouched: reloading brings the app back, and the phrase and backup file remain valid.
+              Something went wrong showing this screen. Your wallet is safe: reload to continue. Your seed phrase and backup files are not affected.
             </Text>
             <Text size="xs" c="dimmed" ff="monospace" style={{ wordBreak: 'break-word' }}>
               {this.state.error.message}

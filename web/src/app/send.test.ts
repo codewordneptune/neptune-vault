@@ -240,14 +240,14 @@ describe('send service', () => {
     expect(outcome.txid).toBe('tx-abc');
     expect(prover.calls).toBe(2);
     expect(node.submitted).toHaveLength(1);
-    expect(notes[0]).toMatch(/A block arrived while the proof was being made.*2 of 3/);
+    expect(notes[0]).toMatch(/A new block arrived\. Proving again \(2 of 3\)/);
     expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBe('tx-abc');
   });
 
   it('gives up after three proofs when blocks keep arriving, reserving nothing', async () => {
     const { node, prover, service } = await setup();
     node.heights = [10, 11, 11, 12, 12, 13];
-    await expect(service.send(request, () => {})).rejects.toThrow(/3 times over/);
+    await expect(service.send(request, () => {})).rejects.toThrow(/Nothing was sent: new blocks kept arriving/);
     expect(prover.calls).toBe(3);
     expect(node.submitted).toHaveLength(0);
     expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
@@ -267,7 +267,7 @@ describe('send service', () => {
   it('names a spent coin when the node refuses and the tip has not moved', async () => {
     const { node, prover, service } = await setup();
     node.submitError = 'wallet_submitTransaction: Server error ({"SubmitTransaction":"NotConfirmable"})';
-    await expect(service.send(request, () => {})).rejects.toThrow(/spent already/);
+    await expect(service.send(request, () => {})).rejects.toThrow(/Nothing was sent: the node says one of the coins is already spent/);
     expect(prover.calls).toBe(1);
     expect(node.submitted).toHaveLength(0);
     expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();

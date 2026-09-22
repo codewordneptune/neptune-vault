@@ -69,7 +69,7 @@ export function Settings() {
       if (theirs !== null && !(theirs === network || (network === 'testnet' && theirs.startsWith('testnet')))) {
         throw new Error(`This node runs the ${theirs} network, and the wallet is on ${NETWORK_LABELS[network]}.`);
       }
-      result = { ok: true, text: `Reachable, tip height ${showBlock(height)}`, at: Date.now() };
+      result = { ok: true, text: `Connected · block ${showBlock(height)}`, at: Date.now() };
     } catch (e) {
       result = { ok: false, text: (e as Error).message, at: Date.now() };
     }
@@ -90,7 +90,7 @@ export function Settings() {
     }
     await services.updateSettings({
       nodeUrls: { ...services.settings.nodeUrls, [network]: nodeUrl.trim() },
-      nodeProbe: { ...services.settings.nodeProbe, [network]: { ok: true, text: 'Reachable when it was saved', at: Date.now() } },
+      nodeProbe: { ...services.settings.nodeProbe, [network]: { ok: true, text: 'Connected when it was saved', at: Date.now() } },
     });
   };
 
@@ -129,7 +129,7 @@ export function Settings() {
     setExportError(null);
     await services.accounts.markBackedUp(account.id, file.exportedAt);
     await refresh();
-    setMessage(`Backup file offered for download. If the browser asked where to save it and you cancelled, export it again; the file is encrypted with your password.`);
+    setMessage(`Backup file ready, encrypted with your password. If you cancelled saving it, export it again.`);
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -221,11 +221,11 @@ export function Settings() {
           </Text>
           {persistent ? (
             <Text size="sm" c="dimmed">
-              Persistent storage is granted, so the browser will not evict this wallet's data on its own. Clearing the browser's site data still deletes it; keep the seed phrase or a backup file.
+              The browser will not delete this wallet's data on its own. Clearing site data still does, so keep your seed phrase or a backup file.
             </Text>
           ) : (
-            <Caution title="The browser may evict this wallet">
-              Without persistent storage the browser may delete this wallet's data when space runs low. Installing the app usually earns it; a backup file or the seed phrase restores everything.
+            <Caution title="The browser may delete this wallet">
+              When space runs low, the browser may delete this wallet's data. Installing the app usually prevents that. Your seed phrase or a backup file restores everything.
               <Group mt={4} gap="sm" align="center">
                 {installState().kind === 'promptable' && (
                   <Button size="sm" variant="light" className="vault-tap" onClick={() => void promptInstall()}>
@@ -260,7 +260,7 @@ export function Settings() {
               }}
             >
               <Stack>
-                <Text size="sm">The file holds the seed phrase and your contacts, encrypted with this password, and is sealed so that a change to it shows when it is restored. Keep it somewhere safe; the password is needed to restore it.</Text>
+                <Text size="sm">The file restores this wallet and its contacts. It is encrypted with this password, which you will need to open it, and any change to it is detected. Keep it somewhere safe.</Text>
                 <PasswordInput label="Password" value={exportPassword} onChange={(e) => setExportPassword(e.currentTarget.value)} error={exportPasswordError} autoComplete="current-password" data-autofocus />
                 <Group grow>
                   <Button variant="default" onClick={() => setExportAsking(false)}>
@@ -320,7 +320,7 @@ export function Settings() {
             Security
           </Title>
           <Text size="sm" c="dimmed">
-            The password protects the seed phrase on this device and is asked for on every unlock. The wallet locks after 5 minutes idle and when the app goes to the background.
+            The wallet locks after 5 minutes idle, and whenever the app goes to the background.
           </Text>
           <ChangePassword />
           <PasskeyCard />
@@ -341,7 +341,7 @@ export function Settings() {
           <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} disabled={sending} description={sending ? 'Not while a send is running.' : undefined} />
           <Modal opened={pendingNetwork !== null} onClose={() => setPendingNetwork(null)} title={pendingNetwork ? `Switch to ${NETWORK_LABELS[pendingNetwork]}?` : ''}>
             <Stack>
-              <Text size="sm">Your {NETWORK_LABELS[network]} wallet stays saved on this device; switch back any time. The app locks when switching.</Text>
+              <Text size="sm">Your {NETWORK_LABELS[network]} wallet stays on this device, so you can switch back any time. Switching locks the app.</Text>
               <Group grow>
                 <Button variant="default" onClick={() => setPendingNetwork(null)}>
                   Cancel
@@ -378,7 +378,7 @@ export function Settings() {
           <AppearanceCard />
           <InstallCard />
           <Text size="sm" c="dimmed">
-            Diagnostics list this device's cores, threads, memory, install state and the app version: the details to include if you ever report a problem.
+            Device and app details to include when you report a problem.
           </Text>
           <Group>
             <Button variant="light" onClick={() => navigate('/diagnostics')}>
@@ -395,7 +395,7 @@ export function Settings() {
             About
           </Title>
           <Text size="sm" c="dimmed">
-            A wallet for Neptune Cash that runs entirely in your browser: keys never leave this device, and the app talks only to the node you choose. An early version: no security audit yet, changes every week, use only what you can afford to lose.
+            A Neptune Cash wallet that runs in your browser. Keys never leave this device, and it talks only to the node you choose. Early version, not audited: use only amounts you can afford to lose.
           </Text>
           <Group gap="md">
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
@@ -457,7 +457,7 @@ function ChangePassword() {
   if (!open) {
     return (
       <Stack>
-        {done && <Alert color="green" withCloseButton onClose={() => setDone(false)}>Password changed. Export a new backup file if you keep one; the old file still opens with the old password.</Alert>}
+        {done && <Alert color="green" withCloseButton onClose={() => setDone(false)}>Password changed. An older backup file still opens with the old password, so export a new one if you keep one.</Alert>}
         <Group>
           <Button variant="light" disabled={!account} onClick={() => { setDone(false); setOpen(true); }}>
             Change password
@@ -604,7 +604,7 @@ function PasskeyCard() {
   if (supported === false && !enabled) {
     return (
       <Text size="sm" c="dimmed">
-        Passkey unlock needs a device with a screen lock and a browser that supports passkeys; this one does not offer it.
+        Passkey unlock is not available here. It needs a device with a screen lock and a browser that supports passkeys.
       </Text>
     );
   }
@@ -612,7 +612,7 @@ function PasskeyCard() {
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          Passkey unlock is on. The password still works and is what a backup file needs.
+          Passkey unlock is on. The password still works, and backup files still use it.
         </Text>
         <Group>
           <Button variant="light" onClick={() => void disable()}>
@@ -626,7 +626,7 @@ function PasskeyCard() {
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          Unlock with fingerprint, face or device PIN; the passkey stays on this device.
+          Unlock with your fingerprint, face or device PIN. The passkey never leaves this device.
         </Text>
         <Group>
           <Button variant="light" disabled={!account || supported === null} onClick={() => setOpen(true)}>
@@ -645,7 +645,7 @@ function PasskeyCard() {
     >
       <Stack>
         {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
-        <PasswordInput label="Confirm your password" description="Needed once, to let the passkey protect the same key." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" data-autofocus />
+        <PasswordInput label="Confirm your password" description="Needed once, to connect the passkey to this wallet." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" data-autofocus />
         <Group grow>
           <Button variant="default" onClick={() => { setOpen(false); setPassword(''); setError(null); }}>
             Cancel
@@ -737,7 +737,7 @@ function WalletCard() {
         <Modal opened={removing} onClose={() => setRemoving(false)} title={`Remove ${walletName(account)} from this device?`}>
           <Stack>
             <Text size="sm">
-              Its coins stay on the chain. Only the seed phrase, or a backup file, brings them back: this device will hold nothing of this wallet afterwards, including its history and contacts.
+              This device forgets the wallet, its history and its contacts. The coins stay on the chain, and only the seed phrase or a backup file brings them back.
             </Text>
             <Checkbox label="I have this wallet's seed phrase or a backup file" checked={haveBackup} onChange={(e) => setHaveBackup(e.currentTarget.checked)} />
             <PasswordInput label="This wallet's password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} error={error} autoComplete="current-password" />
@@ -771,9 +771,9 @@ function RescanCard() {
   const restoredOn = account.restoredAt ? new Date(account.restoredAt).toLocaleDateString() : '';
   const how = account.restoredAt
     ? firstPayment !== null
-      ? `Restored through the node's coin index on ${restoredOn}. The index covers the whole chain; your first payment is in block ${showBlock(firstPayment)}.`
-      : `Restored through the node's coin index on ${restoredOn}. The index covers the whole chain, and it holds no payments to this wallet.`
-    : `Scanned from ${from}. Funds sent before that block are not seen; rescan from an earlier block to find them.`;
+      ? `Restored on ${restoredOn} with a fast restore, which checks the whole chain. First payment: block ${showBlock(firstPayment)}.`
+      : `Restored on ${restoredOn} with a fast restore, which checks the whole chain. No payments to this wallet found.`
+    : `Scanned from ${from}. Payments before that block are not found, so rescan from an earlier block if you expect some.`;
 
   const [rescanError, setRescanError] = useState<string | null>(null);
   const [fast, setFast] = useState(true);
@@ -814,7 +814,7 @@ function RescanCard() {
       <Modal opened={open} onClose={() => setOpen(false)} title="Rescan">
         <Stack>
           <Text size="sm">
-            The local history and balance are rebuilt from the chain. Your funds are not affected. Sends made from this device lose their recipient and fee details, which the chain does not carry.
+            Sends made from this device will lose their recipient and fee, because the chain does not carry them. Your funds are not affected.
           </Text>
           <SegmentedControl
             fullWidth
@@ -828,12 +828,12 @@ function RescanCard() {
           />
           {fast ? (
             <Text size="sm" c="dimmed">
-              The node's coin index says which blocks hold payments to you, and only those are fetched: seconds. The node learns which coins are yours, though not the amounts.
+              Takes seconds: only the blocks holding your payments are fetched. The node learns which coins are yours, not the amounts.
             </Text>
           ) : (
             <>
               <Text size="sm" c="dimmed">
-                Every block from the one you choose is downloaded and scanned here. The node learns nothing about your coins; older blocks take longer.
+                The node learns nothing about your coins. Every block from the one you choose is downloaded and scanned here, so an earlier block takes longer.
               </Text>
               <StartBlockPicker value={height} onChange={setHeight} node={() => services.node()} error={rescanError} />
             </>

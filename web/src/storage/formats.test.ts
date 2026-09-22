@@ -146,7 +146,7 @@ describe('backup files', () => {
     db = await openVaultDb();
     const core = new FakeCore();
     const service = new AccountService(db, core as unknown as WalletCore, 300_000);
-    await expect(service.importFile(dressed, PASSWORD)).rejects.toThrow(/does not open/);
+    await expect(service.importFile(dressed, PASSWORD)).rejects.toThrow(/damaged or has been changed/);
     expect(await db.getAll('accounts')).toEqual([]);
     expect(await db.getAll('contacts')).toEqual([]);
     expect(core.unlocked).toBeNull();

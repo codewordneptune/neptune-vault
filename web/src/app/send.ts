@@ -61,7 +61,7 @@ export class SendCancelledError extends Error {
  */
 export class SendUnconfirmedError extends Error {
   constructor(public readonly txid: string) {
-    super('The node did not answer, so it is not known whether it took the transaction. It may have been sent. It is kept in History as pending with its coins held: it will show as confirmed if it went through, and you can give up on it there if it did not. Do not send it again before then.');
+    super('Do not send this again yet. The node did not answer, so the send may or may not have gone through. It stays in History as pending, with its coins held: it turns confirmed if it went through, and if not, you can give up on it there.');
     this.name = 'SendUnconfirmedError';
   }
 }
@@ -133,7 +133,7 @@ export class SendService {
         // used. A block that arrives meanwhile means building again, and
         // building needs the keys, which a locked wallet does not have.
         if (attempt > 1 && e instanceof Error && /wallet is locked/i.test(e.message)) {
-          throw new Error('A new block arrived during the proof, so the transaction had to be built again, and the wallet had been locked meanwhile. Nothing was sent. Unlock and send again.');
+          throw new Error('Nothing was sent. A new block arrived during the proof, and the wallet locked before the send could be rebuilt. Unlock and send again.');
         }
         throw e;
       }
@@ -151,7 +151,7 @@ export class SendService {
       const confirmationHeight = tipHeader.height + 1;
       const version = (await this.core.claimVersion?.(this.network, confirmationHeight)) ?? 8;
       onProgress({ stage: 'proving', claimVersion: version, note: again });
-      if (version !== 5 && version !== 8) throw new Error(`This wallet cannot prove transactions for claim version ${version}`);
+      if (version !== 5 && version !== 8) throw new Error(`This version of the app cannot send under the network's current rules. Update the app.`);
       stopIfCancelled();
       let proving: ProveOutcome;
       try {
@@ -171,8 +171,8 @@ export class SendService {
 
       const moved = async () => (await this.node.tipHeaderRaw()).height !== tipHeader.height;
       if (await moved()) {
-        if (attempt >= MAX_SEND_ATTEMPTS) throw new Error(`A new block arrived while each proof was being made, ${MAX_SEND_ATTEMPTS} times over. Nothing was sent; try again in a moment.`);
-        again = `A block arrived while the proof was being made. Building and proving again (${attempt + 1} of ${MAX_SEND_ATTEMPTS}).`;
+        if (attempt >= MAX_SEND_ATTEMPTS) throw new Error(`Nothing was sent: new blocks kept arriving during the proof. Try again in a moment.`);
+        again = `A new block arrived. Proving again (${attempt + 1} of ${MAX_SEND_ATTEMPTS}).`;
         continue;
       }
 
@@ -196,14 +196,14 @@ export class SendService {
         await this.discardPending(txid);
         if (!isNotConfirmable(e)) throw e;
         if ((await moved()) && attempt < MAX_SEND_ATTEMPTS) {
-          again = `A block arrived just before the transaction reached the node. Building and proving again (${attempt + 1} of ${MAX_SEND_ATTEMPTS}).`;
+          again = `A new block arrived. Proving again (${attempt + 1} of ${MAX_SEND_ATTEMPTS}).`;
           continue;
         }
-        throw new Error("The node rejected the transaction: one of its coins seems to be spent already. Nothing was sent. Rescan in Settings to refresh this wallet's view of its coins, then try again.");
+        throw new Error("Nothing was sent: the node says one of the coins is already spent. Rescan in Settings to refresh your coins, then try again.");
       }
       if (!accepted) {
         await this.discardPending(txid);
-        throw new Error('The node did not accept the transaction. Nothing was sent.');
+        throw new Error('Nothing was sent: the node did not accept the transaction.');
       }
 
       onProgress({ stage: 'done' });

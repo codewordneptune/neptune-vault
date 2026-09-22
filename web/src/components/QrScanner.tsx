@@ -384,7 +384,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           </Text>
         ) : (
           <Text size="sm" c="dimmed">
-            Fill the square with the code and hold steady. If it looks blurry, move back a little; a dense Standard address code needs a moment.
+            Fill the square with the code and hold steady. If it is blurry, move back a little. Dense codes can take a moment.
           </Text>
         )}
         <div className="vault-scan">
