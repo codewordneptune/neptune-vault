@@ -367,15 +367,7 @@ export function Send() {
           </Text>
           {askLustration && (
             <Caution title="Part of this send will be public">
-              <Stack gap={6}>
-                <span>Anyone can see which coins paid for it and how much they held. The recipient and the amount you send stay private.</span>
-                <details className="vault-more">
-                  <summary>What is published?</summary>
-                  <p>
-                    Right now the network asks senders to publish, in an extra announcement anyone can read, the coins a transaction spends: how much each one holds, which of your addresses it was received on, and where in the chain it came from. Someone watching can then see how much went into this payment and tie it to the payments that funded it. It applies to this send only.
-                  </p>
-                </details>
-              </Stack>
+              The network asks this send to publish the coins that pay for it: how much each holds, which of your addresses received it, and where in the chain it came from. Anyone can then link this payment to the ones that funded it. The recipient and the amount you send stay private.
             </Caution>
           )}
           {totals.feeHigh && (
