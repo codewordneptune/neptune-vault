@@ -240,7 +240,14 @@ export function Receive() {
   }, [index, furthest, kind]);
 
   const requestInvalid = Boolean(amountError || noteError || labelError);
-  const whichAddress = index === 0 ? `your main ${KIND_LABELS[kind]} address` : `${KIND_LABELS[kind]} address ${index}`;
+  // Said only once another address than the main one is showing: on the main
+  // address the kind selector above already says what it is, and the worry
+  // this answers (will a new address work?) has not come up.
+  const rotationNote =
+    index === 0
+      ? null
+      : `${tab === 'address' ? '' : 'The request is to '}${KIND_LABELS[kind]} address ${index}. ` +
+        (index >= furthest ? 'More addresses open up once one of these has received a payment.' : 'Payments to it arrive in this wallet like any other.');
 
   return (
     <Paper>
@@ -364,10 +371,12 @@ export function Receive() {
           </>
         )}
 
-        <Group justify="space-between" align="baseline">
-          <Text size="sm" c="dimmed">
-            {tab === 'address' ? `This is ${whichAddress}.` : `The request is to ${whichAddress}.`} Funds sent to any address shown here are found by the sync.{index >= furthest ? " More addresses open up once one of these has received a payment." : ""}
-          </Text>
+        <Group justify={rotationNote ? 'space-between' : 'flex-start'} align="baseline">
+          {rotationNote && (
+            <Text size="sm" c="dimmed">
+              {rotationNote}
+            </Text>
+          )}
           <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
             {index > 0 && (
               <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
@@ -376,7 +385,7 @@ export function Receive() {
             )}
             {index < furthest && (
               <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-                Next unused
+                New address
               </UnstyledButton>
             )}
           </Group>
