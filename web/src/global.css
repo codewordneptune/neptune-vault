@@ -965,6 +965,18 @@ html {
   /* What it is on one line, the address on the next, neither broken. */
   white-space: pre-line;
 }
+.vault-qr-full-title,
+.vault-qr-full-subtitle {
+  display: block;
+}
+/* The technical name, under the name people choose by: smaller and quieter,
+   in the colour of the hint below the code (5.5:1 on the white). */
+.vault-qr-full-subtitle {
+  margin-top: 2px;
+  color: #5a6a7e;
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 400;
+}
 .vault-qr-full-hint {
   color: #5a6a7e;
 }

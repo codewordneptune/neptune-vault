@@ -11,7 +11,22 @@
 import { Modal, Stack, Text } from '@mantine/core';
 import { useEffect } from 'react';
 
-export function QrFullScreen({ src, opened, onClose, title, caption }: { src: string; opened: boolean; onClose: () => void; title: string; caption: string }) {
+export function QrFullScreen({
+  src,
+  opened,
+  onClose,
+  title,
+  subtitle,
+  caption,
+}: {
+  src: string;
+  opened: boolean;
+  onClose: () => void;
+  title: string;
+  /** A second, quieter line under the title: the address's technical name. */
+  subtitle?: string;
+  caption: string;
+}) {
   useEffect(() => {
     if (!opened || !navigator.wakeLock) return;
     let lock: WakeLockSentinel | null = null;
@@ -41,7 +56,13 @@ export function QrFullScreen({ src, opened, onClose, title, caption }: { src: st
       opened={opened}
       onClose={onClose}
       fullScreen
-      title={title}
+      title={
+        // Spans, not a stack: the title sits inside a heading.
+        <>
+          <span className="vault-qr-full-title">{title}</span>
+          {subtitle && <span className="vault-qr-full-subtitle">{subtitle}</span>}
+        </>
+      }
       padding="md"
       classNames={{ content: 'vault-qr-full', header: 'vault-qr-full-header', body: 'vault-qr-full-body' }}
       closeButtonProps={{ 'aria-label': 'Close' }}
@@ -49,7 +70,7 @@ export function QrFullScreen({ src, opened, onClose, title, caption }: { src: st
       <Stack align="center" gap="sm">
         {/* A tap on the code closes the view, as a tap opened it. */}
         <button type="button" className="vault-qr-full-code" onClick={onClose} aria-label="Close the full screen code">
-          <img src={src} alt={title} />
+          <img src={src} alt={subtitle ? `${title}, ${subtitle}` : title} />
         </button>
         <Text size="sm" ta="center" className="vault-qr-full-caption">
           {caption}
