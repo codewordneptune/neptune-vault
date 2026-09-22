@@ -41,7 +41,9 @@ const KIND_NOTES: Record<KeyKind, string> = {
     'For auditing: anyone holding this address can see every payment it receives, though never spend them. Share it only with someone you trust to see that activity.',
 };
 
-// About the address code alone; the request code has its own note.
+// About the code for a kind of address, under both tabs: a request code
+// carries the same address and more, so it is at least as dense. What does
+// not fit in a request code has its own note.
 const CODE_HINTS: Partial<Record<KeyKind, string>> = {
   generation: 'The code is dense: scan from close up, or copy the address instead.',
 };
@@ -367,7 +369,7 @@ export function Receive() {
                 {requestQrNote}
               </Text>
             )}
-            <KindNote kind={kind} />
+            <KindNote kind={kind} extra={CODE_HINTS[kind]} />
           </>
         )}
 
