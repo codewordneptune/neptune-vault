@@ -2,6 +2,7 @@
 
 import { ActionIcon, Alert, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDown, IconClockPause, IconCopy, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
+import { useMediaQuery } from '@mantine/hooks';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -49,6 +50,8 @@ export function Home() {
     return `${Math.round(s / 3600)} h ago`;
   };
   const navigate = useNavigate();
+  // From the width the tab bar becomes a rail, history is a table.
+  const wide = useMediaQuery('(min-width: 900px)') ?? false;
 
   // Reminder until an export file exists; a dismissal snoozes it for a week.
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -127,6 +130,11 @@ export function Home() {
     const c = contactFor(e.record.recipient);
     return `to ${c ? c.name : shortAddress(e.record.recipient)}`;
   };
+  const rowIconOf = (e: HistoryEntry) =>
+    e.kind === 'received' ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />;
+  /** What a screen reader says for a row, list or table alike. */
+  const rowLabelOf = (e: HistoryEntry) =>
+    `${titleOf(e)}, ${e.kind === 'received' ? 'plus' : 'minus'} ${amount(e.shownNau)} NPT${e.record.status !== 'confirmed' ? ', ' + e.record.status : ''}${lockOf(e.record) !== null ? ', time-locked' : ''}, details`;
   /** The full title, for the detail sheet and for screen readers. */
   const titleOf = (e: HistoryEntry) => {
     if (e.kind === 'received') return e.record.status === 'pending' ? 'Incoming' : 'Received';
@@ -197,166 +205,239 @@ export function Home() {
           </div>
         </Caution>
       )}
-      {/* On a wide screen: the balance and its actions on the left, the history beside it. */}
-      <div className="vault-home-grid">
-        <Stack gap="md" className="vault-home-main">
-          {/* The dot answers "is this current?" without reading: green up to date, amber while working, red when it cannot say. */}
-          <div className="vault-status">
-            <span className="vault-status-text">
-              <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' ? 'ok' : 'busy'}`} aria-hidden />
-              {!online && <IconWifiOff size={14} stroke={1.8} />}
-              {busy && <IconRefresh size={14} stroke={1.8} className="vault-spin" />}
-              {syncText}
-            </span>
-            {!busy && online && (
-              <span className="vault-status-actions">
-                {sync?.phase === 'error' && (
-                  <UnstyledButton onClick={() => navigate('/settings')} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
-                    Settings
-                  </UnstyledButton>
-                )}
-                <UnstyledButton onClick={() => void syncNow()} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
-                  {sync?.phase === 'error' ? 'Retry' : 'Sync'}
-                </UnstyledButton>
-              </span>
+      {/* The dot answers "is this current?" without reading: green up to date, amber while working, red when it cannot say. */}
+      <div className="vault-status">
+        <span className="vault-status-text">
+          <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' ? 'ok' : 'busy'}`} aria-hidden />
+          {!online && <IconWifiOff size={14} stroke={1.8} />}
+          {busy && <IconRefresh size={14} stroke={1.8} className="vault-spin" />}
+          {syncText}
+        </span>
+        {!busy && online && (
+          <span className="vault-status-actions">
+            {sync?.phase === 'error' && (
+              <UnstyledButton onClick={() => navigate('/settings')} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
+                Settings
+              </UnstyledButton>
             )}
-          </div>
-          <Paper>
-            <Stack gap="xs">
-              {/* The eye keeps its 40 px target but is pulled into the row's
-                  margins, so the label sits where every other card's title does. */}
-              <Group justify="space-between" align="center" style={{ minHeight: 0 }}>
-                <span className="vault-eyebrow">Balance</span>
-                <ActionIcon variant="subtle" size="lg" className="vault-tap" my={-10} mr={-8} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
-                  {hidden ? <IconEyeOff size={20} stroke={1.8} /> : <IconEye size={20} stroke={1.8} />}
-                </ActionIcon>
+            <UnstyledButton onClick={() => void syncNow()} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
+              {sync?.phase === 'error' ? 'Retry' : 'Sync'}
+            </UnstyledButton>
+          </span>
+        )}
+      </div>
+      {/* On a phone a card, the actions under the balance; on a wide screen a
+          band, the actions to its right. */}
+      <Paper>
+        <div className="vault-balance-layout">
+          <Stack gap="xs">
+            {/* The eye keeps its 40 px target but is pulled into the row's
+                margins, so the label sits where every other card's title does. */}
+            <div className="vault-balance-head">
+              <span className="vault-eyebrow">Balance</span>
+              <ActionIcon variant="subtle" size="lg" className="vault-tap" my={-10} mr={-8} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
+                {hidden ? <IconEyeOff size={20} stroke={1.8} /> : <IconEye size={20} stroke={1.8} />}
+              </ActionIcon>
+            </div>
+            <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${showNau(balance.spendableNau)} NPT`}>
+              {loaded ? amount(balance.spendableNau) : '…'}
+              <small> NPT</small>
+            </div>
+            {/* Money on the way and money held, as two readings; the sentence behind them is one tap away. */}
+            {incomingNau > 0n && (
+              <Group gap={6} wrap="nowrap">
+                <IconArrowDownLeft size={14} stroke={1.8} className="vault-balance-note-in" aria-hidden />
+                <Text size="sm">{amount(incomingNau)} NPT incoming</Text>
               </Group>
-              <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${showNau(balance.spendableNau)} NPT`}>
-                {loaded ? amount(balance.spendableNau) : '…'}
-                <small> NPT</small>
-              </div>
-              {/* Money on the way and money held, as two readings; the sentence behind them is one tap away. */}
-              {incomingNau > 0n && (
-                <Group gap={6} wrap="nowrap">
-                  <IconArrowDownLeft size={14} stroke={1.8} className="vault-balance-note-in" aria-hidden />
-                  <Text size="sm">{amount(incomingNau)} NPT incoming</Text>
-                </Group>
-              )}
-              {balance.reservedNau > 0n && (
-                <Group gap={6} wrap="nowrap">
-                  <IconLock size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
-                  <Text size="sm">{amount(balance.reservedNau)} NPT held until confirmed</Text>
-                </Group>
-              )}
-              {balance.lockedNau > 0n && (
-                <Group gap={6} wrap="nowrap">
-                  <IconClockPause size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
-                  <Text size="sm">
-                    {amount(balance.lockedNau)} NPT time-locked{balance.nextReleaseMs ? `, first release ${showDate(balance.nextReleaseMs)}` : ''}
+            )}
+            {balance.reservedNau > 0n && (
+              <Group gap={6} wrap="nowrap">
+                <IconLock size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
+                <Text size="sm">{amount(balance.reservedNau)} NPT held until confirmed</Text>
+              </Group>
+            )}
+            {balance.lockedNau > 0n && (
+              <Group gap={6} wrap="nowrap">
+                <IconClockPause size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
+                <Text size="sm">
+                  {amount(balance.lockedNau)} NPT time-locked{balance.nextReleaseMs ? `, first release ${showDate(balance.nextReleaseMs)}` : ''}
+                </Text>
+              </Group>
+            )}
+            {(incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n) && (
+              <>
+                <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-expanded={why}>
+                  {why ? 'Less' : 'What does this mean?'}
+                </UnstyledButton>
+                {why && (
+                  <Text size="sm" c="dimmed">
+                    {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
+                    {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT was paid to you with a time lock set by the payer. It is yours, but the network will not let it be spent before its release date, so it is not counted as spendable. `}
+                    {balance.reservedNau > 0n &&
+                      `${amount(balance.reservedNau)} NPT is held by ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}${pendingSends.length === 1 ? `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee` : ''}. Once ${pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, ${amount(afterPendingNau)} NPT is spendable.`}
                   </Text>
-                </Group>
-              )}
-              {(incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n) && (
-                <>
-                  <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-expanded={why}>
-                    {why ? 'Less' : 'What does this mean?'}
-                  </UnstyledButton>
-                  {why && (
-                    <Text size="sm" c="dimmed">
-                      {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
-                      {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT was paid to you with a time lock set by the payer. It is yours, but the network will not let it be spent before its release date, so it is not counted as spendable. `}
-                      {balance.reservedNau > 0n &&
-                        `${amount(balance.reservedNau)} NPT is held by ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}${pendingSends.length === 1 ? `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee` : ''}. Once ${pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, ${amount(afterPendingNau)} NPT is spendable.`}
-                    </Text>
-                  )}
-                </>
-              )}
-              <Group grow mt="sm">
-                <Button leftSection={<IconArrowUpRight size={16} stroke={1.8} />} onClick={() => navigate('/send')}>
-                  Send
-                </Button>
-                <Button variant="light" leftSection={<IconArrowDownLeft size={16} stroke={1.8} />} onClick={() => navigate('/receive')}>
-                  Receive
-                </Button>
-              </Group>
-            </Stack>
-          </Paper>
-        </Stack>
-        <div className="vault-home-side">
-          <Paper>
-            <Stack>
-            <Title order={3}>History</Title>
-            {!loaded ? (
-              <Text c="dimmed" size="sm">
-                Loading…
-              </Text>
-            ) : entries.length === 0 ? (
-              <Text c="dimmed" size="sm">
-                Nothing yet.{' '}
-                <UnstyledButton onClick={() => navigate('/receive')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-                  Share your receiving address
-                </UnstyledButton>{' '}
-                to get started.
-              </Text>
-            ) : (
-              <div>
+                )}
+              </>
+            )}
+          </Stack>
+          <Group grow className="vault-balance-actions">
+            <Button leftSection={<IconArrowUpRight size={16} stroke={1.8} />} onClick={() => navigate('/send')}>
+              Send
+            </Button>
+            <Button variant="light" leftSection={<IconArrowDownLeft size={16} stroke={1.8} />} onClick={() => navigate('/receive')}>
+              Receive
+            </Button>
+          </Group>
+        </div>
+      </Paper>
+
+      <Paper>
+        <Stack>
+        <Title order={3}>History</Title>
+        {!loaded ? (
+          <Text c="dimmed" size="sm">
+            Loading…
+          </Text>
+        ) : entries.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            Nothing yet.{' '}
+            <UnstyledButton onClick={() => navigate('/receive')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+              Share your receiving address
+            </UnstyledButton>{' '}
+            to get started.
+          </Text>
+        ) : wide ? (
+          // A wide screen: the same entries as a table, one column per fact,
+          // so dates, counterparties and amounts line up down the page.
+          <div>
+            <table className="vault-history-table">
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Transaction</th>
+                  <th scope="col">To</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" className="num">
+                    Amount (NPT)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
                 {entries.slice(0, shown).map((e) => {
                   const h = e.record;
                   const incoming = e.kind === 'received';
+                  const lock = lockOf(h);
                   return (
-                    <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={`${titleOf(e)}, ${incoming ? 'plus' : 'minus'} ${amount(e.shownNau)} NPT${h.status !== 'confirmed' ? ', ' + h.status : ''}${lockOf(h) !== null ? ', time-locked' : ''}, details`}>
-                      <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                        <span className={`vault-row-icon${incoming ? '' : ' out'}`}>
-                          {incoming ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />}
-                        </span>
-                        <div style={{ minWidth: 0 }}>
-                          <Text size="sm" fw={500} className="vault-row-title">
-                            {rowTitleOf(e)}
-                          </Text>
-                          <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                            {formatWhen(h.timestampMs)}
-                            {h.status !== 'confirmed' && (
-                              <>
-                                {' · '}
-                                <Text span inherit className={h.status === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
-                                  {h.status === 'pending' ? 'Pending' : 'Failed'}
-                                </Text>
-                              </>
-                            )}
-                            {lockOf(h) !== null && (
-                              <>
-                                {' · '}
-                                <Text span inherit className="vault-state-pending">
-                                  Locked until {showDate(lockOf(h) as number)}
-                                </Text>
-                              </>
-                            )}
-                            {e.kind === 'self' && !hidden && ' · fee only'}
-                            {/* Last, so that on a narrow screen it is what gives way. */}
-                            {recipientOf(e) && ` · ${recipientOf(e)}`}
-                          </Text>
-                        </div>
-                      </Group>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <Text size="sm" fw={600} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    <tr key={h.key} className="vault-history-tr" onClick={() => setDetail(e)}>
+                      <td className="vault-history-date">{formatWhen(h.timestampMs)}</td>
+                      <td>
+                        {/* The row's one control, for the keyboard and screen readers; a click anywhere on the row does the same. */}
+                        <UnstyledButton
+                          className="vault-history-what"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            setDetail(e);
+                          }}
+                          aria-label={rowLabelOf(e)}
+                        >
+                          <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
+                          <span className="vault-row-title">{rowTitleOf(e)}</span>
+                        </UnstyledButton>
+                      </td>
+                      <td className="vault-history-to">
+                        {e.kind === 'self' ? (
+                          <>This wallet{!hidden && ' · fee only'}</>
+                        ) : e.kind === 'sent' ? (
+                          h.txid === '' || h.recipient === null ? (
+                            <span className="vault-history-quiet">Not recorded</span>
+                          ) : (
+                            (contactFor(h.recipient)?.name ?? shortAddress(h.recipient))
+                          )
+                        ) : null}
+                      </td>
+                      <td className="vault-history-status">
+                        {h.status === 'pending' ? (
+                          <span className="vault-state-pending">Pending</span>
+                        ) : h.status === 'failed' ? (
+                          <span className="vault-state-failed">Failed</span>
+                        ) : lock !== null ? (
+                          <span className="vault-state-pending">Locked until {showDate(lock)}</span>
+                        ) : (
+                          <span className="vault-history-quiet">Confirmed</span>
+                        )}
+                      </td>
+                      <td className="vault-history-amount">
+                        <span className={incoming ? 'vault-amount-in' : undefined}>
                           {incoming ? '+' : '−'}
                           {amount(e.shownNau)}
-                        </Text>
-                      </div>
-                    </UnstyledButton>
+                        </span>
+                      </td>
+                    </tr>
                   );
                 })}
-                {entries.length > shown && (
-                  <Button variant="subtle" fullWidth mt="xs" onClick={() => setShown((n) => n + PAGE)}>
-                    Show {Math.min(PAGE, entries.length - shown)} older
-                  </Button>
-                )}
-              </div>
+              </tbody>
+            </table>
+            {entries.length > shown && (
+              <Button variant="subtle" fullWidth mt="xs" onClick={() => setShown((n) => n + PAGE)}>
+                Show {Math.min(PAGE, entries.length - shown)} older
+              </Button>
             )}
-            </Stack>
-          </Paper>
-        </div>
-      </div>
+          </div>
+        ) : (
+          <div>
+            {entries.slice(0, shown).map((e) => {
+              const h = e.record;
+              const incoming = e.kind === 'received';
+              return (
+                <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={rowLabelOf(e)}>
+                  <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+                    <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <Text size="sm" fw={500} className="vault-row-title">
+                        {rowTitleOf(e)}
+                      </Text>
+                      <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {formatWhen(h.timestampMs)}
+                        {h.status !== 'confirmed' && (
+                          <>
+                            {' · '}
+                            <Text span inherit className={h.status === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
+                              {h.status === 'pending' ? 'Pending' : 'Failed'}
+                            </Text>
+                          </>
+                        )}
+                        {lockOf(h) !== null && (
+                          <>
+                            {' · '}
+                            <Text span inherit className="vault-state-pending">
+                              Locked until {showDate(lockOf(h) as number)}
+                            </Text>
+                          </>
+                        )}
+                        {e.kind === 'self' && !hidden && ' · fee only'}
+                        {/* Last, so that on a narrow screen it is what gives way. */}
+                        {recipientOf(e) && ` · ${recipientOf(e)}`}
+                      </Text>
+                    </div>
+                  </Group>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <Text size="sm" fw={600} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {incoming ? '+' : '−'}
+                      {amount(e.shownNau)}
+                    </Text>
+                  </div>
+                </UnstyledButton>
+              );
+            })}
+            {entries.length > shown && (
+              <Button variant="subtle" fullWidth mt="xs" onClick={() => setShown((n) => n + PAGE)}>
+                Show {Math.min(PAGE, entries.length - shown)} older
+              </Button>
+            )}
+          </div>
+        )}
+        </Stack>
+      </Paper>
 
       <Modal opened={detail !== null} onClose={() => setDetail(null)} title={detail ? titleOf(detail) : ''}>
         {detail && (
