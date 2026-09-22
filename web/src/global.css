@@ -933,6 +933,13 @@ html {
 .vault-qr-full-header .mantine-Modal-close {
   color: #15202e;
 }
+/* The view is white in both themes, so its close button's hover is too: the
+   general hover takes the theme's surface, which in the dark theme is a dark
+   square on the white. */
+.vault-qr-full-header .mantine-Modal-close:hover {
+  background: #e9edf2;
+  color: #15202e;
+}
 /* The title names the code, so it sits on the code's axis: centred across the
    whole width, with the close button taken out of the flow and the same room
    kept free on the left, so the button does not push the title off centre. */
