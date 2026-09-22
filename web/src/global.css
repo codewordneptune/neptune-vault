@@ -20,6 +20,8 @@
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
   --v-danger-text: #ff8a80;
+  /* 8% red over the card: the danger text keeps 6.6:1 on it. */
+  --v-danger-hover: rgba(255, 107, 107, 0.08);
   --v-disabled-bg: rgba(255, 255, 255, 0.05);
   --v-disabled-border: rgba(255, 255, 255, 0.08);
   --v-backdrop: rgba(9, 14, 21, 0.7);
@@ -56,6 +58,8 @@
   --v-ok-text: #1f8f3a;
   --v-warn-text: #8a5a00;
   --v-danger-text: #c62828;
+  /* 8% red over the card: the danger text keeps 5.0:1 on it. */
+  --v-danger-hover: rgba(224, 49, 49, 0.08);
   --v-disabled-bg: rgba(0, 0, 0, 0.05);
   --v-disabled-border: rgba(0, 0, 0, 0.1);
   --v-backdrop: rgba(30, 40, 55, 0.5);
@@ -131,6 +135,11 @@ h3.mantine-Title-root {
 /* A destructive action is red at rest, not only on hover. */
 .mantine-Button-root[data-variant='subtle'].vault-danger {
   color: var(--v-danger-text);
+}
+/* Its hover is a faint tint, not the library's solid red, on which the red
+   text fell below 4.5:1 in both themes. */
+.mantine-Button-root[data-variant='subtle'].vault-danger:hover:not(:disabled) {
+  background: var(--v-danger-hover);
 }
 /* A control inside a field (Max, Scan) is plain text at rest, and stays
    plain when disabled: faded, no box, so it never becomes the one boxed
