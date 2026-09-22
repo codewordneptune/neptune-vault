@@ -13,7 +13,6 @@ import { ContactPicker } from '../components/ContactPicker';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
 import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
-import { showInt } from '../util/format';
 import { networkLabel } from '../util/network';
 
 // Fee presets (R19). Every level clears the default proof-upgrader floor of
@@ -25,6 +24,12 @@ const FEE_PRESETS: { value: string; label: string; fee: string }[] = [
   { value: 'high', label: 'High', fee: '0.5' },
   { value: 'custom', label: 'Custom', fee: '' },
 ];
+/** Seconds as people say them: "45 seconds", "2 minutes". */
+function duration(seconds: number): string {
+  if (seconds < 90) return `${Math.max(1, Math.round(seconds))} seconds`;
+  return `${Math.round(seconds / 60)} minutes`;
+}
+
 const DEFAULT_PRESET = 'medium';
 const DEFAULT_FEE = FEE_PRESETS.find((p) => p.value === DEFAULT_PRESET)!.fee;
 const presetFee = (preset: string, custom: string | undefined) =>
@@ -33,7 +38,7 @@ const presetFee = (preset: string, custom: string | undefined) =>
 type Step = 'form' | 'review';
 
 export function Send() {
-  const { services, account, balance, utxos, online, sendJob, startSend, cancelSend, dismissSendJob } = useApp();
+  const { services, account, balance, utxos, online, sendJob, screenAwake, startSend, cancelSend, dismissSendJob } = useApp();
   const location = useLocation();
   const prefill = (location.state as { recipient?: string } | null)?.recipient;
   const [step, setStep] = useState<Step>('form');
@@ -229,6 +234,10 @@ export function Send() {
     return () => clearInterval(t);
   }, [proving]);
   const provingSeconds = sendJob?.provingSince ? Math.max(0, Math.round((now - sendJob.provingSince) / 1000)) : 0;
+  // How long the last proof on this device took, when it went through: a
+  // better guide than any figure measured elsewhere.
+  const last = services.settings.lastProving;
+  const estimate = last && !last.error && last.seconds > 0 ? last.seconds : null;
 
   if (running && sendJob) {
     return (
@@ -243,11 +252,17 @@ export function Send() {
             {sendJob.progress.stage === 'submitting' && 'Submitting to the node…'}
           </Text>
           {proving && p && <Progress value={100 * (p.work ?? p.index / p.total)} animated aria-label="Share of the proving work done" />}
-          {proving && p && (
-            <Text size="xs" c="dimmed">
-              {showInt(provingSeconds)} s so far, {p.threads || 'single'} threads{p.memoryMb ? `, ${showInt(p.memoryMb)} MB` : ''}. The proof continues if you switch apps, though the phone may run it slower there. The app tells you when it is submitted.
+          {proving && (
+            <Text size="sm" c="dimmed">
+              {estimate !== null ? `About ${duration(estimate)} on this device · ` : ''}
+              {duration(provingSeconds)} so far
             </Text>
           )}
+          <Text size="sm">
+            {screenAwake === 'refused'
+              ? 'This device would not keep the screen on. Keep the app open and touch the screen now and then until the send is submitted: a locked phone pauses the proof.'
+              : 'Keep this screen open until the send is submitted.'}
+          </Text>
           {proving && (
             <Button variant="light" color="red" onClick={cancelSend}>
               Cancel
@@ -351,7 +366,15 @@ export function Send() {
           </Text>
           {askLustration && (
             <Alert color="yellow" title="Part of this send will be public">
-              Right now the network asks senders to publish, in an extra announcement anyone can read, the coins a transaction spends: how much each one holds, which of your addresses it was received on, and where in the chain it came from. Someone watching can then see how much went into this payment and tie it to the payments that funded it. The recipient and the amount you send are not published. It applies to this send only.
+              <Stack gap={6}>
+                <span>Anyone can see which coins paid for it and how much they held. The recipient and the amount you send stay private.</span>
+                <details className="vault-more">
+                  <summary>What is published?</summary>
+                  <p>
+                    Right now the network asks senders to publish, in an extra announcement anyone can read, the coins a transaction spends: how much each one holds, which of your addresses it was received on, and where in the chain it came from. Someone watching can then see how much went into this payment and tie it to the payments that funded it. It applies to this send only.
+                  </p>
+                </details>
+              </Stack>
             </Alert>
           )}
           {totals.feeHigh && (
@@ -521,6 +544,12 @@ export function Send() {
                   ),
                 }))}
               />
+              {/* What the fee buys, which the numbers alone do not say. Proof
+                  upgraders take part of it for proving the send into a block,
+                  and pick the sends that pay them best first. */}
+              <Text size="sm" c="dimmed" mt={6}>
+                Nodes finish proving your send before it can go into a block, and are paid from the fee. A higher fee gets that done sooner when many sends are waiting.
+              </Text>
             </div>
             {feePreset === 'custom' && (
               <TextInput

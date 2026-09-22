@@ -980,3 +980,15 @@ html {
 .vault-qr-full-hint {
   color: #5a6a7e;
 }
+
+/* A disclosure for the mechanism behind a one-sentence explanation. */
+.vault-more summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.vault-more p {
+  margin: 6px 0 0;
+}

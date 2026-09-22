@@ -10,6 +10,7 @@ import type { ScanSettings, SendRequest } from '../backend/types';
 import type { SyncEngine, SyncProgress } from '../wallet/sync';
 import { RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
+import { useScreenWakeLock, type WakeLockState } from './wakeLock';
 
 /** A send in flight, or just finished; lives here so it survives the
  * Send screen unmounting when the app locks on backgrounding. */
@@ -74,7 +75,9 @@ export interface AppState {
   pauseSync: () => Promise<void>;
   /** The running or last send. */
   sendJob: SendJob | null;
-  /** Run a send as a job: wake lock held, auto-lock deferred, toast at the end. */
+  /** Whether the screen is being kept on for the running send: 'refused' when the browser would not. */
+  screenAwake: WakeLockState;
+  /** Run a send as a job: screen kept on, auto-lock deferred, toast at the end. */
   /** `note` is the payment link's message, kept with the send for the payer's own record. */
   startSend: (request: SendRequest, note?: string | null) => Promise<SendOutcome>;
   cancelSend: () => void;
@@ -242,12 +245,6 @@ export function AppProvider({ services, children }: { services: Services; childr
       const abort = new AbortController();
       sendAbort.current = abort;
       const service = services.sendService(accountId);
-      let wake: WakeLockSentinel | null = null;
-      try {
-        wake = (await navigator.wakeLock?.request('screen')) ?? null;
-      } catch {
-        wake = null;
-      }
       services.accounts.setLockDeferred(true);
       setSendJob({ request, startedAt: Date.now(), provingSince: null, progress: { stage: 'planning' }, done: false, outcome: null, error: null });
       // What Diagnostics shows about the last proof, whichever way it ends.
@@ -306,7 +303,6 @@ export function AppProvider({ services, children }: { services: Services; childr
         sending.current = false;
         services.window.busy = false;
         sendAbort.current = null;
-        await wake?.release().catch(() => undefined);
         services.accounts.setLockDeferred(false);
       }
     },
@@ -448,9 +444,13 @@ export function AppProvider({ services, children }: { services: Services; childr
     return { spendableNau: spendable, reservedNau: reserved, lockedNau: locked, nextReleaseMs: nextRelease };
   }, [utxos]);
 
+  // The screen stays on for as long as a send runs, whichever screen is showing:
+  // a phone that locks mid-proof suspends the page, and with it the proof.
+  const screenAwake = useScreenWakeLock(Boolean(sendJob && !sendJob.done));
+
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, startSend, cancelSend, dismissSendJob }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, startSend, cancelSend, dismissSendJob],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
