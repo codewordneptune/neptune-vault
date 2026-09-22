@@ -9,11 +9,12 @@ import { showBlock, showNau, useApp } from '../app/AppContext';
 import type { StoredUtxo } from '../backend/types';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
+import { Caution } from '../components/Notice';
 import { PocNotice } from '../components/PocNotice';
-import { abbreviateAddress } from '../util/address';
+import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
-import { formatWhen } from '../util/time';
+import { dayKey, dayLabel, formatDate, formatDateTime, formatTime, formatWhen } from '../util/time';
 
 export function Home() {
   const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, sendJob, dismissSendJob, loaded } = useApp();
@@ -74,6 +75,15 @@ export function Home() {
   useEffect(() => setTech(false), [detail]);
   const PAGE = 50;
   const [shown, setShown] = useState(PAGE);
+  // The shown entries by calendar day, in the order they come (newest first):
+  // a heading says the day once, and each row keeps only its time.
+  const days: { key: string; label: string; entries: HistoryEntry[] }[] = [];
+  for (const e of entries.slice(0, shown)) {
+    const key = dayKey(e.record.timestampMs);
+    const day = days.find((d) => d.key === key);
+    if (day) day.entries.push(e);
+    else days.push({ key, label: dayLabel(e.record.timestampMs), entries: [e] });
+  }
 
   // Giving up on a pending send frees its reserved coins; confirmed first.
   const [givingUp, setGivingUp] = useState<HistoryRecord | null>(null);
@@ -99,7 +109,7 @@ export function Home() {
     const date = h.releaseDateMs ?? utxos.find((u) => u.hash === coinKeyOfReceipt(h))?.releaseDateMs ?? null;
     return date !== null && date > Date.now() ? date : null;
   };
-  const showDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const showDate = formatDate;
 
   const busy = sync?.phase === 'checking' || sync?.phase === 'restoring' || sync?.phase === 'scanning';
   const syncText =
@@ -116,6 +126,22 @@ export function Home() {
             : sync.message ?? 'Sync failed';
 
   const incomingNau = history.filter((h) => h.kind === 'received' && h.status === 'pending').reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
+  /** The row's title: short, always one line. Who a send went to is on the line beneath. */
+  const rowTitleOf = (e: HistoryEntry) => (e.kind === 'sent' ? 'Sent' : titleOf(e));
+  /** Who a send went to, for the line under its title. */
+  const recipientOf = (e: HistoryEntry): string | null => {
+    if (e.kind !== 'sent') return null;
+    // A send found on the chain: made on another device, or before a restore.
+    if (e.record.txid === '' || e.record.recipient === null) return 'recipient not recorded';
+    const c = contactFor(e.record.recipient);
+    return `to ${c ? c.name : shortAddress(e.record.recipient)}`;
+  };
+  const rowIconOf = (e: HistoryEntry) =>
+    e.kind === 'received' ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />;
+  /** What a screen reader says for a row, list or table alike. */
+  const rowLabelOf = (e: HistoryEntry) =>
+    `${titleOf(e)}, ${e.kind === 'received' ? 'plus' : 'minus'} ${amount(e.shownNau)} NPT${e.record.status !== 'confirmed' ? ', ' + e.record.status : ''}${lockOf(e.record) !== null ? ', time-locked' : ''}, details`;
+  /** The full title, for the detail sheet and for screen readers. */
   const titleOf = (e: HistoryEntry) => {
     if (e.kind === 'received') return e.record.status === 'pending' ? 'Incoming' : 'Received';
     if (e.kind === 'self') return 'Moved to yourself';
@@ -157,7 +183,7 @@ export function Home() {
     h.status === 'confirmed' ? (h.height !== null ? `Confirmed in block ${showBlock(h.height)}` : 'Confirmed') : h.status === 'pending' ? 'Pending, waiting for a block' : 'Failed';
   const nodeStatusOf = (h: HistoryRecord) => {
     if (h.kind !== 'sent' || h.status !== 'pending' || !h.mempoolCheckedAt) return null;
-    return h.mempoolSeenAt ? `In the node's mempool, checked ${formatWhen(h.mempoolCheckedAt)}` : 'Not seen in the node\'s mempool yet';
+    return h.mempoolSeenAt ? `The node has it, waiting for a block (checked ${formatWhen(h.mempoolCheckedAt)})` : 'The node has not seen it yet';
   };
 
   return (
@@ -169,21 +195,21 @@ export function Home() {
       {failure && failure.accountId === account?.id && (
         <Alert color="red" title="Not sent" withCloseButton onClose={dismissFailure}>
           <Text size="sm">
-            {failure.amount} NPT to {abbreviateAddress(failure.recipient)}, {new Date(failure.at).toLocaleString()}. {failure.message}
+            {failure.amount} NPT to {abbreviateAddress(failure.recipient)}, {formatDateTime(failure.at)}. {failure.message}
           </Text>
         </Alert>
       )}
       {/* One notice at a time: the backup first, since a lost seed phrase is worse than a missing install. */}
       {!showBackupNudge && <InstallNudge />}
       {showBackupNudge && (
-        <Alert color="yellow" icon={<IconShieldCheck size={18} />} title="Back up this wallet" withCloseButton onClose={() => void dismissNudge()}>
-          <Text size="sm">Clearing the browser's site data deletes it. Export a backup file so you can restore the wallet and its contacts.</Text>
-          <Text size="sm" mt="xs">
+        <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
+          This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared.
+          <div>
             <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
               Export backup file
             </UnstyledButton>
-          </Text>
-        </Alert>
+          </div>
+        </Caution>
       )}
       {/* The dot answers "is this current?" without reading: green up to date, amber while working, red when it cannot say. */}
       <div className="vault-status">
@@ -206,57 +232,61 @@ export function Home() {
           </span>
         )}
       </div>
+      {/* On a phone a card, the actions under the balance; on a wide screen a
+          band, the actions to its right. */}
       <Paper>
-        <Stack gap="xs">
-          {/* The eye keeps its 40 px target but is pulled into the row's
-              margins, so the label sits where every other card's title does. */}
-          <Group justify="space-between" align="center" style={{ minHeight: 0 }}>
-            <span className="vault-eyebrow">Balance</span>
-            <ActionIcon variant="subtle" size="lg" className="vault-tap" my={-10} mr={-8} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
-              {hidden ? <IconEyeOff size={20} stroke={1.8} /> : <IconEye size={20} stroke={1.8} />}
-            </ActionIcon>
-          </Group>
-          <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${showNau(balance.spendableNau)} NPT`}>
-            {loaded ? amount(balance.spendableNau) : '…'}
-            <small> NPT</small>
-          </div>
-          {/* Money on the way and money held, as two readings; the sentence behind them is one tap away. */}
-          {incomingNau > 0n && (
-            <Group gap={6} wrap="nowrap">
-              <IconArrowDownLeft size={14} stroke={1.8} className="vault-balance-note-in" aria-hidden />
-              <Text size="sm">{amount(incomingNau)} NPT incoming</Text>
-            </Group>
-          )}
-          {balance.reservedNau > 0n && (
-            <Group gap={6} wrap="nowrap">
-              <IconLock size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
-              <Text size="sm">{amount(balance.reservedNau)} NPT held until confirmed</Text>
-            </Group>
-          )}
-          {balance.lockedNau > 0n && (
-            <Group gap={6} wrap="nowrap">
-              <IconClockPause size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
-              <Text size="sm">
-                {amount(balance.lockedNau)} NPT time-locked{balance.nextReleaseMs ? `, first release ${showDate(balance.nextReleaseMs)}` : ''}
-              </Text>
-            </Group>
-          )}
-          {(incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n) && (
-            <>
-              <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link" aria-expanded={why}>
-                {why ? 'Less' : 'What does this mean?'}
-              </UnstyledButton>
-              {why && (
-                <Text size="xs" c="dimmed">
-                  {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
-                  {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT was paid to you with a time lock set by the payer. It is yours, but the network will not let it be spent before its release date, so it is not counted as spendable. `}
-                  {balance.reservedNau > 0n &&
-                    `${amount(balance.reservedNau)} NPT is held by ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}${pendingSends.length === 1 ? `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee` : ''}. Once ${pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, ${amount(afterPendingNau)} NPT is spendable.`}
+        <div className="vault-balance-layout">
+          <Stack gap="xs">
+            {/* The eye keeps its 40 px target but is pulled into the row's
+                margins, so the label sits where every other card's title does. */}
+            <div className="vault-balance-head">
+              <span className="vault-eyebrow">Balance</span>
+              <ActionIcon variant="subtle" size="lg" className="vault-tap" my={-10} mr={-8} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
+                {hidden ? <IconEyeOff size={20} stroke={1.8} /> : <IconEye size={20} stroke={1.8} />}
+              </ActionIcon>
+            </div>
+            <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${showNau(balance.spendableNau)} NPT`}>
+              {loaded ? amount(balance.spendableNau) : '…'}
+              <small> NPT</small>
+            </div>
+            {/* Money on the way and money held, as two readings; the sentence behind them is one tap away. */}
+            {incomingNau > 0n && (
+              <Group gap={6} wrap="nowrap">
+                <IconArrowDownLeft size={14} stroke={1.8} className="vault-balance-note-in" aria-hidden />
+                <Text size="sm">{amount(incomingNau)} NPT incoming</Text>
+              </Group>
+            )}
+            {balance.reservedNau > 0n && (
+              <Group gap={6} wrap="nowrap">
+                <IconLock size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
+                <Text size="sm">{amount(balance.reservedNau)} NPT held until confirmed</Text>
+              </Group>
+            )}
+            {balance.lockedNau > 0n && (
+              <Group gap={6} wrap="nowrap">
+                <IconClockPause size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
+                <Text size="sm">
+                  {amount(balance.lockedNau)} NPT time-locked{balance.nextReleaseMs ? `, first release ${showDate(balance.nextReleaseMs)}` : ''}
                 </Text>
-              )}
-            </>
-          )}
-          <Group grow mt="sm">
+              </Group>
+            )}
+            {(incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n) && (
+              <>
+                <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-expanded={why}>
+                  {why ? 'Less' : 'What does this mean?'}
+                </UnstyledButton>
+                {why && (
+                  <Text size="sm" c="dimmed">
+                    {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
+                    {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT is yours but time-locked by the payer. It cannot be spent before its release date, so it is not counted as spendable. `}
+                    {balance.reservedNau > 0n &&
+                      `${amount(balance.reservedNau)} NPT is held by ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}${pendingSends.length === 1 ? `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee` : ''}. Once ${pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, ${amount(afterPendingNau)} NPT is spendable.`}
+                  </Text>
+                )}
+              </>
+            )}
+          </Stack>
+          <Group grow className="vault-balance-actions">
             <Button leftSection={<IconArrowUpRight size={16} stroke={1.8} />} onClick={() => navigate('/send')}>
               Send
             </Button>
@@ -264,7 +294,7 @@ export function Home() {
               Receive
             </Button>
           </Group>
-        </Stack>
+        </div>
       </Paper>
 
       <Paper>
@@ -284,50 +314,57 @@ export function Home() {
           </Text>
         ) : (
           <div>
-            {entries.slice(0, shown).map((e) => {
-              const h = e.record;
-              const incoming = e.kind === 'received';
-              return (
-                <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={`${titleOf(e)}, ${incoming ? 'plus' : 'minus'} ${amount(e.shownNau)} NPT${h.status !== 'confirmed' ? ', ' + h.status : ''}${lockOf(h) !== null ? ', time-locked' : ''}, details`}>
-                  <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                    <span className={`vault-row-icon${incoming ? '' : ' out'}`}>
-                      {incoming ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />}
-                    </span>
-                    <div style={{ minWidth: 0 }}>
-                      <Text size="sm" fw={500} className="vault-row-title">
-                        {titleOf(e)}
-                      </Text>
-                      <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {formatWhen(h.timestampMs)}
-                        {h.status !== 'confirmed' && (
-                          <>
-                            {' · '}
-                            <Text span inherit className={h.status === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
-                              {h.status === 'pending' ? 'Pending' : 'Failed'}
+            {days.map((day) => (
+              <section key={day.key} className="vault-history-day" aria-label={day.label}>
+                <h4 className="vault-history-day-label">{day.label}</h4>
+                <div>
+                  {day.entries.map((e) => {
+                    const h = e.record;
+                    const incoming = e.kind === 'received';
+                    return (
+                      <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={rowLabelOf(e)}>
+                        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+                          <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <Text size="sm" fw={500} className="vault-row-title">
+                              {rowTitleOf(e)}
                             </Text>
-                          </>
-                        )}
-                        {lockOf(h) !== null && (
-                          <>
-                            {' · '}
-                            <Text span inherit className="vault-state-pending">
-                              Locked until {showDate(lockOf(h) as number)}
+                            <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                              {formatTime(h.timestampMs)}
+                              {h.status !== 'confirmed' && (
+                                <>
+                                  {' · '}
+                                  <Text span inherit className={h.status === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
+                                    {h.status === 'pending' ? 'Pending' : 'Failed'}
+                                  </Text>
+                                </>
+                              )}
+                              {lockOf(h) !== null && (
+                                <>
+                                  {' · '}
+                                  <Text span inherit className="vault-state-pending">
+                                    Locked until {showDate(lockOf(h) as number)}
+                                  </Text>
+                                </>
+                              )}
+                              {e.kind === 'self' && !hidden && ' · fee only'}
+                              {/* Last, so that on a narrow screen it is what gives way. */}
+                              {recipientOf(e) && ` · ${recipientOf(e)}`}
                             </Text>
-                          </>
-                        )}
-                        {e.kind === 'self' && !hidden && ' · fee only'}
-                      </Text>
-                    </div>
-                  </Group>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <Text size="sm" fw={600} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {incoming ? '+' : '−'}
-                      {amount(e.shownNau)}
-                    </Text>
-                  </div>
-                </UnstyledButton>
-              );
-            })}
+                          </div>
+                        </Group>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <Text size="sm" fw={600} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {incoming ? '+' : '−'}
+                            {amount(e.shownNau)}
+                          </Text>
+                        </div>
+                      </UnstyledButton>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
             {entries.length > shown && (
               <Button variant="subtle" fullWidth mt="xs" onClick={() => setShown((n) => n + PAGE)}>
                 Show {Math.min(PAGE, entries.length - shown)} older
@@ -342,10 +379,10 @@ export function Home() {
         {detail && (
           <Stack gap="sm">
             <DetailRow label="Status" value={statusOf(detail.record)} />
-            <DetailRow label="When" value={new Date(detail.record.timestampMs).toLocaleString()} />
+            <DetailRow label="When" value={formatDateTime(detail.record.timestampMs)} />
             {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
             {lockOf(detail.record) !== null && (
-              <DetailRow label="Time lock" value={`Not spendable before ${new Date(lockOf(detail.record) as number).toLocaleString()}. The payer set this; confirmations do not shorten it.`} />
+              <DetailRow label="Time lock" value={`Not spendable before ${formatDateTime(lockOf(detail.record) as number)}. The payer set this; confirmations do not shorten it.`} />
             )}
             {detail.kind === 'sent' && (
               <DetailRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />
@@ -365,7 +402,7 @@ export function Home() {
               />
             )}
             {detail.kind === 'sent' && !detail.record.recipient && (
-              <DetailRow label="Recipient" value="Not known on this device. The send was made elsewhere, or before this wallet was restored; the chain carries neither the recipient nor the fee, so the amount above includes the fee." />
+              <DetailRow label="Recipient" value="Not recorded. The send was made on another device or before a restore, so the amount above includes the fee." />
             )}
             {detail.record.note && <DetailRow label="Note from the link" value={detail.record.note} isolate />}
             {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
@@ -379,8 +416,8 @@ export function Home() {
                   <IconChevronDown size={16} stroke={1.8} aria-hidden className={tech ? 'vault-chevron open' : 'vault-chevron'} />
                 </UnstyledButton>
                 {tech && (
-                  <Text size="xs" c="dimmed">
-                    A payment puts new coins on the chain. These are their identifiers, called commitments, for looking one up in a block explorer. They reveal no amount and no address.
+                  <Text size="sm" c="dimmed">
+                    Identifiers of the coins this payment created, for looking them up in a block explorer. They reveal no amount and no address.
                   </Text>
                 )}
                 {tech &&
@@ -412,10 +449,10 @@ export function Home() {
           <Stack>
             <Text size="sm">
               {givingUp.mempoolCheckedAt && !givingUp.mempoolSeenAt
-                ? 'The node no longer holds this transaction, so giving up only tidies your list. The coins held for it become spendable again.'
+                ? 'The node no longer has this transaction. Giving up removes it from your list and frees the coins held for it.'
                 : givingUp.mempoolSeenAt
-                  ? 'The node still holds this transaction. The coins held for it become spendable here again, but if the network confirms it anyway, it still goes through and shows up as sent.'
-                  : 'The coins held for it become spendable again. If the transaction is confirmed anyway, it still goes through and shows up as sent.'}
+                  ? 'The node still has this transaction, so it may still go through. Giving up frees its coins here, but if it confirms anyway, it shows up as sent.'
+                  : 'Giving up frees the coins held for it. If it confirms anyway, it still goes through and shows up as sent.'}
             </Text>
             <Text size="sm" c="dimmed">
               This send: {showNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee`}. Held for it: {showNau(reservedFor(givingUp))} NPT, which becomes spendable again.

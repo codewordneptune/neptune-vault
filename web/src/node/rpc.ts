@@ -195,7 +195,7 @@ export class NodeClient {
       throw new NodeError(
         aborted
           ? `No answer from the node at ${this.host()} within ${timeoutMs / 1000} s`
-          : `Could not reach the node at ${this.host()}. Either it is offline, or it does not send the CORS headers a browser needs. Check the node URL in Settings.`,
+          : `Cannot reach the node at ${this.host()}. It may be offline, or not set up for browser wallets (CORS). Check the node URL in Settings.`,
         aborted ? 'timeout' : 'network',
         method,
       );

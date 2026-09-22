@@ -4,12 +4,13 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { Alert, Button, Code, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconAlertTriangle, IconCopy, IconInfoCircle, IconShare } from '@tabler/icons-react';
+import { Button, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconArrowsMaximize, IconCopy, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
 import { QrFullScreen } from '../components/QrFullScreen';
+import { Caution, Info } from '../components/Notice';
 
 import { formatNau, useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
@@ -40,15 +41,17 @@ const KIND_NOTES: Record<KeyKind, string> = {
     'For auditing: anyone holding this address can see every payment it receives, though never spend them. Share it only with someone you trust to see that activity.',
 };
 
-// About the address code alone; the request code has its own note.
+// About the code for a kind of address, under both tabs: a request code
+// carries the same address and more, so it is at least as dense. What does
+// not fit in a request code has its own note.
 const CODE_HINTS: Partial<Record<KeyKind, string>> = {
   generation: 'The code is dense: scan from close up, or copy the address instead.',
 };
 
 // The note's shape says how much care the kind needs: plain text for
-// Standard, which only reassures; a panel with an info mark for Short,
-// which asks for one sender per address; a warning panel for View-only,
-// whose exposure cannot be taken back.
+// Standard, which only reassures; text with an info mark for Short, which
+// asks for one sender per address; a caution for View-only, whose exposure
+// cannot be taken back.
 function KindNote({ kind, extra }: { kind: KeyKind; extra?: string }) {
   const text = extra ? `${KIND_NOTES[kind]} ${extra}` : KIND_NOTES[kind];
   if (kind === 'generation') {
@@ -58,14 +61,24 @@ function KindNote({ kind, extra }: { kind: KeyKind; extra?: string }) {
       </Text>
     );
   }
-  return kind === 'viewing' ? (
-    <Alert color="yellow" icon={<IconAlertTriangle size={18} />}>
-      {text}
-    </Alert>
-  ) : (
-    <Alert color="blue" icon={<IconInfoCircle size={18} />}>
-      {text}
-    </Alert>
+  return kind === 'viewing' ? <Caution>{text}</Caution> : <Info>{text}</Info>;
+}
+
+// A code on the card, like a printed one: the white runs on below it into a
+// slim footer that says it opens full screen. The hint sits under the code,
+// never on it: a Standard address makes a code so dense that covering any
+// of it can stop a camera reading it.
+function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => void }) {
+  return (
+    <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-receive-col vault-qr-code">
+      <img src={src} alt={alt} />
+      <span className="vault-qr-foot" aria-hidden>
+        <IconArrowsMaximize size={14} stroke={2} />
+        {/* The word for how this device is used: a tap on a phone, a click with a mouse. */}
+        <span className="vault-qr-foot-touch">Tap to enlarge</span>
+        <span className="vault-qr-foot-mouse">Click to enlarge</span>
+      </span>
+    </UnstyledButton>
   );
 }
 
@@ -81,7 +94,6 @@ export function Receive() {
   const [address, setAddress] = useState<string>(account?.address0 ?? '');
   const [qr, setQr] = useState<string>('');
   const [addressError, setAddressError] = useState<string | null>(null);
-  const [showFull, setShowFull] = useState(false);
   // Which code, if any, is shown as large as the screen allows.
   const [enlarged, setEnlarged] = useState<'address' | 'request' | null>(null);
   const index = indices[kind];
@@ -193,11 +205,11 @@ export function Receive() {
       } catch {
         try {
           await render(paymentQrPayload(address, linkAmount));
-          setRequestQrNote(withText ? 'The name and note do not fit in the code for this address; the link carries them.' : null);
+          setRequestQrNote(withText ? 'This code cannot hold the name and note, so a payer scanning it will not see them. Share the link instead.' : null);
         } catch {
           try {
             await render(paymentQrPayload(address));
-            setRequestQrNote(linkAmount || withText ? 'The amount, name and note do not fit in the code for this address; the link carries them.' : null);
+            setRequestQrNote(linkAmount || withText ? 'This code cannot hold the amount, name and note, so a payer scanning it will not see them. Share the link instead.' : null);
           } catch {
             setRequestQr('');
           }
@@ -209,7 +221,20 @@ export function Receive() {
     };
   }, [tab, address, linkAmount, linkNote, linkLabel]);
 
-  const copy = () => void copyText(address, 'Address copied');
+  // Where the system share sheet exists, the address can go straight into a
+  // message; where it does not, Share would only copy, which Copy already does.
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  // The text on this screen is the shortened address, so a failed copy points
+  // to what carries it in full, never to long-pressing the text.
+  const copyFailed = canShare ? 'Could not copy. Use Share instead, or let the payer scan the code.' : 'Could not copy. Try again, or let the payer scan the code.';
+  const copy = () => void copyText(address, 'Address copied', copyFailed);
+  const shareAddress = async () => {
+    try {
+      await navigator.share({ text: address });
+    } catch {
+      // Cancelled by the user; nothing to report.
+    }
+  };
 
   // The system share sheet where it exists; otherwise the link is copied.
   const share = async () => {
@@ -220,7 +245,7 @@ export function Receive() {
         // Cancelled by the user; nothing to report.
       }
     } else {
-      await copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied');
+      await copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed);
     }
   };
 
@@ -237,7 +262,14 @@ export function Receive() {
   }, [index, furthest, kind]);
 
   const requestInvalid = Boolean(amountError || noteError || labelError);
-  const whichAddress = index === 0 ? `your main ${KIND_LABELS[kind]} address` : `${KIND_LABELS[kind]} address ${index}`;
+  // Said only once another address than the main one is showing: on the main
+  // address the kind selector above already says what it is, and the worry
+  // this answers (will a new address work?) has not come up.
+  const rotationNote =
+    index === 0
+      ? null
+      : `${tab === 'address' ? '' : 'The request is to '}${KIND_LABELS[kind]} address ${index}. ` +
+        (index >= furthest ? 'More addresses open up once one of these has received a payment.' : 'Payments to it arrive in this wallet like any other.');
 
   return (
     <Paper>
@@ -269,35 +301,28 @@ export function Receive() {
 
         {tab === 'address' && (
           <>
-            {qr && (
-              <>
-                <UnstyledButton onClick={() => setEnlarged('address')} aria-label="Show the QR code full screen" style={{ display: 'block', width: '100%' }}>
-                  <img src={qr} alt={`${KIND_LABELS[kind]} address QR code`} style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
-                </UnstyledButton>
-                <UnstyledButton onClick={() => setEnlarged('address')} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
-                  Show full screen
-                </UnstyledButton>
-              </>
-            )}
-            <Text ff="monospace" size="sm" ta="center" style={{ wordBreak: 'break-all' }}>
-              {address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}
-            </Text>
-            <UnstyledButton onClick={() => setShowFull((v) => !v)} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
-              {showFull ? 'Hide full address' : 'Show full address'}
-            </UnstyledButton>
-            {showFull && (
-              <Code block style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap', fontSize: 11 }}>
-                {address}
-              </Code>
-            )}
+            {qr && <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => setEnlarged('address')} />}
+            {/* The address shortened, for recognising it by its start and end.
+                Copy, Share and the code always carry it in full; a Standard
+                address runs to some 3,500 characters, which nobody reads. */}
+            <div className="vault-receive-col vault-address-box">
+              <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
+            </div>
             {addressError && (
               <Text size="sm" c="red">
                 Could not derive this address: {addressError}
               </Text>
             )}
-            <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} fullWidth disabled={!address}>
-              Copy address
-            </Button>
+            <Group grow className="vault-receive-col">
+              <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address}>
+                Copy address
+              </Button>
+              {canShare && (
+                <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void shareAddress()} disabled={!address}>
+                  Share
+                </Button>
+              )}
+            </Group>
             <KindNote kind={kind} extra={CODE_HINTS[kind]} />
           </>
         )}
@@ -327,50 +352,50 @@ export function Receive() {
               error={noteError}
               maxLength={255}
             />
-            <Group grow>
-              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={requestInvalid}>
-                Copy link
-              </Button>
-              <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid}>
-                Share
-              </Button>
-            </Group>
-            {requestQr && !requestInvalid && (
-              <>
-                <UnstyledButton onClick={() => setEnlarged('request')} aria-label="Show the QR code full screen" style={{ display: 'block', width: '100%' }}>
-                  <img src={requestQr} alt="Payment request QR code" style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
-                </UnstyledButton>
-                <UnstyledButton onClick={() => setEnlarged('request')} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
-                  Show full screen
-                </UnstyledButton>
-              </>
-            )}
+            {/* The code, then what to do with it: the same order as the Address tab. */}
+            {requestQr && !requestInvalid && <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => setEnlarged('request')} />}
             {requestQrNote && !requestInvalid && (
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed" className="vault-receive-col">
                 {requestQrNote}
               </Text>
             )}
-            <KindNote kind={kind} />
+            <Group grow className="vault-receive-col">
+              <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed)} disabled={requestInvalid}>
+                Copy link
+              </Button>
+              <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid}>
+                Share
+              </Button>
+            </Group>
+            <KindNote kind={kind} extra={CODE_HINTS[kind]} />
           </>
         )}
 
-        <Group justify="space-between" align="baseline">
-          <Text size="xs" c="dimmed">
-            {tab === 'address' ? `This is ${whichAddress}.` : `The request is to ${whichAddress}.`} Funds sent to any address shown here are found by the sync.{index >= furthest ? " More addresses open up once one of these has received a payment." : ""}
-          </Text>
-          <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
+        {/* The sentence about the address showing, then what can be done about it, on the line beneath. */}
+        <Stack gap={4}>
+          {rotationNote && (
+            <Text size="sm" c="dimmed">
+              {rotationNote}
+            </Text>
+          )}
+          <Group gap={6} wrap="nowrap">
             {index > 0 && (
-              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="xs" className="vault-tap-link">
+              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
                 Main address
               </UnstyledButton>
             )}
+            {index > 0 && index < furthest && (
+              <Text span size="sm" c="dimmed" aria-hidden>
+                ·
+              </Text>
+            )}
             {index < furthest && (
-              <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="xs" className="vault-tap-link">
-                Next unused
+              <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="sm" className={index > 0 ? 'vault-tap-link' : 'vault-tap-link vault-tap-link-start'}>
+                New address
               </UnstyledButton>
             )}
           </Group>
-        </Group>
+        </Stack>
         <QrFullScreen
           opened={enlarged !== null && Boolean(enlarged === 'request' ? requestQr : qr)}
           onClose={() => setEnlarged(null)}

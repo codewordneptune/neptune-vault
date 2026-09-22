@@ -1,11 +1,13 @@
 // Network, node URL with connectivity check, backup actions, lock (F20 to F22).
 
 import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
-import { IconAlertTriangle, IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconWallet } from '@tabler/icons-react';
+import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconWallet } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
+import { Caution } from '../components/Notice';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
 import { requestPersistentStorage, walletName } from '../storage/db';
@@ -14,6 +16,7 @@ import { StartBlockPicker } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
+import { formatDate, formatDateTime, formatTime } from '../util/time';
 import type { Network } from '../storage/db';
 
 export function Settings() {
@@ -22,7 +25,7 @@ export function Settings() {
   // The same confirmation the header menu gives: switching locks and hides this wallet.
   const [pendingNetwork, setPendingNetwork] = useState<Network | null>(null);
   const navigate = useNavigate();
-  const lastBackup = account?.lastBackupAt ? new Date(account.lastBackupAt).toLocaleString() : null;
+  const lastBackup = account?.lastBackupAt ? formatDateTime(account.lastBackupAt) : null;
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
   const [probe, setProbe] = useState<{ ok: boolean; text: string; at?: number } | null>(services.settings.nodeProbe?.[network] ?? null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
@@ -68,7 +71,7 @@ export function Settings() {
       if (theirs !== null && !(theirs === network || (network === 'testnet' && theirs.startsWith('testnet')))) {
         throw new Error(`This node runs the ${theirs} network, and the wallet is on ${NETWORK_LABELS[network]}.`);
       }
-      result = { ok: true, text: `Reachable, tip height ${showBlock(height)}`, at: Date.now() };
+      result = { ok: true, text: `Connected · block ${showBlock(height)}`, at: Date.now() };
     } catch (e) {
       result = { ok: false, text: (e as Error).message, at: Date.now() };
     }
@@ -89,7 +92,7 @@ export function Settings() {
     }
     await services.updateSettings({
       nodeUrls: { ...services.settings.nodeUrls, [network]: nodeUrl.trim() },
-      nodeProbe: { ...services.settings.nodeProbe, [network]: { ok: true, text: 'Reachable when it was saved', at: Date.now() } },
+      nodeProbe: { ...services.settings.nodeProbe, [network]: { ok: true, text: 'Connected when it was saved', at: Date.now() } },
     });
   };
 
@@ -128,7 +131,7 @@ export function Settings() {
     setExportError(null);
     await services.accounts.markBackedUp(account.id, file.exportedAt);
     await refresh();
-    setMessage(`Backup file offered for download. If the browser asked where to save it and you cancelled, export it again; the file is encrypted with your password.`);
+    setMessage(`Backup file ready, encrypted with your password. If you cancelled saving it, export it again.`);
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -220,35 +223,33 @@ export function Settings() {
           </Text>
           {persistent ? (
             <Text size="sm" c="dimmed">
-              Persistent storage is granted, so the browser will not evict this wallet's data on its own. Clearing the browser's site data still deletes it; keep the seed phrase or a backup file.
+              The browser will not delete this wallet's data on its own. Clearing site data still does, so keep your seed phrase or a backup file.
             </Text>
           ) : (
-            <Alert color="yellow" icon={<IconAlertTriangle size={18} />} title="The browser may evict this wallet">
-              <Text size="sm">
-                Without persistent storage the browser may delete this wallet's data when space runs low. Installing the app usually earns it; a backup file or the seed phrase restores everything.
-              </Text>
-              <Group mt="xs" gap="sm" align="center">
+            <Caution title="The browser may delete this wallet">
+              When space runs low, the browser may delete this wallet's data. Installing the app usually prevents that. Your seed phrase or a backup file restores everything.
+              <Group mt={4} gap="sm" align="center">
                 {installState().kind === 'promptable' && (
-                  <Button size="sm" variant="light" className="vault-tap" onClick={() => void promptInstall()}>
+                  <Button variant="light" onClick={() => void promptInstall()}>
                     Install app
                   </Button>
                 )}
-                <Button size="sm" variant="default" className="vault-tap" onClick={() => void requestPersistent()}>
+                <Button variant="light" onClick={() => void requestPersistent()}>
                   Request again
                 </Button>
                 {persistAsked && (
-                  <Text size="xs" c="dimmed">
+                  <Text size="sm" c="dimmed">
                     Still not granted.
                   </Text>
                 )}
               </Group>
-            </Alert>
+            </Caution>
           )}
           <Text size="sm" c="dimmed">
             {lastBackup ? `Last backup file of ${account ? walletName(account) : 'this wallet'}: ${lastBackup}` : `No backup file of ${account ? walletName(account) : 'this wallet'} saved yet.`}
           </Text>
           <Group>
-            <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={askExport} disabled={!account}>Export backup file</Button>
+            <Button variant="light" leftSection={<IconDownload size={16} stroke={1.8} />} onClick={askExport} disabled={!account}>Export backup file</Button>
             <Button variant="light" onClick={togglePhrase} disabled={!account}>
               {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
             </Button>
@@ -261,7 +262,7 @@ export function Settings() {
               }}
             >
               <Stack>
-                <Text size="sm">The file holds the seed phrase and your contacts, encrypted with this password, and is sealed so that a change to it shows when it is restored. Keep it somewhere safe; the password is needed to restore it.</Text>
+                <Text size="sm">The file restores this wallet and its contacts. It is encrypted with this password, which you will need to open it, and any change to it is detected. Keep it somewhere safe.</Text>
                 <PasswordInput label="Password" value={exportPassword} onChange={(e) => setExportPassword(e.currentTarget.value)} error={exportPasswordError} autoComplete="current-password" data-autofocus />
                 <Group grow>
                   <Button variant="default" onClick={() => setExportAsking(false)}>
@@ -298,15 +299,16 @@ export function Settings() {
           {phrase && (
             <Stack gap="xs">
               <WordGrid words={phrase} />
-              <Group justify="space-between" align="center">
-                <Button variant="subtle" size="compact-sm" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+              {/* The button, then what copying means, beneath it, as on the setup step. */}
+              <Stack gap={4} align="flex-start">
+                <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
                   Copy words
                 </Button>
-                <Text size="xs" c="dimmed">
+                <Text size="sm" c="dimmed">
                   Other apps can read the clipboard; clear it afterwards.
                 </Text>
-              </Group>
-              <Text size="xs" c="dimmed" aria-live="off">
+              </Stack>
+              <Text size="sm" c="dimmed" aria-live="off">
                 Hidden again in {Math.max(0, phraseLeft)} s, or when you leave this screen.
               </Text>
             </Stack>
@@ -320,9 +322,7 @@ export function Settings() {
             <IconLock size={18} stroke={1.8} aria-hidden />
             Security
           </Title>
-          <Text size="sm" c="dimmed">
-            The password protects the seed phrase on this device and is asked for on every unlock. The wallet locks after 5 minutes idle and when the app goes to the background.
-          </Text>
+          <AutoLockSetting />
           <ChangePassword />
           <PasskeyCard />
           <Group>
@@ -342,7 +342,7 @@ export function Settings() {
           <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} disabled={sending} description={sending ? 'Not while a send is running.' : undefined} />
           <Modal opened={pendingNetwork !== null} onClose={() => setPendingNetwork(null)} title={pendingNetwork ? `Switch to ${NETWORK_LABELS[pendingNetwork]}?` : ''}>
             <Stack>
-              <Text size="sm">Your {NETWORK_LABELS[network]} wallet stays saved on this device; switch back any time. The app locks when switching.</Text>
+              <Text size="sm">Your {NETWORK_LABELS[network]} wallet stays on this device, so you can switch back any time. Switching locks the app.</Text>
               <Group grow>
                 <Button variant="default" onClick={() => setPendingNetwork(null)}>
                   Cancel
@@ -355,7 +355,7 @@ export function Settings() {
           {probe && (
             <Text size="sm" c={probe.ok ? 'dimmed' : 'red'}>
               {probe.text}
-              {probe.at && probe.text !== 'Testing…' ? ` · checked ${new Date(probe.at).toLocaleTimeString()}` : ''}
+              {probe.at && probe.text !== 'Testing…' ? ` · checked ${formatTime(probe.at)}` : ''}
             </Text>
           )}
           <Group>
@@ -379,7 +379,7 @@ export function Settings() {
           <AppearanceCard />
           <InstallCard />
           <Text size="sm" c="dimmed">
-            Diagnostics list this device's cores, threads, memory, install state and the app version: the details to include if you ever report a problem.
+            Device and app details to include when you report a problem.
           </Text>
           <Group>
             <Button variant="light" onClick={() => navigate('/diagnostics')}>
@@ -396,7 +396,7 @@ export function Settings() {
             About
           </Title>
           <Text size="sm" c="dimmed">
-            A wallet for Neptune Cash that runs entirely in your browser: keys never leave this device, and the app talks only to the node you choose. An early version: no security audit yet, changes every week, use only what you can afford to lose.
+            A Neptune Cash wallet that runs in your browser. Keys never leave this device, and it talks only to the node you choose. Early version, not audited: use only amounts you can afford to lose.
           </Text>
           <Group gap="md">
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
@@ -416,10 +416,37 @@ export function Settings() {
             </Anchor>
           </Group>
           <Text size="xs" c="dimmed">
-            Version {__APP_VERSION__} ({__APP_COMMIT__}), built {new Date(__APP_BUILT_AT__).toLocaleDateString()}.
+            Version {__APP_VERSION__} ({__APP_COMMIT__}), built {formatDate(Date.parse(__APP_BUILT_AT__))}.
           </Text>
         </Stack>
       </Paper>
+    </Stack>
+  );
+}
+
+// How long the wallet may sit idle before it locks. It locks on going to the
+// background whatever is chosen, which the line under the choice says.
+function AutoLockSetting() {
+  const { services } = useApp();
+  const [ms, setMs] = useState(lockTimeoutOf(services.settings.lockTimeoutMs));
+  return (
+    <Stack gap={6}>
+      <Select
+        label="Lock after"
+        data={LOCK_CHOICES_MS.map((choice) => ({ value: String(choice), label: `${choice / 60_000} ${choice === 60_000 ? 'minute' : 'minutes'} idle` }))}
+        value={String(ms)}
+        allowDeselect={false}
+        onChange={(v) => {
+          if (!v) return;
+          const next = Number(v);
+          setMs(next);
+          services.accounts.setLockTimeout(next);
+          void services.updateSettings({ lockTimeoutMs: next });
+        }}
+      />
+      <Text size="sm" c="dimmed">
+        It also locks whenever the app goes to the background.
+      </Text>
     </Stack>
   );
 }
@@ -458,7 +485,7 @@ function ChangePassword() {
   if (!open) {
     return (
       <Stack>
-        {done && <Alert color="green" withCloseButton onClose={() => setDone(false)}>Password changed. Export a new backup file if you keep one; the old file still opens with the old password.</Alert>}
+        {done && <Alert color="green" withCloseButton onClose={() => setDone(false)}>Password changed. An older backup file still opens with the old password, so export a new one if you keep one.</Alert>}
         <Group>
           <Button variant="light" disabled={!account} onClick={() => { setDone(false); setOpen(true); }}>
             Change password
@@ -546,7 +573,7 @@ function InstallCard() {
           </Button>
         </Group>
         {declined && (
-          <Text size="xs" c="dimmed">
+          <Text size="sm" c="dimmed">
             Not installed. The option is also in the browser menu whenever you want it.
           </Text>
         )}
@@ -605,7 +632,7 @@ function PasskeyCard() {
   if (supported === false && !enabled) {
     return (
       <Text size="sm" c="dimmed">
-        Passkey unlock needs a device with a screen lock and a browser that supports passkeys; this one does not offer it.
+        Passkey unlock is not available here. It needs a device with a screen lock and a browser that supports passkeys.
       </Text>
     );
   }
@@ -613,7 +640,7 @@ function PasskeyCard() {
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          Passkey unlock is on. The password still works and is what a backup file needs.
+          Passkey unlock is on. The password still works, and backup files still use it.
         </Text>
         <Group>
           <Button variant="light" onClick={() => void disable()}>
@@ -627,7 +654,7 @@ function PasskeyCard() {
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          Unlock with fingerprint, face or device PIN; the passkey stays on this device.
+          Unlock with your fingerprint, face or device PIN. The passkey never leaves this device.
         </Text>
         <Group>
           <Button variant="light" disabled={!account || supported === null} onClick={() => setOpen(true)}>
@@ -646,7 +673,7 @@ function PasskeyCard() {
     >
       <Stack>
         {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
-        <PasswordInput label="Confirm your password" description="Needed once, to let the passkey protect the same key." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" data-autofocus />
+        <PasswordInput label="Confirm your password" description="Needed once, to connect the passkey to this wallet." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" data-autofocus />
         <Group grow>
           <Button variant="default" onClick={() => { setOpen(false); setPassword(''); setError(null); }}>
             Cancel
@@ -738,7 +765,7 @@ function WalletCard() {
         <Modal opened={removing} onClose={() => setRemoving(false)} title={`Remove ${walletName(account)} from this device?`}>
           <Stack>
             <Text size="sm">
-              Its coins stay on the chain. Only the seed phrase, or a backup file, brings them back: this device will hold nothing of this wallet afterwards, including its history and contacts.
+              This device forgets the wallet, its history and its contacts. The coins stay on the chain, and only the seed phrase or a backup file brings them back.
             </Text>
             <Checkbox label="I have this wallet's seed phrase or a backup file" checked={haveBackup} onChange={(e) => setHaveBackup(e.currentTarget.checked)} />
             <PasswordInput label="This wallet's password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} error={error} autoComplete="current-password" />
@@ -769,12 +796,12 @@ function RescanCard() {
   // coins might hide. The first payment's block comes from the coins
   // themselves, so the sentence stays true as later payments arrive.
   const firstPayment = utxos.length > 0 ? Math.min(...utxos.map((u) => u.confirmedHeight)) : null;
-  const restoredOn = account.restoredAt ? new Date(account.restoredAt).toLocaleDateString() : '';
+  const restoredOn = account.restoredAt ? formatDate(account.restoredAt) : '';
   const how = account.restoredAt
     ? firstPayment !== null
-      ? `Restored through the node's coin index on ${restoredOn}. The index covers the whole chain; your first payment is in block ${showBlock(firstPayment)}.`
-      : `Restored through the node's coin index on ${restoredOn}. The index covers the whole chain, and it holds no payments to this wallet.`
-    : `Scanned from ${from}. Funds sent before that block are not seen; rescan from an earlier block to find them.`;
+      ? `Restored on ${restoredOn} with a fast restore, which checks the whole chain. First payment: block ${showBlock(firstPayment)}.`
+      : `Restored on ${restoredOn} with a fast restore, which checks the whole chain. No payments to this wallet found.`
+    : `Scanned from ${from}. Payments before that block are not found, so rescan from an earlier block if you expect some.`;
 
   const [rescanError, setRescanError] = useState<string | null>(null);
   const [fast, setFast] = useState(true);
@@ -815,7 +842,7 @@ function RescanCard() {
       <Modal opened={open} onClose={() => setOpen(false)} title="Rescan">
         <Stack>
           <Text size="sm">
-            The local history and balance are rebuilt from the chain. Your funds are not affected. Sends made from this device lose their recipient and fee details, which the chain does not carry.
+            Sends made from this device will lose their recipient and fee, because the chain does not carry them. Your funds are not affected.
           </Text>
           <SegmentedControl
             fullWidth
@@ -829,12 +856,12 @@ function RescanCard() {
           />
           {fast ? (
             <Text size="sm" c="dimmed">
-              The node's coin index says which blocks hold payments to you, and only those are fetched: seconds. The node learns which coins are yours, though not the amounts.
+              Takes seconds: only the blocks holding your payments are fetched. The node learns which coins are yours, not the amounts.
             </Text>
           ) : (
             <>
               <Text size="sm" c="dimmed">
-                Every block from the one you choose is downloaded and scanned here. The node learns nothing about your coins; older blocks take longer.
+                The node learns nothing about your coins. Every block from the one you choose is downloaded and scanned here, so an earlier block takes longer.
               </Text>
               <StartBlockPicker value={height} onChange={setHeight} node={() => services.node()} error={rescanError} />
             </>

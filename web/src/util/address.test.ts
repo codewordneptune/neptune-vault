@@ -5,12 +5,12 @@ import { abbreviateAddress, addressKindLabel, parsePaymentText, paymentQrPayload
 describe('abbreviateAddress', () => {
   it('keeps the prefix plus eight characters and the last eight', () => {
     const address = 'nolgam1' + 'a'.repeat(2900) + 'zyxwvuts';
-    expect(abbreviateAddress(address)).toBe('nolgam1aaaaaaa...zyxwvuts');
+    expect(abbreviateAddress(address)).toBe('nolgam1aaaaaaa…zyxwvuts');
   });
 
   it('applies the same rule to the other prefixes', () => {
     const ech = 'nechm1' + 'b'.repeat(150) + '12345678';
-    expect(abbreviateAddress(ech)).toBe('nechm1bbbbbbb...12345678');
+    expect(abbreviateAddress(ech)).toBe('nechm1bbbbbbb…12345678');
   });
 
   it('leaves short strings alone', () => {
@@ -107,5 +107,14 @@ describe('names and notes in a link', () => {
       expect(metaProblem('Shop' + bad)).not.toBeNull();
     }
     expect(parsePaymentText('neptunecash:' + address + '?label=' + encodeURIComponent('Café Ünïcode 店')).label).toBe('Café Ünïcode 店');
+  });
+});
+
+describe('shortAddress', () => {
+  it('keeps the prefix, four characters and the last four: enough to recognise, short enough for a row', async () => {
+    const { shortAddress } = await import('./address');
+    expect(shortAddress('nolgar1n4845czevt5ku4ztftcw6v7rdllz8vcaq2kcqpwyl2hc0735l9')).toBe('nolgar1n484…35l9');
+    expect(shortAddress('nolgam1abcd')).toBe('nolgam1abcd');
+    expect(shortAddress('no-separator')).toBe('no-separator');
   });
 });

@@ -5,12 +5,13 @@
 // instruction there is; a desktop browser is not the target and sees
 // nothing. Dismissed for two weeks at a time, on this device.
 
-import { Alert, Button, Text } from '@mantine/core';
+import { Button } from '@mantine/core';
 import { IconDeviceMobile } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
+import { Info } from './Notice';
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -30,17 +31,17 @@ export function InstallNudge() {
   };
 
   return (
-    <Alert color="blue" icon={<IconDeviceMobile size={18} />} title="Install Neptune Vault on this device" withCloseButton onClose={() => void dismiss()}>
-      <Text size="sm">An installed app keeps its storage, works full screen, and opens from its own icon.</Text>
+    <Info icon={<IconDeviceMobile size={18} stroke={1.8} />} title="Install Neptune Vault on this device" onClose={() => void dismiss()} closeLabel="Dismiss the install offer">
+      An installed app keeps its storage, works full screen, and opens from its own icon.
       {state.kind === 'promptable' ? (
-        <Button variant="light" mt="xs" onClick={() => void promptInstall()}>
-          Install
-        </Button>
+        <div>
+          <Button variant="light" size="sm" onClick={() => void promptInstall()}>
+            Install
+          </Button>
+        </div>
       ) : (
-        <Text size="sm" mt="xs">
-          In Safari: tap Share, then "Add to Home Screen".
-        </Text>
+        <div>In Safari: tap Share, then "Add to Home Screen".</div>
       )}
-    </Alert>
+    </Info>
   );
 }

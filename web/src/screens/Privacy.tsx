@@ -5,6 +5,7 @@ import { IconChevronLeft } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 
 import { PRIVACY, PRIVACY_UPDATED } from '../content/privacy';
+import { formatDate } from '../util/time';
 
 export function Privacy() {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export function Privacy() {
           <Title order={2}>Privacy</Title>
         </div>
         <Text size="sm" c="dimmed">
-          What this wallet keeps, what it sends and to whom, and what is public. Last changed {new Date(PRIVACY_UPDATED).toLocaleDateString()}.
+          What this wallet keeps, what it sends and to whom, and what is public. Last changed {formatDate(Date.parse(`${PRIVACY_UPDATED}T12:00:00`))}.
         </Text>
         {PRIVACY.map((section) => (
           <Stack key={section.title} gap="xs">

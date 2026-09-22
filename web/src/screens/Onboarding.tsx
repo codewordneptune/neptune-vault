@@ -1,17 +1,18 @@
 // Account creation and import (F1 to F5): generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Button, Checkbox, Group, Paper, PasswordInput, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
-import { IconCopy, IconFileUpload } from '@tabler/icons-react';
+import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
+import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
-import { StartBlockPicker } from '../components/StartBlockPicker';
+import { Caution } from '../components/Notice';
 import { WordGrid } from '../components/WordGrid';
+import { startOfDayMs } from '../util/blockdate';
 import { copyText } from '../util/clipboard';
-import { NETWORK_OPTIONS } from '../util/network';
+import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import type { NodeClient } from '../node/rpc';
 import type { Network } from '../storage/db';
 import { notifications } from '@mantine/notifications';
@@ -74,8 +75,11 @@ export function Onboarding() {
   const [phrase, setPhrase] = useState<string[]>(draft?.phrase ?? []);
   const [imported, setImported] = useState(draft?.imported ?? false);
   const [birthday, setBirthday] = useState<number | string>(draft?.birthday ?? 1);
-  // An imported phrase that never received funds starts at the tip (0 = unknown, resolved at first sync).
-  const [fromTip, setFromTip] = useState(false);
+  // When an imported phrase first received funds: not known (find everything),
+  // a month (scan from its first block), or never (start at the tip; 0 =
+  // unknown, resolved at first sync).
+  const [when, setWhen] = useState<FirstFunds>('unknown');
+  const [month, setMonth] = useState('');
   const [fast, setFast] = useState(draft?.fast ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -135,8 +139,10 @@ export function Onboarding() {
     setBusy(true);
     setError(null);
     try {
-      const fastRestore = imported && fast;
-      let height = imported && (fromTip || fastRestore) ? 0 : Number(birthday) || 1;
+      // The coin index finds everything whatever the date, so it is offered only when the date is not known.
+      const fastRestore = imported && fast && when === 'unknown';
+      const fromTip = when === 'never';
+      let height = imported && (fromTip || fastRestore) ? 0 : when === 'unknown' ? 1 : Number(birthday) || 1;
       if (imported && !fromTip && !fastRestore) {
         // Refuse a start above the chain when the node can say where it is.
         try {
@@ -196,7 +202,7 @@ export function Onboarding() {
       }
       navigate('/');
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. It is the password the file was exported under.' : (e as Error).message);
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Use the password the backup was exported with.' : (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -214,21 +220,33 @@ export function Onboarding() {
             <Text size="sm" c="dimmed">
               {adding
                 ? 'Another seed phrase, with its own password and its own backup. The wallet you have stays on this device; the header menu switches between them.'
-                : 'This wallet keeps your keys on this device only. The seed phrase is what restores it; a backup file holds the seed phrase encrypted.'}
+                : 'Your keys stay on this device. The seed phrase restores the wallet anywhere, and a backup file is an encrypted copy of it.'}
             </Text>
-            <Select
-              label="Network"
-              data={NETWORK_OPTIONS}
-              value={network}
-              onChange={(v) => {
-                if (!v) return;
-                setNetwork(v as Network);
-                void switchNetwork(v as Network);
-              }}
-            />
-            <Button onClick={startCreate} loading={busy}>With a new seed phrase</Button>
-            <Button variant="light" onClick={() => setStep('import')}>With a seed phrase you have</Button>
-            <Button variant="light" onClick={() => setStep('file')}>From a backup file</Button>
+            <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
+            <Button variant="light" onClick={() => setStep('import')}>Restore with a seed phrase</Button>
+            <Button variant="light" onClick={() => setStep('file')}>Restore from a backup file</Button>
+            {/* Most people want Mainnet and should not meet the question first.
+                Off Mainnet it is open, so a tester sees where the wallet will go. */}
+            {/* Named for what it holds, and stating it: a fact to a newcomer, a
+                choice to a tester. Its contents sit under its words, not beside them. */}
+            <details className="vault-setting" open={network !== 'main'}>
+              <summary>
+                <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
+                Network: {NETWORK_LABELS[network]}
+              </summary>
+              <div className="vault-setting-body">
+                <Select
+                  aria-label="Network"
+                  data={NETWORK_OPTIONS}
+                  value={network}
+                  onChange={(v) => {
+                    if (!v) return;
+                    setNetwork(v as Network);
+                    void switchNetwork(v as Network);
+                  }}
+                />
+              </div>
+            </details>
             {draft && (
               <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>
                 Discard the unfinished wallet
@@ -250,19 +268,21 @@ export function Onboarding() {
             <Title order={2}>Write down these 18 words</Title>
             <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your funds. Clearing the browser deletes everything except what you write down.</Text>
             <WordGrid words={phrase} />
-            <Group justify="space-between" align="center">
-              <Button variant="subtle" size="compact-sm" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+            {/* The button, then what copying means, beneath it at every width
+                (as a phone wraps it), not squeezed in beside it. */}
+            <Stack gap={4} align="flex-start">
+              <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
                 Copy words
               </Button>
-              <Text size="xs" c="dimmed">
+              <Text size="sm" c="dimmed">
                 Other apps can read the clipboard; paste into a password manager, then clear it.
               </Text>
-            </Group>
+            </Stack>
             <Button onClick={startConfirm}>I have written them down</Button>
             <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); setStep('welcome'); }}>
               Cancel
             </Button>
-            <Text size="xs" c="dimmed" ta="center">
+            <Text size="sm" c="dimmed" ta="center">
               If you cancel, the words above will not be used.
             </Text>
           </Stack>
@@ -288,7 +308,7 @@ export function Onboarding() {
               ))}
             </Group>
             {allPlaced && !confirmed && (
-              <Alert color="yellow">Some words are in the wrong place. Tap a word to take it out and try again.</Alert>
+              <Caution>Some words are in the wrong place. Tap a word to take it out and try again.</Caution>
             )}
             <Group>
               <Button variant="subtle" onClick={() => setStep('show')}>Show the words again</Button>
@@ -306,8 +326,10 @@ export function Onboarding() {
         <ImportStep
           birthday={birthday}
           setBirthday={setBirthday}
-          fromTip={fromTip}
-          setFromTip={setFromTip}
+          when={when}
+          setWhen={setWhen}
+          month={month}
+          setMonth={setMonth}
           fast={fast}
           setFast={setFast}
           node={() => services.node()}
@@ -340,7 +362,7 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
     <Paper>
       <Stack>
         <Title order={2}>Restore a backup file</Title>
-        <Text size="sm" c="dimmed">A file exported by this app, opened with the password it was saved under. It brings back the seed phrase, the network, the start block and your contacts.</Text>
+        <Text size="sm" c="dimmed">Restores the wallet with its network, start block and contacts. It opens with the password it was saved under.</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">
           <Button variant="default" leftSection={<IconFileUpload size={16} stroke={1.8} />} onClick={() => fileInput.current?.click()}>
@@ -363,7 +385,7 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
         />
         <Text size="sm" c="dimmed">
           {fast
-            ? "The node's coin index says which blocks hold payments to you, and only those are fetched: seconds, not hours. The node learns which coins are yours, though not the amounts."
+            ? "Takes seconds: only the blocks holding your payments are fetched. The node learns which coins are yours, not the amounts."
             : 'Every block from the start block in the file is downloaded and scanned on this device. The node learns nothing about your coins.'}
         </Text>
         <Button disabled={!file || !password} loading={busy} onClick={() => file && onFile(file, password, fast)}>
@@ -401,7 +423,7 @@ function PasswordStep({ busy, onSubmit, stepLabel, actionLabel, onBack }: { busy
         <span className="vault-eyebrow">{stepLabel}</span>
         <Title order={2}>Choose a password</Title>
         <Text size="sm" c="dimmed">
-          It only protects the seed phrase stored on this device and is asked for on every unlock. It cannot be recovered, but the seed phrase can always restore the wallet, so a forgotten password costs a re-import, not your funds.
+          Asked on every unlock, and it cannot be recovered. Forgetting it is not fatal: your seed phrase restores the wallet.
         </Text>
         <PasswordInput
           label="Password (at least 8 characters)"
@@ -428,11 +450,20 @@ function PasswordStep({ busy, onSubmit, stepLabel, actionLabel, onBack }: { busy
   );
 }
 
+/** When an imported seed phrase first received funds, as far as the person knows. */
+type FirstFunds = 'unknown' | 'month' | 'never';
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** Neptune's mainnet began in 2025: no wallet received funds before. */
+const FIRST_YEAR = 2025;
+
 function ImportStep({
   birthday,
   setBirthday,
-  fromTip,
-  setFromTip,
+  when,
+  setWhen,
+  month,
+  setMonth,
   fast,
   setFast,
   node,
@@ -443,8 +474,11 @@ function ImportStep({
 }: {
   birthday: number | string;
   setBirthday: (v: number | string) => void;
-  fromTip: boolean;
-  setFromTip: (v: boolean) => void;
+  when: FirstFunds;
+  setWhen: (v: FirstFunds) => void;
+  /** The month chosen, as YYYY-MM, or ''. */
+  month: string;
+  setMonth: (v: string) => void;
   fast: boolean;
   setFast: (v: boolean) => void;
   node: () => NodeClient;
@@ -459,6 +493,41 @@ function ImportStep({
   const [phraseError, setPhraseError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const words = text.trim().split(/\s+/).filter(Boolean);
+
+  // The month to a block: the first block of its first day, found by the node.
+  const [lookup, setLookup] = useState<{ kind: 'idle' } | { kind: 'looking' } | { kind: 'found'; height: number } | { kind: 'failed'; message: string }>({ kind: 'idle' });
+  const latest = useRef(0);
+  const [year, monthNo] = month ? month.split('-') : ['', ''];
+  const now = new Date();
+  const years = Array.from({ length: now.getFullYear() - FIRST_YEAR + 1 }, (_, i) => String(now.getFullYear() - i));
+  const setPart = (y: string, m: string) => setMonth(y && m ? `${y}-${m}` : y ? `${y}-` : m ? `-${m}` : '');
+  useEffect(() => {
+    const dateMs = /^\d{4}-\d{2}$/.test(month) ? startOfDayMs(`${month}-01`) : null;
+    if (dateMs === null || when !== 'month') {
+      setLookup({ kind: 'idle' });
+      return;
+    }
+    const token = ++latest.current;
+    setLookup({ kind: 'looking' });
+    void (async () => {
+      try {
+        const height = await node().heightForDate(dateMs);
+        if (token !== latest.current) return;
+        setBirthday(height);
+        setLookup({ kind: 'found', height });
+      } catch (e) {
+        if (token !== latest.current) return;
+        const message = (e as Error).message;
+        setLookup({ kind: 'failed', message: /not found|-32601/i.test(message) ? 'This node cannot look blocks up by date: enter a block number below instead.' : `Could not ask the node: ${message}` });
+      }
+    })();
+    // setBirthday and node are fresh closures each render; the lookup reruns on the month only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, when]);
+  const monthName = /^\d{4}-\d{2}$/.test(month) ? `${MONTHS[Number(monthNo) - 1]} ${year}` : '';
+  // A month, or a block typed instead, before the scan has somewhere to start.
+  const startKnown = when !== 'month' || (lookup.kind !== 'looking' && (lookup.kind === 'found' || Number(birthday) > 1));
+
   const continueWithPhrase = async () => {
     const lower = words.map((w) => w.toLowerCase());
     setChecking(true);
@@ -493,36 +562,69 @@ function ImportStep({
             setPhraseError(null);
           }}
         />
-        <SegmentedControl
-          aria-label="How to restore"
-          fullWidth
-          value={fast ? 'fast' : 'private'}
-          onChange={(v) => setFast(v === 'fast')}
-          data={[
-            { value: 'fast', label: 'Fast restore' },
-            { value: 'private', label: 'Private restore' },
-          ]}
-        />
-        {fast ? (
-          <Text size="sm" c="dimmed">
-            The node's coin index says which blocks hold payments to you, and only those are fetched: seconds, not hours. The node learns which coins are yours, though not the amounts.
-          </Text>
-        ) : (
+        {/* The question people can answer, instead of a block number. */}
+        <Radio.Group label="When did this wallet first receive funds?" value={when} onChange={(v) => setWhen(v as FirstFunds)}>
+          <Stack gap="xs" mt="xs">
+            <Radio value="unknown" label="I don't know: find everything" />
+            <Radio value="month" label="I know roughly when" />
+            <Radio value="never" label="Never: this seed phrase is new" />
+          </Stack>
+        </Radio.Group>
+        {when === 'unknown' && (
           <>
-            <Text size="sm" c="dimmed">
-              Every block from the one you choose is downloaded and scanned on this device. The node learns nothing about your coins.
-            </Text>
-            <Checkbox label="This seed phrase has never received funds: start from the current block" checked={fromTip} onChange={(e) => setFromTip(e.currentTarget.checked)} />
-            <StartBlockPicker
-              value={birthday}
-              onChange={setBirthday}
-              node={node}
-              disabled={fromTip}
-              description="The block your first funds arrived in, or earlier. From block 1 on Mainnet the scan downloads about 8 to 10 GB; a later block saves most of it."
+            <SegmentedControl
+              aria-label="How to find everything"
+              fullWidth
+              value={fast ? 'fast' : 'private'}
+              onChange={(v) => setFast(v === 'fast')}
+              data={[
+                { value: 'fast', label: 'Fast restore' },
+                { value: 'private', label: 'Private restore' },
+              ]}
             />
+            <Text size="sm" c="dimmed">
+              {fast
+                ? "Takes seconds: only the blocks holding your payments are fetched. The node learns which coins are yours, not the amounts."
+                : 'Every block from the first is downloaded and scanned on this device: about 8 to 10 GB on Mainnet. The node learns nothing about your coins.'}
+            </Text>
           </>
         )}
-        <Button disabled={words.length !== 18} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this seed phrase</Button>
+        {when === 'month' && (
+          <Stack gap="xs">
+            <Group grow>
+              <Select label="Month" placeholder="Month" data={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, '0'), label: name }))} value={monthNo || null} onChange={(v) => setPart(year, v ?? '')} />
+              <Select label="Year" placeholder="Year" data={years} value={year || null} onChange={(v) => setPart(v ?? '', monthNo)} />
+            </Group>
+            <Text size="sm" c={lookup.kind === 'failed' ? 'red' : 'dimmed'}>
+              {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
+              {lookup.kind === 'found' && `The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.`}
+              {lookup.kind === 'failed' && lookup.message}
+              {lookup.kind === 'idle' && 'Scanning starts at the first block of that month, on this device. The node learns nothing about your coins.'}
+            </Text>
+            <details className="vault-more" open={lookup.kind === 'failed'}>
+              <summary>Enter a block number instead</summary>
+              <NumberInput
+                mt="xs"
+                label="Start block"
+                description="The block your first funds arrived in, or earlier."
+                min={1}
+                value={birthday}
+                onChange={(v) => {
+                  setBirthday(v);
+                  if (lookup.kind === 'found' && v !== lookup.height) setLookup({ kind: 'idle' });
+                }}
+                hideControls
+                inputMode="numeric"
+              />
+            </details>
+          </Stack>
+        )}
+        {when === 'never' && (
+          <Text size="sm" c="dimmed">
+            The wallet starts at the current block. Anything paid to this seed phrase before now would not show.
+          </Text>
+        )}
+        <Button disabled={words.length !== 18 || !startKnown} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this seed phrase</Button>
         <Button variant="subtle" onClick={onBack}>Back</Button>
       </Stack>
     </Paper>

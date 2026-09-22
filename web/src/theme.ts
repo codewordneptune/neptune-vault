@@ -64,7 +64,14 @@ export const theme = createTheme({
     SegmentedControl: { defaultProps: { radius: 'sm', size: 'md' } },
     Alert: { defaultProps: { radius: 'sm', variant: 'light' } },
     Code: { defaultProps: { radius: 'sm' } },
-    Menu: { defaultProps: { radius: 'sm', shadow: 'lg' } },
-    Modal: { defaultProps: { radius: 'md', centered: true, overlayProps: { blur: 2 }, closeButtonProps: { 'aria-label': 'Close' } } },
+    // Opening a menu focuses its first item, as the ARIA menu pattern has it,
+    // not an empty placeholder; that placeholder was also an element a menu
+    // may not hold among its items.
+    Menu: { defaultProps: { radius: 'sm', shadow: 'lg', withInitialFocusPlaceholder: false } },
+    // A dialog's header is a <header>, which outside an article or a section
+    // is a page banner: every open dialog would give the page a second one.
+    // It is only a row holding the title and the close button, so it says so.
+    Modal: { defaultProps: { radius: 'md', centered: true, overlayProps: { blur: 2 }, closeButtonProps: { 'aria-label': 'Close' }, attributes: { header: { role: 'none' } } } },
+    Drawer: { defaultProps: { closeButtonProps: { 'aria-label': 'Close' }, attributes: { header: { role: 'none' } } } },
   },
 });

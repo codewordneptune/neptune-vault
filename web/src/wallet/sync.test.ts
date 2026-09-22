@@ -459,7 +459,7 @@ describe('sync engine', () => {
     node.noIndex = true;
     const result = await engine.syncOnce();
     expect(result.phase).toBe('error');
-    expect(result.message).toMatch(/coin index/);
+    expect(result.message).toMatch(/does not support fast restore/);
     expect((await view.get('accounts', 'acc'))?.restore).toBe('fast');
     expect(node.getBlocksCalls).toEqual([]);
   });
@@ -522,7 +522,7 @@ describe('sync engine', () => {
     node.noIndex = true;
     const result = await engine.syncOnce();
     expect(result.phase).toBe('error');
-    expect(result.message).toMatch(/coin index/);
+    expect(result.message).toMatch(/does not support fast restore/);
   });
 
   it('reports node errors without corrupting state', async () => {

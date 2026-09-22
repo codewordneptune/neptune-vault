@@ -9,7 +9,7 @@ import { ContactsService } from './contacts';
 import { WebAuthnPasskeys } from './passkey';
 import { MempoolWatcher } from '../wallet/mempool';
 import { SyncEngine, type SyncProgress } from '../wallet/sync';
-import { AccountService } from './accounts';
+import { AccountService, lockTimeoutOf } from './accounts';
 import { SendService } from './send';
 import type { WindowOwner } from './windowOwner';
 
@@ -46,7 +46,7 @@ export async function createServices(owner: WindowOwner): Promise<Services> {
   const persistent = await requestPersistentStorage();
   let settings = await loadSettings(db);
   const { core, prover, backendKind } = await createBackend().then((b) => ({ core: b.core, prover: b.prover, backendKind: b.kind }));
-  const accounts = new AccountService(db, core, settings.lockTimeoutMs, new WebAuthnPasskeys());
+  const accounts = new AccountService(db, core, lockTimeoutOf(settings.lockTimeoutMs), new WebAuthnPasskeys());
 
   const services: Services = {
     db,

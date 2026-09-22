@@ -9,7 +9,8 @@
 // raise: a web page is given no way to.
 
 import { Modal, Stack, Text } from '@mantine/core';
-import { useEffect } from 'react';
+
+import { useScreenWakeLock } from '../app/wakeLock';
 
 export function QrFullScreen({
   src,
@@ -27,29 +28,7 @@ export function QrFullScreen({
   subtitle?: string;
   caption: string;
 }) {
-  useEffect(() => {
-    if (!opened || !navigator.wakeLock) return;
-    let lock: WakeLockSentinel | null = null;
-    let closed = false;
-    // The browser lets a wake lock go whenever the page is hidden, and does
-    // not give it back: it is asked for again each time the page returns.
-    const hold = async () => {
-      if (closed || document.visibilityState !== 'visible') return;
-      try {
-        lock = await navigator.wakeLock.request('screen');
-        if (closed) void lock.release().catch(() => undefined);
-      } catch {
-        // Refused (battery saver) or unsupported: the code still shows.
-      }
-    };
-    void hold();
-    document.addEventListener('visibilitychange', hold);
-    return () => {
-      closed = true;
-      document.removeEventListener('visibilitychange', hold);
-      void lock?.release().catch(() => undefined);
-    };
-  }, [opened]);
+  useScreenWakeLock(opened);
 
   return (
     <Modal
@@ -72,10 +51,11 @@ export function QrFullScreen({
         <button type="button" className="vault-qr-full-code" onClick={onClose} aria-label="Close the full screen code">
           <img src={src} alt={subtitle ? `${title}, ${subtitle}` : title} />
         </button>
-        <Text size="sm" ta="center" className="vault-qr-full-caption">
+        {/* 16 px: read at arm's length and compared character by character, and a monospace face looks smaller than its size. */}
+        <Text fz="1rem" ta="center" className="vault-qr-full-caption">
           {caption}
         </Text>
-        <Text size="xs" ta="center" className="vault-qr-full-hint">
+        <Text size="sm" ta="center" className="vault-qr-full-hint">
           Turn the screen brightness up if the code will not read.
         </Text>
       </Stack>

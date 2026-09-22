@@ -1,14 +1,53 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatWhen } from './time';
+import { dayKey, dayLabel, formatDate, formatDateTime, formatTime, formatWhen } from './time';
+
+// Sunday 13 September 2026, 16:30 on this machine's clock.
+const now = new Date(2026, 8, 13, 16, 30).getTime();
+const at = (y: number, m: number, d: number, h = 12, min = 0) => new Date(y, m, d, h, min).getTime();
+// Whichever clock the machine running the tests keeps.
+const TIME = /^\d{1,2}:\d{2}( [AP]M)?$/;
 
 describe('formatWhen', () => {
-  const now = new Date(2026, 8, 13, 16, 30).getTime();
-  it('names today and yesterday, otherwise day and month, with the year only when it differs', () => {
-    expect(formatWhen(new Date(2026, 8, 13, 9, 5).getTime(), now)).toMatch(/^Today /);
-    expect(formatWhen(new Date(2026, 8, 12, 23, 59).getTime(), now)).toMatch(/^Yesterday /);
-    expect(formatWhen(new Date(2026, 7, 2, 12, 0).getTime(), now)).toMatch(/Aug/);
-    expect(formatWhen(new Date(2026, 7, 2, 12, 0).getTime(), now)).not.toMatch(/2026|Today|Yesterday/);
-    expect(formatWhen(new Date(2025, 11, 31, 12, 0).getTime(), now)).toMatch(/2025/);
+  it('names today and yesterday, the weekday within a week, otherwise day and month, with the year only when it differs', () => {
+    expect(formatWhen(at(2026, 8, 13, 9, 5), now)).toMatch(/^Today /);
+    expect(formatWhen(at(2026, 8, 12, 23, 59), now)).toMatch(/^Yesterday /);
+    expect(formatWhen(at(2026, 8, 9), now)).toMatch(/^Wed /);
+    expect(formatWhen(at(2026, 7, 2), now)).toMatch(/^2 Aug /);
+    expect(formatWhen(at(2026, 7, 2), now)).not.toMatch(/2026|Today|Yesterday/);
+    expect(formatWhen(at(2025, 11, 31), now)).toMatch(/2025/);
+  });
+});
+
+describe('formatTime', () => {
+  it('writes a time in English whatever the device language, on the device clock', () => {
+    expect(formatTime(at(2026, 8, 13, 8, 5))).toMatch(TIME);
+    expect(formatTime(at(2026, 8, 13, 20, 55))).toMatch(TIME);
+  });
+});
+
+describe('formatDate and formatDateTime', () => {
+  it('put the day first, with an English month', () => {
+    expect(formatDate(at(2026, 8, 22))).toMatch(/^22 Sept? 2026$/);
+    expect(formatDateTime(at(2026, 8, 22, 20, 55))).toMatch(/^22 Sept? 2026, /);
+  });
+});
+
+describe('dayLabel', () => {
+  it('says Today, Yesterday, an English weekday for the rest of the week, then a date', () => {
+    expect(dayLabel(at(2026, 8, 13, 0, 1), now)).toBe('Today');
+    expect(dayLabel(at(2026, 8, 12, 23, 59), now)).toBe('Yesterday');
+    expect(dayLabel(at(2026, 8, 7), now)).toBe('Monday');
+    // A week ago today would share its weekday with today: from there on, the date.
+    expect(dayLabel(at(2026, 8, 6), now)).toMatch(/^6 Sept?$/);
+    expect(dayLabel(at(2026, 7, 21), now)).toBe('21 Aug');
+    expect(dayLabel(at(2025, 7, 3), now)).toBe('3 Aug 2025');
+  });
+});
+
+describe('dayKey', () => {
+  it('is one key per calendar day on this device', () => {
+    expect(dayKey(at(2026, 8, 13, 0, 1))).toBe(dayKey(at(2026, 8, 13, 23, 59)));
+    expect(dayKey(at(2026, 8, 13, 0, 1))).not.toBe(dayKey(at(2026, 8, 12, 23, 59)));
   });
 });

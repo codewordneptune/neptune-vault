@@ -8,7 +8,7 @@ import { openSeed, WrongPasswordError } from '../storage/envelope';
 import type { WalletCore } from '../backend/types';
 import { CHAIN_PARTS } from '../backend/types';
 import { chainView, testEngine } from '../backend/engineForTests';
-import { AccountService, UnlockCancelledError } from './accounts';
+import { AccountService, DEFAULT_LOCK_MS, lockTimeoutOf, UnlockCancelledError } from './accounts';
 import type { PasskeyProvider } from './passkey';
 
 class FakePasskeys implements PasskeyProvider {
@@ -462,6 +462,24 @@ describe('account service', () => {
     for (const f of doc.listeners) f();
     await sleep(10);
     expect(service.currentAccountId).toBeNull();
+  });
+
+  it('takes a new idle time at once, counting from the choice', async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const { service } = await setup(5 * 60 * 1000);
+    await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    service.touch();
+    service.setLockTimeout(120);
+    await sleep(60);
+    expect(service.currentAccountId).not.toBeNull();
+    await sleep(160);
+    expect(service.currentAccountId).toBeNull();
+  });
+
+  it('keeps a stored idle time only when it is one of the choices', () => {
+    expect(lockTimeoutOf(15 * 60 * 1000)).toBe(15 * 60 * 1000);
+    expect(lockTimeoutOf(7 * 60 * 1000)).toBe(DEFAULT_LOCK_MS);
+    expect(lockTimeoutOf(undefined)).toBe(DEFAULT_LOCK_MS);
   });
 
   it('defers the background lock while a send runs, then locks', async () => {

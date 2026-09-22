@@ -2,6 +2,9 @@
    Mantine does not cover. Everything below reads from these variables so
    colours, sizes and radii stay consistent across screens. */
 
+/* Spacing steps: 2, 4, 6, 8, 10, 12, 16, 20 and 24 px, which include the
+   component library's own (10, 12, 16, 20). Anything else is a structural
+   size (a bar's height, a target's 40 px), not spacing. */
 :root {
   --v-page: #111923;
   --v-page-end: #0d131c;
@@ -20,6 +23,8 @@
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
   --v-danger-text: #ff8a80;
+  /* 8% red over the card: the danger text keeps 6.6:1 on it. */
+  --v-danger-hover: rgba(255, 107, 107, 0.08);
   --v-disabled-bg: rgba(255, 255, 255, 0.05);
   --v-disabled-border: rgba(255, 255, 255, 0.08);
   --v-backdrop: rgba(9, 14, 21, 0.7);
@@ -35,6 +40,11 @@
   --v-shadow-accent: 0 8px 20px rgba(31, 111, 224, 0.25);
 }
 
+/* Mantine's own dimmed text in light: its default grey is 3.3:1 on white.
+   Doubled so it outranks the variables the library writes at run time. */
+:root:root[data-mantine-color-scheme='light'] {
+  --mantine-color-dimmed: #5a6a7e;
+}
 /* The light palette, when the device asks for it. Mantine stamps the
    scheme on the root element and the same tokens carry both; the neutrals
    keep a touch of the accent's blue so the page reads as chosen. */
@@ -53,9 +63,11 @@
   --v-accent-deep: #1a5fc4;
   --v-accent-text: #1a5fc4;
   --v-accent-soft: rgba(43, 125, 233, 0.1);
-  --v-ok-text: #1f8f3a;
+  --v-ok-text: #1a7a31;
   --v-warn-text: #8a5a00;
   --v-danger-text: #c62828;
+  /* 8% red over the card: the danger text keeps 5.0:1 on it. */
+  --v-danger-hover: rgba(224, 49, 49, 0.08);
   --v-disabled-bg: rgba(0, 0, 0, 0.05);
   --v-disabled-border: rgba(0, 0, 0, 0.1);
   --v-backdrop: rgba(30, 40, 55, 0.5);
@@ -131,6 +143,11 @@ h3.mantine-Title-root {
 /* A destructive action is red at rest, not only on hover. */
 .mantine-Button-root[data-variant='subtle'].vault-danger {
   color: var(--v-danger-text);
+}
+/* Its hover is a faint tint, not the library's solid red, on which the red
+   text fell below 4.5:1 in both themes. */
+.mantine-Button-root[data-variant='subtle'].vault-danger:hover:not(:disabled) {
+  background: var(--v-danger-hover);
 }
 /* A control inside a field (Max, Scan) is plain text at rest, and stays
    plain when disabled: faded, no box, so it never becomes the one boxed
@@ -583,7 +600,7 @@ button.vault-network::before {
   background: var(--v-muted);
 }
 .vault-status-dot.ok {
-  background: #3fb950;
+  background: var(--v-ok-text);
 }
 .vault-status-dot.busy {
   background: var(--v-accent);
@@ -604,7 +621,7 @@ button.vault-network::before {
   flex-shrink: 0;
 }
 .vault-status-dot.bad {
-  background: #ff8a80;
+  background: var(--v-danger-text);
 }
 .vault-status-text {
   display: inline-flex;
@@ -614,7 +631,7 @@ button.vault-network::before {
 }
 .vault-status-actions {
   display: inline-flex;
-  gap: 14px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -630,17 +647,11 @@ button.vault-network::before {
 .vault-fee-seg small {
   font-size: var(--v-fs-xs);
   font-weight: 500;
-  opacity: 0.8;
 }
 
 /* The not-yet-audited notice collapses to its title after the first visit. */
 .vault-poc {
   cursor: pointer;
-}
-/* One padding in both states, so the title does not move when the card
-   opens: only the body appears beneath it. */
-.vault-poc {
-  padding: 8px 12px !important;
 }
 .vault-poc:focus-visible {
   outline: 2px solid var(--v-accent);
@@ -692,10 +703,10 @@ html {
   background: var(--v-faint);
 }
 .vault-fact.ok .vault-dot {
-  background: #3fb950;
+  background: var(--v-ok-text);
 }
 .vault-fact.warn .vault-dot {
-  background: #d9a52c;
+  background: var(--v-warn-text);
 }
 
 /* Incoming amounts in the history are green; outgoing stay in the text colour. */
@@ -912,7 +923,7 @@ html {
   height: var(--guide);
   aspect-ratio: 1;
   border: 2px solid rgba(255, 255, 255, 0.9);
-  border-radius: 12px;
+  border-radius: var(--v-radius-sm);
   box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.35);
   pointer-events: none;
 }
@@ -938,6 +949,30 @@ html {
 .vault-qr-full-header .mantine-Modal-close {
   color: #15202e;
 }
+/* The view is white in both themes, so its close button's hover is too: the
+   general hover takes the theme's surface, which in the dark theme is a dark
+   square on the white. */
+.vault-qr-full-header .mantine-Modal-close:hover {
+  background: #e9edf2;
+  color: #15202e;
+}
+/* The title names the code, so it sits on the code's axis: centred across the
+   whole width, with the close button taken out of the flow and the same room
+   kept free on the left, so the button does not push the title off centre. */
+.vault-qr-full-header {
+  position: relative;
+  justify-content: center;
+}
+.vault-qr-full-header .mantine-Modal-title {
+  flex: 1;
+  text-align: center;
+  padding-inline: 40px;
+}
+.vault-qr-full-header .mantine-Modal-close {
+  position: absolute;
+  top: var(--mantine-spacing-md);
+  right: var(--mantine-spacing-md);
+}
 .vault-qr-full-code {
   display: block;
   padding: 0;
@@ -947,7 +982,7 @@ html {
   /* As large as fits: the full width, or what the height leaves once the
      title and the two lines under the code have had theirs. The side
      padding is given back, so the code runs to the screen's edges. */
-  width: min(100vw, calc(100dvh - 170px));
+  width: min(100vw, calc(100dvh - 180px));
   margin: 0 calc(-1 * var(--mantine-spacing-md));
   max-width: none;
 }
@@ -969,14 +1004,381 @@ html {
 .vault-qr-full-subtitle {
   display: block;
 }
-/* The technical name, under the name people choose by: smaller and quieter,
-   in the colour of the hint below the code (5.5:1 on the white). */
+/* The technical name, under the name people choose by: quieter by colour
+   and weight, not by size, since the person checking it against their own
+   wallet reads it at arm's length. The grey is 5.5:1 on the white. */
 .vault-qr-full-subtitle {
   margin-top: 2px;
   color: #5a6a7e;
-  font-size: var(--mantine-font-size-xs);
+  font-size: var(--mantine-font-size-sm);
   font-weight: 400;
 }
 .vault-qr-full-hint {
   color: #5a6a7e;
+}
+
+/* A disclosure for the mechanism behind a one-sentence explanation. */
+.vault-more summary {
+  width: fit-content;
+  padding-block: 10px;
+  margin-block: -10px;
+  cursor: pointer;
+  font-weight: 500;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.vault-more p {
+  margin: 6px 0 0;
+}
+
+/* The line under a history row's title: one line, whatever it holds. Its
+   last part (who a send went to) is what an ellipsis takes first. */
+.vault-row-meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The header pill: the wallet's name, then its network as a quieter tag. */
+.vault-network-wallet {
+  max-width: 9.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--v-text);
+}
+.vault-network-net {
+  font-size: var(--v-fs-xs);
+  color: var(--v-muted);
+}
+.vault-network-net::before {
+  content: "\00B7";
+  margin-right: 6px;
+}
+
+/* The lock screen: one card in the middle of the space under the header,
+   not a card pinned to the top with the rest of the window empty. */
+.vault-lock {
+  min-height: calc(100dvh - 140px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vault-lock-card {
+  width: 100%;
+  max-width: 400px;
+}
+.vault-lock-name {
+  overflow-wrap: anywhere;
+}
+.vault-lock-other {
+  align-self: center;
+  font-size: var(--v-fs-sm);
+  color: var(--v-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 6px 8px;
+}
+.vault-lock-other:hover {
+  color: var(--v-text);
+}
+
+/* Advanced settings tucked under a choice most people make without them. */
+/* A setting tucked under a choice most people make without it: named for
+   what it holds, in the muted colour, not a link. Its own chevron instead of
+   the browser's marker, so the contents can be indented to line up with its
+   words: 14 px of icon and 6 px of gap. More room above than between the
+   buttons, since it is not one of them. */
+.vault-setting {
+  margin-top: 8px;
+}
+.vault-setting summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  /* A taller target than its line, with the room taken back outside. */
+  padding-block: 10px;
+  margin-block: -10px;
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--v-fs-sm);
+  font-weight: 500;
+  color: var(--v-muted);
+}
+.vault-setting summary::-webkit-details-marker {
+  display: none;
+}
+.vault-setting summary:hover {
+  color: var(--v-text);
+}
+.vault-setting-chevron {
+  flex: none;
+  transition: rotate 150ms ease;
+}
+.vault-setting[open] .vault-setting-chevron {
+  rotate: 90deg;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vault-setting-chevron {
+    transition: none;
+  }
+}
+.vault-setting-body {
+  margin-top: 8px;
+  padding-left: 20px;
+}
+
+/* Room at the foot for the tab bar, on a phone. */
+.vault-shell.has-tabs {
+  padding-bottom: 84px;
+}
+/* The balance card: the figures, then the actions under them, as far below
+   as a card's rows are apart plus the space above a button row. */
+.vault-balance-layout {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mantine-spacing-xs) + var(--mantine-spacing-sm));
+}
+.vault-balance-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A wide window is not a big phone: from 900 px the tabs become a rail on
+   the left, the header spans the window, and every screen shares one
+   centred width, with Home's balance as a band over the history. */
+@media (min-width: 900px) {
+  .vault-shell.has-tabs {
+    padding-bottom: 0;
+    padding-left: 88px;
+  }
+  .vault-shell.has-tabs .vault-topbar {
+    margin-left: -88px;
+  }
+  .vault-topbar-inner.vault-topbar-inner {
+    max-width: none;
+    padding-inline: 24px;
+  }
+  .vault-tabbar {
+    top: 0;
+    right: auto;
+    width: 88px;
+    z-index: 30;
+    padding: 72px 0 0;
+    border-top: 0;
+    border-right: 1px solid var(--v-surface-2);
+    background: var(--v-page);
+  }
+  .vault-tabbar-inner.vault-tabbar-inner {
+    max-width: none;
+  }
+  .vault-tabs.vault-tabs {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .vault-tab {
+    flex: none;
+    width: 100%;
+    padding: 12px 4px;
+  }
+  /* The active line runs down the rail's inner edge instead of along the top. */
+  .vault-tab::before {
+    top: 12px;
+    bottom: 12px;
+    left: 0;
+    right: auto;
+    width: 3px;
+    height: auto;
+    border-radius: 0 3px 3px 0;
+  }
+  /* One width for every screen: room for the history table and a form that
+     breathes, and not so wide that an amount drifts from what it is for. */
+  .vault-main.vault-main {
+    max-width: 720px;
+  }
+  /* The balance as a band: the figures on the left, the actions on the right. */
+  .vault-main-home .vault-balance-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: end;
+    gap: 24px;
+  }
+  .vault-main-home .vault-balance-head {
+    justify-content: flex-start;
+  }
+  /* The code, the address under it and their buttons as one centred column
+     at the code's width: large enough to scan from a monitor, with edges
+     that line up, and buttons in proportion to the gap between them. */
+  .vault-receive-col.vault-receive-col {
+    width: 100%;
+    max-width: 420px;
+    margin-inline: auto;
+  }
+}
+
+
+/* Notices, see components/Notice.tsx. A caution is a strip down the left
+   edge and an icon, no fill; information is the page's own text with an
+   icon. Red panels (Mantine's Alert) are kept for what went wrong. */
+.vault-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: var(--v-fs-sm);
+  line-height: 1.5;
+  color: var(--v-text-2);
+}
+.vault-caution {
+  border-left: 3px solid var(--v-warn-text);
+  padding: 2px 0 2px 12px;
+}
+.vault-info {
+  color: var(--v-muted);
+}
+.vault-notice-icon {
+  flex: none;
+  display: flex;
+  margin-top: 1px;
+}
+.vault-caution .vault-notice-icon {
+  color: var(--v-warn-text);
+}
+.vault-info .vault-notice-icon {
+  color: var(--v-muted);
+}
+.vault-notice-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vault-notice-title {
+  font-weight: 600;
+  color: var(--v-text);
+}
+.vault-notice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vault-notice-close.vault-notice-close {
+  flex: none;
+  min-width: 40px;
+  min-height: 40px;
+  margin: -12px -12px -12px 0;
+}
+
+/* A code on the Receive card, like a printed one: the code is the control
+   (full screen), and its white runs on into a slim footer with the hint,
+   below the modules and never over them, since covering part of a dense
+   code can stop it scanning. The footer's grey is 5.5:1 on the white. */
+.vault-qr-code {
+  display: block;
+  width: 100%;
+  background: #fff;
+  cursor: zoom-in;
+}
+.vault-qr-code img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.vault-qr-code:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 3px;
+}
+.vault-qr-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 2px 0 10px;
+  font-size: var(--v-fs-sm);
+  color: #5a6a7e;
+}
+.vault-qr-code:hover .vault-qr-foot {
+  color: #15202e;
+}
+.vault-qr-foot-mouse {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .vault-qr-foot-touch {
+    display: none;
+  }
+  .vault-qr-foot-mouse {
+    display: inline;
+  }
+}
+/* The address, shortened, in a quiet box of its own: read and selectable,
+   not a control. */
+.vault-address-box {
+  padding: 10px 12px;
+  background: var(--v-field);
+  border-radius: var(--v-radius-xs);
+  text-align: center;
+}
+.vault-address-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--v-fs-sm);
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+/* History by day: a heading says the day once, the rows under it keep only
+   their time. Sentence case and the text colour, so it reads as a day and
+   not as another card title. */
+.vault-history-day + .vault-history-day {
+  margin-top: 16px;
+}
+.vault-history-day-label {
+  margin: 0 0 12px;
+  font-size: var(--v-fs-sm);
+  font-weight: 600;
+  color: var(--v-text-2);
+}
+
+/* An input's description is a sentence, so it keeps the 14 px floor; the
+   library draws it at 13. It stays quieter than the label by colour and
+   weight. */
+.mantine-InputWrapper-description.mantine-InputWrapper-description {
+  font-size: var(--v-fs-sm);
+}
+
+/* A short tag naming a network: sentence case at the 12 px label size, not
+   the badge's 10 px capitals. */
+.vault-tag.vault-tag {
+  font-size: var(--v-fs-xs);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* On a wide screen a sentence stops at a readable length (about 70
+   characters) instead of running the full width of the card. */
+@media (min-width: 900px) {
+  main p.mantine-Text-root,
+  main .vault-notice-text {
+    max-width: 68ch;
+  }
+}
+
+/* On the narrowest phones (320 px) four choices in a row leave each about
+   60 px: less padding inside each, so a label like Custom still fits. */
+@media (max-width: 360px) {
+  .mantine-SegmentedControl-label.mantine-SegmentedControl-label {
+    padding-inline: 4px;
+  }
+}
+
+/* A quiet button that starts a line of its own: its icon lines up with the
+   text beneath it, the hover fill reaching out into the margin instead. */
+.vault-button-start.vault-button-start {
+  margin-left: calc(-1 * var(--button-padding-x, 8px));
 }
