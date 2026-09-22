@@ -1359,3 +1359,32 @@ html {
   line-height: 1.5;
   word-break: break-all;
 }
+
+/* History by day: a heading says the day once, the rows under it keep only
+   their time. Sentence case and the text colour, so it reads as a day and
+   not as another card title. */
+.vault-history-day + .vault-history-day {
+  margin-top: 16px;
+}
+.vault-history-day-label {
+  margin: 0 0 12px;
+  font-size: var(--v-fs-sm);
+  font-weight: 600;
+  color: var(--v-text-2);
+}
+.vault-history-table .vault-history-dayrow th {
+  padding: 16px 8px 6px;
+  text-align: left;
+  font-size: var(--v-fs-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--v-text-2);
+  border-bottom: 1px solid var(--v-surface-2);
+}
+.vault-history-table tbody:first-of-type .vault-history-dayrow th {
+  padding-top: 10px;
+}
+.vault-history-table tbody:not(:last-of-type) tr:last-child td {
+  border-bottom: 0;
+}

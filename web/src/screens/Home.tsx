@@ -15,7 +15,7 @@ import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
-import { formatWhen } from '../util/time';
+import { dayKey, dayLabel, formatTime, formatWhen } from '../util/time';
 
 export function Home() {
   const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, sendJob, dismissSendJob, loaded } = useApp();
@@ -78,6 +78,15 @@ export function Home() {
   useEffect(() => setTech(false), [detail]);
   const PAGE = 50;
   const [shown, setShown] = useState(PAGE);
+  // The shown entries by calendar day, in the order they come (newest first):
+  // a heading says the day once, and each row keeps only its time.
+  const days: { key: string; label: string; entries: HistoryEntry[] }[] = [];
+  for (const e of entries.slice(0, shown)) {
+    const key = dayKey(e.record.timestampMs);
+    const day = days.find((d) => d.key === key);
+    if (day) day.entries.push(e);
+    else days.push({ key, label: dayLabel(e.record.timestampMs), entries: [e] });
+  }
 
   // Giving up on a pending send frees its reserved coins; confirmed first.
   const [givingUp, setGivingUp] = useState<HistoryRecord | null>(null);
@@ -313,7 +322,7 @@ export function Home() {
             <table className="vault-history-table">
               <thead>
                 <tr>
-                  <th scope="col">Date</th>
+                  <th scope="col">Time</th>
                   <th scope="col">Transaction</th>
                   <th scope="col">To</th>
                   <th scope="col">Status</th>
@@ -322,60 +331,67 @@ export function Home() {
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {entries.slice(0, shown).map((e) => {
-                  const h = e.record;
-                  const incoming = e.kind === 'received';
-                  const lock = lockOf(h);
-                  return (
-                    <tr key={h.key} className="vault-history-tr" onClick={() => setDetail(e)}>
-                      <td className="vault-history-date">{formatWhen(h.timestampMs)}</td>
-                      <td>
-                        {/* The row's one control, for the keyboard and screen readers; a click anywhere on the row does the same. */}
-                        <UnstyledButton
-                          className="vault-history-what"
-                          onClick={(ev) => {
-                            ev.stopPropagation();
-                            setDetail(e);
-                          }}
-                          aria-label={rowLabelOf(e)}
-                        >
-                          <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
-                          <span className="vault-row-title">{rowTitleOf(e)}</span>
-                        </UnstyledButton>
-                      </td>
-                      <td className="vault-history-to">
-                        {e.kind === 'self' ? (
-                          <>This wallet{!hidden && ' · fee only'}</>
-                        ) : e.kind === 'sent' ? (
-                          h.txid === '' || h.recipient === null ? (
-                            <span className="vault-history-quiet">Not recorded</span>
+              {days.map((day) => (
+                <tbody key={day.key}>
+                  <tr className="vault-history-dayrow">
+                    <th colSpan={5} scope="colgroup">
+                      {day.label}
+                    </th>
+                  </tr>
+                  {day.entries.map((e) => {
+                    const h = e.record;
+                    const incoming = e.kind === 'received';
+                    const lock = lockOf(h);
+                    return (
+                      <tr key={h.key} className="vault-history-tr" onClick={() => setDetail(e)}>
+                        <td className="vault-history-date">{formatTime(h.timestampMs)}</td>
+                        <td>
+                          {/* The row's one control, for the keyboard and screen readers; a click anywhere on the row does the same. */}
+                          <UnstyledButton
+                            className="vault-history-what"
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              setDetail(e);
+                            }}
+                            aria-label={rowLabelOf(e)}
+                          >
+                            <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
+                            <span className="vault-row-title">{rowTitleOf(e)}</span>
+                          </UnstyledButton>
+                        </td>
+                        <td className="vault-history-to">
+                          {e.kind === 'self' ? (
+                            <>This wallet{!hidden && ' · fee only'}</>
+                          ) : e.kind === 'sent' ? (
+                            h.txid === '' || h.recipient === null ? (
+                              <span className="vault-history-quiet">Not recorded</span>
+                            ) : (
+                              (contactFor(h.recipient)?.name ?? shortAddress(h.recipient))
+                            )
+                          ) : null}
+                        </td>
+                        <td className="vault-history-status">
+                          {h.status === 'pending' ? (
+                            <span className="vault-state-pending">Pending</span>
+                          ) : h.status === 'failed' ? (
+                            <span className="vault-state-failed">Failed</span>
+                          ) : lock !== null ? (
+                            <span className="vault-state-pending">Locked until {showDate(lock)}</span>
                           ) : (
-                            (contactFor(h.recipient)?.name ?? shortAddress(h.recipient))
-                          )
-                        ) : null}
-                      </td>
-                      <td className="vault-history-status">
-                        {h.status === 'pending' ? (
-                          <span className="vault-state-pending">Pending</span>
-                        ) : h.status === 'failed' ? (
-                          <span className="vault-state-failed">Failed</span>
-                        ) : lock !== null ? (
-                          <span className="vault-state-pending">Locked until {showDate(lock)}</span>
-                        ) : (
-                          <span className="vault-history-quiet">Confirmed</span>
-                        )}
-                      </td>
-                      <td className="vault-history-amount">
-                        <span className={incoming ? 'vault-amount-in' : undefined}>
-                          {incoming ? '+' : '−'}
-                          {amount(e.shownNau)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
+                            <span className="vault-history-quiet">Confirmed</span>
+                          )}
+                        </td>
+                        <td className="vault-history-amount">
+                          <span className={incoming ? 'vault-amount-in' : undefined}>
+                            {incoming ? '+' : '−'}
+                            {amount(e.shownNau)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              ))}
             </table>
             {entries.length > shown && (
               <Button variant="subtle" fullWidth mt="xs" onClick={() => setShown((n) => n + PAGE)}>
@@ -385,50 +401,57 @@ export function Home() {
           </div>
         ) : (
           <div>
-            {entries.slice(0, shown).map((e) => {
-              const h = e.record;
-              const incoming = e.kind === 'received';
-              return (
-                <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={rowLabelOf(e)}>
-                  <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                    <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <Text size="sm" fw={500} className="vault-row-title">
-                        {rowTitleOf(e)}
-                      </Text>
-                      <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {formatWhen(h.timestampMs)}
-                        {h.status !== 'confirmed' && (
-                          <>
-                            {' · '}
-                            <Text span inherit className={h.status === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
-                              {h.status === 'pending' ? 'Pending' : 'Failed'}
+            {days.map((day) => (
+              <section key={day.key} className="vault-history-day" aria-label={day.label}>
+                <h4 className="vault-history-day-label">{day.label}</h4>
+                <div>
+                  {day.entries.map((e) => {
+                    const h = e.record;
+                    const incoming = e.kind === 'received';
+                    return (
+                      <UnstyledButton className="vault-row vault-row-button" key={h.key} onClick={() => setDetail(e)} aria-label={rowLabelOf(e)}>
+                        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+                          <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <Text size="sm" fw={500} className="vault-row-title">
+                              {rowTitleOf(e)}
                             </Text>
-                          </>
-                        )}
-                        {lockOf(h) !== null && (
-                          <>
-                            {' · '}
-                            <Text span inherit className="vault-state-pending">
-                              Locked until {showDate(lockOf(h) as number)}
+                            <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                              {formatTime(h.timestampMs)}
+                              {h.status !== 'confirmed' && (
+                                <>
+                                  {' · '}
+                                  <Text span inherit className={h.status === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
+                                    {h.status === 'pending' ? 'Pending' : 'Failed'}
+                                  </Text>
+                                </>
+                              )}
+                              {lockOf(h) !== null && (
+                                <>
+                                  {' · '}
+                                  <Text span inherit className="vault-state-pending">
+                                    Locked until {showDate(lockOf(h) as number)}
+                                  </Text>
+                                </>
+                              )}
+                              {e.kind === 'self' && !hidden && ' · fee only'}
+                              {/* Last, so that on a narrow screen it is what gives way. */}
+                              {recipientOf(e) && ` · ${recipientOf(e)}`}
                             </Text>
-                          </>
-                        )}
-                        {e.kind === 'self' && !hidden && ' · fee only'}
-                        {/* Last, so that on a narrow screen it is what gives way. */}
-                        {recipientOf(e) && ` · ${recipientOf(e)}`}
-                      </Text>
-                    </div>
-                  </Group>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <Text size="sm" fw={600} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {incoming ? '+' : '−'}
-                      {amount(e.shownNau)}
-                    </Text>
-                  </div>
-                </UnstyledButton>
-              );
-            })}
+                          </div>
+                        </Group>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <Text size="sm" fw={600} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {incoming ? '+' : '−'}
+                            {amount(e.shownNau)}
+                          </Text>
+                        </div>
+                      </UnstyledButton>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
             {entries.length > shown && (
               <Button variant="subtle" fullWidth mt="xs" onClick={() => setShown((n) => n + PAGE)}>
                 Show {Math.min(PAGE, entries.length - shown)} older
