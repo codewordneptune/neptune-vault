@@ -1376,3 +1376,9 @@ html {
     padding-inline: 4px;
   }
 }
+
+/* A quiet button that starts a line of its own: its icon lines up with the
+   text beneath it, the hover fill reaching out into the margin instead. */
+.vault-button-start.vault-button-start {
+  margin-left: calc(-1 * var(--button-padding-x, 8px));
+}
