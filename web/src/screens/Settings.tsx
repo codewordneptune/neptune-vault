@@ -298,14 +298,15 @@ export function Settings() {
           {phrase && (
             <Stack gap="xs">
               <WordGrid words={phrase} />
-              <Group justify="space-between" align="center">
-                <Button variant="subtle" size="compact-sm" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+              {/* The button, then what copying means, beneath it, as on the setup step. */}
+              <Stack gap={4} align="flex-start">
+                <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
                   Copy words
                 </Button>
                 <Text size="sm" c="dimmed">
                   Other apps can read the clipboard; clear it afterwards.
                 </Text>
-              </Group>
+              </Stack>
               <Text size="sm" c="dimmed" aria-live="off">
                 Hidden again in {Math.max(0, phraseLeft)} s, or when you leave this screen.
               </Text>
