@@ -1099,9 +1099,8 @@ html {
 }
 
 /* A wide window is not a big phone: from 900 px the tabs become a rail on
-   the left, the header spans the window, and Home becomes a balance band
-   over the history as a table. Send, Receive and Settings stay one centred
-   column. */
+   the left, the header spans the window, and every screen shares one
+   centred width, with Home a balance band over the history as a table. */
 @media (min-width: 900px) {
   .vault-shell.has-tabs {
     padding-bottom: 0;
@@ -1146,19 +1145,26 @@ html {
     height: auto;
     border-radius: 0 3px 3px 0;
   }
-  /* Wide, but not so wide that an amount drifts far from what it is for. */
-  .vault-main-wide.vault-main-wide {
-    max-width: 1100px;
+  /* One width for every screen: room for the history table and a form that
+     breathes, and not so wide that an amount drifts from what it is for. */
+  .vault-main.vault-main {
+    max-width: 720px;
   }
   /* The balance as a band: the figures on the left, the actions on the right. */
-  .vault-main-wide .vault-balance-layout {
+  .vault-main-home .vault-balance-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 1fr) 280px;
     align-items: end;
     gap: 24px;
   }
-  .vault-main-wide .vault-balance-head {
+  .vault-main-home .vault-balance-head {
     justify-content: flex-start;
+  }
+  /* A code on the card, not the card's whole width: large enough to scan
+     from a monitor, and tapping it still opens the full-screen view. */
+  .vault-qr-inline.vault-qr-inline {
+    max-width: 420px;
+    margin-inline: auto;
   }
 }
 

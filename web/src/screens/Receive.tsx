@@ -283,7 +283,7 @@ export function Receive() {
           <>
             {qr && (
               <>
-                <UnstyledButton onClick={() => setEnlarged('address')} aria-label="Show the QR code full screen" style={{ display: 'block', width: '100%' }}>
+                <UnstyledButton onClick={() => setEnlarged('address')} aria-label="Show the QR code full screen" className="vault-qr-inline" style={{ display: 'block', width: '100%' }}>
                   <img src={qr} alt={`${KIND_LABELS[kind]} address QR code`} style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
                 </UnstyledButton>
                 <UnstyledButton onClick={() => setEnlarged('address')} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>
@@ -356,7 +356,7 @@ export function Receive() {
             </Group>
             {requestQr && !requestInvalid && (
               <>
-                <UnstyledButton onClick={() => setEnlarged('request')} aria-label="Show the QR code full screen" style={{ display: 'block', width: '100%' }}>
+                <UnstyledButton onClick={() => setEnlarged('request')} aria-label="Show the QR code full screen" className="vault-qr-inline" style={{ display: 'block', width: '100%' }}>
                   <img src={requestQr} alt="Payment request QR code" style={{ width: '100%', height: 'auto', display: 'block', background: '#fff' }} />
                 </UnstyledButton>
                 <UnstyledButton onClick={() => setEnlarged('request')} c="var(--v-accent-text)" fz="sm" ta="center" className="vault-tap-link" style={{ justifyContent: 'center' }}>

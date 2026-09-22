@@ -65,8 +65,10 @@ export function App() {
       </header>
       <UpdateStrip />
       <SendStrip />
-      {/* Home is wider on a wide screen (a balance band, the history as a table); every other screen stays one column, centred. */}
-      <Container component="main" size="xs" py="md" className={pathname === '/' && !locked && account ? 'vault-main-wide' : undefined}>
+      {/* On a wide screen every screen shares one width, so moving between
+          them does not make the content jump; Home lays out as a balance band
+          over the history as a table within it. */}
+      <Container component="main" size="xs" py="md" className={pathname === '/' && !locked && account ? 'vault-main vault-main-home' : 'vault-main'}>
         <Routes>
           {/* Adding a wallet is for whoever can unlock the one that is there: a locked app offers nothing else. */}
           <Route path="/onboarding" element={account && !addingWallet ? <Navigate to="/" replace /> : account && locked ? <Unlock /> : <Onboarding />} />
