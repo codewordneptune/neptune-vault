@@ -73,7 +73,8 @@ describe('groupHistory', () => {
       ['sent', `${A}:sent:tx1`],
       ['received', `${A}:recv:other`],
     ]);
-    expect(entries[0].shownNau).toBe(5000n);
+    // What left the wallet: the amount and the fee together.
+    expect(entries[0].shownNau).toBe(5300n);
     expect(entries[0].netNau).toBe(-5300n);
     expect(entries[0].changeNau).toBe(4700n);
     expect(entries[0].folded.map((r) => r.key)).toEqual([`${A}:recv:chg`]);
@@ -103,6 +104,7 @@ describe('groupHistory', () => {
       ['received', `${A}:recv:later`],
     ]);
     expect(entries[0].folded).toHaveLength(2);
+    // The chain carries no fee, so the amount recorded is already what left.
     expect(entries[0].shownNau).toBe(3000n);
   });
 

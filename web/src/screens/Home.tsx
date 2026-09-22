@@ -299,7 +299,6 @@ export function Home() {
                       </Text>
                       <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
                         {formatWhen(h.timestampMs)}
-                        {h.height !== null && ` · block ${showBlock(h.height)}`}
                         {h.status !== 'confirmed' && (
                           <>
                             {' · '}
@@ -316,7 +315,6 @@ export function Home() {
                             </Text>
                           </>
                         )}
-                        {e.kind === 'sent' && h.feeNau && !hidden && ` · fee ${amount(BigInt(h.feeNau))}`}
                         {e.kind === 'self' && !hidden && ' · fee only'}
                       </Text>
                     </div>
@@ -354,6 +352,8 @@ export function Home() {
             )}
             {detail.kind === 'self' && <DetailRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT, back to this wallet`} />}
             {detail.kind !== 'received' && detail.record.feeNau && <DetailRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
+            {/* The figure on the row, where it is made of two: what left the wallet. */}
+            {detail.kind === 'sent' && detail.record.feeNau && <DetailRow label="Total" value={`${amount(detail.shownNau)} NPT`} />}
             {detail.kind === 'sent' && detail.changeNau !== null && <DetailRow label="Change returned" value={`${amount(detail.changeNau)} NPT`} />}
             {detail.kind !== 'received' && detail.record.recipient && (
               <DetailRow

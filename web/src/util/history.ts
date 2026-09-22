@@ -14,7 +14,15 @@ export interface HistoryEntry {
   /** The sent or received row the entry is built from. */
   record: HistoryRecord;
   kind: EntryKind;
-  /** Amount shown on the row: what was received, sent, or (for a self-send) the fee. */
+  /**
+   * Amount shown on the row: what arrived, or what left the wallet. For a
+   * send that is the amount and the fee together, as UTXO wallets show it:
+   * the wallet sees coins go and change come back, and the difference is
+   * what left. It is also the only figure a send made on another device
+   * has, since the chain carries no fee, so every send row means the same
+   * thing and the list adds up to the balance. For a send to oneself it is
+   * the fee alone. The split is in the detail.
+   */
   shownNau: bigint;
   /** Effect on the balance once confirmed, negative for outgoing. */
   netNau: bigint;
@@ -107,7 +115,7 @@ export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): Histor
     sends.set(sent.key, {
       record: sent,
       kind,
-      shownNau: kind === 'self' ? fee : amount,
+      shownNau: kind === 'self' ? fee : amount + fee,
       netNau: kind === 'self' ? -fee : -(amount + fee),
       changeNau: change,
       folded,
