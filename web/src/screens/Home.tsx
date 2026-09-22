@@ -2,7 +2,6 @@
 
 import { ActionIcon, Alert, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDown, IconClockPause, IconCopy, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
-import { useMediaQuery } from '@mantine/hooks';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -50,8 +49,6 @@ export function Home() {
     return `${Math.round(s / 3600)} h ago`;
   };
   const navigate = useNavigate();
-  // From the width the tab bar becomes a rail, history is a table.
-  const wide = useMediaQuery('(min-width: 900px)') ?? false;
 
   // Reminder until an export file exists; a dismissal snoozes it for a week.
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -315,90 +312,6 @@ export function Home() {
             </UnstyledButton>{' '}
             to get started.
           </Text>
-        ) : wide ? (
-          // A wide screen: the same entries as a table, one column per fact,
-          // so dates, counterparties and amounts line up down the page.
-          <div>
-            <table className="vault-history-table">
-              <thead>
-                <tr>
-                  <th scope="col">Time</th>
-                  <th scope="col">Transaction</th>
-                  <th scope="col">To</th>
-                  <th scope="col">Status</th>
-                  <th scope="col" className="num">
-                    Amount (NPT)
-                  </th>
-                </tr>
-              </thead>
-              {days.map((day) => (
-                <tbody key={day.key}>
-                  <tr className="vault-history-dayrow">
-                    <th colSpan={5} scope="colgroup">
-                      {day.label}
-                    </th>
-                  </tr>
-                  {day.entries.map((e) => {
-                    const h = e.record;
-                    const incoming = e.kind === 'received';
-                    const lock = lockOf(h);
-                    return (
-                      <tr key={h.key} className="vault-history-tr" onClick={() => setDetail(e)}>
-                        <td className="vault-history-date">{formatTime(h.timestampMs)}</td>
-                        <td>
-                          {/* The row's one control, for the keyboard and screen readers; a click anywhere on the row does the same. */}
-                          <UnstyledButton
-                            className="vault-history-what"
-                            onClick={(ev) => {
-                              ev.stopPropagation();
-                              setDetail(e);
-                            }}
-                            aria-label={rowLabelOf(e)}
-                          >
-                            <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
-                            <span className="vault-row-title">{rowTitleOf(e)}</span>
-                          </UnstyledButton>
-                        </td>
-                        <td className="vault-history-to">
-                          {e.kind === 'self' ? (
-                            <>This wallet{!hidden && ' · fee only'}</>
-                          ) : e.kind === 'sent' ? (
-                            h.txid === '' || h.recipient === null ? (
-                              <span className="vault-history-quiet">Not recorded</span>
-                            ) : (
-                              (contactFor(h.recipient)?.name ?? shortAddress(h.recipient))
-                            )
-                          ) : null}
-                        </td>
-                        <td className="vault-history-status">
-                          {h.status === 'pending' ? (
-                            <span className="vault-state-pending">Pending</span>
-                          ) : h.status === 'failed' ? (
-                            <span className="vault-state-failed">Failed</span>
-                          ) : lock !== null ? (
-                            <span className="vault-state-pending">Locked until {showDate(lock)}</span>
-                          ) : (
-                            <span className="vault-history-quiet">Confirmed</span>
-                          )}
-                        </td>
-                        <td className="vault-history-amount">
-                          <span className={incoming ? 'vault-amount-in' : undefined}>
-                            {incoming ? '+' : '−'}
-                            {amount(e.shownNau)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              ))}
-            </table>
-            {entries.length > shown && (
-              <Button variant="subtle" fullWidth mt="xs" onClick={() => setShown((n) => n + PAGE)}>
-                Show {Math.min(PAGE, entries.length - shown)} older
-              </Button>
-            )}
-          </div>
         ) : (
           <div>
             {days.map((day) => (

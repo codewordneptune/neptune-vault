@@ -1101,7 +1101,7 @@ html {
 
 /* A wide window is not a big phone: from 900 px the tabs become a rail on
    the left, the header spans the window, and every screen shares one
-   centred width, with Home a balance band over the history as a table. */
+   centred width, with Home's balance as a band over the history. */
 @media (min-width: 900px) {
   .vault-shell.has-tabs {
     padding-bottom: 0;
@@ -1171,87 +1171,6 @@ html {
   }
 }
 
-/* History as a table, on a wide screen. */
-.vault-history-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--v-fs-sm);
-  font-variant-numeric: tabular-nums;
-}
-.vault-history-table th {
-  padding: 0 12px 8px;
-  text-align: left;
-  font-size: var(--v-fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--v-muted);
-  border-bottom: 1px solid var(--v-surface-2);
-  white-space: nowrap;
-}
-.vault-history-table td {
-  padding: 8px 12px;
-  vertical-align: middle;
-  color: var(--v-text-2);
-  border-bottom: 1px solid var(--v-surface-2);
-}
-.vault-history-table th:first-child,
-.vault-history-table td:first-child {
-  padding-left: 8px;
-}
-.vault-history-table th:last-child,
-.vault-history-table td:last-child {
-  padding-right: 8px;
-}
-.vault-history-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-.vault-history-table .num,
-.vault-history-amount {
-  text-align: right;
-}
-.vault-history-tr {
-  cursor: pointer;
-}
-.vault-history-tr:hover td {
-  background: var(--v-surface-2);
-}
-.vault-history-date {
-  white-space: nowrap;
-  color: var(--v-muted);
-}
-.vault-history-what {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 500;
-  color: var(--v-text);
-  white-space: nowrap;
-}
-.vault-history-what:focus-visible {
-  outline: 2px solid var(--v-accent);
-  outline-offset: 2px;
-  border-radius: var(--v-radius-xs);
-}
-/* The counterparty takes what width is left and gives way first. */
-.vault-history-to {
-  width: 40%;
-  max-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.vault-history-status {
-  white-space: nowrap;
-}
-.vault-history-quiet {
-  color: var(--v-muted);
-}
-.vault-history-amount {
-  white-space: nowrap;
-  font-weight: 600;
-  color: var(--v-text);
-}
 
 /* Notices, see components/Notice.tsx. A caution is a strip down the left
    edge and an icon, no fill; information is the page's own text with an
@@ -1371,20 +1290,4 @@ html {
   font-size: var(--v-fs-sm);
   font-weight: 600;
   color: var(--v-text-2);
-}
-.vault-history-table .vault-history-dayrow th {
-  padding: 16px 8px 6px;
-  text-align: left;
-  font-size: var(--v-fs-sm);
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--v-text-2);
-  border-bottom: 1px solid var(--v-surface-2);
-}
-.vault-history-table tbody:first-of-type .vault-history-dayrow th {
-  padding-top: 10px;
-}
-.vault-history-table tbody:not(:last-of-type) tr:last-child td {
-  border-bottom: 0;
 }
