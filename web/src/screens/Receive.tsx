@@ -360,10 +360,10 @@ export function Receive() {
               </Text>
             )}
             <Group grow className="vault-receive-col">
-              <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed)} disabled={requestInvalid}>
+              <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed)} disabled={requestInvalid}>
                 Copy link
               </Button>
-              <Button leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid}>
+              <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid}>
                 Share
               </Button>
             </Group>

@@ -229,11 +229,11 @@ export function Settings() {
               When space runs low, the browser may delete this wallet's data. Installing the app usually prevents that. Your seed phrase or a backup file restores everything.
               <Group mt={4} gap="sm" align="center">
                 {installState().kind === 'promptable' && (
-                  <Button size="sm" variant="light" className="vault-tap" onClick={() => void promptInstall()}>
+                  <Button variant="light" onClick={() => void promptInstall()}>
                     Install app
                   </Button>
                 )}
-                <Button size="sm" variant="default" className="vault-tap" onClick={() => void requestPersistent()}>
+                <Button variant="light" onClick={() => void requestPersistent()}>
                   Request again
                 </Button>
                 {persistAsked && (
@@ -248,7 +248,7 @@ export function Settings() {
             {lastBackup ? `Last backup file of ${account ? walletName(account) : 'this wallet'}: ${lastBackup}` : `No backup file of ${account ? walletName(account) : 'this wallet'} saved yet.`}
           </Text>
           <Group>
-            <Button leftSection={<IconDownload size={16} stroke={1.8} />} onClick={askExport} disabled={!account}>Export backup file</Button>
+            <Button variant="light" leftSection={<IconDownload size={16} stroke={1.8} />} onClick={askExport} disabled={!account}>Export backup file</Button>
             <Button variant="light" onClick={togglePhrase} disabled={!account}>
               {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
             </Button>

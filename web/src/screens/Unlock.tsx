@@ -98,7 +98,7 @@ export function Unlock() {
                 </Title>
               )}
               {account && (
-                <Badge variant="light" color="gray" radius="sm">
+                <Badge variant="light" color="gray" radius="sm" className="vault-tag">
                   {NETWORK_LABELS[account.network]}
                 </Badge>
               )}

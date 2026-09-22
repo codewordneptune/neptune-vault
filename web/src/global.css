@@ -2,6 +2,9 @@
    Mantine does not cover. Everything below reads from these variables so
    colours, sizes and radii stay consistent across screens. */
 
+/* Spacing steps: 2, 4, 6, 8, 10, 12, 16, 20 and 24 px, which include the
+   component library's own (10, 12, 16, 20). Anything else is a structural
+   size (a bar's height, a target's 40 px), not spacing. */
 :root {
   --v-page: #111923;
   --v-page-end: #0d131c;
@@ -37,6 +40,11 @@
   --v-shadow-accent: 0 8px 20px rgba(31, 111, 224, 0.25);
 }
 
+/* Mantine's own dimmed text in light: its default grey is 3.3:1 on white.
+   Doubled so it outranks the variables the library writes at run time. */
+:root:root[data-mantine-color-scheme='light'] {
+  --mantine-color-dimmed: #5a6a7e;
+}
 /* The light palette, when the device asks for it. Mantine stamps the
    scheme on the root element and the same tokens carry both; the neutrals
    keep a touch of the accent's blue so the page reads as chosen. */
@@ -55,7 +63,7 @@
   --v-accent-deep: #1a5fc4;
   --v-accent-text: #1a5fc4;
   --v-accent-soft: rgba(43, 125, 233, 0.1);
-  --v-ok-text: #1f8f3a;
+  --v-ok-text: #1a7a31;
   --v-warn-text: #8a5a00;
   --v-danger-text: #c62828;
   /* 8% red over the card: the danger text keeps 5.0:1 on it. */
@@ -592,7 +600,7 @@ button.vault-network::before {
   background: var(--v-muted);
 }
 .vault-status-dot.ok {
-  background: #3fb950;
+  background: var(--v-ok-text);
 }
 .vault-status-dot.busy {
   background: var(--v-accent);
@@ -613,7 +621,7 @@ button.vault-network::before {
   flex-shrink: 0;
 }
 .vault-status-dot.bad {
-  background: #ff8a80;
+  background: var(--v-danger-text);
 }
 .vault-status-text {
   display: inline-flex;
@@ -623,7 +631,7 @@ button.vault-network::before {
 }
 .vault-status-actions {
   display: inline-flex;
-  gap: 14px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -639,7 +647,6 @@ button.vault-network::before {
 .vault-fee-seg small {
   font-size: var(--v-fs-xs);
   font-weight: 500;
-  opacity: 0.8;
 }
 
 /* The not-yet-audited notice collapses to its title after the first visit. */
@@ -696,10 +703,10 @@ html {
   background: var(--v-faint);
 }
 .vault-fact.ok .vault-dot {
-  background: #3fb950;
+  background: var(--v-ok-text);
 }
 .vault-fact.warn .vault-dot {
-  background: #d9a52c;
+  background: var(--v-warn-text);
 }
 
 /* Incoming amounts in the history are green; outgoing stay in the text colour. */
@@ -916,7 +923,7 @@ html {
   height: var(--guide);
   aspect-ratio: 1;
   border: 2px solid rgba(255, 255, 255, 0.9);
-  border-radius: 12px;
+  border-radius: var(--v-radius-sm);
   box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.35);
   pointer-events: none;
 }
@@ -1012,6 +1019,9 @@ html {
 
 /* A disclosure for the mechanism behind a one-sentence explanation. */
 .vault-more summary {
+  width: fit-content;
+  padding-block: 10px;
+  margin-block: -10px;
   cursor: pointer;
   font-weight: 500;
   color: inherit;
@@ -1089,6 +1099,9 @@ html {
   align-items: center;
   gap: 6px;
   width: fit-content;
+  /* A taller target than its line, with the room taken back outside. */
+  padding-block: 10px;
+  margin-block: -10px;
   cursor: pointer;
   list-style: none;
   font-size: var(--v-fs-sm);
@@ -1254,9 +1267,11 @@ html {
   flex-direction: column;
   gap: 6px;
 }
-.vault-notice-close {
+.vault-notice-close.vault-notice-close {
   flex: none;
-  margin: -4px -4px 0 0;
+  min-width: 40px;
+  min-height: 40px;
+  margin: -12px -12px -12px 0;
 }
 
 /* A code on the Receive card, like a printed one: the code is the control
@@ -1304,7 +1319,7 @@ html {
 /* The address, shortened, in a quiet box of its own: read and selectable,
    not a control. */
 .vault-address-box {
-  padding: 9px 12px;
+  padding: 10px 12px;
   background: var(--v-field);
   border-radius: var(--v-radius-xs);
   text-align: center;
@@ -1327,4 +1342,37 @@ html {
   font-size: var(--v-fs-sm);
   font-weight: 600;
   color: var(--v-text-2);
+}
+
+/* An input's description is a sentence, so it keeps the 14 px floor; the
+   library draws it at 13. It stays quieter than the label by colour and
+   weight. */
+.mantine-InputWrapper-description.mantine-InputWrapper-description {
+  font-size: var(--v-fs-sm);
+}
+
+/* A short tag naming a network: sentence case at the 12 px label size, not
+   the badge's 10 px capitals. */
+.vault-tag.vault-tag {
+  font-size: var(--v-fs-xs);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* On a wide screen a sentence stops at a readable length (about 70
+   characters) instead of running the full width of the card. */
+@media (min-width: 900px) {
+  main p.mantine-Text-root,
+  main .vault-notice-text {
+    max-width: 68ch;
+  }
+}
+
+/* On the narrowest phones (320 px) four choices in a row leave each about
+   60 px: less padding inside each, so a label like Custom still fits. */
+@media (max-width: 360px) {
+  .mantine-SegmentedControl-label.mantine-SegmentedControl-label {
+    padding-inline: 4px;
+  }
 }
