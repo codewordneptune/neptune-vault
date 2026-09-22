@@ -4,8 +4,8 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { ActionIcon, Button, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowsMaximize, IconChevronDown, IconCopy, IconShare } from '@tabler/icons-react';
+import { Button, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconArrowsMaximize, IconCopy, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 
@@ -94,7 +94,6 @@ export function Receive() {
   const [address, setAddress] = useState<string>(account?.address0 ?? '');
   const [qr, setQr] = useState<string>('');
   const [addressError, setAddressError] = useState<string | null>(null);
-  const [showFull, setShowFull] = useState(false);
   // Which code, if any, is shown as large as the screen allows.
   const [enlarged, setEnlarged] = useState<'address' | 'request' | null>(null);
   const index = indices[kind];
@@ -300,33 +299,11 @@ export function Receive() {
         {tab === 'address' && (
           <>
             {qr && <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => setEnlarged('address')} />}
-            {/* The address as one object that opens: shortened, and in full
-                inside the same box once its chevron (or the box) is tapped. */}
-            <div
-              className="vault-receive-col vault-address-box"
-              onClick={() => {
-                // A drag that selected part of the address is not a tap.
-                if (address && !window.getSelection()?.toString()) setShowFull((v) => !v);
-              }}
-            >
-              <span className={showFull ? 'vault-address-text full' : 'vault-address-text'}>
-                {address ? (showFull ? address : abbreviateAddress(address)) : addressError ? 'No address' : 'Deriving the address…'}
-              </span>
-              {address && (
-                <ActionIcon
-                  variant="subtle"
-                  size="lg"
-                  className="vault-tap vault-address-toggle"
-                  aria-label={showFull ? 'Show the address shortened' : 'Show the full address'}
-                  aria-expanded={showFull}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowFull((v) => !v);
-                  }}
-                >
-                  <IconChevronDown size={18} stroke={1.8} className={showFull ? 'vault-chevron open' : 'vault-chevron'} />
-                </ActionIcon>
-              )}
+            {/* The address shortened, for recognising it by its start and end.
+                Copy, Share and the code always carry it in full; a Standard
+                address runs to some 3,500 characters, which nobody reads. */}
+            <div className="vault-receive-col vault-address-box">
+              <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
             </div>
             {addressError && (
               <Text size="sm" c="red">

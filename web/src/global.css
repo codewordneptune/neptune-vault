@@ -1345,27 +1345,17 @@ html {
     display: inline;
   }
 }
-/* The address as one box that opens in place: shortened, or in full. */
+/* The address, shortened, in a quiet box of its own: read and selectable,
+   not a control. */
 .vault-address-box {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 0 0 0 12px;
+  padding: 9px 12px;
   background: var(--v-field);
   border-radius: var(--v-radius-xs);
-  cursor: pointer;
+  text-align: center;
 }
 .vault-address-text {
-  flex: 1;
-  min-width: 0;
-  padding-block: 9px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: var(--v-fs-sm);
   line-height: 1.5;
   word-break: break-all;
-}
-/* In full it is for reading and selecting, so the cursor says text. */
-.vault-address-text.full {
-  font-size: 11px;
-  cursor: text;
 }
