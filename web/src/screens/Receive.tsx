@@ -70,7 +70,7 @@ function KindNote({ kind, extra }: { kind: KeyKind; extra?: string }) {
 // of it can stop a camera reading it.
 function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => void }) {
   return (
-    <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-qr-inline vault-qr-code">
+    <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-receive-col vault-qr-code">
       <img src={src} alt={alt} />
       <span className="vault-qr-foot" aria-hidden>
         <IconArrowsMaximize size={14} stroke={2} />
@@ -303,7 +303,7 @@ export function Receive() {
             {/* The address as one object that opens: shortened, and in full
                 inside the same box once its chevron (or the box) is tapped. */}
             <div
-              className="vault-address-box"
+              className="vault-receive-col vault-address-box"
               onClick={() => {
                 // A drag that selected part of the address is not a tap.
                 if (address && !window.getSelection()?.toString()) setShowFull((v) => !v);
@@ -333,7 +333,7 @@ export function Receive() {
                 Could not derive this address: {addressError}
               </Text>
             )}
-            <Group grow>
+            <Group grow className="vault-receive-col">
               <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address}>
                 Copy address
               </Button>
@@ -372,7 +372,14 @@ export function Receive() {
               error={noteError}
               maxLength={255}
             />
-            <Group grow>
+            {/* The code, then what to do with it: the same order as the Address tab. */}
+            {requestQr && !requestInvalid && <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => setEnlarged('request')} />}
+            {requestQrNote && !requestInvalid && (
+              <Text size="sm" c="dimmed" className="vault-receive-col">
+                {requestQrNote}
+              </Text>
+            )}
+            <Group grow className="vault-receive-col">
               <Button variant="light" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied')} disabled={requestInvalid}>
                 Copy link
               </Button>
@@ -380,12 +387,6 @@ export function Receive() {
                 Share
               </Button>
             </Group>
-            {requestQr && !requestInvalid && <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => setEnlarged('request')} />}
-            {requestQrNote && !requestInvalid && (
-              <Text size="sm" c="dimmed">
-                {requestQrNote}
-              </Text>
-            )}
             <KindNote kind={kind} extra={CODE_HINTS[kind]} />
           </>
         )}

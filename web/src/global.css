@@ -1161,9 +1161,11 @@ html {
   .vault-main-home .vault-balance-head {
     justify-content: flex-start;
   }
-  /* A code on the card, not the card's whole width: large enough to scan
-     from a monitor, and tapping it still opens the full-screen view. */
-  .vault-qr-inline.vault-qr-inline {
+  /* The code, the address under it and their buttons as one centred column
+     at the code's width: large enough to scan from a monitor, with edges
+     that line up, and buttons in proportion to the gap between them. */
+  .vault-receive-col.vault-receive-col {
+    width: 100%;
     max-width: 420px;
     margin-inline: auto;
   }
