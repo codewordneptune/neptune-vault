@@ -992,3 +992,11 @@ html {
 .vault-more p {
   margin: 6px 0 0;
 }
+
+/* The line under a history row's title: one line, whatever it holds. Its
+   last part (who a send went to) is what an ellipsis takes first. */
+.vault-row-meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

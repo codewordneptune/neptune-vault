@@ -109,3 +109,12 @@ describe('names and notes in a link', () => {
     expect(parsePaymentText('neptunecash:' + address + '?label=' + encodeURIComponent('Café Ünïcode 店')).label).toBe('Café Ünïcode 店');
   });
 });
+
+describe('shortAddress', () => {
+  it('keeps the prefix, four characters and the last four: enough to recognise, short enough for a row', async () => {
+    const { shortAddress } = await import('./address');
+    expect(shortAddress('nolgar1n4845czevt5ku4ztftcw6v7rdllz8vcaq2kcqpwyl2hc0735l9')).toBe('nolgar1n484…35l9');
+    expect(shortAddress('nolgam1abcd')).toBe('nolgam1abcd');
+    expect(shortAddress('no-separator')).toBe('no-separator');
+  });
+});

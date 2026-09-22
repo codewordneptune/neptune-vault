@@ -2,6 +2,17 @@
 // to_bech32m_abbreviated: the human-readable prefix plus eight characters,
 // three dots, and the last eight characters.
 
+/**
+ * An address short enough for one line of a list: the prefix, four
+ * characters, an ellipsis, the last four. Enough to recognise an address
+ * already known, which is all a list row is for; the detail shows more.
+ */
+export function shortAddress(address: string): string {
+  const hrpLen = address.indexOf('1');
+  if (hrpLen < 0 || address.length <= hrpLen + 1 + 4 + 4) return address;
+  return `${address.slice(0, hrpLen + 5)}…${address.slice(-4)}`;
+}
+
 export function abbreviateAddress(address: string): string {
   const hrpLen = address.indexOf('1');
   if (hrpLen < 0) return address;

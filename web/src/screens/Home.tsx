@@ -10,7 +10,7 @@ import type { StoredUtxo } from '../backend/types';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
 import { PocNotice } from '../components/PocNotice';
-import { abbreviateAddress } from '../util/address';
+import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
 import { formatWhen } from '../util/time';
@@ -116,6 +116,17 @@ export function Home() {
             : sync.message ?? 'Sync failed';
 
   const incomingNau = history.filter((h) => h.kind === 'received' && h.status === 'pending').reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
+  /** The row's title: short, always one line. Who a send went to is on the line beneath. */
+  const rowTitleOf = (e: HistoryEntry) => (e.kind === 'sent' ? 'Sent' : titleOf(e));
+  /** Who a send went to, for the line under its title. */
+  const recipientOf = (e: HistoryEntry): string | null => {
+    if (e.kind !== 'sent') return null;
+    // A send found on the chain: made on another device, or before a restore.
+    if (e.record.txid === '' || e.record.recipient === null) return 'recipient not recorded';
+    const c = contactFor(e.record.recipient);
+    return `to ${c ? c.name : shortAddress(e.record.recipient)}`;
+  };
+  /** The full title, for the detail sheet and for screen readers. */
   const titleOf = (e: HistoryEntry) => {
     if (e.kind === 'received') return e.record.status === 'pending' ? 'Incoming' : 'Received';
     if (e.kind === 'self') return 'Moved to yourself';
@@ -295,9 +306,9 @@ export function Home() {
                     </span>
                     <div style={{ minWidth: 0 }}>
                       <Text size="sm" fw={500} className="vault-row-title">
-                        {titleOf(e)}
+                        {rowTitleOf(e)}
                       </Text>
-                      <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
                         {formatWhen(h.timestampMs)}
                         {h.status !== 'confirmed' && (
                           <>
@@ -316,6 +327,8 @@ export function Home() {
                           </>
                         )}
                         {e.kind === 'self' && !hidden && ' · fee only'}
+                        {/* Last, so that on a narrow screen it is what gives way. */}
+                        {recipientOf(e) && ` · ${recipientOf(e)}`}
                       </Text>
                     </div>
                   </Group>
