@@ -1,7 +1,7 @@
-// The network pill in the header: a menu listing the three networks, the
-// wallets on the current one when there are several, and a way to add one.
-// Choosing a network applies the same lock-and-switch as Settings; choosing
-// a wallet locks and opens that wallet.
+// The wallet pill in the header: names the open wallet and its network, and
+// opens a menu of the wallets on this network, a way to add one, and the
+// three networks. Choosing a network applies the same lock-and-switch as
+// Settings; choosing a wallet locks and opens that wallet.
 
 import { Button, Group, Menu, Modal, Stack, Text } from '@mantine/core';
 import { IconCheck, IconChevronDown, IconPlus } from '@tabler/icons-react';
@@ -22,7 +22,6 @@ export function NetworkMenu() {
   const [pending, setPending] = useState<Network | null>(null);
   const sending = Boolean(sendJob && !sendJob.done);
   const onThisNetwork = accounts.filter((a) => a.network === network);
-  const several = onThisNetwork.length > 1;
   const countOn = (n: Network) => accounts.filter((a) => a.network === n).length;
   const hint = (n: Network) => (countOn(n) === 0 ? 'no wallet' : countOn(n) === 1 ? 'wallet' : countOn(n) + ' wallets');
 
@@ -40,28 +39,18 @@ export function NetworkMenu() {
   }, [opened, services, account]);
 
   return (
-    <Menu opened={opened} onChange={setOpened} position="bottom-end" width={200} radius="md" shadow="md">
+    <Menu opened={opened} onChange={setOpened} position="bottom-end" width={220} radius="md" shadow="md">
       <Menu.Target>
-        <button type="button" className="vault-network" aria-label={`Network: ${NETWORK_LABELS[network]}${several && account ? ', ' + walletName(account) : ''}. Change network or wallet`}>
-          {NETWORK_LABELS[network]}
-          {several && account ? ' · ' + walletName(account) : ''}
+        {/* The wallet is what the pill is about, and the network qualifies it:
+            the menu behind it switches both, so both are named, always. */}
+        <button type="button" className="vault-network" aria-label={`${account ? walletName(account) + ' on ' : ''}${NETWORK_LABELS[network]}. Change wallet or network`}>
+          {account && <span className="vault-network-wallet">{walletName(account)}</span>}
+          <span className={account ? 'vault-network-net' : undefined}>{NETWORK_LABELS[network]}</span>
           <IconChevronDown size={12} stroke={2.2} />
         </button>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Label>Network</Menu.Label>
-        {NETWORKS.map((n) => (
-          <Menu.Item
-            key={n}
-            onClick={() => choose(n)}
-            disabled={sending}
-            leftSection={n === network ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
-            rightSection={<span className="vault-network-hint">{hint(n)}</span>}
-          >
-            {NETWORK_LABELS[n]}
-          </Menu.Item>
-        ))}
-        {several && (
+        {account && (
           <>
             <Menu.Label>Wallets on {NETWORK_LABELS[network]}</Menu.Label>
             {onThisNetwork.map((a) => (
@@ -76,16 +65,24 @@ export function NetworkMenu() {
                 {walletName(a)}
               </Menu.Item>
             ))}
-          </>
-        )}
-        {account && (
-          <>
-            <Menu.Divider />
             <Menu.Item disabled={sending} leftSection={<IconPlus size={14} />} onClick={() => navigate('/onboarding?add=1')}>
               Add a wallet
             </Menu.Item>
+            <Menu.Divider />
           </>
         )}
+        <Menu.Label>Network</Menu.Label>
+        {NETWORKS.map((n) => (
+          <Menu.Item
+            key={n}
+            onClick={() => choose(n)}
+            disabled={sending}
+            leftSection={n === network ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
+            rightSection={<span className="vault-network-hint">{hint(n)}</span>}
+          >
+            {NETWORK_LABELS[n]}
+          </Menu.Item>
+        ))}
       </Menu.Dropdown>
       <Modal opened={pending !== null} onClose={() => setPending(null)} title={pending ? `Switch to ${NETWORK_LABELS[pending]}?` : ''}>
         {pending && (

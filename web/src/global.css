@@ -1000,3 +1000,48 @@ html {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* The header pill: the wallet's name, then its network as a quieter tag. */
+.vault-network-wallet {
+  max-width: 9.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--v-text);
+}
+.vault-network-net {
+  font-size: var(--v-fs-xs);
+  color: var(--v-muted);
+}
+.vault-network-net::before {
+  content: "\00B7";
+  margin-right: 6px;
+}
+
+/* The lock screen: one card in the middle of the space under the header,
+   not a card pinned to the top with the rest of the window empty. */
+.vault-lock {
+  min-height: calc(100dvh - 140px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vault-lock-card {
+  width: 100%;
+  max-width: 400px;
+}
+.vault-lock-name {
+  overflow-wrap: anywhere;
+}
+.vault-lock-other {
+  align-self: center;
+  font-size: var(--v-fs-sm);
+  color: var(--v-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 6px 8px;
+}
+.vault-lock-other:hover {
+  color: var(--v-text);
+}
