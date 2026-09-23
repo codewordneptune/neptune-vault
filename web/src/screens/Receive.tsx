@@ -43,13 +43,6 @@ const KIND_NOTES: Record<KeyKind, string> = {
     'Lets someone watch payments, such as an accountant. Whoever holds it sees every payment it receives, but can never spend them. Share it only with someone you trust with that.',
 };
 
-// About the code for a kind of address, under the code on both tabs: a
-// request code carries the same address and more, so it is at least as
-// dense. What does not fit in a request code has its own note.
-const CODE_HINTS: Partial<Record<KeyKind, string>> = {
-  generation: 'The code is dense: scan from close up, or copy the address instead.',
-};
-
 // The note's shape says how much care the kind needs: information for
 // Standard and Short, which are both ordinary choices (the words carry
 // Short's one-sender rule), so switching between them changes only the
@@ -321,11 +314,6 @@ export function Receive() {
                 </Button>
               )}
             </Group>
-            {CODE_HINTS[kind] && (
-              <Text size="sm" c="dimmed">
-                {CODE_HINTS[kind]}
-              </Text>
-            )}
           </>
         )}
 
@@ -369,11 +357,6 @@ export function Receive() {
                 Share
               </Button>
             </Group>
-            {CODE_HINTS[kind] && (
-              <Text size="sm" c="dimmed">
-                {CODE_HINTS[kind]}
-              </Text>
-            )}
           </>
         )}
 
