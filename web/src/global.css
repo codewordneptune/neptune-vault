@@ -19,6 +19,9 @@
   --v-accent-2: #1f6fe0;
   --v-accent-deep: #1a5fc4;
   --v-accent-text: #7db4f5;
+  /* The tile behind the side rail's current tab: a card's surface, lifted
+     a step in the dark palette so it stands off the rail. */
+  --v-rail-tile: var(--v-surface-2);
   --v-accent-soft: rgba(58, 139, 243, 0.12);
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
@@ -62,6 +65,7 @@
   --v-accent-2: #1f6fe0;
   --v-accent-deep: #1a5fc4;
   --v-accent-text: #1a5fc4;
+  --v-rail-tile: #ffffff;
   --v-accent-soft: rgba(43, 125, 233, 0.1);
   --v-ok-text: #1a7a31;
   --v-warn-text: #8a5a00;
@@ -1186,15 +1190,31 @@ html {
     width: 100%;
     padding: 12px 4px;
   }
-  /* The active line runs down the rail's inner edge instead of along the top. */
+  /* In the rail the current tab sits on a tile of the cards' own surface,
+     icon and label together, not a line: a line on the rail's outer edge
+     sat against the window's frame and was hard to see. */
+  .vault-tab {
+    isolation: isolate;
+  }
   .vault-tab::before {
-    top: 12px;
-    bottom: 12px;
-    left: 0;
-    right: auto;
-    width: 3px;
+    z-index: -1;
+    inset: 2px 10px;
+    width: auto;
     height: auto;
-    border-radius: 0 3px 3px 0;
+    border-radius: var(--v-radius-sm);
+    transition:
+      background-color 160ms ease,
+      opacity 160ms ease;
+  }
+  .vault-tab.active::before {
+    background: var(--v-rail-tile);
+  }
+  /* Under the pointer, a fainter tile says where a click would go. */
+  @media (hover: hover) and (pointer: fine) {
+    .vault-tab:not(.active):hover::before {
+      background: var(--v-rail-tile);
+      opacity: 0.5;
+    }
   }
   /* One width for every screen: room for the history table and a form that
      breathes, and not so wide that an amount drifts from what it is for. */
