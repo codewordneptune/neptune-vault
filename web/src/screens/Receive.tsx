@@ -277,6 +277,14 @@ export function Receive() {
         <Title order={2} className="sr-only">
           Receive
         </Title>
+        {/* What the card is for comes first; the kind of address, which both
+            tabs share and most people leave at Standard, comes under it. */}
+        <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
+          <Tabs.List grow>
+            <Tabs.Tab value="address">Address</Tabs.Tab>
+            <Tabs.Tab value="request">Request payment</Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
         <SegmentedControl
           aria-label="Address kind"
           fullWidth
@@ -292,12 +300,6 @@ export function Receive() {
             ),
           }))}
         />
-        <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
-          <Tabs.List grow>
-            <Tabs.Tab value="address">Address</Tabs.Tab>
-            <Tabs.Tab value="request">Request payment</Tabs.Tab>
-          </Tabs.List>
-        </Tabs>
 
         {tab === 'address' && (
           <>
