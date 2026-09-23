@@ -18,4 +18,13 @@ tauri-build = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = [] }
+# The native Save dialog, for backup files the page cannot write itself.
+tauri-plugin-dialog = "2"
+# Opening a link in the system's browser rather than inside the app.
+tauri-plugin-opener = "2"
 vault-bridge = { path = "../../crates/vault-bridge" }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+# A second launch brings the first window forward instead of opening another
+# on the same wallet.
+tauri-plugin-single-instance = "2"

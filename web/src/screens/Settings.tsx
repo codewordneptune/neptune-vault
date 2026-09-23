@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
 import { Caution } from '../components/Notice';
+import { NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
 import { requestPersistentStorage, walletName } from '../storage/db';
@@ -129,15 +130,36 @@ export function Settings() {
     }
     setExportAsking(false);
     setExportError(null);
+    const slug = walletName(account).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const fileName = `neptune-vault-${account.network}-${slug}-${new Date().toISOString().slice(0, 10)}.json`;
+    const text = JSON.stringify(file, null, 2);
+    if (NATIVE) {
+      // The system's Save dialog: the person chooses where it goes, and hears where it went.
+      try {
+        const { saveFile } = await import('../backend/native/appClient');
+        const saved = await saveFile(fileName, text);
+        if (!saved) {
+          setMessage('Not saved. Export it again when you are ready.');
+          return;
+        }
+        // Only a file that was written counts as a backup: the dialog says so, unlike a browser download.
+        await services.accounts.markBackedUp(account.id, file.exportedAt);
+        await refresh();
+        setMessage(`Backup file saved to ${saved}. It is encrypted with your password.`);
+      } catch (e) {
+        setMessage(null);
+        setExportError((e as Error).message);
+      }
+      return;
+    }
     await services.accounts.markBackedUp(account.id, file.exportedAt);
     await refresh();
     setMessage(`Backup file ready, encrypted with your password. If you cancelled saving it, export it again.`);
-    const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
+    const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const slug = walletName(account).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    a.download = `neptune-vault-${account.network}-${slug}-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -221,7 +243,7 @@ export function Settings() {
           <Text size="sm">
             The backup file and the seed phrase below are for {account ? walletName(account) : 'this wallet'} only. Each wallet on this device has its own.
           </Text>
-          {persistent ? (
+          {NATIVE ? null : persistent ? (
             <Text size="sm" c="dimmed">
               The browser will not delete this wallet's data on its own. Clearing site data still does, so keep your seed phrase or a backup file.
             </Text>
@@ -377,7 +399,7 @@ export function Settings() {
             App
           </Title>
           <AppearanceCard />
-          <InstallCard />
+          {!NATIVE && <InstallCard />}
           <Text size="sm" c="dimmed">
             Device and app details to include when you report a problem.
           </Text>
@@ -396,7 +418,7 @@ export function Settings() {
             About
           </Title>
           <Text size="sm" c="dimmed">
-            A Neptune Cash wallet that runs in your browser. Keys never leave this device, and it talks only to the node you choose. Early version, not audited: use only amounts you can afford to lose.
+            {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Keys never leave this device, and it talks only to the node you choose. Early version, not audited: use only amounts you can afford to lose.
           </Text>
           <Group gap="md">
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
@@ -445,7 +467,7 @@ function AutoLockSetting() {
         }}
       />
       <Text size="sm" c="dimmed">
-        It also locks whenever the app goes to the background.
+        {NATIVE ? 'It also locks when you minimize the window.' : 'It also locks whenever the app goes to the background.'}
       </Text>
     </Stack>
   );
@@ -632,7 +654,7 @@ function PasskeyCard() {
   if (supported === false && !enabled) {
     return (
       <Text size="sm" c="dimmed">
-        Passkey unlock is not available here. It needs a device with a screen lock and a browser that supports passkeys.
+        {NATIVE ? 'Passkey unlock is not available in this app. The password unlocks it.' : 'Passkey unlock is not available here. It needs a device with a screen lock and a browser that supports passkeys.'}
       </Text>
     );
   }

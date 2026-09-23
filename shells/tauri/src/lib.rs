@@ -9,6 +9,8 @@ use std::sync::Arc;
 
 use serde_json::Value;
 use tauri::ipc::Channel;
+use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 use tauri::Manager;
 use tauri::State;
 use vault_bridge::envelope::{SealedBox, SeedEnvelope};
@@ -314,9 +316,80 @@ fn prover_cancel(app: State<'_, App>) {
 }
 
 // ---------------------------------------------------------------------------
+// The app around the wallet
+// ---------------------------------------------------------------------------
+
+fn app_error(message: impl Into<String>) -> BridgeError {
+    BridgeError {
+        name: "Error".to_string(),
+        message: message.into(),
+    }
+}
+
+/// Offers the native Save dialog and writes `contents` where the person
+/// chooses. The dialog is opened here, not from the page, so the page can
+/// never write to a path of its own choosing. The path saved to, or none
+/// when the person cancelled.
+#[tauri::command]
+async fn app_save_file(app: tauri::AppHandle, suggested_name: String, contents: String) -> Result<Option<String>> {
+    let chosen = app
+        .dialog()
+        .file()
+        .set_file_name(&suggested_name)
+        .add_filter("Neptune Vault backup", &["json"])
+        .blocking_save_file();
+    let Some(chosen) = chosen else {
+        return Ok(None);
+    };
+    let path = chosen
+        .into_path()
+        .map_err(|e| app_error(format!("That place cannot be saved to: {e}")))?;
+    std::fs::write(&path, contents.as_bytes()).map_err(|e| app_error(format!("The file could not be written: {e}")))?;
+    Ok(Some(path.display().to_string()))
+}
+
+/// Where a link may lead from the app: the project's own pages, opened in
+/// the system's browser. Anything else is refused, so a page that went
+/// wrong cannot send the person to a site of its choosing. Kept in step
+/// with web/src/app/links.ts.
+const LINK_HOSTS: &[&str] = &["useneptune.org", "t.me", "talk.neptune.cash", "github.com", "neptune.cash"];
+
+fn allowed_link(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else {
+        return false;
+    };
+    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+    LINK_HOSTS.contains(&host)
+}
+
+/// Opens one of the project's pages in the system's browser.
+#[tauri::command]
+fn app_open_url(app: tauri::AppHandle, url: String) -> Result<()> {
+    if !allowed_link(&url) {
+        return Err(app_error("That link is not one the app opens."));
+    }
+    app.opener()
+        .open_url(&url, None::<&str>)
+        .map_err(|e| app_error(format!("The link could not be opened: {e}")))
+}
+
+// ---------------------------------------------------------------------------
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Registered first, so a second launch is caught before it starts
+    // anything: it brings the running window forward and exits.
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }));
+    builder
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // The wallet's sealed logs live in the app's own data folder, a
             // path this app chose, and not in the web view's storage.
@@ -361,6 +434,8 @@ pub fn run() {
             wallet_ledger,
             prover_prove,
             prover_cancel,
+            app_save_file,
+            app_open_url,
         ])
         .run(tauri::generate_context!())
         .expect("the app could not start");

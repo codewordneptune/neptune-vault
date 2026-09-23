@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const shell = readFileSync(new URL('../../../../shells/tauri/src/lib.rs', import.meta.url), 'utf8');
-const clients = ['walletClient.ts', 'proverClient.ts']
+const clients = ['walletClient.ts', 'proverClient.ts', 'appClient.ts']
   .map((f) => readFileSync(new URL(f, import.meta.url), 'utf8'))
   .join('\n');
 
@@ -39,8 +39,8 @@ function commands(): Map<string, string[]> {
   const re = /#\[tauri::command\]\s*(?:async\s+)?fn\s+(\w+)\s*\(([\s\S]*?)\)\s*(?:->|\{)/g;
   for (const m of shell.matchAll(re)) {
     const args = topLevel(m[2])
-      // Tauri injects the managed state; it is not sent from the page.
-      .filter((p) => !/State</.test(p))
+      // Tauri injects the managed state and the app handle; neither is sent from the page.
+      .filter((p) => !/State<|AppHandle/.test(p))
       .map((p) => camel(p.split(':')[0].trim()));
     found.set(m[1], args);
   }

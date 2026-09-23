@@ -10,6 +10,7 @@ import type { StoredUtxo } from '../backend/types';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
 import { Caution } from '../components/Notice';
+import { NATIVE } from '../app/platform';
 import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
@@ -203,7 +204,9 @@ export function Home() {
       {!showBackupNudge && <InstallNudge />}
       {showBackupNudge && (
         <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
-          This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared.
+          {NATIVE
+            ? 'This wallet lives only on this device. Export a backup file so you can restore it, with its contacts, if the device is lost or its data deleted.'
+            : "This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared."}
           <div>
             <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
               Export backup file

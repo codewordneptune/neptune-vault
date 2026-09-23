@@ -1382,3 +1382,36 @@ html {
 .vault-button-start.vault-button-start {
   margin-left: calc(-1 * var(--button-padding-x, 8px));
 }
+
+/* The desktop app: its chrome is an app's, not a page's. Labels, buttons
+   and the bars are not selectable text; amounts, addresses and anything
+   else worth copying still are. */
+.vault-native .vault-topbar,
+.vault-native .vault-tabbar,
+.vault-native .vault-eyebrow,
+.vault-native .mantine-Button-root,
+.vault-native .mantine-SegmentedControl-root,
+.vault-native .mantine-InputWrapper-label,
+.vault-native .mantine-Menu-item,
+.vault-native .mantine-Tabs-tab {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The restore step while a file is dragged over it. */
+.vault-dropping {
+  outline: 2px dashed var(--mantine-primary-color-filled);
+  outline-offset: -6px;
+}
+/* "Or drop it here" where a mouse can drag a file; "No file chosen" elsewhere. */
+.vault-drop-hint {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .vault-drop-hint {
+    display: inline;
+  }
+  .vault-drop-none {
+    display: none;
+  }
+}
