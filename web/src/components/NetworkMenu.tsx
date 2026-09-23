@@ -1,10 +1,10 @@
 // The wallet pill in the header: names the open wallet and its network, and
-// opens a menu of the wallets on this network, a way to add one, and the
-// three networks. Choosing a network applies the same lock-and-switch as
-// Settings; choosing a wallet locks and opens that wallet.
+// opens a menu of the wallets on this network, a way to add one, a way to
+// lock, and the three networks. Choosing a network applies the same
+// lock-and-switch as Settings; choosing a wallet locks and opens that wallet.
 
 import { Button, Group, Menu, Modal, Stack, Text } from '@mantine/core';
-import { IconCheck, IconChevronDown, IconPlus } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconLock, IconPlus } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,7 +15,7 @@ import { NETWORK_LABELS } from '../util/network';
 const NETWORKS: Network[] = ['main', 'testnet', 'regtest'];
 
 export function NetworkMenu() {
-  const { services, network, switchNetwork, switchAccount, account, sendJob } = useApp();
+  const { services, network, switchNetwork, switchAccount, account, locked, sendJob } = useApp();
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [opened, setOpened] = useState(false);
@@ -68,6 +68,14 @@ export function NetworkMenu() {
             <Menu.Item disabled={sending} leftSection={<IconPlus size={14} />} onClick={() => navigate('/onboarding?add=1')}>
               Add a wallet
             </Menu.Item>
+            {/* Stepping away is the commonest reason to lock, so it is one tap from
+                any screen; Settings keeps its Lock now too. Not during a send,
+                whose proof a lock would cut short. */}
+            {!locked && (
+              <Menu.Item disabled={sending} leftSection={<IconLock size={14} />} onClick={() => void services.accounts.lock()}>
+                Lock wallet
+              </Menu.Item>
+            )}
             <Menu.Divider />
           </>
         )}

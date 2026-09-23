@@ -115,6 +115,30 @@ describe('MempoolWatcher', () => {
     expect(rows).toHaveLength(1);
   });
 
+  it('keeps a pending payment while its rewritten transaction waits under a new id', async () => {
+    // A proof upgrader, or a block builder merging transactions, rewrites a
+    // waiting transaction under a new id; the payment in it is the same
+    // output. It must not blink out while the new transaction waits.
+    const { node, core, watcher } = await setup();
+    node.ids = ['t1'];
+    node.held = new Set(['c1']);
+    core.scans.set('t1', payment('c1', '2'));
+    await watcher.poll();
+    node.ids = ['t2'];
+    core.scans.set('t2', payment('c1', '2'));
+    for (let round = 0; round < 4; round++) {
+      await watcher.poll();
+      expect(await view.get('history', incomingKey('acc', 'c1'))).toBeDefined();
+    }
+    // Once no transaction in the mempool carries it, it goes after the usual patience.
+    node.ids = [];
+    node.held = new Set();
+    await watcher.poll();
+    expect(await view.get('history', incomingKey('acc', 'c1'))).toBeDefined();
+    await watcher.poll();
+    expect(await view.get('history', incomingKey('acc', 'c1'))).toBeUndefined();
+  });
+
   it('drops a pending row after the transaction has been gone for a while', async () => {
     const { node, core, watcher } = await setup();
     node.ids = ['t1'];
