@@ -1487,3 +1487,18 @@ html {
     display: none;
   }
 }
+
+/* An action for one field, on the right of its label line (Choose contact
+   on Send): the link's 40 px target is centred on the label, and its text
+   ends flush with the field's edge. */
+.vault-field-action-wrap {
+  position: relative;
+}
+.vault-field-action.vault-field-action {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  gap: 4px;
+  margin-right: -4px;
+}

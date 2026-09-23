@@ -391,19 +391,14 @@ export function Send() {
         <Drawer opened={reviewSheet !== null} onClose={() => setStep('form')} position="bottom" size="auto" title="Review" trapFocus>
           {reviewSheet}
         </Drawer>
-        <Group justify="space-between" align="center">
-          <div>
-            <Title order={2} className="sr-only">
-              Send
-            </Title>
-            <Text size="sm" c="dimmed">
-              Spendable {services.settings.hideBalance ? '••••' : showNau(balance.spendableNau)} NPT
-            </Text>
-          </div>
-          <Button size="compact-md" variant="light" className="vault-tap" leftSection={<IconAddressBook size={16} stroke={1.8} />} onClick={() => setPicking(true)}>
-            Contacts
-          </Button>
-        </Group>
+        <div>
+          <Title order={2} className="sr-only">
+            Send
+          </Title>
+          <Text size="sm" c="dimmed">
+            Spendable {services.settings.hideBalance ? '••••' : showNau(balance.spendableNau)} NPT
+          </Text>
+        </div>
         {sendJob?.done && sendJob.outcome && (
           <Alert color="green" title="Submitted" withCloseButton onClose={dismissSendJob}>
             {sendJob.request.amount} NPT is on its way. It shows as pending until it is confirmed
@@ -435,34 +430,44 @@ export function Send() {
           }}
         >
           <Stack>
-            <TextInput
-              label="Recipient address"
-              autoCapitalize="none"
-              autoCorrect="off"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="Address or payment link"
-              value={recipient}
-              onChange={(e) => {
-                const value = e.currentTarget.value;
-                // A payment link arriving by any route (keyboard paste, share)
-                // is split into its fields, the same as Paste and Scan do.
-                if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyText(value);
-                else {
-                  setRecipient(value);
-                  setRecipientError(null);
-                  setLinkMeta(null);
+            {/* A saved contact fills the recipient, as Scan does: so it sits on
+                the field's own label line, ahead of the field in the page's
+                order as on screen, and not inside the label, which would make
+                it part of the field's name. */}
+            <div className="vault-field-action-wrap">
+              <UnstyledButton type="button" onClick={() => setPicking(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action">
+                <IconAddressBook size={16} stroke={1.8} aria-hidden />
+                Choose contact
+              </UnstyledButton>
+              <TextInput
+                label="Recipient address"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Address or payment link"
+                value={recipient}
+                onChange={(e) => {
+                  const value = e.currentTarget.value;
+                  // A payment link arriving by any route (keyboard paste, share)
+                  // is split into its fields, the same as Paste and Scan do.
+                  if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyText(value);
+                  else {
+                    setRecipient(value);
+                    setRecipientError(null);
+                    setLinkMeta(null);
+                  }
+                }}
+                onBlur={() => void checkRecipient()}
+                error={recipientError}
+                rightSectionWidth={80}
+                rightSection={
+                  <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanning(true)}>
+                    Scan
+                  </Button>
                 }
-              }}
-              onBlur={() => void checkRecipient()}
-              error={recipientError}
-              rightSectionWidth={80}
-              rightSection={
-                <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanning(true)}>
-                  Scan
-                </Button>
-              }
-            />
+              />
+            </div>
             {linkMeta && (linkMeta.label || linkMeta.message) && (
               <div className="vault-link-meta-form">
                 <IconLink size={16} stroke={1.8} aria-hidden />
