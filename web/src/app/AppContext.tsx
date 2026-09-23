@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { byCreation, type AccountRecord, type HistoryRecord, type Network, type UtxoRecord } from '../storage/db';
 import type { ScanSettings, SendRequest } from '../backend/types';
 import type { SyncEngine, SyncProgress } from '../wallet/sync';
-import { RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type SendOutcome, type SendProgress } from './send';
+import { paymentsTotalNau, RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
 import { useScreenWakeLock, type WakeLockState } from './wakeLock';
 
@@ -277,7 +277,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         setSendJob((job) => (job ? { ...job, done: true, outcome } : job));
         if (services.settings.lastSendFailure) void services.updateSettings({ lastSendFailure: undefined });
         if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
-          notifications.show({ color: 'green', title: 'Sent', message: `${request.amount} NPT submitted. It shows as pending until it is confirmed.` });
+          notifications.show({ color: 'green', title: 'Sent', message: `${showNau(paymentsTotalNau(request))} NPT submitted. It shows as pending until it is confirmed.` });
         }
         await refresh();
         return outcome;
@@ -296,7 +296,7 @@ export function AppProvider({ services, children }: { services: Services; childr
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, error: message } : job));
-        if (message) void services.updateSettings({ lastSendFailure: { at: Date.now(), accountId, amount: request.amount, recipient: request.recipient, message } });
+        if (message) void services.updateSettings({ lastSendFailure: { at: Date.now(), accountId, amount: showNau(paymentsTotalNau(request)), recipient: request.payments[0]?.recipient ?? '', others: request.payments.length - 1, message } });
         if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message });
         throw e;
       } finally {

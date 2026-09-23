@@ -132,6 +132,40 @@ describe('groupHistory', () => {
     expect(entry.folded).toHaveLength(2);
   });
 
+  it('counts only the payments to others as leaving, in a send to several', () => {
+    const outputs = [
+      { commitment: 'pay-them', role: 'recipient' as const },
+      { commitment: 'pay-me', role: 'recipient' as const },
+      { commitment: 'chg', role: 'change' as const },
+    ];
+    const rows = [sent({ amountNau: '5000', changeNau: '100', outputs }), received('mine', '2000'), received('change', '100')];
+    const coins = [
+      { ...utxo('mine', '2000', 40), stored: { own_build_height: 40, commitment: 'pay-me' } as UtxoRecord['stored'] },
+      { ...utxo('change', '100', 40), stored: { own_build_height: 40, commitment: 'chg' } as UtxoRecord['stored'] },
+    ];
+    const [entry] = groupHistory(rows, coins);
+    expect(entry.kind).toBe('sent');
+    expect(entry.ownPayments).toEqual(['pay-me']);
+    // 3000 to the other recipient and the fee of 300 left the wallet.
+    expect(entry.shownNau).toBe(3300n);
+    expect(entry.netNau).toBe(-3300n);
+  });
+
+  it('calls a send to several a move to yourself only when every payment came back', () => {
+    const outputs = [
+      { commitment: 'p1', role: 'recipient' as const },
+      { commitment: 'p2', role: 'recipient' as const },
+    ];
+    const rows = [sent({ amountNau: '5000', changeNau: '0', outputs }), received('one', '2000'), received('two', '3000')];
+    const coins = [
+      { ...utxo('one', '2000', 40), stored: { own_build_height: 40, commitment: 'p1' } as UtxoRecord['stored'] },
+      { ...utxo('two', '3000', 40), stored: { own_build_height: 40, commitment: 'p2' } as UtxoRecord['stored'] },
+    ];
+    const [entry] = groupHistory(rows, coins);
+    expect(entry.kind).toBe('self');
+    expect(entry.shownNau).toBe(300n);
+  });
+
   it('keeps the input order', () => {
     const rows = [received('a', '1', 10), sent({ changeNau: '4700' }), received('b', '2', 11)];
     expect(groupHistory(rows, []).map((e) => e.record.key)).toEqual([`${A}:recv:a`, `${A}:sent:tx1`, `${A}:recv:b`]);

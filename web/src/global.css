@@ -1502,3 +1502,44 @@ html {
   gap: 4px;
   margin-right: -4px;
 }
+
+/* A send to several: each recipient after the first is a group of its own,
+   set off by a line, its number and a way to take it out again. The review
+   lists them with what each gets. */
+.vault-payee {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-md);
+  padding-top: var(--mantine-spacing-md);
+  border-top: 1px solid var(--v-line);
+}
+.vault-payee-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.vault-payee-head .vault-tap-link {
+  margin-right: -4px;
+}
+.vault-add-payee {
+  gap: 6px;
+}
+.vault-review-payee {
+  align-items: flex-start;
+}
+.vault-review-payee b {
+  flex-shrink: 0;
+}
+
+/* Under a recipient field whose address is a saved contact: the name. */
+.vault-contact-match {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--v-muted);
+}
+.vault-contact-match b {
+  color: var(--v-text);
+  font-weight: 600;
+}

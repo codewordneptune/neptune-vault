@@ -44,7 +44,9 @@ choose.
 
 **Sending**
 
-- A review step, fee presets and saved contacts.
+- A review step, fee presets and saved contacts. A typed or pasted address
+  that is a saved contact shows its name.
+- Pay up to 10 recipients in one transaction: one proof and one fee.
 - Scan the recipient's code with the camera, or from an image you choose
   or paste.
 - The app builds and proves the transaction on your device. The send keeps

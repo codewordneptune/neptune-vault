@@ -116,12 +116,17 @@ spends by exact absolute-index-set match. Coins are keyed
 `<utxo hash>:<aocl index>` (`coin_key`). `scan_mempool_kernel` does the same
 for one unmined kernel without advancing key indices.
 
-Sending (`src/send.rs`). `plan_inputs` takes unspent, unlocked coins largest
-first (fewer inputs, smaller proof) until amount plus fee is covered.
-`build_send` refuses a membership-proof snapshot whose height is not the
-tip's, verifies each membership proof against the snapshot's mutator set,
-makes the recipient output and change to generation key 0 (both announced on
-chain, so the ordinary scan finds the change), adds lustration announcements
+Sending (`src/send.rs`). A `SendRequest` pays a list of `payments` (at most
+`MAX_PAYMENTS`, 10), each a recipient and an amount; a request from before
+the list names one recipient and amount instead. `plan_inputs` takes
+unspent, unlocked coins largest first (fewer inputs, smaller proof) until
+the payments plus the fee are covered. `build_send` refuses a
+membership-proof snapshot whose height is not the tip's, verifies each
+membership proof against the snapshot's mutator set, makes one output per
+payment in the request's order and the change to generation key 0 last (all
+announced on chain, so the ordinary scan finds the change), refuses one
+address paid twice (sender randomness comes from the height and the
+receiver, so two equal payments would be one output twice), adds lustration announcements
 when the tip requires them and the request allows it, and returns the
 bincode `PrimitiveWitness` and kernel. The txid is the kernel's MAST hash.
 

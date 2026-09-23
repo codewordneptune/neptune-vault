@@ -22,6 +22,8 @@ class FakeCore implements Partial<WalletCore> {
   ledger?: WalletCore['ledger'];
   planned: StoredUtxo[] = [];
   lustration = false;
+  /** The output commitments the built kernel reports, in kernel order. */
+  commitments: string[] = [];
   async planInputs(unspent: StoredUtxo[], _r: SendRequest): Promise<InputPlan> {
     this.planned = unspent;
     return { inputs: unspent, absolute_index_sets: unspent.map((u) => ({ set: u.hash })), total_in_nau: '0' };
@@ -32,7 +34,7 @@ class FakeCore implements Partial<WalletCore> {
       witness: new Uint8Array([1, 2, 3]),
       kernel: new Uint8Array([4]),
       summary: { txid: 'tx-abc', input_hashes: inputs.map((u) => u.hash), amount_nau: '5', fee_nau: '1', change_nau: null,
-      output_commitments: [], timestamp_ms: 0, built_against_height: 10, built_against_hash: 'h', requires_lustration: this.lustration },
+      output_commitments: this.commitments, timestamp_ms: 0, built_against_height: 10, built_against_hash: 'h', requires_lustration: this.lustration },
     };
   }
   async assembleSubmission(kernel: Uint8Array, proof: Uint8Array) {
@@ -153,7 +155,7 @@ async function setup() {
   return { core, node, prover, service };
 }
 
-const request: SendRequest = { recipient: 'nolgar1x', amount: '5', fee: '1', accept_lustration: false };
+const request: SendRequest = { payments: [{ recipient: 'nolgar1x', amount: '5', amount_nau: '5' }], fee: '1', accept_lustration: false };
 
 describe('send service', () => {
   it('offers only unspent, unreserved inputs', async () => {
@@ -174,6 +176,31 @@ describe('send service', () => {
     expect(entry?.status).toBe('pending');
     expect(entry?.inputHashes).toEqual(['a', 'b']);
     expect(await service.spendable()).toEqual([]);
+  });
+
+  it('records every payment of a send to several, and which output is whose', async () => {
+    const { core, service } = await setup();
+    core.commitments = ['c-a', 'c-b', 'c-change'];
+    const several: SendRequest = {
+      payments: [
+        { recipient: 'nolgar1a', amount: '2', amount_nau: '2' },
+        { recipient: 'nolgar1b', amount: '3', amount_nau: '3' },
+      ],
+      fee: '1',
+      accept_lustration: false,
+    };
+    await service.send(several, () => {});
+    const entry = await view.get('history', 'acc:sent:tx-abc');
+    expect(entry?.recipient).toBe('nolgar1a');
+    expect(entry?.payments).toEqual([
+      { recipient: 'nolgar1a', amountNau: '2' },
+      { recipient: 'nolgar1b', amountNau: '3' },
+    ]);
+    expect(entry?.outputs).toEqual([
+      { commitment: 'c-a', role: 'recipient' },
+      { commitment: 'c-b', role: 'recipient' },
+      { commitment: 'c-change', role: 'change' },
+    ]);
   });
 
   it('writes the send down and holds its coins before the node hears of it', async () => {

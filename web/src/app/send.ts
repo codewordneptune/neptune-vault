@@ -27,6 +27,14 @@ export interface SendProgress {
 /** How many times a send is rebuilt and proved again after a block arrived during proving. */
 export const MAX_SEND_ATTEMPTS = 3;
 
+/** The most recipients one send pays: the core refuses more (`MAX_PAYMENTS` in send.rs). */
+export const MAX_PAYMENTS = 10;
+
+/** What the recipients of a send get together, in nau. */
+export function paymentsTotalNau(request: SendRequest): bigint {
+  return request.payments.reduce((sum, p) => sum + BigInt(p.amount_nau), 0n);
+}
+
 /** The node's answer when a transaction no longer fits the chain: a stale snapshot, or an input already spent. */
 function isNotConfirmable(e: unknown): boolean {
   return e instanceof Error && /NotConfirmable/.test(e.message);
@@ -224,11 +232,12 @@ export class SendService {
       timestampMs: Date.now(),
       height: null,
       inputHashes,
-      recipient: request.recipient,
+      recipient: request.payments[0]?.recipient ?? null,
+      payments: request.payments.map((p) => ({ recipient: p.recipient, amountNau: p.amount_nau })),
       error: null,
       changeNau,
-      // Kernel order: the recipient's output first, the change last.
-      outputs: commitments.map((commitment, i) => ({ commitment, role: i === 0 ? 'recipient' : 'change' })),
+      // Kernel order: one output per payment, in the request's order, then the change.
+      outputs: commitments.map((commitment, i) => ({ commitment, role: i < request.payments.length ? 'recipient' : 'change' })),
       note,
     };
     // The inputs held and the row written, together.

@@ -27,6 +27,7 @@ use neptune_rpc_api::model::block::header::RpcBlockHeader;
 use neptune_rpc_api::model::block::transaction_kernel::RpcAbsoluteIndexSet;
 use neptune_rpc_api::model::wallet::mutator_set::RpcMsMembershipSnapshot;
 use neptune_rpc_api::model::wallet::transaction::RpcTransaction;
+use neptune_wallet::address::ReceivingAddress;
 use neptune_wallet::transaction_details::TransactionDetails;
 use neptune_wallet::transaction_output::TxOutput;
 use neptune_wallet::transaction_output::TxOutputList;
@@ -40,11 +41,36 @@ use crate::account::KeyKind;
 use crate::amount;
 use crate::scan::StoredUtxo;
 
+/// The most recipients one send pays. Each is an output the proof covers
+/// and an announcement the transaction carries; the cost per recipient is
+/// small next to an input's, but a list without end is not a send a phone
+/// should be asked to prove.
+pub const MAX_PAYMENTS: usize = 10;
+
+/// One payment in a send: who is paid, and how much.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Payment {
+    pub recipient: String,
+    /// NPT, decimal text, for the record when `amount_nau` is given.
+    #[serde(default)]
+    pub amount: String,
+    /// The amount in nau, exactly as the review step showed it.
+    #[serde(default)]
+    pub amount_nau: Option<String>,
+}
+
 /// What the user asked for.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SendRequest {
+    /// Who is paid and how much, in the order of the outputs. Empty in a
+    /// request from before a send could pay several, which names its one
+    /// recipient and amount in the two fields below instead.
+    #[serde(default)]
+    pub payments: Vec<Payment>,
+    #[serde(default)]
     pub recipient: String,
     /// NPT, decimal text.
+    #[serde(default)]
     pub amount: String,
     /// NPT, decimal text.
     pub fee: String,
@@ -61,20 +87,42 @@ pub struct SendRequest {
     pub fee_nau: Option<String>,
 }
 
+/// An amount: the exact nau when given, else the decimal text.
+fn one_amount(nau: &Option<String>, text: &str) -> Result<NativeCurrencyAmount> {
+    let value = match nau {
+        Some(nau) => amount::from_nau_string(nau)?,
+        None => amount::parse(text)?,
+    };
+    if value.is_negative() {
+        bail!("amount must not be negative");
+    }
+    Ok(value)
+}
+
 impl SendRequest {
-    /// The amount and the fee: the exact nau when given, else the decimal texts.
-    pub fn amounts(&self) -> Result<(NativeCurrencyAmount, NativeCurrencyAmount)> {
-        let one = |nau: &Option<String>, text: &str| -> Result<NativeCurrencyAmount> {
-            let value = match nau {
-                Some(nau) => amount::from_nau_string(nau)?,
-                None => amount::parse(text)?,
-            };
-            if value.is_negative() {
-                bail!("amount must not be negative");
-            }
-            Ok(value)
+    /// Each recipient with its amount, in the order of the outputs.
+    pub fn payments(&self) -> Result<Vec<(String, NativeCurrencyAmount)>> {
+        let list = if self.payments.is_empty() {
+            vec![(self.recipient.clone(), one_amount(&self.amount_nau, &self.amount)?)]
+        } else {
+            self.payments
+                .iter()
+                .map(|p| Ok((p.recipient.clone(), one_amount(&p.amount_nau, &p.amount)?)))
+                .collect::<Result<Vec<_>>>()?
         };
-        Ok((one(&self.amount_nau, &self.amount)?, one(&self.fee_nau, &self.fee)?))
+        if list.len() > MAX_PAYMENTS {
+            bail!("a send can pay at most {MAX_PAYMENTS} recipients");
+        }
+        Ok(list)
+    }
+
+    /// What all the recipients get together, and the fee.
+    pub fn amounts(&self) -> Result<(NativeCurrencyAmount, NativeCurrencyAmount)> {
+        let mut total = NativeCurrencyAmount::zero();
+        for (_, value) in self.payments()? {
+            total = total.checked_add(&value).ok_or_else(|| anyhow!("the amounts overflow"))?;
+        }
+        Ok((total, one_amount(&self.fee_nau, &self.fee)?))
     }
 }
 
@@ -100,11 +148,13 @@ pub struct SendPlan {
 pub struct SendSummary {
     pub txid: String,
     pub input_hashes: Vec<String>,
+    /// What the recipients get together.
     pub amount_nau: String,
     pub fee_nau: String,
     pub change_nau: Option<String>,
-    /// Canonical commitments of the outputs, in kernel order: the recipient's
-    /// first, the change last when there is any. The explorer's keys.
+    /// Canonical commitments of the outputs, in kernel order: one per
+    /// payment, in the request's order, then the change when there is any.
+    /// The explorer's keys.
     pub output_commitments: Vec<String>,
     pub timestamp_ms: u64,
     pub built_against_height: u64,
@@ -178,8 +228,20 @@ pub fn build_send(
     now_ms: u64,
 ) -> Result<SendPlan> {
     let network = account.network();
-    let recipient = account.parse_address(&request.recipient)?;
     let (amount, fee) = request.amounts()?;
+    // Every address is read before anything else, so a bad one stops the
+    // send at once. Sender randomness comes from the height and the
+    // receiver, so two payments to one address in one send would share it,
+    // and with equal amounts they would be the same output twice: one
+    // payment of the sum does the same job.
+    let mut payments = Vec::new();
+    for (text, value) in request.payments()? {
+        let recipient = account.parse_address(&text)?;
+        if payments.iter().any(|(earlier, _): &(ReceivingAddress, NativeCurrencyAmount)| earlier.privacy_digest() == recipient.privacy_digest()) {
+            bail!("the same address is paid twice in this send; pay it once, with the two amounts together");
+        }
+        payments.push((recipient, value));
+    }
 
     let tip_header: BlockHeader = tip_header.into();
     let synced_height: u64 = snapshot.synced_height.value();
@@ -225,22 +287,24 @@ pub fn build_send(
         ));
     }
 
-    // Recipient output, announced on chain. Owned if it is one of our keys.
-    let recipient_utxo = Utxo::new_native_currency(recipient.lock_script_hash(), amount);
-    let owned = account
-        .key_for_lock_script_hash(recipient_utxo.lock_script_hash())
-        .is_some();
-    let sender_randomness = account
-        .entropy()
-        .generate_sender_randomness(tip_header.height, recipient.privacy_digest());
-    let mut outputs: Vec<TxOutput> = vec![TxOutput::new(
-        recipient_utxo,
-        sender_randomness,
-        recipient.privacy_digest(),
-        UtxoNotificationMethod::OnChain(recipient.clone()),
-        owned,
-        false,
-    )];
+    // One output per payment, in the request's order, each announced on
+    // chain. Owned when it pays one of our own keys.
+    let mut outputs: Vec<TxOutput> = Vec::with_capacity(payments.len() + 1);
+    for (recipient, value) in &payments {
+        let utxo = Utxo::new_native_currency(recipient.lock_script_hash(), *value);
+        let owned = account.key_for_lock_script_hash(utxo.lock_script_hash()).is_some();
+        let sender_randomness = account
+            .entropy()
+            .generate_sender_randomness(tip_header.height, recipient.privacy_digest());
+        outputs.push(TxOutput::new(
+            utxo,
+            sender_randomness,
+            recipient.privacy_digest(),
+            UtxoNotificationMethod::OnChain(recipient.clone()),
+            owned,
+            false,
+        ));
+    }
 
     // Change back to our first generation key, announced on chain so the
     // ordinary scan finds it and no expected-UTXO bookkeeping is needed.
