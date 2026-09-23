@@ -36,7 +36,7 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
 // both tabs (a request carries the same address), and before the code and
 // its Copy and Share, so the View-only caution is read before sharing.
 const KIND_NOTES: Record<KeyKind, string> = {
-  generation: 'The one to use by default. Safe to reuse and the most private. It is too long to type or read out: copy it or share the code.',
+  generation: 'The one to use by default. Safe to reuse and the most private.',
   ec_hybrid:
     'Short enough to paste into a chat. Give each one to a single sender: if one is reused widely, a future quantum computer could reveal the payments sent to it, though never spend them.',
   viewing:
