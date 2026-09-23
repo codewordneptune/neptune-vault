@@ -50,19 +50,12 @@ const CODE_HINTS: Partial<Record<KeyKind, string>> = {
   generation: 'The code is dense: scan from close up, or copy the address instead.',
 };
 
-// The note's shape says how much care the kind needs: plain text for
-// Standard, which only reassures; text with an info mark for Short, which
-// asks for one sender per address; a caution for View-only, whose exposure
-// cannot be taken back.
+// The note's shape says how much care the kind needs: information for
+// Standard and Short, which are both ordinary choices (the words carry
+// Short's one-sender rule), so switching between them changes only the
+// words; a caution for View-only, whose exposure cannot be taken back.
 function KindNote({ kind }: { kind: KeyKind }) {
   const text = KIND_NOTES[kind];
-  if (kind === 'generation') {
-    return (
-      <Text size="sm" c="dimmed">
-        {text}
-      </Text>
-    );
-  }
   return kind === 'viewing' ? <Caution>{text}</Caution> : <Info>{text}</Info>;
 }
 
