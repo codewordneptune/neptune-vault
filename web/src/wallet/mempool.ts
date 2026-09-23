@@ -200,6 +200,21 @@ export class MempoolWatcher {
     const pending = (await this.rows()).filter(
       (h) => h.status === 'pending' && (h.key.includes(`:${INCOMING_KEY_PREFIX}`) || h.key.includes(`:${OUTGOING_KEY_PREFIX}`)),
     );
+    // A pending row stays while any transaction in the mempool still carries
+    // its output, not only while the one it was first seen in is there:
+    // nodes rewrite waiting transactions under new ids (a proof upgrader
+    // taking its share of the fee, a block builder merging them), and the
+    // payment in them is the same output. Asked of the node in one call; a
+    // node that cannot say leaves only the id to go by, as before.
+    const markers = pending.map((row) => row.outputs?.[0]?.commitment).filter((c): c is string => Boolean(c));
+    let carried = new Set<string>();
+    if (markers.length > 0) {
+      try {
+        carried = await this.node.mempoolHasOutputs(markers);
+      } catch (e) {
+        if (isUnreachable(e)) throw e;
+      }
+    }
     for (const row of pending) {
       const marker = row.outputs?.[0]?.commitment ?? row.key;
       // An "incoming" row for this wallet's own change (written before own
@@ -209,7 +224,7 @@ export class MempoolWatcher {
         this.lastSeen.delete(marker);
         continue;
       }
-      if (current.has(row.txid)) {
+      if (current.has(row.txid) || carried.has(marker)) {
         this.lastSeen.set(marker, this.polls);
         continue;
       }
