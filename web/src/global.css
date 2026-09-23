@@ -11,6 +11,9 @@
   --v-surface: #161f2b;
   --v-surface-2: #1c2734;
   --v-field: #0f151d;
+  /* Read-only wells (the address, seed words, code): a field's colour in the
+     dark palette, a tint in the light one, where fields are white. */
+  --v-well: #0f151d;
   --v-text: #e4ebf4;
   --v-text-2: #c9d4e2;
   --v-muted: #9aa9bc;
@@ -69,6 +72,7 @@
   --v-surface: #ffffff;
   --v-surface-2: #e5ebf2;
   --v-field: #ffffff;
+  --v-well: #edf1f6;
   --v-text: #15202e;
   --v-text-2: #2f3f52;
   --v-muted: #5a6a7e;
@@ -238,7 +242,7 @@ h3.mantine-Title-root {
 }
 
 .mantine-Code-root {
-  background: var(--v-field);
+  background: var(--v-well);
   border: 0;
   color: var(--v-text-2);
 }
@@ -374,7 +378,7 @@ button.vault-network::before {
   gap: 4px;
   padding: 4px 10px;
   border-radius: var(--v-radius-xs);
-  background: var(--v-field);
+  background: var(--v-well);
 }
 .vault-word.slot {
   background: var(--v-accent-soft);
@@ -1388,7 +1392,7 @@ html {
    not a control. */
 .vault-address-box {
   padding: 10px 12px;
-  background: var(--v-field);
+  background: var(--v-well);
   border-radius: var(--v-radius-xs);
   text-align: center;
 }
