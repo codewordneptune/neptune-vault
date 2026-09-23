@@ -1,19 +1,33 @@
 # Hosting on Azure Static Web Apps
 
-The app is static files: `web/dist` after `npm run build`, with the wasm
-packages under `wasm/`. Any static host works as long as it can set two
-response headers on every file, because the threaded prover needs the page to
-be cross-origin isolated (ARCHITECTURE.md section 7):
+The web app is static files: `web/dist` after `npm run build`, with the
+three wasm packages under `wasm/` (`core`, `prover`, `prover-legacy`).
+The desktop apps do not use this hosting at all; see
+[DESKTOP-RELEASE.md](DESKTOP-RELEASE.md).
+
+Any static host works if it can set these response headers on every file.
+The first two are required: the threaded prover needs the page to be
+cross-origin isolated.
 
 ```
 Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Embedder-Policy: require-corp
 ```
 
-Azure Static Web Apps (R24) sets them through `globalHeaders` in
-`web/public/staticwebapp.config.json`, which Vite copies into `dist`, and
-which also maps `.wasm` to `application/wasm` and routes unknown paths to
-`index.html` for the router. The site is `https://vault.dev.useneptune.org`.
+The rest are the site's security policy and belong on any host too:
+`Cross-Origin-Resource-Policy`, a strict `Content-Security-Policy` (scripts
+only from the site, connections only to the site, `https:` nodes and local
+nodes), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: no-referrer` and a `Permissions-Policy` that allows the
+camera, clipboard writes, wake lock, sharing and passkeys, and refuses
+everything else, clipboard reads included.
+
+Azure Static Web Apps sets all of them through `globalHeaders` in
+`web/public/staticwebapp.config.json`, which Vite copies into `dist`. The
+same file maps `.wasm` and `.webmanifest` to their MIME types and routes
+unknown paths to `index.html` for the router (except assets, wasm, icons and
+top-level `.js` and `.json` files). `vite preview` serves the same headers.
+The site is `https://vault.dev.useneptune.org`.
 
 ## One-time setup (you)
 
@@ -30,16 +44,17 @@ which also maps `.wasm` to `application/wasm` and routes unknown paths to
 ## Deploying
 
 Pushes to `main` that touch the web app or the crates run
-`.github/workflows/deploy-web.yml`: it builds both wasm packages (the
+`.github/workflows/deploy-web.yml`: it runs the Rust tests (`vault-core`
+and the vendored field-inverse test), builds the three wasm packages (the
 nightly toolchain and wasm-pack, cached between runs), runs the web tests,
-builds `dist`, and uploads it. The first run compiles everything and takes
+builds `dist`, publishes the file hashes, and uploads it. The first run compiles everything and takes
 about 30 minutes; later runs reuse the cargo cache.
 
 To deploy from this PC instead, build locally and upload with the SWA CLI:
 
 ```
 cd web
-npm run wasm:core && npm run wasm:prover
+npm run wasm:core && npm run wasm:prover && npm run wasm:prover-legacy
 npm run build
 npx @azure/static-web-apps-cli deploy dist --deployment-token <token> --env production
 ```
@@ -48,18 +63,19 @@ npx @azure/static-web-apps-cli deploy dist --deployment-token <token> --env prod
 
 Open the site on the phone and look at Settings: it shows whether the
 persistent-storage request was granted. Then open the diagnostics page at
-`/diagnostics`: "Cross-origin isolated: yes" confirms the headers are in
-place, and the prover will use all cores. Install to the home screen from
+`/diagnostics`: a Threads row reading "Available: the page is cross-origin
+isolated" confirms the headers are in place, and the prover will use all
+cores. Install to the home screen from
 the browser menu; the app must open in standalone mode with the icon.
 
 First deployment 2026-09-13 (workflow run 34764130991, about 35 minutes cold):
 the live site serves every file with the isolation headers, `.wasm` as
-`application/wasm`, and `/diagnostics` reports "Cross-origin isolated: yes".
+`application/wasm`, and `/diagnostics` reports the page as cross-origin isolated.
 
 Verified locally on 2026-09-13 with `npm run build` and `vite preview`: the
 isolation headers, the wasm mime type, both bundled workers (the prover
-starts its thread pool in production), and the precache list of 16 entries
-(6.5 MB). Service-worker registration could not be checked from the
+starts its thread pool in production), and the service worker's precache
+list. Service-worker registration could not be checked from the
 automation browser, which blocks service workers; check it once in Chrome
 on the deployed site (Application tab, Service Workers).
 

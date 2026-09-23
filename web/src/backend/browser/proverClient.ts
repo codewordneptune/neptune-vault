@@ -82,7 +82,7 @@ export class ProverClient {
     });
   }
 
-  /** Abandon the running proof (F17). */
+  /** Abandon the running proof. */
   cancel(): void {
     this.worker?.terminate();
     this.worker = null;

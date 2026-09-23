@@ -30,6 +30,8 @@ export interface HistoryEntry {
   changeNau: bigint | null;
   /** Received rows absorbed into this entry. */
   folded: HistoryRecord[];
+  /** For a send: the commitments of the payments that went to this wallet's own addresses. */
+  ownPayments: string[];
 }
 
 /** Change of a send: recorded with it, or derived from its inputs for older rows. */
@@ -68,6 +70,8 @@ export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): Histor
     if (sent.kind !== 'sent') continue;
     const change = changeOf(sent, utxos);
     const folded: HistoryRecord[] = [];
+    const ownPayments: string[] = [];
+    let ownNau = 0n;
     let kind: EntryKind = 'sent';
     if (sent.height !== null) {
       // What a send brought back lands in the block that confirms it. A coin
@@ -75,7 +79,10 @@ export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): Histor
       // coin scanned before that fact was kept falls back to amount matching;
       // a coin someone else built is a receipt whatever its amount.
       const sameBlock = rows.filter((r) => r.kind === 'received' && r.height === sent.height && !claimed.has(r.key));
-      const recipientOutput = (sent.outputs ?? []).find((o) => o.role === 'recipient')?.commitment;
+      // A send can pay several; any of them may be one of this wallet's own
+      // addresses. What went there stayed, so only the rest left the wallet,
+      // and a send whose every payment came back is a move to oneself.
+      const recipientOutputs = (sent.outputs ?? []).filter((o) => o.role === 'recipient').map((o) => o.commitment);
       const commitmentOf = (r: HistoryRecord) => {
         const hash = coinKeyOfReceipt(r);
         return (utxos.find((u) => u.hash === hash)?.stored as { commitment?: string } | undefined)?.commitment;
@@ -88,10 +95,14 @@ export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): Histor
         const own = ownership(r, utxos);
         if (own === true) {
           claim(r);
-          if (recipientOutput && commitmentOf(r) === recipientOutput) kind = 'self';
-          else if (!recipientOutput && sent.recipient !== null && BigInt(r.amountNau) === BigInt(sent.amountNau)) kind = 'self';
+          const c = commitmentOf(r);
+          if (c && recipientOutputs.includes(c)) {
+            ownPayments.push(c);
+            ownNau += BigInt(r.amountNau);
+          } else if (recipientOutputs.length === 0 && sent.recipient !== null && BigInt(r.amountNau) === BigInt(sent.amountNau)) kind = 'self';
         }
       }
+      if (recipientOutputs.length > 0 && ownPayments.length === recipientOutputs.length) kind = 'self';
       if (folded.length === 0) {
         // Older coins, without the flag: the amount rules of before.
         const unknown = sameBlock.filter((r) => ownership(r, utxos) === undefined);
@@ -111,14 +122,16 @@ export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): Histor
       }
     }
     const fee = BigInt(sent.feeNau ?? '0');
-    const amount = BigInt(sent.amountNau);
+    // What left the wallet: the payments to others, and the fee.
+    const away = kind === 'self' ? 0n : BigInt(sent.amountNau) - ownNau;
     sends.set(sent.key, {
       record: sent,
       kind,
-      shownNau: kind === 'self' ? fee : amount + fee,
-      netNau: kind === 'self' ? -fee : -(amount + fee),
+      shownNau: away + fee,
+      netNau: -(away + fee),
       changeNau: change,
       folded,
+      ownPayments,
     });
   }
 
@@ -129,7 +142,7 @@ export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): Histor
       if (e) entries.push(e);
     } else if (!claimed.has(r.key)) {
       const amount = BigInt(r.amountNau);
-      entries.push({ record: r, kind: 'received', shownNau: amount, netNau: amount, changeNau: null, folded: [] });
+      entries.push({ record: r, kind: 'received', shownNau: amount, netNau: amount, changeNau: null, folded: [], ownPayments: [] });
     }
   }
   return entries;

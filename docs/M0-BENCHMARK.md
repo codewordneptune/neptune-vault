@@ -1,9 +1,16 @@
 # Milestone 0: in-browser proving benchmark
 
-Goal (ARCHITECTURE.md section 10): prove one real ProofCollection for a
+> **Historical record.** These measurements were made in September 2026 for
+> milestone M0, before the app existed, and are kept as the reference for
+> proving cost. The setup below describes that first run; the shipped
+> prover is threaded and optimised with wasm-opt, as the later sections
+> record. To reproduce, use the bench page described in
+> [web/prover-bench/README.md](../web/prover-bench/README.md).
+
+Goal: prove one real ProofCollection for a
 one-input, two-output transaction inside a browser, and measure time and
-memory per sub-proof. The decision it feeds: is R1 (proving on the phone,
-no server) viable on the Galaxy S24 within R23 (10 minutes)?
+memory per sub-proof. The decision it feeds: is proving on the phone (with
+no server) viable on the Galaxy S24 within 10 minutes?
 
 ## Setup
 
@@ -15,7 +22,7 @@ no server) viable on the Galaxy S24 within R23 (10 minutes)?
   hardfork delta (version 8).
 - Harness: `web/prover-bench/`, proving in a Web Worker, wasm memory read
   after every sub-proof (linear memory only grows, so it is a peak).
-- Run: `node web/prover-bench/serve.js` and open the printed URL.
+- Run: `node web/prover-bench/serve.cjs` and open the printed URL.
 
 ## Results
 
@@ -89,7 +96,7 @@ page served over plain http from the PC (so not cross-origin isolated).
 | 6 | type_script_0 | 62.9 | 94 | 896 |
 | | Total | 456.0 | 4252 | 896 peak |
 
-Inside the 10 minute budget (R23) with no optimisation at all, and only
+Inside the 10 minute budget with no optimisation at all, and only
 seven percent slower than the desktop run: the phone's big core is nearly as
 fast as a laptop core on this single-threaded workload. M0 passes.
 
@@ -372,7 +379,7 @@ builds. Expected on the S24: about 120 s.
 | Single thread, first build | 428 | 456 |
 | 16 / 10 threads, first threaded build | 350 | |
 | Threads plus allocation-free inverse | 138 | 134 |
-| Threads, inverse, wasm-opt | 108 | pending |
+| Threads, inverse, wasm-opt | 108 | not measured |
 | Native, 16 cores, for reference | 43 | |
 
 ## Levers if the phone misses the budget

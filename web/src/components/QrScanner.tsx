@@ -23,9 +23,10 @@
 // phone grants to a web page only that phone can tell.
 
 import { Button, Group, Modal, Stack, Text } from '@mantine/core';
-import { IconBulb, IconBulbOff, IconCameraRotate, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
+import { IconBulb, IconBulbOff, IconCameraRotate, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { NATIVE } from '../app/platform';
 import { decodeQr } from '../util/qrDecode';
 import type { QrWorkerRequest, QrWorkerResponse } from '../util/qrWorker';
 
@@ -101,6 +102,38 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   const [zoomed, setZoomed] = useState(true);
   const [portrait, setPortrait] = useState(true);
   const [status, setStatus] = useState('');
+
+  // A code on screen or in a saved picture: read from an image instead of
+  // the camera. For a desktop without a camera, and for a screenshot sent
+  // by the payee. The image can be chosen or pasted.
+  const imageInput = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState(false);
+  const readImage = async (blob: Blob) => {
+    setReading(true);
+    try {
+      const text = await decodeImage(blob);
+      if (text) onResult(text);
+      else setError('No QR code found in that image. Try a sharper or closer picture of the code.');
+    } catch {
+      setError('That file could not be read as an image.');
+    } finally {
+      setReading(false);
+    }
+  };
+  useEffect(() => {
+    if (!opened) return;
+    const onPaste = (event: ClipboardEvent) => {
+      const item = Array.from(event.clipboardData?.items ?? []).find((i) => i.kind === 'file' && i.type.startsWith('image/'));
+      const blob = item?.getAsFile();
+      if (!blob) return;
+      event.preventDefault();
+      void readImage(blob);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // readImage only calls setters and the latest onResult.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened, onResult]);
   // The camera's options are set as a whole, so each change repeats the rest.
   const options = useRef({ focus: false, zoom: null as number | null, torch: false });
 
@@ -410,6 +443,21 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
             )}
           </Group>
         )}
+        <input
+          ref={imageInput}
+          type="file"
+          accept="image/*"
+          aria-label="Image with a QR code"
+          hidden
+          onChange={(e) => {
+            const chosen = e.currentTarget.files?.[0];
+            e.currentTarget.value = '';
+            if (chosen) void readImage(chosen);
+          }}
+        />
+        <Button variant="subtle" className="vault-tap" leftSection={<IconPhoto size={16} stroke={1.8} />} loading={reading} onClick={() => imageInput.current?.click()}>
+          Scan from an image
+        </Button>
         <Group grow>
           <Button variant="default" onClick={onClose}>
             Cancel
@@ -436,14 +484,41 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   );
 }
 
+/** The largest side an image is read at: enough for any code, quick to scan. */
+const IMAGE_MAX_SIDE = 2000;
+
+/** The text of the QR code in an image file, or null when it holds none. */
+async function decodeImage(blob: Blob): Promise<string | null> {
+  const bitmap = await createImageBitmap(blob);
+  try {
+    const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    // A transparent PNG reads as black on black without a white ground.
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    return await decodeQr(ctx.getImageData(0, 0, width, height));
+  } finally {
+    bitmap.close();
+  }
+}
+
 /** The browser's refusal, said in terms of what the person can do. */
 function cameraProblem(e: unknown): string {
   const name = (e as { name?: string }).name ?? '';
   const message = (e as Error).message ?? String(e);
   if (name === 'NotAllowedError' || /denied/i.test(message)) {
-    return "Camera access is blocked for this site. Allow it in the browser's site settings (the lock icon by the address, or the app's permissions on the phone), then try again, or paste the address instead.";
+    return NATIVE
+      ? "Camera access is blocked. Allow it for Neptune Vault in the system's privacy settings, then try again, or scan from an image or paste the address instead."
+      : "Camera access is blocked for this site. Allow it in the browser's site settings (the lock icon by the address, or the app's permissions on the phone), then try again, or scan from an image or paste the address instead.";
   }
-  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'No camera was found on this device. Paste the address instead.';
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'No camera was found on this device. Scan from an image, or paste the address instead.';
   if (name === 'NotReadableError') return 'The camera is in use by another app. Close it and try again, or paste the address instead.';
   if (!navigator.mediaDevices?.getUserMedia) return 'This browser does not offer the camera to web apps here (it needs a secure https address). Paste the address instead.';
   return `Camera not available: ${message}. Paste the address instead.`;

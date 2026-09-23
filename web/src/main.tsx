@@ -12,6 +12,7 @@ import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OpenElsewhere } from './components/OpenElsewhere';
 import { captureInstallPrompt } from './app/install';
+import { installNativeBehaviour } from './app/platform';
 import { AppProvider } from './app/AppContext';
 import { createServices, type Services } from './app/services';
 import { browserWindowOwner } from './app/windowOwner';
@@ -54,6 +55,8 @@ function Root() {
 
 // Before the first render: Chrome may fire the install event immediately.
 captureInstallPrompt();
+// In the desktop app: links to the system's browser, no reload or print.
+installNativeBehaviour();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

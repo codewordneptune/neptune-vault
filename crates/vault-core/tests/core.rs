@@ -295,6 +295,7 @@ fn input_planning_picks_largest_first_and_reports_shortfall() {
         unspent.append(&mut incoming);
     }
     let request = SendRequest {
+        payments: vec![],
         recipient: String::new(),
         amount: "2.5".into(),
         fee: "0.1".into(),
@@ -319,6 +320,7 @@ fn input_planning_picks_largest_first_and_reports_shortfall() {
     // The exact amounts from the review step win over the texts, which may
     // be written the way the screen shows them and not the way this parses.
     let exact = SendRequest {
+        payments: vec![],
         recipient: String::new(),
         amount: "5 500.5".into(),
         fee: "not parsed at all".into(),
@@ -332,6 +334,58 @@ fn input_planning_picks_largest_first_and_reports_shortfall() {
     let plan = plan_inputs(&unspent, &exact, 0).unwrap();
     assert_eq!(plan.inputs.len(), 2);
     let negative = SendRequest { amount_nau: Some("-1".into()), ..exact };
+    assert!(negative.amounts().is_err());
+}
+
+/// A send pays a list of recipients; the list's total is what the inputs
+/// must cover, and a request from before the list pays its one recipient.
+#[test]
+fn a_send_pays_a_list_of_recipients() {
+    use vault_core::send::Payment;
+    use vault_core::send::MAX_PAYMENTS;
+    let nau = |text: &str| amount::to_nau_string(amount::parse(text).unwrap());
+    let payment = |recipient: &str, value: &str| Payment { recipient: recipient.into(), amount: value.into(), amount_nau: Some(nau(value)) };
+    let request = SendRequest {
+        payments: vec![payment("nolgam1a", "1.5"), payment("nolgam1b", "2"), payment("nolgam1c", "0.25")],
+        recipient: String::new(),
+        amount: String::new(),
+        fee: "0.1".into(),
+        accept_lustration: false,
+        amount_nau: None,
+        fee_nau: Some(nau("0.1")),
+    };
+    let payments = request.payments().unwrap();
+    assert_eq!(payments.iter().map(|(r, _)| r.as_str()).collect::<Vec<_>>(), ["nolgam1a", "nolgam1b", "nolgam1c"]);
+    let (total, fee) = request.amounts().unwrap();
+    assert_eq!(amount::format(total), "3.75");
+    assert_eq!(amount::format(fee), "0.1");
+
+    // The inputs cover the total and the fee: 3.85 needs the 5 alone.
+    let mut account = account();
+    let mut unspent = vec![];
+    for (i, coins) in ["2", "1", "5"].iter().enumerate() {
+        let (proxy, _) = kernel_paying(&mut account, 0, coins);
+        let kernel = proxy.into_kernel();
+        let records = kernel.outputs.clone();
+        let (mut incoming, _, _) = scan::scan_kernel(&mut account, &kernel, &records, 100 * i as u64, &[], NextKeyIndices::default(), i as u64, "00", 0);
+        unspent.append(&mut incoming);
+    }
+    let plan = plan_inputs(&unspent, &request, 0).unwrap();
+    assert_eq!(plan.inputs.iter().map(|u| u.amount.as_str()).collect::<Vec<_>>(), ["5"]);
+
+    // The old shape: one recipient and one amount, no list.
+    let single = SendRequest { payments: vec![], recipient: "nolgam1a".into(), amount: "2.5".into(), ..request.clone() };
+    let payments = single.payments().unwrap();
+    assert_eq!(payments.len(), 1);
+    assert_eq!(payments[0].0, "nolgam1a");
+    assert_eq!(amount::format(payments[0].1), "2.5");
+
+    // A list longer than a phone should be asked to prove is refused.
+    let too_many = SendRequest { payments: (0..=MAX_PAYMENTS).map(|i| payment(&format!("nolgam1r{i}"), "1")).collect(), ..request.clone() };
+    assert!(too_many.payments().unwrap_err().to_string().contains("at most"));
+
+    // A negative amount anywhere in the list is refused.
+    let negative = SendRequest { payments: vec![payment("nolgam1a", "1"), Payment { amount_nau: Some("-1".into()), ..payment("nolgam1b", "1") }], ..request };
     assert!(negative.amounts().is_err());
 }
 

@@ -3,7 +3,10 @@
 What this wallet keeps, what it sends and to whom, and what is public. The
 same text is shown in the app under Settings, About, Privacy; the app's copy
 (`web/src/content/privacy.ts`) is the reference and this file mirrors it.
-Last changed 2026-09-18.
+Last changed 2026-09-23.
+
+The desktop app shows the same statement with a few sentences changed where
+it differs from a browser; those are marked *In the desktop app* below.
 
 ## What this wallet keeps on your device
 
@@ -15,6 +18,9 @@ else by this app.
 
 Clearing the browser's site data deletes all of it. The seed phrase or a backup
 file is the only way back.
+
+*In the desktop app:* all of it lives in the app's own storage on this
+device, and deleting the app's data deletes all of it.
 
 ## What leaves your device, and to whom
 
@@ -38,6 +44,11 @@ and names in payment links.
 from the site it is installed from. Like any web host, it can log the
 requests it receives, including your network address. It receives nothing
 about your wallet.
+
+*In the desktop app*, instead: **GitHub.** The app carries its own files,
+and every few hours asks GitHub whether a newer version of it has been
+published. Like any web host, GitHub can log that request, including your
+network address. It receives nothing about your wallet.
 
 **Whoever you share with.** A payment link or QR code carries your address,
 the amount, and any name or note you typed; the share sheet hands it to the
@@ -68,9 +79,11 @@ for tracking. The Diagnostics screen shows facts about this device to you;
 it sends them nowhere.
 
 The camera, when you scan a code, is read on the device; no frame leaves it.
-The clipboard is written only when you tap Copy, and never read: the app has
-no Paste button, and the site tells the browser to refuse it clipboard reads
-altogether.
+The clipboard is written only when you tap Copy. The app never reads it by
+itself: it sees only what you paste, into a field or, as an image, into the
+scanner, and the site tells the browser to refuse it clipboard reads
+altogether. (*In the desktop app*, without that last clause: the rule is a
+header the site sends, which the desktop app does not load.)
 
 Passkeys are created and stored by your device or its platform account,
 under that platform's own policy; the app stores only a wrapped key that is
@@ -80,7 +93,7 @@ useless without the passkey.
 
 You choose the node, and can run your own. You choose whether to install the
 app, which keeps its files on the device and reduces what the host sees to
-update checks. You choose what goes into a payment link. Backup files are
+update checks (*not in the desktop app*, which is installed already). You choose what goes into a payment link. Backup files are
 yours: encrypted with your password, written where you save them, never
 uploaded.
 

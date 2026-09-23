@@ -599,8 +599,13 @@ impl Prover {
 
         // A pool of exactly the requested size, so asking for fewer threads
         // means fewer, rather than however many rayon chose the first time.
+        // Large stacks: proving a ProofCollection recurses deeply, and the
+        // desktop wallet, proving the same with the same Triton VM, needs
+        // 32 MiB threads (its RUST_MIN_STACK). Only address space is
+        // reserved; memory is used as far as the stack actually grows.
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
+            .stack_size(32 * 1024 * 1024)
             .build()
             .map_err(|e| BridgeError::plain(format!("cannot start {threads} threads: {e}")))?;
 

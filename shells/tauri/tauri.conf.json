@@ -1,22 +1,23 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Neptune Vault",
-  "version": "0.1.0",
+  "version": "../../web/package.json",
   "identifier": "org.useneptune.vault",
   "build": {
     "frontendDist": "../../web/dist",
-    "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm --prefix ../../web run dev",
-    "beforeBuildCommand": "npm --prefix ../../web run build"
+    "devUrl": "http://localhost:4400",
+    "beforeDevCommand": "npm --prefix ../web run dev",
+    "beforeBuildCommand": "npm --prefix ../web run build:desktop"
   },
   "app": {
     "windows": [
       {
         "title": "Neptune Vault",
-        "width": 460,
-        "height": 900,
+        "width": 1024,
+        "height": 760,
         "minWidth": 360,
-        "minHeight": 560
+        "minHeight": 560,
+        "dragDropEnabled": false
       }
     ],
     "security": {
@@ -26,6 +27,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon-192.png", "icons/icon-512.png"]
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "category": "Finance",
+    "shortDescription": "A Neptune Cash wallet",
+    "longDescription": "A Neptune Cash wallet that keeps your keys on this device and talks only to the node you choose.",
+    "publisher": "Neptune Vault",
+    "copyright": "Neptune Vault contributors"
   }
 }

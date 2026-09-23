@@ -306,7 +306,7 @@ export async function changePassword(
 }
 
 /**
- * The export file (R8): the seed, protected by the password, plus what is
+ * The export file: the seed, protected by the password, plus what is
  * needed to rescan, plus the contacts.
  *
  * Versions 1 and 2 carried the database's envelope as it was and kept

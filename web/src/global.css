@@ -11,6 +11,9 @@
   --v-surface: #161f2b;
   --v-surface-2: #1c2734;
   --v-field: #0f151d;
+  /* Read-only wells (the address, seed words, code): a field's colour in the
+     dark palette, a tint in the light one, where fields are white. */
+  --v-well: #0f151d;
   --v-text: #e4ebf4;
   --v-text-2: #c9d4e2;
   --v-muted: #9aa9bc;
@@ -19,6 +22,21 @@
   --v-accent-2: #1f6fe0;
   --v-accent-deep: #1a5fc4;
   --v-accent-text: #7db4f5;
+  /* The tile behind the side rail's current tab: a card's surface, lifted
+     a step in the dark palette so it stands off the rail. */
+  --v-rail-tile: var(--v-surface-2);
+  /* Lines (dividers, the edges of the header, tab bar and rail) apart from
+     fills: in the dark palette they share a colour, in the light one they
+     cannot, since a fill pale enough to sit behind text is too pale to draw
+     an edge. The edges below are the light palette's; dark needs none. */
+  --v-line: #1c2734;
+  --v-card-shadow: none;
+  --v-rail-tile-shadow: none;
+  --v-field-border: transparent;
+  --v-field-border-hover: transparent;
+  --v-light-button-ring: none;
+  --v-default-button-ring: none;
+  --v-segment-ring: none;
   --v-accent-soft: rgba(58, 139, 243, 0.12);
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
@@ -49,11 +67,12 @@
    scheme on the root element and the same tokens carry both; the neutrals
    keep a touch of the accent's blue so the page reads as chosen. */
 :root[data-mantine-color-scheme='light'] {
-  --v-page: #f3f6fa;
-  --v-page-end: #e8edf4;
+  --v-page: #edf1f6;
+  --v-page-end: #e4e9f0;
   --v-surface: #ffffff;
-  --v-surface-2: #e9eef5;
-  --v-field: #f2f5f9;
+  --v-surface-2: #e5ebf2;
+  --v-field: #ffffff;
+  --v-well: #edf1f6;
   --v-text: #15202e;
   --v-text-2: #2f3f52;
   --v-muted: #5a6a7e;
@@ -62,6 +81,17 @@
   --v-accent-2: #1f6fe0;
   --v-accent-deep: #1a5fc4;
   --v-accent-text: #1a5fc4;
+  --v-rail-tile: #ffffff;
+  /* Near white, pale steps wash out: every card, field and quiet button
+     gets an edge of its own, and lines get a colour darker than any fill. */
+  --v-line: #d3dbe6;
+  --v-card-shadow: 0 0 0 1px rgba(21, 32, 46, 0.07), 0 1px 3px rgba(21, 32, 46, 0.06);
+  --v-rail-tile-shadow: 0 0 0 1px rgba(21, 32, 46, 0.08), 0 1px 3px rgba(21, 32, 46, 0.08);
+  --v-field-border: #bcc7d4;
+  --v-field-border-hover: #9dabbd;
+  --v-light-button-ring: inset 0 0 0 1px rgba(43, 125, 233, 0.28);
+  --v-default-button-ring: inset 0 0 0 1px rgba(21, 32, 46, 0.1);
+  --v-segment-ring: inset 0 0 0 1px rgba(21, 32, 46, 0.06);
   --v-accent-soft: rgba(43, 125, 233, 0.1);
   --v-ok-text: #1a7a31;
   --v-warn-text: #8a5a00;
@@ -99,11 +129,12 @@ h3.mantine-Title-root {
   color: var(--v-muted);
 }
 
-/* Cards are flat: a lighter surface, no border, no shadow. */
+/* Cards: a lighter surface, no border; in the light palette a hairline
+   and a soft shadow give them the edge the surface step alone does not. */
 .mantine-Paper-root {
   background: var(--v-surface);
   border: 0 !important;
-  box-shadow: none;
+  box-shadow: var(--v-card-shadow);
 }
 
 /* Buttons: one radius, one weight; primary carries the accent gradient. */
@@ -131,11 +162,13 @@ h3.mantine-Title-root {
   background: var(--v-accent-soft);
   color: var(--v-accent-text);
   border: 0;
+  box-shadow: var(--v-light-button-ring);
 }
 .mantine-Button-root[data-variant='default'] {
   background: var(--v-surface-2);
   border: 0;
   color: var(--v-text);
+  box-shadow: var(--v-default-button-ring);
 }
 .mantine-Button-root[data-variant='subtle'] {
   color: var(--v-accent-text);
@@ -159,11 +192,20 @@ h3.mantine-Title-root {
   color: var(--v-faint);
 }
 
-/* Fields: a darker well, no border, accent ring on focus. */
+/* Fields: a darker well in the dark palette, a white field with a grey
+   edge in the light one; the accent edge on focus in both. */
 .mantine-Input-input {
   background: var(--v-field);
-  border: 1px solid transparent;
+  border: 1px solid var(--v-field-border);
   color: var(--v-text);
+}
+.mantine-Input-input:hover {
+  border-color: var(--v-field-border-hover);
+}
+/* A field in error keeps a red edge, focused or not; the rules here would
+   otherwise hide the library's own. */
+.mantine-Input-wrapper[data-error] .mantine-Input-input {
+  border-color: var(--v-danger-text);
 }
 .mantine-Input-input:focus,
 .mantine-Input-input:focus-within {
@@ -184,6 +226,7 @@ h3.mantine-Title-root {
 .mantine-SegmentedControl-root {
   background: var(--v-segment-track);
   border: 0;
+  box-shadow: var(--v-segment-ring);
   padding: 4px;
 }
 .mantine-SegmentedControl-indicator {
@@ -199,7 +242,7 @@ h3.mantine-Title-root {
 }
 
 .mantine-Code-root {
-  background: var(--v-field);
+  background: var(--v-well);
   border: 0;
   color: var(--v-text-2);
 }
@@ -228,7 +271,7 @@ h3.mantine-Title-root {
   top: 0;
   z-index: 40;
   background: var(--v-page);
-  border-bottom: 1px solid var(--v-surface-2);
+  border-bottom: 1px solid var(--v-line);
 }
 .vault-brand {
   display: flex;
@@ -278,7 +321,7 @@ button.vault-network::before {
   bottom: 0;
   z-index: 40;
   background: var(--v-page-end);
-  border-top: 1px solid var(--v-surface-2);
+  border-top: 1px solid var(--v-line);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .vault-tab {
@@ -335,14 +378,14 @@ button.vault-network::before {
   gap: 4px;
   padding: 4px 10px;
   border-radius: var(--v-radius-xs);
-  background: var(--v-field);
+  background: var(--v-well);
 }
 .vault-word.slot {
   background: var(--v-accent-soft);
 }
 .vault-word.slot.empty {
   background: transparent;
-  box-shadow: inset 0 0 0 1px var(--v-surface-2);
+  box-shadow: inset 0 0 0 1px var(--v-line);
 }
 
 /* Key figures. */
@@ -367,17 +410,27 @@ button.vault-network::before {
   margin-left: 6px;
 }
 
-/* History rows: hairline dividers only between rows. */
+/* History rows: hairline dividers only between rows. A row button has
+   rounded corners for its hover, which would bend a top border at both
+   ends, so the divider is its own straight line inside the row's padding. */
 .vault-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 12px 0;
-  border-top: 1px solid var(--v-surface-2);
+}
+.vault-row + .vault-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: var(--v-line);
 }
 .vault-row:first-child {
-  border-top: 0;
   padding-top: 0;
 }
 .vault-row > *:first-child {
@@ -438,7 +491,7 @@ button.vault-network::before {
   padding: 8px 16px 10px;
   background: var(--v-accent-soft);
   color: var(--v-text);
-  border-bottom: 1px solid var(--v-surface-2);
+  border-bottom: 1px solid var(--v-line);
 }
 .vault-sendstrip:disabled {
   cursor: default;
@@ -466,7 +519,7 @@ button.vault-network::before {
   justify-content: space-between;
   gap: 12px;
   padding-top: 10px;
-  border-top: 1px solid var(--v-surface-2);
+  border-top: 1px solid var(--v-line);
   font-size: var(--v-fs-sm);
   color: var(--v-muted);
 }
@@ -780,7 +833,7 @@ html {
 /* Section tabs on Receive: underlined, so they read as sections and not as
    a second segmented control. */
 .vault-tabs .mantine-Tabs-list {
-  border-bottom: 1px solid var(--v-surface-2);
+  border-bottom: 1px solid var(--v-line);
 }
 .vault-tabs .mantine-Tabs-tab {
   color: var(--v-muted);
@@ -818,7 +871,7 @@ html {
 /* A new build waiting for a tap: a strip under the header, like a send. */
 .vault-updatestrip {
   background: var(--v-accent-soft);
-  border-bottom: 1px solid var(--v-surface-2);
+  border-bottom: 1px solid var(--v-line);
   padding: 10px 16px;
   color: var(--v-text);
 }
@@ -885,7 +938,7 @@ html {
   min-height: 44px;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid var(--v-surface-2);
+  border-top: 1px solid var(--v-line);
   color: var(--v-muted);
   font-size: var(--mantine-font-size-sm);
   font-weight: 500;
@@ -1171,8 +1224,10 @@ html {
     z-index: 30;
     padding: 72px 0 0;
     border-top: 0;
-    border-right: 1px solid var(--v-surface-2);
-    background: var(--v-page);
+    border-right: 1px solid var(--v-line);
+    /* The page's gradient runs on behind the rail: a flat fill showed as a
+       strip of another shade. */
+    background: transparent;
   }
   .vault-tabbar-inner.vault-tabbar-inner {
     max-width: none;
@@ -1186,15 +1241,32 @@ html {
     width: 100%;
     padding: 12px 4px;
   }
-  /* The active line runs down the rail's inner edge instead of along the top. */
+  /* In the rail the current tab sits on a tile of the cards' own surface,
+     icon and label together, not a line: a line on the rail's outer edge
+     sat against the window's frame and was hard to see. */
+  .vault-tab {
+    isolation: isolate;
+  }
   .vault-tab::before {
-    top: 12px;
-    bottom: 12px;
-    left: 0;
-    right: auto;
-    width: 3px;
+    z-index: -1;
+    inset: 2px 10px;
+    width: auto;
     height: auto;
-    border-radius: 0 3px 3px 0;
+    border-radius: var(--v-radius-sm);
+    transition:
+      background-color 160ms ease,
+      opacity 160ms ease;
+  }
+  .vault-tab.active::before {
+    background: var(--v-rail-tile);
+    box-shadow: var(--v-rail-tile-shadow);
+  }
+  /* Under the pointer, a fainter tile says where a click would go. */
+  @media (hover: hover) and (pointer: fine) {
+    .vault-tab:not(.active):hover::before {
+      background: var(--v-rail-tile);
+      opacity: 0.5;
+    }
   }
   /* One width for every screen: room for the history table and a form that
      breathes, and not so wide that an amount drifts from what it is for. */
@@ -1320,7 +1392,7 @@ html {
    not a control. */
 .vault-address-box {
   padding: 10px 12px;
-  background: var(--v-field);
+  background: var(--v-well);
   border-radius: var(--v-radius-xs);
   text-align: center;
 }
@@ -1381,4 +1453,93 @@ html {
    text beneath it, the hover fill reaching out into the margin instead. */
 .vault-button-start.vault-button-start {
   margin-left: calc(-1 * var(--button-padding-x, 8px));
+}
+
+/* The desktop app: its chrome is an app's, not a page's. Labels, buttons
+   and the bars are not selectable text; amounts, addresses and anything
+   else worth copying still are. */
+.vault-native .vault-topbar,
+.vault-native .vault-tabbar,
+.vault-native .vault-eyebrow,
+.vault-native .mantine-Button-root,
+.vault-native .mantine-SegmentedControl-root,
+.vault-native .mantine-InputWrapper-label,
+.vault-native .mantine-Menu-item,
+.vault-native .mantine-Tabs-tab {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The restore step while a file is dragged over it. */
+.vault-dropping {
+  outline: 2px dashed var(--mantine-primary-color-filled);
+  outline-offset: -6px;
+}
+/* "Or drop it here" where a mouse can drag a file; "No file chosen" elsewhere. */
+.vault-drop-hint {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .vault-drop-hint {
+    display: inline;
+  }
+  .vault-drop-none {
+    display: none;
+  }
+}
+
+/* An action for one field, on the right of its label line (Choose contact
+   on Send): the link's 40 px target is centred on the label, and its text
+   ends flush with the field's edge. */
+.vault-field-action-wrap {
+  position: relative;
+}
+.vault-field-action.vault-field-action {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  gap: 4px;
+  margin-right: -4px;
+}
+
+/* A send to several: each recipient after the first is a group of its own,
+   set off by a line, its number and a way to take it out again. The review
+   lists them with what each gets. */
+.vault-payee {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-md);
+  padding-top: var(--mantine-spacing-md);
+  border-top: 1px solid var(--v-line);
+}
+.vault-payee-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.vault-payee-head .vault-tap-link {
+  margin-right: -4px;
+}
+.vault-add-payee {
+  gap: 6px;
+}
+.vault-review-payee {
+  align-items: flex-start;
+}
+.vault-review-payee b {
+  flex-shrink: 0;
+}
+
+/* Under a recipient field whose address is a saved contact: the name. */
+.vault-contact-match {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--v-muted);
+}
+.vault-contact-match b {
+  color: var(--v-text);
+  font-weight: 600;
 }

@@ -1,252 +1,307 @@
 # Neptune Vault
 
-**Early version, not yet audited.** The wallet works end to end, on a
-phone, against mainnet; what it lacks is assurance: no security audit,
-no tagged releases yet, and code that changes every week. It may lose
-funds through bugs. Use it only with amounts you can afford to lose, on
-testnet or regtest where you can, and keep your seed phrase somewhere
-safe.
+A self-custodial wallet for [Neptune Cash](https://neptune.cash). It runs in
+a browser as an installable web app, and as a desktop app for Windows,
+Linux and macOS. Your keys never leave your device. It proves your
+transactions on the device itself and talks only to the Neptune node you
+choose.
 
-A wallet for [Neptune Cash](https://neptune.cash) that runs entirely in the
-browser, as an installable web app for phones. Keys never leave the device:
-the seed is generated in a WebAssembly build of Neptune's own wallet code,
-encrypted with a password (and optionally a passkey), and stored in the
-browser. Transactions are proven on the phone, in WebAssembly, with all
-cores. No server holds anything for you.
+> **Early software.** It works end to end on Mainnet, but it has not been
+> independently audited and it changes often. A bug could lose funds. Use
+> amounts you can afford to lose, and keep your seed phrase safe.
 
-Try it at <https://vault.dev.useneptune.org>. Expect breaking changes in
-what the app does; not in what it stores. Backup files from every version
-stay readable, and the app upgrades its stored data on its own.
+**Try it:** <https://vault.dev.useneptune.org>
 
-## Before you start
+## Contents
 
-- **Devices.** Developed and tested on Android Chrome (a Galaxy S24). iOS
-  Safari is the intended second platform and has not been tested yet. A
-  desktop browser works for trying it out.
-- **Install it.** Add the app to the home screen (Chrome: menu, "Add to
-  Home screen"). An installed app is far less likely to have its storage
-  cleared by the browser; the app asks for persistent storage and shows a
-  warning in Settings when it is not granted.
-- **Sending takes a while.** A transaction proof is produced on the device.
-  It needs about 1 GB of memory free for the browser and a few minutes on a
-  recent phone; the app keeps going if you switch away, and shows the step
-  it is on. Devices with 4 GB of RAM or less may run out of memory. If a
-  block is mined while the proof is being made, the proof no longer fits
-  the chain and the app builds and proves again, up to three times, and
-  says so.
-- **Restoring is quick, or private.** The fast restore asks the node's coin
-  index which blocks hold payments to you and fetches only those: seconds.
-  The node learns which coins are yours, though not the amounts. The
-  private restore downloads every block from a date you choose and scans
-  it on the device, which from block 1 on Mainnet is 8 to 10 GB and hours;
-  the node learns nothing about your coins. Both are offered on import.
-- **Your seed phrase is the only backup.** The password protects the seed phrase on
-  this device and cannot be recovered. A forgotten password costs a
-  re-import, not your funds. A lost seed phrase costs the funds.
+- [Features](#features)
+- [Platforms](#platforms)
+- [Before you use it](#before-you-use-it)
+- [Security model](#security-model)
+- [Backup and recovery](#backup-and-recovery)
+- [Getting help](#getting-help)
+- [Development](#development)
+- [Documentation](#documentation)
+- [Licence](#licence)
 
-## What it does
+## Features
 
-- Create a wallet from a fresh 18-word seed phrase, confirmed by tapping words
-  into place, or import a seed phrase, or restore a backup file. A mistyped
-  seed phrase is named by word before you go on. An imported seed phrase is restored
-  in seconds through the node's coin index, or privately by scanning the
-  chain from a date.
-- Receive to Standard (Generation), Short (EC hybrid) or View-only
-  addresses, with a QR code, and share a payment request as a NIP-002 link
-  or code that can carry an amount, your name and a note for the sender.
-- Sync directly against a Neptune node and show balance and history. Blocks
-  are scanned in the browser, so the node never learns your addresses.
-  Incoming payments show as pending while they wait in the node's mempool.
-- Send with a review step, fee presets, saved contacts and camera scanning
-  of the recipient's code or payment link. The proof is produced on the
-  device and the send survives the app being backgrounded.
-- History with one row per transaction and a detail sheet. Under its
-  technical details are the identifiers of the coins a payment made (their
-  commitments), to copy for looking one up in a block explorer.
-- Encrypted seed at rest (Argon2id, AES-256-GCM), auto-lock, password
-  change, passkey unlock, and export and import of a backup file with
-  contacts.
-- Several wallets on one device, each with its own seed phrase, password and
-  backup, switched from the header menu; a wallet can be removed from the
-  device once you confirm you hold its seed phrase or backup.
-- Rescan, fast or from a block or a date, Diagnostics for support, and an
-  update strip that offers a new build instead of applying it.
+**Wallets**
 
-## What it does not do yet
+- Create a wallet from a new 18-word seed phrase. You confirm it by putting
+  words back in order.
+- Import a seed phrase, or restore a backup file. If you mistype a word,
+  the app tells you which one.
+- Keep several wallets on one device, each with its own seed phrase,
+  password and backup, and switch between them from the header menu.
 
-- No security audit has been done. Treat every promise above as a design
-  intent that a review may still contradict.
-- No iOS testing. Safari's storage rules and memory limits are known only
-  from documentation.
-- Proving happens on the device only; there is no option to hand it to a
-  server, by design.
-- Until Mainnet block 55,000 the network requires proofs in an older
-  format, so the app carries a second prover for that period; it goes away
-  once the fork has activated.
-- The network currently asks senders to publish which coins a transaction
-  spends, in an extra announcement. The app tells you before you agree.
+**Receiving**
 
-## How it keeps your keys
+- Standard (Generation), Short (EC hybrid) and View-only addresses, each
+  with a QR code.
+- Payment requests as NIP-002 links or codes. A request can carry an amount, your name and a note.
+- Incoming payments show as pending while they wait in the node's mempool.
 
-- The seed is made and used inside WebAssembly compiled from Neptune's own
-  wallet crates, so addresses and signatures are byte for byte what
+**Sending**
+
+- A review step, fee presets and saved contacts. A typed or pasted address
+  that is a saved contact shows its name.
+- Pay up to 10 recipients in one transaction: one proof and one fee.
+- Scan the recipient's code with the camera, or from an image you choose
+  or paste.
+- The app builds and proves the transaction on your device. The send keeps
+  going if you switch away from the app.
+
+**History and upkeep**
+
+- One row per transaction, grouped by day, with a detail sheet.
+- The detail sheet shows each output's commitment, which you can look up
+  in a block explorer.
+- Rescan the chain fast, or from a block or a date.
+- Diagnostics for support requests.
+
+**Security**
+
+- Your seed phrase is encrypted at rest with your password.
+- The wallet locks after an idle time you choose (1, 5, 15 or 30 minutes),
+  when it goes to the background, or when you lock it from the menu.
+- Unlock with a passkey where the browser supports it.
+- Change your password, and export encrypted backup files.
+
+## Platforms
+
+| Platform | Status |
+|---|---|
+| Android, Chrome (installed web app) | Main target. Tested on a Galaxy S24, including Mainnet sends. |
+| iOS, Safari (installed web app) | Intended. Not tested yet. |
+| Desktop browsers | Work. Good for trying the app out. |
+| Windows desktop app | Builds and runs. Not signed yet. |
+| Linux and macOS desktop apps | Built by CI. Not tested yet. Not signed yet. |
+
+The web app and the desktop apps are the same interface. The desktop apps
+run the wallet engine and the prover as native code rather than
+WebAssembly. They store the wallet in the app's data folder rather than in
+browser storage.
+
+## Before you use it
+
+- **Install the web app.** On Android, use Chrome's menu, then "Add to Home
+  screen". A browser is much less likely to clear an installed app's
+  storage. Settings warns you when the browser has not granted persistent
+  storage.
+- **Sending takes a few minutes.** A transaction proof needs about 1 GB of
+  free memory and a few minutes on a recent phone. Devices with 4 GB of RAM
+  or less may run out of memory. If a block arrives while the proof is
+  being made, the proof no longer fits the chain. The app then builds and
+  proves again and tells you, with up to three attempts in all.
+- **There are two ways to restore.**
+  - **Fast** takes seconds. It asks the node's coin index which blocks
+    hold your payments. The node learns which coins are yours, but not the
+    amounts.
+  - **Private** downloads and scans every block from a date you choose.
+    From the start of Mainnet that is several gigabytes and hours of
+    scanning. The node learns nothing about your coins.
+- **Your seed phrase is the only real backup.** Your password protects the
+  wallet on this device and cannot be recovered. If you forget the
+  password, import your seed phrase again. If you lose the seed phrase, you
+  lose the funds.
+
+## Security model
+
+- **Neptune's own code.** Keys, addresses, scanning and proving come from
+  Neptune's own crates. The web app runs them as WebAssembly and the
+  desktop app runs them natively. Addresses and signatures match what
   neptune-core produces.
-- At rest the seed phrase is encrypted with a key derived from your password by
-  Argon2id, under AES-256-GCM, in the browser's storage for this site. A
-  passkey can wrap the same key so you can unlock without typing the
-  password.
-- The wallet locks itself after five minutes idle, when it goes to the
-  background, and when you say so. The seed phrase is shown only after
-  unlocking, and hides itself again.
-- The node sees which blocks you fetch and the transactions you submit. It
-  does not see your keys, your addresses or your balance; scanning happens
-  in the browser. A fast restore tells it more: the identifiers of your
-  addresses, and so which payments and coins are yours.
-  [docs/PRIVACY.md](docs/PRIVACY.md) lists exactly what leaves the device,
-  and the same text is in the app under About.
-- The host serves the code, and that is the trust this kind of wallet asks
-  for: whoever controls the site controls what runs. A new build is
-  downloaded and offered, and never applied while the app is open. It takes
-  effect when you tap Update, or the next time the app starts; "Later" holds
-  it off until then, not for good, and no web app can do more than that.
-  The strip under the header names the waiting build and the one you are
-  on, and links the commits between them on GitHub. Those names are what
-  the host says it serves, not a proof. The check that does not depend on
-  the host is the list of file hashes each deploy publishes, which anyone
-  can hold against what the site serves
-  ([docs/HOSTING.md](docs/HOSTING.md)). About says which build you are
-  running.
+- **Encryption at rest.** The seed phrase is encrypted with AES-256-GCM,
+  under a key derived from your password with Argon2id. A passkey can wrap
+  the same key.
+- **What the node sees.** It sees which blocks you fetch and the
+  transactions you submit. Scanning happens on your device, so the node
+  does not learn your keys, addresses or balance. A fast restore is the
+  exception: it reveals which coins are yours.
+  [docs/PRIVACY.md](docs/PRIVACY.md) lists everything that leaves the
+  device. The app shows the same text under Settings, About.
+- **Trusting the host.** A web wallet runs whatever code its host serves.
+  - The app downloads a new build but never applies it while it is open.
+    The build takes effect when you tap Update, or the next time the app
+    starts.
+  - The update strip names the waiting build and links the changes on
+    GitHub.
+  - Each deploy publishes a list of file hashes, so anyone can check what
+    the site serves ([docs/HOSTING.md](docs/HOSTING.md)).
+  - The desktop apps carry their own files. They only ask GitHub whether a
+    newer release exists.
 
-## Recovering
+## Backup and recovery
 
-- **Seed phrase.** Restores the funds in any wallet that understands Neptune's
-  18-word seed phrase, including this app on another device. The fast restore
-  needs no date; the private one starts from the date your first funds
-  arrived so the scan does not begin at block 1.
-- **Backup file.** Made under Settings, which asks for your password to
-  make it. It restores the seed phrase, the network, the start block and
-  your contacts. The seed phrase and the contacts are encrypted with the
-  password; the network, the start block and the date stay readable, and
-  are sealed: if anyone changes the file where you keep it, the restore
-  says so and stops, and a wrong password is told apart from a changed
-  file. Every backup file this app has ever written stays readable by later
-  versions. Files from before this format had their contacts and start
-  block in clear and unprotected; restoring one says so, and a fresh export
-  replaces it.
-- **Password.** Cannot be recovered. Import the seed phrase again and choose a
-  new one.
+- **Seed phrase.** Restores your funds in any wallet that supports
+  Neptune's 18-word seed phrases, including this app on another device.
+- **Backup file.** Export one from Settings, with your password. It
+  restores the seed phrase, the network, the start block and your
+  contacts.
+  - The seed phrase and the contacts are encrypted.
+  - The rest of the file is sealed, so the app refuses a file that has
+    been changed. A wrong password gives a different message than a
+    changed file.
+  - Every version of the app can read backup files from earlier versions.
+- **Password.** Cannot be recovered. Import your seed phrase again and
+  choose a new password.
 
 ## Getting help
 
-- Something wrong: [open an issue](https://github.com/codewordneptune/neptune-vault/issues).
-  Include the app version and the facts from Diagnostics in Settings
-  (threads, cores, memory, installed or tab, last proof), the network, and
-  what you did. Never include your seed phrase or a backup file.
-- Questions: the [Neptune Cash Telegram](https://t.me/neptune_project) for a quick one, the [forum](https://talk.neptune.cash/) for anything worth finding again.
-- News and guides: <https://useneptune.org>.
-- About Neptune Cash: <https://neptune.cash>.
+- **Bugs:** [open an issue](https://github.com/codewordneptune/neptune-vault/issues).
+  - Include the app version, the details from Settings, Diagnostics, the
+    network, and what you did.
+  - **Never share your seed phrase or a backup file.**
+- **Questions:** the [Neptune Cash Telegram](https://t.me/neptune_project)
+  or the [forum](https://talk.neptune.cash/).
+- **News and guides:** <https://useneptune.org>
 
-## Status
+## Development
 
-Two milestones are done: M0 showed that a phone can produce a Neptune
-transaction proof in the browser within ten minutes
-([docs/M0-BENCHMARK.md](docs/M0-BENCHMARK.md)); M1 is a working wallet,
-verified end to end on regtest and by real sends on Mainnet
-([docs/M1-STATUS.md](docs/M1-STATUS.md)). What remains before anyone should
-be pointed at it: a licence, a tagged release process with published file
-hashes, iOS testing, and a security review.
-
-Screenshots will be added here once the screens have stopped changing
-week to week.
-
-## Developing
-
-### Layout
+### Repository layout
 
 ```
-crates/vault-core      wallet core (keys, scanning, transaction building), Rust -> wasm
-crates/vault-prover    ProofCollection prover, Rust -> wasm with threads
-crates/vault-fixtures  deterministic witnesses for prover tests
-crates/vendor          neptune-consensus, neptune-primitives, triton-vm, twenty-first
-                       with the small patches the browser build needs (see VENDOR.md)
-crates/legacy          pre-fork prover (claim version 5) with its own vendored 0.15 crates;
-                       temporary, until mainnet block 55,000
-web/                   the app: Vite, React, Mantine; wasm packages under public/wasm
-docs/                  requirements, architecture, status, hosting, privacy, benchmarks
+web/                    the app: Vite, React, Mantine; wasm packages under public/wasm
+crates/vault-core       wallet engine (keys, scanning, transactions, storage format), Rust to wasm
+crates/vault-prover     transaction prover, Rust to wasm with threads
+crates/vault-bridge     vault-core and the prover as native code, for the desktop shell
+crates/vault-fixtures   deterministic witnesses for prover tests
+crates/vendor           neptune-consensus, neptune-primitives, triton-vm, twenty-first,
+                        patched for wasm (see crates/vendor/VENDOR.md)
+crates/legacy           pre-fork prover with its own vendored crates (temporary)
+shells/tauri            the desktop app (Tauri 2)
+fixtures/, test-vectors/  test inputs
+docs/                   design, privacy, hosting, releases
 ```
 
-Requirements and decisions are in [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md);
-the design, including the data-format policy, in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); the current state, the regtest
-procedure and the facts learned along the way in
-[docs/M1-STATUS.md](docs/M1-STATUS.md); hosting in
-[docs/HOSTING.md](docs/HOSTING.md).
+### Prerequisites
 
-### Running it locally
+- Node 22
+- Rust nightly, as pinned in `rust-toolchain.toml` (it pulls in `rust-src`
+  and the `wasm32-unknown-unknown` target)
+- [`wasm-pack`](https://rustwasm.github.io/wasm-pack/)
 
-Prerequisites: Node 22, Rust nightly as pinned in `rust-toolchain.toml` (with
-`rust-src` and the `wasm32-unknown-unknown` target), and `wasm-pack`.
+### Run the web app
 
 ```bash
 cd web
 npm ci
-npm run wasm:core      # builds crates/vault-core   -> web/public/wasm/core
-npm run wasm:prover    # builds crates/vault-prover -> web/public/wasm/prover
+npm run wasm:core      # crates/vault-core   -> web/public/wasm/core
+npm run wasm:prover    # crates/vault-prover -> web/public/wasm/prover
 npm run dev            # http://localhost:4400
 ```
 
-The wasm builds are slow the first time (the standard library is rebuilt
-with atomics for threads) and fast after that. The dev server sets the
-cross-origin isolation headers the threaded prover needs and proxies
-`/regtest-node` to a local regtest node; see docs/M1-STATUS.md for the node
-command line and the regtest walkthrough.
+The first wasm build is slow, because the standard library is rebuilt with
+atomics for threads. Later builds are quick.
 
-Tests:
+The dev server sends the cross-origin isolation headers that the threaded
+prover needs. It also proxies `/regtest-node` to a regtest node at
+`127.0.0.1:9797`.
+
+### Tests
 
 ```bash
 cd web && npm test                                   # web app (vitest)
-cargo test -p vault-core                             # wallet core, native
-cargo test --release -p vault-prover -- --ignored    # full proof round trip, minutes
+cd web && npm run typecheck
+cargo test -p vault-core                             # wallet engine, native
+cargo test --release -p vault-prover -- --ignored    # full proof round trip, takes minutes
 ```
 
-### Networks
+### Local regtest node
 
-The app switches between Mainnet, Testnet and Regtest; a wallet belongs to
-one network. The node it talks to is set in Settings and must send CORS
-headers, since the browser calls it directly. The public mainnet node does.
-Regtest nodes accept only mock proofs, so the app skips the prover there.
+Use neptune-core 0.17. Start the node with JSON-RPC, the coin index (for
+fast restores) and proof upgrading. Without upgrading, transactions never
+leave the mempool on regtest:
 
-Until mainnet block 55,000 the network requires transaction proofs of an
-older format (claim version 5). A second prover package built from the 0.15
-crates covers that period: `npm run wasm:prover-legacy` builds
-`crates/legacy/vault-prover-legacy` into `web/public/wasm/prover-legacy`, and
-the app picks the package by the claim version the chain requires at the
-tip. It goes away once the fork has activated; see docs/M1-STATUS.md.
+```bash
+neptune-core --network regtest --data-dir <dir> --listen-rpc 127.0.0.1:9797 --rpc-modules node,chain,wallet,archival,mempool,utxoindex --utxo-index --rpc-port 9799 --peer-port 9798 --max-num-peers 0 --disable-cookie-hint --tx-proving-capability=singleproof --tx-proof-upgrading
+```
 
-### Updates
+Fund the node's wallet:
 
-The service worker downloads a new build and waits; the strip under the
-header offers it, and it takes effect when the person taps Update or when
-every window of the app has closed, whichever comes first, and never while
-a send is running. An open app asks the host for a new build every hour
-and whenever it comes back to the front. Each build ships a `version.json` (version, commit,
-build time) next to its assets; the running app reads it to name the build
-that is waiting and to build the "What changed" link.
+```bash
+neptune-cli --data-dir <dir> --port 9799 mine-blocks-to-wallet 5
+```
 
-### Versions
+Then choose Regtest in the app, create a wallet, and send coins to it:
 
-The app has one version, the `version` field in `web/package.json`, shown
-under About in Settings and on Diagnostics together with the commit and the
-build time. Every release bumps it and tags the commit `v<version>`, so a
-quoted version maps to exact code. The wasm crates carry their own crate
-versions, which only change when their interfaces do.
+```bash
+neptune-cli --data-dir <dir> --port 9799 send <app address> 10 0.1 vault on-chain on-chain
+```
 
-### Deploying
+```bash
+neptune-cli --data-dir <dir> --port 9799 mine-blocks-to-wallet 1
+```
 
-Pushes to `main` that touch the app or the crates build the wasm packages,
-run the tests, and deploy to Azure Static Web Apps; the deployment token
-lives in a repository secret. docs/HOSTING.md has the details and the
-manual alternative.
+Things to know about regtest:
+
+- Mine only after the node logs `single proof: Done`.
+- Restarting the node empties its mempool.
+- Regtest nodes accept only mock proofs, so the app skips real proving on
+  regtest.
+
+### Networks and nodes
+
+- The app switches between Mainnet, Testnet and Regtest. Each wallet
+  belongs to one network.
+- You set the node in Settings.
+- In a browser, the node must send CORS headers, because the page calls it
+  directly. The default Mainnet node does.
+- Until the network's fork at Mainnet block 55,000, transactions need
+  proofs in an older format (claim version 5).
+  - `npm run wasm:prover-legacy` builds that prover from `crates/legacy`.
+  - The app picks the prover that the chain tip requires.
+  - The legacy prover will be removed after the fork.
+
+### Desktop app
+
+```bash
+cd web && npm ci
+```
+
+```bash
+cd shells/tauri && npx --prefix ../../web tauri dev
+```
+
+```bash
+cd shells/tauri && npx --prefix ../../web tauri build
+```
+
+- `tauri dev` runs the desktop app against the web dev server.
+- `tauri build` makes the installers. On Windows, keep `CARGO_TARGET_DIR`
+  short (for example `C:/nvnative`), or the linker can fail on long paths.
+- Pushing a `desktop-v<version>` tag builds all platforms and attaches the
+  installers to a draft release.
+- Details, and the signing and updater keys still needed:
+  [docs/DESKTOP-RELEASE.md](docs/DESKTOP-RELEASE.md).
+
+### Versions and deployment
+
+- The app has one version: the `version` field in `web/package.json`.
+  - It appears under About and in Diagnostics, with the commit and the
+    build time.
+  - Each release is tagged `v<version>`. Desktop releases are tagged
+    `desktop-v<version>`.
+- Each push to `main` that touches the app or the crates does three things:
+  - builds the wasm packages
+  - runs the tests
+  - deploys to Azure Static Web Apps
+
+  See [docs/HOSTING.md](docs/HOSTING.md).
+- An open web app checks for a new build every hour, and whenever it comes
+  back to the front.
+  - Each build ships a `version.json` (version, commit, build time).
+  - The update strip reads it to name the waiting build and to link to what
+    changed.
+
+## Documentation
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the design and the data-format policy
+- [docs/PRIVACY.md](docs/PRIVACY.md): what leaves the device, and who sees it
+- [docs/HOSTING.md](docs/HOSTING.md): hosting, headers and verifying a deploy
+- [docs/DESKTOP-RELEASE.md](docs/DESKTOP-RELEASE.md): building and releasing the desktop apps
+- [docs/M0-BENCHMARK.md](docs/M0-BENCHMARK.md): the measured cost of proving in a browser (historical record)
 
 ## Licence
 

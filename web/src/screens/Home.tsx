@@ -1,4 +1,4 @@
-// Balance, sync status and history (F13, F14, R18).
+// Balance, sync status and history.
 
 import { ActionIcon, Alert, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDown, IconClockPause, IconCopy, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
@@ -10,6 +10,7 @@ import type { StoredUtxo } from '../backend/types';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
 import { Caution } from '../components/Notice';
+import { NATIVE } from '../app/platform';
 import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
@@ -128,11 +129,15 @@ export function Home() {
   const incomingNau = history.filter((h) => h.kind === 'received' && h.status === 'pending').reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
   /** The row's title: short, always one line. Who a send went to is on the line beneath. */
   const rowTitleOf = (e: HistoryEntry) => (e.kind === 'sent' ? 'Sent' : titleOf(e));
+  /** The payments of a send built here, when it paid more than one recipient. */
+  const severalOf = (e: HistoryEntry) => ((e.record.payments?.length ?? 0) > 1 ? (e.record.payments ?? []) : null);
   /** Who a send went to, for the line under its title. */
   const recipientOf = (e: HistoryEntry): string | null => {
     if (e.kind !== 'sent') return null;
     // A send found on the chain: made on another device, or before a restore.
     if (e.record.txid === '' || e.record.recipient === null) return 'recipient not recorded';
+    const several = severalOf(e);
+    if (several) return `to ${several.length} recipients`;
     const c = contactFor(e.record.recipient);
     return `to ${c ? c.name : shortAddress(e.record.recipient)}`;
   };
@@ -146,6 +151,8 @@ export function Home() {
     if (e.kind === 'received') return e.record.status === 'pending' ? 'Incoming' : 'Received';
     if (e.kind === 'self') return 'Moved to yourself';
     if (e.record.txid === '' || e.record.recipient === null) return 'Sent';
+    const several = severalOf(e);
+    if (several) return `Sent to ${several.length} recipients`;
     const c = contactFor(e.record.recipient);
     return `Sent to ${c ? c.name : e.record.recipient ? abbreviateAddress(e.record.recipient) : 'address'}`;
   };
@@ -167,7 +174,15 @@ export function Home() {
       let n = 0;
       return list.map((o) => (o.label === 'Your change' && changes > 1 ? { ...o, label: `Your change ${++n}` } : o));
     };
-    const recorded = (e.record.outputs ?? []).map((o) => ({ commitment: o.commitment, label: o.role === 'recipient' ? (e.kind === 'self' ? 'Your coin' : "The recipient's coin") : 'Your change' }));
+    // A payment to one of this wallet's own addresses made a coin of its own.
+    const several = severalOf(e);
+    let payment = 0;
+    const recorded = (e.record.outputs ?? []).map((o) => {
+      if (o.role !== 'recipient') return { commitment: o.commitment, label: 'Your change' };
+      payment++;
+      if (e.kind === 'self' || e.ownPayments.includes(o.commitment)) return { commitment: o.commitment, label: 'Your coin' };
+      return { commitment: o.commitment, label: several ? `Coin for recipient ${payment}` : "The recipient's coin" };
+    });
     if (recorded.length > 0) return numbered(recorded);
     // A send recorded before outputs were kept: the coins it brought back
     // are known once scanned, the recipient's output is not.
@@ -195,7 +210,8 @@ export function Home() {
       {failure && failure.accountId === account?.id && (
         <Alert color="red" title="Not sent" withCloseButton onClose={dismissFailure}>
           <Text size="sm">
-            {failure.amount} NPT to {abbreviateAddress(failure.recipient)}, {formatDateTime(failure.at)}. {failure.message}
+            {failure.amount} NPT to {abbreviateAddress(failure.recipient)}
+            {failure.others ? ` and ${failure.others} more` : ''}, {formatDateTime(failure.at)}. {failure.message}
           </Text>
         </Alert>
       )}
@@ -203,7 +219,9 @@ export function Home() {
       {!showBackupNudge && <InstallNudge />}
       {showBackupNudge && (
         <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
-          This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared.
+          {NATIVE
+            ? 'This wallet lives only on this device. Export a backup file so you can restore it, with its contacts, if the device is lost or its data deleted.'
+            : "This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared."}
           <div>
             <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
               Export backup file
@@ -280,7 +298,7 @@ export function Home() {
                     {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
                     {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT is yours but time-locked by the payer. It cannot be spent before its release date, so it is not counted as spendable. `}
                     {balance.reservedNau > 0n &&
-                      `${amount(balance.reservedNau)} NPT is held by ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}${pendingSends.length === 1 ? `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to the recipient and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee` : ''}. Once ${pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, ${amount(afterPendingNau)} NPT is spendable.`}
+                      `${amount(balance.reservedNau)} NPT is held by ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}${pendingSends.length === 1 ? `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to ${(pendingSends[0].payments?.length ?? 1) > 1 ? 'the recipients' : 'the recipient'} and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee` : ''}. Once ${pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, ${amount(afterPendingNau)} NPT is spendable.`}
                   </Text>
                 )}
               </>
@@ -385,14 +403,31 @@ export function Home() {
               <DetailRow label="Time lock" value={`Not spendable before ${formatDateTime(lockOf(detail.record) as number)}. The payer set this; confirmations do not shorten it.`} />
             )}
             {detail.kind === 'sent' && (
-              <DetailRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />
+              <DetailRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : severalOf(detail) ? 'Amounts together' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />
             )}
             {detail.kind === 'self' && <DetailRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT, back to this wallet`} />}
             {detail.kind !== 'received' && detail.record.feeNau && <DetailRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
             {/* The figure on the row, where it is made of two: what left the wallet. */}
-            {detail.kind === 'sent' && detail.record.feeNau && <DetailRow label="Total" value={`${amount(detail.shownNau)} NPT`} />}
+            {/* When some of it paid this wallet's own addresses, the amounts and the fee add up to more than what left, so the row says which it is. */}
+            {detail.kind === 'sent' && detail.record.feeNau && <DetailRow label={detail.ownPayments.length > 0 ? 'Left this wallet' : 'Total'} value={`${amount(detail.shownNau)} NPT`} />}
             {detail.kind === 'sent' && detail.changeNau !== null && <DetailRow label="Change returned" value={`${amount(detail.changeNau)} NPT`} />}
-            {detail.kind !== 'received' && detail.record.recipient && (
+            {/* A send to several: each recipient, with what it got, in the order sent. */}
+            {detail.kind !== 'received' &&
+              severalOf(detail)?.map((p, i) => {
+                const c = contactFor(p.recipient);
+                const own = detail.kind === 'self' || detail.ownPayments.includes((detail.record.outputs ?? []).filter((o) => o.role === 'recipient')[i]?.commitment ?? '');
+                return (
+                  <DetailRow
+                    key={i}
+                    label={`Recipient ${i + 1}${own ? ' · this wallet' : c ? ` · ${c.name}` : ''} · ${amount(BigInt(p.amountNau))} NPT`}
+                    value={p.recipient}
+                    mono
+                    abbreviate
+                    copy="Address copied"
+                  />
+                );
+              })}
+            {detail.kind !== 'received' && detail.record.recipient && !severalOf(detail) && (
               <DetailRow
                 label={detail.kind === 'self' ? 'Recipient · this wallet' : contactFor(detail.record.recipient) ? `Recipient · ${contactFor(detail.record.recipient)?.name}` : 'Recipient'}
                 value={detail.record.recipient}

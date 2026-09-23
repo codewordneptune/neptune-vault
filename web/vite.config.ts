@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 
 import { defineConfig, type Plugin } from 'vite';
 
@@ -29,6 +29,23 @@ try {
 // read which build is waiting for it (components/UpdateStrip). It is never
 // precached (json is not in the service worker's glob) and is fetched with
 // no-store, so what comes back is always the build the host serves now.
+// The desktop app talks to the native engine, never the wasm packages, and
+// is not served by the web host: those files would only make the installer
+// tens of megabytes larger.
+function desktopTrim(): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'vault-desktop-trim',
+    apply: 'build',
+    configResolved(config) {
+      outDir = config.build.outDir;
+    },
+    closeBundle() {
+      for (const web of ['wasm', 'bench', 'staticwebapp.config.json']) rmSync(`${outDir}/${web}`, { recursive: true, force: true });
+    },
+  };
+}
+
 function versionJson(): Plugin {
   const body = JSON.stringify({ version: pkg.version, commit, builtAt });
   return {
@@ -59,7 +76,10 @@ const isolationHeaders = {
 const hosting = JSON.parse(readFileSync(new URL('./public/staticwebapp.config.json', import.meta.url), 'utf8')) as { globalHeaders: Record<string, string> };
 const regtestProxy = { '/regtest-node': { target: 'http://127.0.0.1:9797', changeOrigin: true, rewrite: (p: string) => p.replace(/^\/regtest-node/, '') } };
 
-export default defineConfig({
+// `vite build --mode desktop` builds the page the native shell loads: the
+// same app without the service worker, which in an installed desktop app
+// would only cache an old page and offer web updates it cannot apply.
+export default defineConfig(({ mode }) => ({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_COMMIT__: JSON.stringify(commit),
@@ -68,7 +88,9 @@ export default defineConfig({
   plugins: [
     react(),
     versionJson(),
+    ...(mode === 'desktop' ? [desktopTrim()] : []),
     VitePWA({
+      disable: mode === 'desktop',
       // A new build is downloaded and offered, and never applied while the app
       // is open; it takes over when the person taps Update or the app is next
       // started. components/UpdateStrip says what that does and does not promise.
@@ -110,4 +132,4 @@ export default defineConfig({
   preview: { headers: hosting.globalHeaders, port: 4401, proxy: regtestProxy },
   worker: { format: 'es' },
   build: { target: 'es2022' },
-});
+}));

@@ -1,7 +1,7 @@
 // IndexedDB schema for Neptune Vault.
 //
 // Every store is keyed by account id and network so several accounts and
-// both networks can coexist (R14, F20). The wallet core's own types
+// both networks can coexist. The wallet core's own types
 // (StoredUtxo, ScannedBlock, SendSummary) are stored as it produces them.
 
 import type { NextKeyIndices } from '../backend/types';
@@ -31,7 +31,7 @@ export interface AccountRecord {
   address0: string;
   /** Next unused derivation index per key kind, advanced by scanning. */
   nextKeyIndices: NextKeyIndices;
-  /** True once the user confirmed the seed phrase (F3). */
+  /** True once the user confirmed the seed phrase. */
   backupConfirmed: boolean;
   /** The wallet's name on this device, for telling several apart. Absent on the first wallets ever made. */
   name?: string;
@@ -71,7 +71,7 @@ export interface UtxoRecord {
   releaseDateMs: number | null;
   spentHeight: number | null;
   spentTxid: string | null;
-  /** Reserved by a pending outgoing transaction (R18). */
+  /** Reserved by a pending outgoing transaction. */
   pendingTxid: string | null;
 }
 
@@ -99,7 +99,10 @@ export interface HistoryRecord {
   height: number | null;
   /** For sends: the UTXO hashes reserved until confirmation. */
   inputHashes: string[];
+  /** For sends built here: who was paid (the first, when there were several). Null for sends found on the chain. */
   recipient: string | null;
+  /** For sends built here: every payment, in output order; `amountNau` is their total. Absent on rows from before a send could pay several. */
+  payments?: HistoryPayment[];
   error: string | null;
   /** For sends: the change that comes back, so history can fold it in. Absent on rows from before it was kept. */
   changeNau?: string | null;
@@ -112,6 +115,11 @@ export interface HistoryRecord {
   /** For pending sends: when the node's mempool was last seen holding it, and when that was last checked. */
   mempoolSeenAt?: number | null;
   mempoolCheckedAt?: number | null;
+}
+
+export interface HistoryPayment {
+  recipient: string;
+  amountNau: string;
 }
 
 export interface HistoryOutput {
@@ -140,8 +148,12 @@ export interface SettingsRecord {
   hideBalance?: boolean;
   /** When the Home install notice was last dismissed; it returns after two weeks. Per device, not per wallet. */
   installNudgeDismissedAt?: number;
-  /** The last send that failed, shown on Home until dismissed: a toast is missed, a notice is not. */
-  lastSendFailure?: { at: number; accountId: string; amount: string; recipient: string; message: string };
+  /**
+   * The last send that failed, shown on Home until dismissed: a toast is
+   * missed, a notice is not. `recipient` is the first recipient; `others`
+   * counts the rest of a send to several (absent on older records).
+   */
+  lastSendFailure?: { at: number; accountId: string; amount: string; recipient: string; others?: number; message: string };
   /** Last connection test per network, kept so Settings shows it on return. */
   nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
   /** How the last proof on this device went, for Diagnostics and bug reports. */
@@ -290,7 +302,7 @@ export async function saveSettings(db: VaultDb, settings: SettingsRecord): Promi
   await db.put('settings', settings);
 }
 
-/** Ask the browser not to evict our data under storage pressure (F7). */
+/** Ask the browser not to evict our data under storage pressure. */
 export async function requestPersistentStorage(): Promise<boolean> {
   try {
     if (navigator.storage?.persist) return await navigator.storage.persist();

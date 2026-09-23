@@ -1,4 +1,4 @@
-// Receiving (F11): the address of each kind as text and QR code, and a
+// Receiving: the address of each kind as text and QR code, and a
 // payment request (NIP-002 link with amount, name and note) with its own
 // code. Two tabs, because the address code and the request code must never
 // be mistaken for one another. Key 0 of a kind is its main address; "next
@@ -16,6 +16,7 @@ import { formatNau, useApp } from '../app/AppContext';
 import { nextKeyIndicesOf } from '../storage/db';
 import { abbreviateAddress, metaProblem, paymentQrPayload, paymentUri } from '../util/address';
 import { copyText } from '../util/clipboard';
+import { showInt } from '../util/format';
 import { KEY_LOOKAHEAD, type KeyKind } from '../backend/types';
 
 // Labelled by what the address is for; the protocol name is the caption.
@@ -30,37 +31,25 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
   viewing: 'Viewing',
 };
 
-// Same guidance as the desktop wallet gives on its addresses page.
-// What the chosen kind means for whoever gets it; shown under both tabs,
-// since a request carries the same address as the bare code.
+// What the chosen kind is for, said the same way for each so they can be
+// compared: who it is for first, then its one trade-off. The same guidance
+// as the desktop wallet's addresses page. Shown right under the choice, on
+// both tabs (a request carries the same address), and before the code and
+// its Copy and Share, so the View-only caution is read before sharing.
 const KIND_NOTES: Record<KeyKind, string> = {
-  generation: 'Safe to reuse and the most private: the default for anything you publish.',
+  generation: `The one to use by default. Safe to reuse and the most private, but long: about ${showInt(3500)} characters.`,
   ec_hybrid:
-    'Easy to share by message. Give each one to a single sender: if reused widely, a future quantum attacker could reveal, but never spend, the funds sent to it.',
+    'Short enough to paste into a chat. Give each one to a single sender: if one is reused widely, a future quantum computer could reveal the payments sent to it, though never spend them.',
   viewing:
-    'For auditing: anyone holding this address can see every payment it receives, though never spend them. Share it only with someone you trust to see that activity.',
+    'Lets someone watch payments, such as an accountant. Whoever holds it sees every payment it receives, but can never spend them. Share it only with someone you trust with that.',
 };
 
-// About the code for a kind of address, under both tabs: a request code
-// carries the same address and more, so it is at least as dense. What does
-// not fit in a request code has its own note.
-const CODE_HINTS: Partial<Record<KeyKind, string>> = {
-  generation: 'The code is dense: scan from close up, or copy the address instead.',
-};
-
-// The note's shape says how much care the kind needs: plain text for
-// Standard, which only reassures; text with an info mark for Short, which
-// asks for one sender per address; a caution for View-only, whose exposure
-// cannot be taken back.
-function KindNote({ kind, extra }: { kind: KeyKind; extra?: string }) {
-  const text = extra ? `${KIND_NOTES[kind]} ${extra}` : KIND_NOTES[kind];
-  if (kind === 'generation') {
-    return (
-      <Text size="sm" c="dimmed">
-        {text}
-      </Text>
-    );
-  }
+// The note's shape says how much care the kind needs: information for
+// Standard and Short, which are both ordinary choices (the words carry
+// Short's one-sender rule), so switching between them changes only the
+// words; a caution for View-only, whose exposure cannot be taken back.
+function KindNote({ kind }: { kind: KeyKind }) {
+  const text = KIND_NOTES[kind];
   return kind === 'viewing' ? <Caution>{text}</Caution> : <Info>{text}</Info>;
 }
 
@@ -277,6 +266,14 @@ export function Receive() {
         <Title order={2} className="sr-only">
           Receive
         </Title>
+        {/* What the card is for comes first; the kind of address, which both
+            tabs share and most people leave at Standard, comes under it. */}
+        <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
+          <Tabs.List grow>
+            <Tabs.Tab value="address">Address</Tabs.Tab>
+            <Tabs.Tab value="request">Request payment</Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
         <SegmentedControl
           aria-label="Address kind"
           fullWidth
@@ -292,12 +289,7 @@ export function Receive() {
             ),
           }))}
         />
-        <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
-          <Tabs.List grow>
-            <Tabs.Tab value="address">Address</Tabs.Tab>
-            <Tabs.Tab value="request">Request payment</Tabs.Tab>
-          </Tabs.List>
-        </Tabs>
+        <KindNote kind={kind} />
 
         {tab === 'address' && (
           <>
@@ -323,7 +315,6 @@ export function Receive() {
                 </Button>
               )}
             </Group>
-            <KindNote kind={kind} extra={CODE_HINTS[kind]} />
           </>
         )}
 
@@ -367,7 +358,6 @@ export function Receive() {
                 Share
               </Button>
             </Group>
-            <KindNote kind={kind} extra={CODE_HINTS[kind]} />
           </>
         )}
 

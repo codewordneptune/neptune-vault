@@ -92,13 +92,21 @@ export interface StoredUtxo {
   recovery: unknown;
 }
 
-export interface SendRequest {
+/** One payment in a send: who is paid, and how much. */
+export interface Payment {
   recipient: string;
+  /** NPT as typed, for the record. */
   amount: string;
+  /** The amount in nau, exactly as reviewed: what the core sends. */
+  amount_nau: string;
+}
+
+export interface SendRequest {
+  /** Who is paid, in the order of the outputs; at most `MAX_PAYMENTS`. */
+  payments: Payment[];
   fee: string;
   accept_lustration: boolean;
-  /** The amount and fee in nau, exactly as reviewed. When present the core sends these and the texts are for the record. */
-  amount_nau?: string;
+  /** The fee in nau, exactly as reviewed. When present the core sends it and the text is for the record. */
   fee_nau?: string;
 }
 
@@ -114,7 +122,7 @@ export interface SendSummary {
   amount_nau: string;
   fee_nau: string;
   change_nau: string | null;
-  /** Output commitments in kernel order: recipient first, change last if any. */
+  /** Output commitments in kernel order: one per payment in the request's order, then the change if any. */
   output_commitments: string[];
   timestamp_ms: number;
   built_against_height: number;

@@ -1,9 +1,11 @@
 import { Box, Container, Group, Loader } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
 import { useEffect, type ReactElement } from 'react';
-import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import { useApp } from './app/AppContext';
+import { NATIVE } from './app/platform';
+import { DesktopUpdateNotice } from './components/DesktopUpdateNotice';
 import { Logo } from './components/Logo';
 import { NetworkMenu } from './components/NetworkMenu';
 import { SendStrip } from './components/SendStrip';
@@ -35,11 +37,36 @@ export function App() {
     window.scrollTo(0, 0);
   }, [pathname]);
 
+  // Keyboard shortcuts, in the desktop app only: in a browser these keys
+  // belong to the browser (Ctrl+L is its address bar, Ctrl+1 its first tab).
+  // Ctrl or Cmd with L locks; with 1 to 4 opens a tab; with N starts a send.
+  const navigate = useNavigate();
+  const open = Boolean(account) && !locked;
+  useEffect(() => {
+    if (!NATIVE) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+      const key = event.key.toLowerCase();
+      if (key === 'l' && open) {
+        event.preventDefault();
+        void services.accounts.lock();
+      } else if (key === 'n' && open) {
+        event.preventDefault();
+        navigate('/send');
+      } else if (/^[1-4]$/.test(key) && open) {
+        event.preventDefault();
+        navigate(TABS[Number(key) - 1].to);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, services, navigate]);
+
   // Do not route until the stored account has been looked up, or a reload
   // would bounce an existing account to onboarding.
   if (!ready) return <Loader className="vault-starting" aria-label="Starting" />;
 
-  // Any interaction postpones the idle lock (R11).
+  // Any interaction postpones the idle lock.
   const touch = () => services.accounts.touch();
 
   const gate = (element: ReactElement) => {
@@ -55,15 +82,16 @@ export function App() {
       <header className="vault-topbar">
         <Container size="xs" py="sm" className="vault-topbar-inner">
           <Group justify="space-between" align="center">
+            {/* The desktop app's title bar already names it: the header keeps the mark. */}
             <h1 className="vault-brand">
               <Logo size={26} />
-              Neptune Vault
+              <span className={NATIVE ? 'sr-only' : undefined}>Neptune Vault</span>
             </h1>
             <NetworkMenu />
           </Group>
         </Container>
       </header>
-      <UpdateStrip />
+      {NATIVE ? <DesktopUpdateNotice /> : <UpdateStrip />}
       <SendStrip />
       {/* On a wide screen every screen shares one width, so moving between
           them does not make the content jump; Home's balance becomes a band. */}

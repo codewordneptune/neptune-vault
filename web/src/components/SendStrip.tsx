@@ -6,7 +6,8 @@ import { Progress, Text, UnstyledButton } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import { useApp } from '../app/AppContext';
+import { showNau, useApp } from '../app/AppContext';
+import { paymentsTotalNau } from '../app/send';
 
 const STAGE_TEXT: Record<string, string> = {
   planning: 'Choosing coins',
@@ -42,7 +43,7 @@ export function SendStrip() {
     <UnstyledButton className="vault-sendstrip" onClick={() => !locked && navigate('/send')} disabled={locked}>
       <div className="vault-sendstrip-row">
         <Text size="sm" fw={500} truncate style={{ minWidth: 0 }} aria-live="polite">
-          Sending {locked || services.settings.hideBalance ? '••••' : sendJob.request.amount} NPT · {detail}
+          Sending {locked || services.settings.hideBalance ? '••••' : showNau(paymentsTotalNau(sendJob.request))} NPT · {detail}
         </Text>
         <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
           {mm}:{ss}

@@ -1,22 +1,24 @@
-// Send screen (F15 to F18, R23): one recipient, amount, fee; validation
-// before a review step; the proof itself runs as a job in the app context
-// so it survives this screen being unmounted (backgrounding locks the app).
+// Send screen: a recipient and an amount (or several, paid by one
+// transaction), a fee; validation before a review step; the proof itself
+// runs as a job in the app context so it survives this screen being
+// unmounted (backgrounding locks the app).
 
 import { Alert, Badge, Button, Checkbox, Drawer, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconAddressBook, IconLink, IconScan } from '@tabler/icons-react';
+import { IconAddressBook, IconLink, IconPlus, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { formatNau, showNau, useApp } from '../app/AppContext';
-import { RequiresLustrationError, SendBusyError } from '../app/send';
+import { MAX_PAYMENTS, paymentsTotalNau, RequiresLustrationError, SendBusyError } from '../app/send';
 import { ContactPicker } from '../components/ContactPicker';
 import { Caution } from '../components/Notice';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
 import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
 import { networkLabel } from '../util/network';
+import type { ContactRecord } from '../storage/db';
 
-// Fee presets (R19). Every level clears the default proof-upgrader floor of
+// Fee presets. Every level clears the default proof-upgrader floor of
 // about 0.017 NPT; the spread is for when upgraders or composers have
 // transactions to choose between.
 const FEE_PRESETS: { value: string; label: string; fee: string }[] = [
@@ -38,19 +40,48 @@ const presetFee = (preset: string, custom: string | undefined) =>
 
 type Step = 'form' | 'review';
 
+/** A recipient after the first: an address, an amount, and what is wrong with them. */
+interface ExtraPayee {
+  id: number;
+  recipient: string;
+  amount: string;
+  recipientError: string | null;
+  amountError: string | null;
+}
+
 export function Send() {
   const { services, account, balance, utxos, online, sendJob, screenAwake, startSend, cancelSend, dismissSendJob } = useApp();
   const location = useLocation();
   const prefill = (location.state as { recipient?: string } | null)?.recipient;
   const [step, setStep] = useState<Step>('form');
   const [recipient, setRecipient] = useState(prefill ?? '');
-  const [picking, setPicking] = useState(false);
   // The last successfully sent recipient, offered for saving as a contact.
   const [lastRecipient, setLastRecipient] = useState<string | null>(null);
   const [savedName, setSavedName] = useState<string | null>(null);
   // From a payment link: shown on the review step, never used for anything else.
   const [linkMeta, setLinkMeta] = useState<{ label?: string; message?: string } | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // The wallet's contacts, so an address typed, pasted or scanned into a
+  // recipient field is named when it is a saved one: the review is too late
+  // to notice that the address is not the one meant.
+  const [contacts, setContacts] = useState<ContactRecord[]>([]);
+  const loadContacts = useCallback(() => {
+    if (account) void services.contacts.list(account.id).then(setContacts);
+  }, [services, account]);
+  useEffect(loadContacts, [loadContacts]);
+  const contactNote = (address: string) => {
+    const wanted = address.trim().toLowerCase();
+    const name = wanted ? contacts.find((c) => c.address === wanted)?.name : undefined;
+    return name ? (
+      <span className="vault-contact-match">
+        <IconAddressBook size={14} stroke={1.8} aria-hidden />
+        <span>
+          Saved contact: <b dir="auto" className="vault-bidi">{name}</b>
+        </span>
+      </span>
+    ) : undefined;
+  };
 
   useEffect(() => {
     if (!account || !lastRecipient) return;
@@ -67,15 +98,29 @@ export function Send() {
   const [feeAgreed, setFeeAgreed] = useState(false);
   // "Max" in exact nau: the shown text has eight decimals and the balance has more.
   const [maxExact, setMaxExact] = useState<{ text: string; nau: bigint } | null>(null);
-  const [reviewName, setReviewName] = useState<string | null>(null);
+  // The contact name of each recipient on the review sheet, when it is one.
+  const [reviewNames, setReviewNames] = useState<(string | null)[]>([]);
   const [recipientError, setRecipientError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [feeError, setFeeError] = useState<string | null>(null);
   // Focused when Custom is chosen, not whenever the field happens to mount.
   const customFeeRef = useRef<HTMLInputElement>(null);
-  const [totals, setTotals] = useState<{ amountNau: bigint; feeNau: bigint; feeHigh: boolean } | null>(null);
+  // As reviewed: each payment in nau (the first recipient's first), their sum, and the fee.
+  const [totals, setTotals] = useState<{ amountNau: bigint; feeNau: bigint; feeHigh: boolean; payments: bigint[] } | null>(null);
   const [askLustration, setAskLustration] = useState(false);
-  const [scanning, setScanning] = useState(false);
+  // Which recipient Scan and Choose contact fill: 0 for the first, else an added one's id.
+  const [scanFor, setScanFor] = useState<number | null>(null);
+  const [pickFor, setPickFor] = useState<number | null>(null);
+  // Recipients after the first. Several payments in one transaction take
+  // one proof and one fee, and none has to wait for the change of another.
+  const [extras, setExtras] = useState<ExtraPayee[]>([]);
+  const nextExtraId = useRef(1);
+  const updateExtra = (id: number, patch: Partial<ExtraPayee>) => setExtras((all) => all.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  const addRecipient = () => {
+    setExtras((all) => [...all, { id: nextExtraId.current++, recipient: '', amount: '', recipientError: null, amountError: null }]);
+    // Max means everything to one recipient; with two it would mean nothing.
+    setMaxExact(null);
+  };
 
   // Field checks run on blur and again on submit. A value in nau, or the
   // message explaining why there is none.
@@ -94,39 +139,64 @@ export function Send() {
     return { nau };
   };
 
-  const checkRecipient = async (): Promise<boolean> => {
-    const text = recipient.trim();
-    if (text === '') {
-      setRecipientError('Enter the recipient address');
-      return false;
-    }
-    const ok = await services.core.isValidAddress(text, services.networkName());
-    setRecipientError(ok ? null : `Not a valid ${networkLabel(services.settings.network)} address`);
-    return ok;
+  // Why an address cannot be paid, or null. `earlier` holds the addresses
+  // above it in the form, lower case: the core pays each address once.
+  const addressProblem = async (raw: string, earlier: string[]): Promise<string | null> => {
+    const text = raw.trim();
+    if (text === '') return 'Enter the recipient address';
+    if (!(await services.core.isValidAddress(text, services.networkName()))) return `Not a valid ${networkLabel(services.settings.network)} address`;
+    if (earlier.includes(text.toLowerCase())) return 'This address is already paid above. Pay it once, with the amounts together.';
+    return null;
   };
 
-  const checkAmounts = async (): Promise<boolean> => {
+  const checkRecipient = async (): Promise<boolean> => {
+    const message = await addressProblem(recipient, []);
+    setRecipientError(message);
+    return message === null;
+  };
+
+  const checkExtraRecipient = async (id: number): Promise<boolean> => {
+    const at = extras.findIndex((x) => x.id === id);
+    if (at < 0) return true;
+    const earlier = [recipient, ...extras.slice(0, at).map((x) => x.recipient)].map((a) => a.trim().toLowerCase());
+    const message = await addressProblem(extras[at].recipient, earlier);
+    updateExtra(id, { recipientError: message });
+    return message === null;
+  };
+
+  // Every amount and the fee, against the spendable balance. On leaving a
+  // field (`leaving`) an added recipient's amount that is still empty is not
+  // an error yet: the person may be on the way to it.
+  const checkAmounts = async (leaving = false): Promise<boolean> => {
     const typed = await parsePositive(amount, 'amount');
     // Max means everything: the exact figure, not the eight decimals on screen.
-    const a = maxExact && maxExact.text === amount && 'nau' in typed ? { nau: maxExact.nau } : typed;
+    const a = maxExact && extras.length === 0 && maxExact.text === amount && 'nau' in typed ? { nau: maxExact.nau } : typed;
+    const more = await Promise.all(extras.map((x) => parsePositive(x.amount, 'amount')));
     const f = await parsePositive(fee, 'fee');
     let amountMessage = 'message' in a ? a.message : null;
+    const moreMessages = more.map((m, i) => ('message' in m && !(leaving && extras[i].amount.trim() === '') ? m.message : null));
     const feeMessage = 'message' in f ? f.message : null;
-    if ('nau' in a && 'nau' in f) {
-      if (a.nau + f.nau > balance.spendableNau) {
-        amountMessage = `Amount plus fee exceeds the spendable balance of ${showNau(balance.spendableNau)} NPT`;
+    const parsed = [a, ...more];
+    if (parsed.every((p) => 'nau' in p) && 'nau' in f) {
+      const payments = parsed.map((p) => (p as { nau: bigint }).nau);
+      const total = payments.reduce((sum, n) => sum + n, 0n);
+      if (total + f.nau > balance.spendableNau) {
+        const spendable = showNau(balance.spendableNau);
+        if (extras.length === 0) amountMessage = `Amount plus fee exceeds the spendable balance of ${spendable} NPT`;
+        else moreMessages[moreMessages.length - 1] = `The amounts plus the fee exceed the spendable balance of ${spendable} NPT`;
       } else {
-        // Unusual: more than 1 NPT, or more than the payment itself and above every preset.
+        // Unusual: more than 1 NPT, or more than the payments themselves and above every preset.
         const one = BigInt(await services.core.parseAmount('1'));
         const topPreset = BigInt(await services.core.parseAmount(FEE_PRESETS.reduce((m, p) => (Number(p.fee) > Number(m) ? p.fee : m), '0')));
-        const feeHigh = f.nau > one || (f.nau > a.nau && f.nau > topPreset);
-        setTotals({ amountNau: a.nau, feeNau: f.nau, feeHigh });
+        const feeHigh = f.nau > one || (f.nau > total && f.nau > topPreset);
+        setTotals({ amountNau: total, feeNau: f.nau, feeHigh, payments });
         setFeeAgreed(false);
       }
     }
     setAmountError(amountMessage);
+    setExtras((all) => all.map((x, i) => ({ ...x, amountError: moreMessages[i] ?? null })));
     setFeeError(feeMessage);
-    return amountMessage === null && feeMessage === null;
+    return amountMessage === null && feeMessage === null && moreMessages.every((m) => m === null);
   };
 
   // Everything spendable minus the current fee; the fee must parse first.
@@ -148,30 +218,40 @@ export function Send() {
   };
 
   const review = async () => {
-    const [okAddress, okAmounts] = await Promise.all([checkRecipient(), checkAmounts()]);
-    if (!(okAddress && okAmounts)) return;
-    const contact = account ? await services.contacts.findByAddress(account.id, recipient.trim()) : undefined;
-    setReviewName(contact?.name ?? null);
+    const checks = await Promise.all([checkRecipient(), ...extras.map((x) => checkExtraRecipient(x.id)), checkAmounts()]);
+    if (!checks.every(Boolean)) return;
+    const addresses = [recipient, ...extras.map((x) => x.recipient)].map((a) => a.trim());
+    const names = await Promise.all(addresses.map(async (a) => (account ? ((await services.contacts.findByAddress(account.id, a))?.name ?? null) : null)));
+    setReviewNames(names);
     setStep('review');
   };
 
   // A second tap while the first is being taken up does nothing at all.
   const [starting, setStarting] = useState(false);
   const send = async (acceptLustration: boolean) => {
-    if (!account || starting) return;
+    if (!account || starting || !totals) return;
     setStarting(true);
     setAskLustration(false);
     try {
-      const sentTo = recipient.trim().toLowerCase();
+      // Saving as a contact is offered after a send to one recipient.
+      const sentTo = extras.length === 0 ? recipient.trim().toLowerCase() : null;
+      const addresses = [recipient, ...extras.map((x) => x.recipient)];
+      const amounts = [amount, ...extras.map((x) => x.amount)];
       // The exact figures the review sheet showed go with the request, so the
       // core sends those and never parses the texts a second time, its own way.
       await startSend(
-        { recipient: recipient.trim(), amount: amount.trim(), fee: fee.trim(), accept_lustration: acceptLustration, amount_nau: totals?.amountNau.toString(), fee_nau: totals?.feeNau.toString() },
+        {
+          payments: addresses.map((r, i) => ({ recipient: r.trim(), amount: amounts[i].trim(), amount_nau: totals.payments[i].toString() })),
+          fee: fee.trim(),
+          accept_lustration: acceptLustration,
+          fee_nau: totals.feeNau.toString(),
+        },
         linkMeta?.message ?? null,
       );
       setLastRecipient(sentTo);
       setRecipient('');
       setAmount('');
+      setExtras([]);
       setLinkMeta(null);
       setTotals(null);
       setStep('form');
@@ -204,13 +284,23 @@ export function Send() {
     [],
   );
 
-  const onScanned = useCallback(
-    (text: string) => {
-      setScanning(false);
-      applyText(text);
-    },
-    [applyText],
-  );
+  // A link for an added recipient gives its address and amount. The name
+  // and note a link can carry are shown for the first recipient only.
+  const applyExtraText = (id: number, text: string) => {
+    const parsed = parsePaymentText(text);
+    if (parsed.error) {
+      updateExtra(id, { recipientError: parsed.error });
+      return;
+    }
+    updateExtra(id, { recipient: parsed.address, recipientError: null, ...(parsed.amount ? { amount: parsed.amount, amountError: null } : {}) });
+  };
+
+  const onScanned = (text: string) => {
+    const target = scanFor;
+    setScanFor(null);
+    if (target === null || target === 0) applyText(text);
+    else applyExtraText(target, text);
+  };
 
   // A finished job's notice belongs to this visit; leaving the screen clears it.
   useEffect(() => {
@@ -280,6 +370,8 @@ export function Send() {
   if (step === 'review' && totals) {
     const totalNau = totals.amountNau + totals.feeNau;
     const kind = addressKindLabel(recipient);
+    const reviewName = reviewNames[0] ?? null;
+    const payees = [recipient, ...extras.map((x) => x.recipient)].map((address, i) => ({ address: address.trim(), name: reviewNames[i] ?? null, nau: totals.payments[i] ?? 0n }));
     // The coins the core will pick (largest first, then oldest), so the
     // review can say what stays spendable while the send is pending.
     const nowMs = Date.now();
@@ -301,24 +393,51 @@ export function Send() {
             Check the details. Once sending starts, the payment cannot be changed. It can take a few minutes on a phone.
           </Text>
           <div className="vault-review">
-            <div>
-              <span className="vault-eyebrow">To</span>
-              {reviewName && (
-                <Text size="lg" fw={600}>
-                  {reviewName}
-                </Text>
-              )}
-              <Text ff="monospace" size="sm" c={reviewName ? 'dimmed' : undefined}>
-                {abbreviateAddress(recipient)}
-              </Text>
-              <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
-                {kind}
-              </Badge>
-            </div>
-            <div className="vault-review-row">
-              <span>Amount</span>
-              <b>{showNau(totals.amountNau)} NPT</b>
-            </div>
+            {payees.length === 1 ? (
+              <>
+                <div>
+                  <span className="vault-eyebrow">To</span>
+                  {reviewName && (
+                    <Text size="lg" fw={600}>
+                      {reviewName}
+                    </Text>
+                  )}
+                  <Text ff="monospace" size="sm" c={reviewName ? 'dimmed' : undefined}>
+                    {abbreviateAddress(recipient)}
+                  </Text>
+                  <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
+                    {kind}
+                  </Badge>
+                </div>
+                <div className="vault-review-row">
+                  <span>Amount</span>
+                  <b>{showNau(totals.amountNau)} NPT</b>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Several recipients: each with what it gets, in the order sent. */}
+                <span className="vault-eyebrow">To {payees.length} recipients</span>
+                {payees.map((p, i) => (
+                  <div className="vault-review-row vault-review-payee" key={i}>
+                    <div style={{ minWidth: 0 }}>
+                      {p.name && (
+                        <Text size="sm" fw={600}>
+                          {p.name}
+                        </Text>
+                      )}
+                      <Text ff="monospace" size="sm" c={p.name ? 'dimmed' : undefined}>
+                        {abbreviateAddress(p.address)}
+                      </Text>
+                      <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
+                        {addressKindLabel(p.address)}
+                      </Badge>
+                    </div>
+                    <b>{showNau(p.nau)} NPT</b>
+                  </div>
+                ))}
+              </>
+            )}
             <div className="vault-review-row">
               <span>Fee</span>
               <b>{showNau(totals.feeNau)} NPT</b>
@@ -329,7 +448,7 @@ export function Send() {
             </div>
             {totals.feeNau > totals.amountNau && (
               <Text size="sm" c="var(--v-warn-text)" mt="xs">
-                The fee is larger than the amount.
+                {payees.length === 1 ? 'The fee is larger than the amount.' : 'The fee is larger than the amounts together.'}
               </Text>
             )}
           </div>
@@ -391,22 +510,17 @@ export function Send() {
         <Drawer opened={reviewSheet !== null} onClose={() => setStep('form')} position="bottom" size="auto" title="Review" trapFocus>
           {reviewSheet}
         </Drawer>
-        <Group justify="space-between" align="center">
-          <div>
-            <Title order={2} className="sr-only">
-              Send
-            </Title>
-            <Text size="sm" c="dimmed">
-              Spendable {services.settings.hideBalance ? '••••' : showNau(balance.spendableNau)} NPT
-            </Text>
-          </div>
-          <Button size="compact-md" variant="light" className="vault-tap" leftSection={<IconAddressBook size={16} stroke={1.8} />} onClick={() => setPicking(true)}>
-            Contacts
-          </Button>
-        </Group>
+        <div>
+          <Title order={2} className="sr-only">
+            Send
+          </Title>
+          <Text size="sm" c="dimmed">
+            Spendable {services.settings.hideBalance ? '••••' : showNau(balance.spendableNau)} NPT
+          </Text>
+        </div>
         {sendJob?.done && sendJob.outcome && (
           <Alert color="green" title="Submitted" withCloseButton onClose={dismissSendJob}>
-            {sendJob.request.amount} NPT is on its way. It shows as pending until it is confirmed
+            {showNau(paymentsTotalNau(sendJob.request))} NPT is on its way. It shows as pending until it is confirmed
             {sendJob.outcome.proving.seconds > 0 && `; the proof took ${sendJob.outcome.proving.seconds.toFixed(0)} s`}.
             {lastRecipient && (
               <div style={{ marginTop: 8 }}>
@@ -435,34 +549,47 @@ export function Send() {
           }}
         >
           <Stack>
-            <TextInput
-              label="Recipient address"
-              autoCapitalize="none"
-              autoCorrect="off"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="Address or payment link"
-              value={recipient}
-              onChange={(e) => {
-                const value = e.currentTarget.value;
-                // A payment link arriving by any route (keyboard paste, share)
-                // is split into its fields, the same as Paste and Scan do.
-                if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyText(value);
-                else {
-                  setRecipient(value);
-                  setRecipientError(null);
-                  setLinkMeta(null);
+            {/* A saved contact fills the recipient, as Scan does: so it sits on
+                the field's own label line, ahead of the field in the page's
+                order as on screen, and not inside the label, which would make
+                it part of the field's name. */}
+            {extras.length > 0 && <span className="vault-eyebrow">Recipient 1</span>}
+            <div className="vault-field-action-wrap">
+              <UnstyledButton type="button" onClick={() => setPickFor(0)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action">
+                <IconAddressBook size={16} stroke={1.8} aria-hidden />
+                Choose contact
+              </UnstyledButton>
+              <TextInput
+                label="Recipient address"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Address or payment link"
+                value={recipient}
+                onChange={(e) => {
+                  const value = e.currentTarget.value;
+                  // A payment link arriving by any route (keyboard paste, share)
+                  // is split into its fields, the same as Paste and Scan do.
+                  if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyText(value);
+                  else {
+                    setRecipient(value);
+                    setRecipientError(null);
+                    setLinkMeta(null);
+                  }
+                }}
+                onBlur={() => void checkRecipient()}
+                error={recipientError}
+                description={contactNote(recipient)}
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
+                rightSectionWidth={80}
+                rightSection={
+                  <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanFor(0)}>
+                    Scan
+                  </Button>
                 }
-              }}
-              onBlur={() => void checkRecipient()}
-              error={recipientError}
-              rightSectionWidth={80}
-              rightSection={
-                <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanning(true)}>
-                  Scan
-                </Button>
-              }
-            />
+              />
+            </div>
             {linkMeta && (linkMeta.label || linkMeta.message) && (
               <div className="vault-link-meta-form">
                 <IconLink size={16} stroke={1.8} aria-hidden />
@@ -498,15 +625,73 @@ export function Send() {
                 setAmount(e.currentTarget.value);
                 setAmountError(null);
               }}
-              onBlur={() => void checkAmounts()}
+              onBlur={() => void checkAmounts(true)}
               error={amountError}
-              rightSectionWidth={64}
+              rightSectionWidth={extras.length === 0 ? 64 : undefined}
               rightSection={
-                <Button variant="subtle" size="compact-sm" className="vault-tap" onClick={() => void sendAll()} disabled={balance.spendableNau <= 0n}>
-                  Max
-                </Button>
+                extras.length === 0 ? (
+                  <Button variant="subtle" size="compact-sm" className="vault-tap" onClick={() => void sendAll()} disabled={balance.spendableNau <= 0n}>
+                    Max
+                  </Button>
+                ) : undefined
               }
             />
+            {extras.map((x, i) => (
+              <div key={x.id} className="vault-payee" role="group" aria-labelledby={`payee-${x.id}`}>
+                <div className="vault-payee-head">
+                  <span className="vault-eyebrow" id={`payee-${x.id}`}>
+                    Recipient {i + 2}
+                  </span>
+                  <UnstyledButton type="button" onClick={() => setExtras((all) => all.filter((y) => y.id !== x.id))} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-label={`Remove recipient ${i + 2}`}>
+                    Remove
+                  </UnstyledButton>
+                </div>
+                <div className="vault-field-action-wrap">
+                  <UnstyledButton type="button" onClick={() => setPickFor(x.id)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action">
+                    <IconAddressBook size={16} stroke={1.8} aria-hidden />
+                    Choose contact
+                  </UnstyledButton>
+                  <TextInput
+                    label="Recipient address"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="Address or payment link"
+                    value={x.recipient}
+                    onChange={(e) => {
+                      const value = e.currentTarget.value;
+                      if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyExtraText(x.id, value);
+                      else updateExtra(x.id, { recipient: value, recipientError: null });
+                    }}
+                    onBlur={() => void checkExtraRecipient(x.id)}
+                    error={x.recipientError}
+                    description={contactNote(x.recipient)}
+                    inputWrapperOrder={['label', 'input', 'description', 'error']}
+                    rightSectionWidth={80}
+                    rightSection={
+                      <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanFor(x.id)}>
+                        Scan
+                      </Button>
+                    }
+                  />
+                </div>
+                <TextInput
+                  label="Amount (NPT)"
+                  inputMode="decimal"
+                  value={x.amount}
+                  onChange={(e) => updateExtra(x.id, { amount: e.currentTarget.value, amountError: null })}
+                  onBlur={() => void checkAmounts(true)}
+                  error={x.amountError}
+                />
+              </div>
+            ))}
+            {1 + extras.length < MAX_PAYMENTS && (
+              <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-add-payee">
+                <IconPlus size={16} stroke={1.8} aria-hidden />
+                Add another recipient
+              </UnstyledButton>
+            )}
             <div>
               <Text size="sm" fw={500} mb={6}>
                 Fee (NPT)
@@ -551,7 +736,7 @@ export function Send() {
                   setFee(e.currentTarget.value);
                   setFeeError(null);
                 }}
-                onBlur={() => void checkAmounts()}
+                onBlur={() => void checkAmounts(true)}
                 error={feeError}
                 ref={customFeeRef}
               />
@@ -559,18 +744,26 @@ export function Send() {
             {!online && (
               <Caution>You are offline. Sending needs the node; Review comes back when the connection does.</Caution>
             )}
-            <Button type="submit" disabled={!online || !recipient || !amount || !fee || Boolean(recipientError || amountError || feeError)}>
+            <Button
+              type="submit"
+              disabled={!online || !recipient || !amount || !fee || Boolean(recipientError || amountError || feeError) || extras.some((x) => !x.recipient || !x.amount || x.recipientError || x.amountError)}
+            >
               Review
             </Button>
           </Stack>
         </form>
       </Stack>
-      <QrScanner opened={scanning} onClose={() => setScanning(false)} onResult={onScanned} />
+      <QrScanner opened={scanFor !== null} onClose={() => setScanFor(null)} onResult={onScanned} />
       <ContactPicker
-        opened={picking}
-        onClose={() => setPicking(false)}
+        opened={pickFor !== null}
+        onClose={() => setPickFor(null)}
         onPick={(c) => {
-          setPicking(false);
+          const target = pickFor;
+          setPickFor(null);
+          if (target !== null && target !== 0) {
+            updateExtra(target, { recipient: c.address, recipientError: null });
+            return;
+          }
           setRecipient(c.address);
           setRecipientError(null);
           // The name and note came with a link, for the link's address. They
@@ -587,6 +780,7 @@ export function Send() {
             if (!account) return;
             const c = await services.contacts.add(account.id, name, address);
             setSavedName(c.name);
+            loadContacts();
             setSaving(false);
           }}
         />

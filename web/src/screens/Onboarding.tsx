@@ -1,14 +1,15 @@
-// Account creation and import (F1 to F5): generate or enter a phrase,
+// Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
 import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
 import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
 import { Caution } from '../components/Notice';
+import { NATIVE } from '../app/platform';
 import { WordGrid } from '../components/WordGrid';
 import { startOfDayMs } from '../util/blockdate';
 import { copyText } from '../util/clipboard';
@@ -266,7 +267,7 @@ export function Onboarding() {
           <Stack>
             <span className="vault-eyebrow">Step 1 of 3</span>
             <Title order={2}>Write down these 18 words</Title>
-            <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your funds. Clearing the browser deletes everything except what you write down.</Text>
+            <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your funds. {NATIVE ? 'If this device is lost, only what you write down brings the wallet back.' : 'Clearing the browser deletes everything except what you write down.'}</Text>
             <WordGrid words={phrase} />
             {/* The button, then what copying means, beneath it at every width
                 (as a phone wraps it), not squeezed in beside it. */}
@@ -358,8 +359,29 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
   const fileInput = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState('');
   const [fast, setFast] = useState(true);
+  // A file dragged from the desktop onto this step is taken as if chosen.
+  const [dragging, setDragging] = useState(false);
+  const carriesFiles = (e: DragEvent<HTMLDivElement>) => Array.from(e.dataTransfer.types).includes('Files');
   return (
-    <Paper>
+    <Paper
+      className={dragging ? 'vault-dropping' : undefined}
+      onDragOver={(e) => {
+        if (!carriesFiles(e) || busy) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+      }}
+      onDrop={(e) => {
+        if (!carriesFiles(e)) return;
+        e.preventDefault();
+        setDragging(false);
+        const dropped = e.dataTransfer.files[0];
+        if (dropped && !busy) setFile(dropped);
+      }}
+    >
       <Stack>
         <Title order={2}>Restore a backup file</Title>
         <Text size="sm" c="dimmed">Restores the wallet with its network, start block and contacts. It opens with the password it was saved under.</Text>
@@ -369,7 +391,14 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
             Choose backup file
           </Button>
           <Text size="sm" c={file ? undefined : 'dimmed'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {file ? file.name : 'No file chosen'}
+            {file ? (
+              file.name
+            ) : (
+              <>
+                <span className="vault-drop-hint">Or drop it here</span>
+                <span className="vault-drop-none">No file chosen</span>
+              </>
+            )}
           </Text>
         </Group>
         <PasswordInput label="Backup file password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
