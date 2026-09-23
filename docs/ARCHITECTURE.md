@@ -1,413 +1,497 @@
-# Neptune Vault: Architecture
+# Architecture
 
-Status: draft for review, 2026-09-12. Companion to REQUIREMENTS.md; decision
-ids (R*) and open items (O*) refer to that document.
+This document describes how Neptune Vault is built: the pieces and the seam
+between them, the wallet engine, storage and sealing, node communication,
+sending and proving, the app shell, and the facts about Neptune Cash that
+shaped the design. It is for contributors and security reviewers. Features,
+setup and the regtest recipe are in [README.md](../README.md); hosting in
+[HOSTING.md](HOSTING.md); desktop releases in
+[DESKTOP-RELEASE.md](DESKTOP-RELEASE.md); what leaves the device in
+[PRIVACY.md](PRIVACY.md).
+
+Last reviewed 2026-09-23 against the code.
 
 ## 1. Overview
 
 ```
-+--------------------------- phone browser ---------------------------+
-|                                                                     |
-|  React + Mantine UI  <-->  app state (Redux Toolkit)                |
-|         |                        |                                  |
-|         |                  IndexedDB (encrypted seed, UTXOs,        |
-|         |                  membership proofs, settings, history)    |
-|         v                                                           |
-|  Web Worker: wallet core (wasm)   Web Worker pool: prover (wasm)    |
-|   keys, addresses, scanning,       Triton VM, one sub-proof at a    |
-|   witness building                 time, rayon threads inside       |
-|         |                                                           |
-+---------|-----------------------------------------------------------+
-          | HTTPS, JSON-RPC 2.0 over POST
-          v
-   neptune-core node (0.17+), rpc modules: node, chain, wallet, archival
+            React 19 + Mantine 9 interface (web/src): screens, AppContext,
+            services, sync, mempool watcher, send flow
+                                   |
+              WalletCore + Prover interfaces (web/src/backend/types.ts)
+                                   |
+         +-------------------------+--------------------------+
+         | browser                                            | desktop (Tauri 2)
+         | wallet worker: vault-core as wasm                  | shells/tauri: thin commands
+         | prover worker: vault-prover as wasm                | vault-bridge: vault-core and
+         |   (vault-prover-legacy before the fork)            |   vault-prover, native
+         | IndexedDB: app database + sealed logs              | sealed logs as files
+         +-------------------------+--------------------------+
+                                   |
+                HTTPS JSON-RPC 2.0 from the page's own fetch
+                                   |
+                   neptune-core node chosen by the person
 ```
 
-Three deliverables live in one repository (R25):
+There is one interface on every platform. Screens and services call a
+`WalletCore` and a `Prover` (`web/src/backend/types.ts`) and never know which
+implementation answers. `web/src/backend/index.ts` decides once at start-up:
+`isNative()` is true when Tauri has put `__TAURI_INTERNALS__` on the window,
+and `createBackend()` then imports either `backend/browser/*` (wasm in
+workers) or `backend/native/*` (shell commands). Each side is loaded on
+demand, so neither ships in the other's bundle. React state is plain context
+(`web/src/app/AppContext.tsx`); long-lived objects are wired in
+`web/src/app/services.ts`.
 
-- `crates/vault-core`: Rust library exposing the wallet core to JavaScript via
-  wasm-bindgen. Wraps neptune-wallet, neptune-consensus, neptune-mutator-set,
-  neptune-primitives at 0.17.
-- `crates/vault-prover`: Rust library exposing ProofCollection proving. Wraps
-  triton-vm 8.0.0 and the consensus witness types. Separate from vault-core so
-  the large prover binary loads only when the user sends.
-- `web/`: the PWA. React, Mantine, Vite, TypeScript (R20). Service worker and
-  manifest for installation (N1).
+Rust crates (root `Cargo.toml` workspace):
 
-## 2. Why Rust to WebAssembly, and what it costs
+- `crates/vault-core`: the wallet engine (keys, scanning, chain checks, send
+  building, sealed store, ledger), as wasm and natively.
+- `crates/vault-prover`: ProofCollection proving with Triton VM 8, threaded
+  through wasm-bindgen-rayon in the browser.
+- `crates/vault-bridge`: the engine and prover for a native shell. Holds the
+  unlocked account behind a mutex, opens seed envelopes (`src/envelope.rs`),
+  keeps logs as files (`src/wallet_store.rs`); knows nothing about Tauri.
+- `crates/vault-fixtures`: writes deterministic `PrimitiveWitness` fixtures
+  for the prover benchmark (`web/prover-bench`).
+- `crates/vendor`: neptune-consensus 0.17.0, neptune-primitives 0.17.0,
+  twenty-first 1.1.0 and triton-vm 8.0.0, patched for wasm32 and applied
+  through `[patch.crates-io]` ([crates/vendor/VENDOR.md](../crates/vendor/VENDOR.md)).
+- `crates/legacy`: the pre-fork prover, its own workspace. Temporary
+  (section 5).
 
-The desktop wallet already does everything the PWA needs in Rust: address
-derivation, announcement decryption, block scanning, membership-proof
-maintenance, witness construction, and ProofCollection proving. Reusing the
-crates keeps the PWA consensus-compatible without a second implementation
-(R3).
+The native shell (`shells/tauri/src/lib.rs`) has no logic of its own: each
+command decodes its arguments, calls `vault_bridge`, and returns the result.
+Bytes travel as base64 (`web/src/backend/native/bridge.ts` says why) and
+errors keep a name (`WrongPasswordError`, `WalletLockedError`,
+`ProofCancelledError`) so the page rebuilds the class it already catches.
+`wallet_ledger` and `prover_prove` run on blocking threads; proof progress
+returns over a Tauri `Channel`. Beyond the wallet the shell does little:
 
-The costs:
+- Plugins: single-instance (a second launch focuses the running window),
+  dialog (the Save dialog behind `app_save_file`, so the page never names a
+  path) and opener (behind `app_open_url`).
+- Links: `app_open_url` opens only `https://` URLs whose host is in
+  `LINK_HOSTS` (useneptune.org, t.me, talk.neptune.cash, github.com,
+  neptune.cash), kept in step with `web/src/app/links.ts`.
+- Storage: sealed logs under `<app data dir>/logs`.
 
-- The browser has no filesystem or database. The desktop wallet's block cache
-  and wallet file become IndexedDB tables; the wasm layer works on values the
-  JavaScript side loads and stores.
-- The browser is single-threaded unless the page is cross-origin isolated.
-  Triton VM uses rayon, so the prover needs wasm threads: nightly Rust with
-  `-C target-feature=+atomics,+bulk-memory`, `build-std`, wasm-bindgen-rayon,
-  and the COOP/COEP headers described in section 7.
-- Memory is capped at 4 GB for 32-bit wasm, and the phone's OS may kill the
-  tab earlier. See section 5.
-- neptune-consensus enables tokio's `process` and `rt-multi-thread` features
-  and neptune-primitives enables tokio's `fs` feature. Those do not build for
-  wasm32-unknown-unknown; the compile check in section 9 confirmed it.
-  vault-core needs a `[patch.crates-io]` fork of both crates that trims the
-  features and gates the process- and filesystem-using modules behind a target
-  cfg, or an upstream change. This is the first engineering task and is
-  tracked as O6.
+It does not talk to the node. The window has only `core:default`
+(`shells/tauri/capabilities/default.json`); node requests are the page's own
+`fetch`, under the CSP in `shells/tauri/tauri.conf.json`.
 
-## 3. Node interface
+## 2. Wallet engine (vault-core)
 
-The node exposes a single JSON-RPC 2.0 endpoint. Every call is an HTTPS POST
-with `{"jsonrpc":"2.0","method":...,"params":...,"id":...}`. The typed
-request and response models are the neptune-rpc-api crate, which is plain
-serde and builds for wasm. The desktop wallet uses these nine methods and the
-PWA needs the same set:
+The wasm surface is in `crates/vault-core/src/lib.rs`. Anything the node also
+speaks crosses as JSON text; witnesses, kernels and proofs cross as bytes.
 
-| Method | Used for |
-|--------|----------|
-| `tip_digest`, `tip_header` | Detect new blocks |
-| `get_block_header` | Reorg checks, UTXO origin lookup |
-| `is_block_canonical` | Reorg detection for stored blocks |
-| `get_blocks` | Download a height range for scanning |
-| `are_bloom_indices_set` | Skip blocks that cannot spend the wallet's UTXOs |
-| `find_utxo_origin` | Locate the block an addition record landed in |
-| `restore_membership_proof` | Fetch mutator-set membership proofs for inputs |
-| `submit_transaction` | Broadcast a proven transaction |
+- Free functions: `core_version`, `generate_phrase` (18 words), `derive_key`
+  (Argon2id), `parse_amount` / `format_amount` (nau as decimal strings),
+  `claim_version(network, height)`, `is_valid_address`, `phrase_problem`,
+  `mock_proof_collection`, `assemble_submission`.
+- `Account`, built with `Account.from_phrase(words, network)`, holds the seed
+  and a cache of derived keys. No method returns the phrase. Methods:
+  `address(kind, index)`, `scan_blocks`, `scan_mempool_kernel`,
+  `announcement_flags`, `absolute_index_sets`, `plan_inputs`, `build_send`
+  (a `SendPlan` with `witness()`, `kernel()` and `summary()`).
+- `WalletLog`: one wallet's sealed log (section 3), with `run` and
+  `run_with_keys` for ledger operations.
 
-Cross-origin finding (O2). A page served from an Azure host cannot call
-`https://wallet.neptunefundamentals.org` today: a POST with an `Origin` header
-gets a valid JSON-RPC reply but no `Access-Control-Allow-Origin` header, and
-the CORS preflight `OPTIONS` request returns 405. The browser will block the
-response. Three ways to satisfy R2, in order of preference:
+Keys (`src/account.rs`). Derived through neptune-wallet, so phrases, keys and
+bech32m addresses match neptune-core. Three kinds: `generation`
+(lattice-based, long, the default), `ec_hybrid` (short) and `viewing`.
+Symmetric keys decode as addresses upstream but are secrets, so
+`parse_recipient` refuses them. Scans try every key of every kind up to the
+next unused index plus `KEY_LOOKAHEAD` (5). A new wallet starts at
+`{ generation: 1, ec_hybrid: 0, viewing: 0 }`.
 
-1. Ask the node operator to add CORS headers in the Caddy config in front of
-   the node. Zero code, keeps the direct connection. Needs the Azure host name
-   (O5) for the allow-list, or a wildcard.
-2. Put a reverse proxy on the Azure side that forwards POSTs to the node and
-   adds the headers. Keeps the user's node URL setting meaningful only for
-   nodes that already send CORS headers.
-3. Ship a small gateway of our own. Rejected for now because it contradicts
-   the "direct to node" decision and adds infrastructure.
+Scanning (`src/scan.rs`, `src/chain.rs`). `scan_blocks(blocks_response,
+unspent, next_key_indices, expectation)` first holds the answer against the
+request: each block is the height asked for and links to the one before, and
+the first links to the wallet's last scanned block, or the error starts with
+`NOT_LINKED`. On Mainnet it checks proof of work, with a difficulty floor of
+1e11 from height 10,000. It cannot check the block proof, the mutator set, or
+that this is the heaviest chain. It then decrypts announcements, keeps those
+whose addition record the block carries, assigns the AOCL index, and finds
+spends by exact absolute-index-set match. Coins are keyed
+`<utxo hash>:<aocl index>` (`coin_key`). `scan_mempool_kernel` does the same
+for one unmined kernel without advancing key indices.
 
-The user-editable node URL (F21) will only work with nodes that send CORS
-headers, and the settings screen should say so.
+Sending (`src/send.rs`). `plan_inputs` takes unspent, unlocked coins largest
+first (fewer inputs, smaller proof) until amount plus fee is covered.
+`build_send` refuses a membership-proof snapshot whose height is not the
+tip's, verifies each membership proof against the snapshot's mutator set,
+makes the recipient output and change to generation key 0 (both announced on
+chain, so the ordinary scan finds the change), adds lustration announcements
+when the tip requires them and the request allows it, and returns the
+bincode `PrimitiveWitness` and kernel. The txid is the kernel's MAST hash.
 
-## 4. Wallet core (vault-core)
+Claim versions. Triton VM claim version 5 is required before the Mainnet
+delta fork at block 55,000, version 8 after. `claim_version` reads it from
+`ConsensusRuleSet::infer_from`, and the app chooses a prover by it.
 
-Implemented in milestone 1 (crates/vault-core). Rust modules run natively
-for tests and in the browser; the wasm-bindgen surface is what the wallet
-worker calls. JSON crosses the boundary for anything the node also speaks
-in JSON, byte arrays for witnesses, kernels and proofs.
+The ledger (`src/ledger.rs`, `src/ledger/op.rs`). The sync, the mempool
+watcher and a send all change coins and history. Each change is one ledger
+operation (`LedgerOp` in `web/src/backend/types.ts` mirrors `ledger::op::Op`)
+that reads the wallet as it is, returns a batch, and takes effect only once
+the batch is written. Operations on one wallet run one at a time
+(`web/src/backend/browser/engineHost.ts` queues per log; the bridge holds the
+store's mutex). `announcementFlags`, `scanBlocks` and `scanMempoolKernel`
+need the unlocked account.
 
-- `generate_phrase()`: 18 BIP39 words from the browser's random source.
-- `Account(words, network)`: the unlocked account, holding the seed and a
-  cache of derived keys per kind (generation, EC hybrid, viewing).
-  Dropping it locks.
-- `account.address(kind, index)`: bech32m receiving address of the nth
-  key of that kind (`nolgam`, `nechm`, `nviewm` on mainnet; `nolgat`,
-  `necht`, `nviewt` on testnet).
-- `account.scan_blocks(blocks, unspent, next_key_indices)`: takes the node's
-  `get_blocks` response, decrypts announcements for every key of every kind
-  up to its next unused index plus a lookahead of five, confirms each hit against the
-  block's addition records, assigns the AOCL index, and detects spends of the
-  given unspent UTXOs by exact absolute-index-set match. Returns per block
-  the incoming UTXOs (with the recovery data needed to spend them later),
-  the spent hashes, and the new next key index.
-- `account.plan_inputs(unspent, request, now)`: oldest-first selection
-  covering amount plus fee, skipping time-locked UTXOs, plus the body of the
-  `restore_membership_proof` call for the chosen inputs.
-- `account.build_send(inputs, snapshot, tip_header, request, now)`: unlocks
-  the inputs with the node's membership proofs, builds the recipient output
-  (announced on chain), change to generation key 0 (also on chain, so the
-  normal scan finds it and no expected-UTXO table is needed), adds
-  lustration announcements when the tip requires them and the user agreed,
-  and returns the primitive witness for the prover, the kernel, and a
-  summary for the pending record.
-- `assemble_submission(kernel, proof_collection)`: the `submit_transaction`
-  body.
-- `derive_key(password, salt, m, t, p)`: Argon2id for the seed envelope.
-- `parse_amount` / `format_amount` / `is_valid_address`: validation
-  helpers so the UI never reimplements consensus formats.
+## 3. Storage
 
-Sync algorithm (R17):
+IndexedDB `neptune-vault` (`web/src/storage/db.ts`) is at `DB_VERSION` 3:
+1 initial, 2 adds `contacts`, 3 re-keys coins to `hash:aocl_index`
+(`rekeyCoins`). Stores: `accounts`, `contacts`, `utxos`, `blocks`, `history`,
+`syncState`, `settings`. There can be several wallets per device, on three
+networks (`main`, `testnet`, `regtest`).
 
-1. Store the account's birthday height at creation. Imported accounts default
-   to a user-supplied height, or genesis when unknown.
-2. Poll `tip_header` while in the foreground. For a new tip, walk from the
-   last synced height in batches of `get_blocks`.
-3. Before downloading a batch, ask `are_bloom_indices_set` for the wallet's
-   known UTXOs so batches that cannot spend anything are skipped when the
-   wallet also has no chance of receiving there. Receiving cannot be
-   pre-filtered by the node without leaking keys, so blocks are still fetched
-   for announcement scanning. The measurable win is on the removal-record side;
-   if measurements on the S24 show block download dominates, this is where a
-   later optimisation goes.
-4. Every stored block header is checked with `is_block_canonical` when the
-   tip changes. On a reorg, roll wallet state back to the fork point and
-   rescan.
-5. Membership proofs are not maintained locally. They are fetched from the
-   node with `restore_membership_proof` when a send is prepared, as the
-   desktop wallet does.
+A second database, `neptune-vault-log` (`web/src/storage/logStore.ts`), has
+one store `entries` keyed `[log, seq, kind]`. It keeps numbered byte strings
+and knows nothing of their contents. Writes use `durability: 'strict'`,
+`append` refuses a taken number, and `compact` writes a snapshot and drops
+what it covers in one transaction.
 
-## 5. Prover (vault-prover)
+### Sealed logs
 
-Pipeline for one send:
+`crates/vault-core/src/store.rs` keeps a wallet's state in memory and writes
+it as an append-only log of batches, with a snapshot every `COMPACT_EVERY`
+(256) batches. The order is prepare, write, confirm, so a failed write leaves
+memory and storage agreeing. An entry is JSON: `format` (`FORMAT` = 1), `seq`
+and `kind` in clear, the body sealed with AES-256-GCM under a key derived by
+HKDF-SHA256 from the wallet's content key and id (`LogKey::derive`). Each
+seal is bound to `neptune-vault log v1|<log>|<seq>|<kind>`, so entries cannot
+be altered, reordered or moved between wallets. A newer format is refused
+(`NEWER_FORMAT`). Sealing cannot stop someone who can write the disk from
+cutting off the newest entries; the next scan rebuilds what they held.
 
-1. vault-core builds the primitive witness in the wallet worker.
-2. The UI starts a wake lock (R23) and posts the witness to the prover worker.
-3. The prover produces the ProofCollection sub-proofs strictly in sequence:
-   removal-records integrity, collect lock scripts, kernel to outputs, collect
-   type scripts, one lock-script proof per input, one type-script proof per
-   type script. Each finished sub-proof is reported back for the progress UI.
-4. The claim version comes from the node's rule set at the tip (R29). If the
-   tip is one block away from a rule-set change, the send is refused with a
-   message, because the transaction would be dropped at the fork.
-5. The assembled transaction goes to `submit_transaction`. The kernel and the
-   reserved inputs are stored as a pending history entry (R18).
+Moving in (`src/migrate.rs`, `web/src/app/engineParts.ts`,
+`web/src/app/accounts.ts`). A wallet's parts move from `neptune-vault` into
+its log at its first unlock, the only time its key exists. `ENGINE_PARTS` is
+`contacts, scan, sync, utxos, blocks, history`; the chain parts move as one
+batch. `prepare_migration` compares the would-be state with the dump record
+for record before writing. A part that fails stays in the database
+(`EngineParts.stays`); a chain that fails is started afresh (`storeRebuild`)
+and rebuilt from the chain. Nothing is deleted from the old database. Account
+records (with their envelopes) and settings stay there; the core's device
+log (`DEVICE_LOG`) exists but the app does not use it yet.
 
-Mock-proof networks. The consensus verifier on regtest (and the testnet-mock
-network) accepts only valid mock proofs and rejects real STARK proofs, so a
-real ProofCollection can never be submitted to a regtest node. On those
-networks the app bypasses the prover and submits a mock ProofCollection
-(`ProofCollection::produce_mock`) through the same flow, which is how the
-node's own wallet behaves there. Real proving is exercised natively, in the
-benchmark, and on testnet and mainnet.
+In the browser the wallet worker owns the logs (`walletWorker.ts`,
+`engineHost.ts`). Natively, `FilePersist` in
+`crates/vault-bridge/src/wallet_store.rs` keeps a directory per log (name
+hex-encoded, as `wallet:<id>` has a colon), a `<seq:020>.batch` file per
+batch and a `snapshot`, each written under a temporary name, synced, then
+renamed. Account records and settings stay in the web view's IndexedDB.
 
-Memory plan:
+### Seed envelope
 
-- Triton VM's cached low-degree extension is off in the browser. The desktop
-  investigation measured about 40 KB per trace row for the cache, so a 2^17
-  row table would need 5 GB. The just-in-time path costs time instead, which
-  R23 accepts.
-- The wasm module is built with a maximum memory of 4 GB. Sub-proofs are
-  proven one at a time and their traces dropped before the next starts.
-- Input count is the main multiplier. Milestone 1 tests a one-input send; the
-  UI shows the input count before proving so the user knows why a send with
-  many inputs is slow.
-- If allocation fails, the worker reports an out-of-memory error, the UI
-  clears the reservation, and the user is told the device could not finish
-  (R23). Nothing is retried automatically.
-
-Untested until the compile check and the first device benchmark: whether the
-largest sub-proof fits on the S24 at all. Milestone 0 in section 10 exists to
-answer this before any UI is built.
-
-## 6. Storage and key protection
-
-IndexedDB database `neptune-vault`, versioned with migrations, all object
-stores keyed by `accountId` (R14) and `network` (R4):
-
-| Store | Contents |
-|-------|----------|
-| `accounts` | account id, network, birthday height, encrypted seed envelope(s), key index counter |
-| `utxos` | received UTXOs, addition record, block height, spent flag |
-| `blocks` | scanned block headers for reorg detection |
-| `history` | incoming and outgoing entries, pending or confirmed, txid |
-| `settings` | node URLs per network, lock timeout, last network |
-
-Seed envelope, password path (R10):
-
-- Argon2id runs in wasm (the `argon2` crate) with parameters tuned so unlock
-  takes about one second on the S24. Salt, parameters, and version are stored
-  next to the ciphertext.
-- The derived key wraps a random 256-bit content key. The content key
-  encrypts the seed with AES-256-GCM through WebCrypto. Changing the password
-  re-wraps the content key without touching the seed ciphertext.
-- The decrypted seed lives inside the wallet worker. At an unlock the page
-  hands the worker the stored envelope and the password, and the worker
-  derives the key, decrypts the phrase and loads the account, so the phrase
-  is never on the UI thread's heap. The phrase is on the UI thread in two
-  cases only, where it has to be seen: when a new wallet's words are written
-  down or an existing phrase is typed in, and when the person asks to see
-  the words, which takes the password again.
-- Locking terminates the worker (F8): the seed, the derived keys and the wasm
-  memory that held them go with it, and the next unlock starts a fresh one.
-  A lock never waits for the worker, so a busy or hung worker cannot delay
-  it. Argon2 wipes its working memory, and the account overwrites its
-  secrets when dropped; the browser gives no way to zero freed memory on
-  demand, so this is best effort, not a guarantee.
-- Automatic locks are deferred while a send runs and applied when it ends.
-  A proof does not need the seed: the prover worker holds only the witness,
-  which carries the spending secrets of the coins being spent. Locking by
-  hand during a proof lets it finish and submit; only a rebuild after a new
-  block needs the keys, and then the send stops and says so.
-
-Seed envelope, passkey path (R9, optional):
-
-- A platform passkey with the PRF extension yields a stable 32-byte secret
-  bound to the credential. It wraps the same content key as a second envelope.
-- Available on iOS 18+ and recent Android Chrome. The UI offers it only when
-  `PublicKeyCredential` reports PRF support. The password envelope is always
-  present.
-
-Export file (R8): a JSON file containing the account id, network, birthday
-height, and the password envelope. Import asks for the password. The file is
-useless without it.
-
-What survives clearing site data: the seed phrase on paper, the export file
-in the phone's file storage, and the passkey. IndexedDB does not. The app
-therefore refuses to show any balance before the phrase confirmation step is
-complete (F3).
-
-## 7. Hosting and headers
-
-Azure (R24) on a useneptune.org sub-domain (O5). The prover's threads need the
-page to be cross-origin isolated, which requires two response headers on the
-document and on the worker scripts:
+`SeedEnvelope` version 1 (`db.ts`, `web/src/storage/envelope.ts`):
 
 ```
-Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: require-corp
+password    --Argon2id(salt, mKib, tCost, pCost)--> wrap key
+wrap key    --AES-256-GCM--> 32-byte content key   (wrappedContentKey)
+content key --AES-256-GCM--> seed phrase, UTF-8    (seed)
 ```
 
-Azure Static Web Apps sets these through `globalHeaders` in
-`staticwebapp.config.json`. If the host cannot set headers, a service-worker
-shim can inject them at the cost of one reload on first load. Cross-origin
-isolation also means every cross-origin fetch, including the JSON-RPC calls,
-must carry CORS headers from the node, which ties back to O2.
+Argon2id runs in the core (`crates/vault-core/src/kdf.rs`): default 64 MiB,
+3 passes, 1 lane, with a floor of 19 MiB and 2 passes. Before the password
+touches an envelope, `assertEnvelope` checks the parameters against
+`KDF_CEILING` (1 GiB, 16 passes, 4 lanes), the salt length (16 to 64 bytes)
+and the exact IV and box lengths. An envelope opened with settings below the
+default is wrapped again at the default. A password change re-wraps only the
+content key. The AES layering exists twice (TypeScript and
+`crates/vault-bridge/src/envelope.rs`), pinned to one result by
+`test-vectors/seed-envelope.json`; Argon2id exists once.
 
-Fonts and all other assets are self-hosted so the isolation policy has
-nothing to block.
+At unlock the page hands the envelope and password to the wallet worker or
+the shell, which opens the phrase and loads the account there. The seed
+phrase reaches the page only when a new one is shown to be written down,
+when one is typed in, and when the person asks to see it (password again).
 
-## 8. Build and repository layout
+Passkeys (`web/src/app/passkey.ts`). A platform passkey with the WebAuthn PRF
+extension yields a 32-byte secret after user verification. It wraps the same
+content key, stored on the account record as `passkey`. Device-bound, never
+in a backup; the password always works.
+
+### Backup file
+
+`ExportFile` in `envelope.ts`, `format: 'neptune-vault-backup'`. Export
+writes version 3:
 
 ```
-neptune-vault/
-  Cargo.toml              workspace
-  rust-toolchain.toml     nightly, pinned date, wasm32-unknown-unknown target
-  crates/
-    vault-core/           wasm-bindgen, wallet API
-    vault-prover/         wasm-bindgen + wasm-bindgen-rayon, proving API
-  web/
-    package.json          React, Mantine, Vite, Redux Toolkit, vite-plugin-pwa
-    src/
-    public/
-    staticwebapp.config.json
-  docs/
-    REQUIREMENTS.md
-    ARCHITECTURE.md
+password    --Argon2id--> wrap key --AES-GCM--> file key
+file key    --AES-GCM, AAD = readable part--> content key
+content key --AES-GCM--> seed (the database's own ciphertext)
+content key --AES-GCM, AAD = all of the above--> contacts
 ```
 
-wasm-pack builds each crate into `web/src/wasm/`. Both wasm packages are
-lazy-loaded; the prover only when the user opens the send screen.
+The readable part (format, version, network, start block, export date, KDF
+settings, boxes) is a fixed text (`readablePart`), so one changed byte stops
+the restore with `BackupAlteredError`, while a wrong password fails earlier
+and is reported as such. Relabelled as version 2, the file does not open: an
+older reader takes the file key for the content key. Files are capped at
+`MAX_BACKUP_BYTES` (32 MiB).
 
-Testing: Rust unit tests run natively for the wallet core; wasm-bindgen-test in
-headless Chrome covers the boundary; Playwright with an Android device profile
-covers the UI against a mocked node; the milestone acceptance test runs by
-hand on the S24.
+### Data-format policy
 
-## 9. Compile check of the 0.17 crates for wasm32
+Pinned by `web/src/storage/formats.test.ts` and the fixtures in
+`web/src/storage/fixtures` (`backup-v1.json`, `backup-v2.json`,
+`backup-v3.json`):
 
-Done on 2026-09-12 with a scratch crate depending on neptune-consensus 0.17.0,
-neptune-wallet 0.17.0, and triton-vm 8.0.0, using
-`cargo +nightly check --target wasm32-unknown-unknown --keep-going` and the
-getrandom `js` / `wasm_js` features enabled.
+- The database has one version (`DB_VERSION`). A change raises it and adds an
+  upgrade step that runs on open, asks nothing and keeps data. A database
+  from a newer app is refused with "update the app".
+- Every backup version ever written stays readable, and the tests restore a
+  fixture of each. Export writes the newest. A newer file is refused with
+  "update the app".
+- The seed envelope and log entries carry versions; a change is a new
+  number, and old numbers still open.
 
-Passes as published, no changes needed:
+Adding a version: bump the constant, add the upgrade or reader, add a
+fixture, never remove an old one.
 
-- twenty-first, tasm-lib 8.0.0, triton-vm 8.0.0 (the prover itself)
-- neptune-mutator-set 0.17.0
-- neptune-rpc-api 0.17.0 models
+## 4. Node communication
 
-Fails as published:
+`web/src/node/rpc.ts` speaks JSON-RPC 2.0 over POST, with methods named
+`<namespace>_<camelCaseOp>` and positional parameters. Called:
+`node_network`, `chain_tipHeader`, `archival_getBlockHeader`,
+`archival_isBlockCanonical`, `wallet_getBlocks`,
+`wallet_restoreMembershipProof`, `wallet_submitTransaction`,
+`utxoindex_blockHeightsByFlags`, `utxoindex_blockHeightsByAbsoluteIndexSets`,
+`mempool_transactions`, `mempool_getTransactionKernel`,
+`mempool_getTransactionsByAdditionRecords`.
 
-- mio, pulled in by neptune-consensus's tokio features `process` and
-  `rt-multi-thread`, and by neptune-primitives's tokio feature `fs`. Every
-  other error in the log is a consequence of that one crate. neptune-consensus
-  and neptune-wallet were therefore never reached by the checker.
+Answers are capped at `MAX_RESPONSE_BYTES` (96 MiB); the timeout (30 s by
+default, longer for blocks, membership proofs and submission) covers the
+whole body; redirects are refused; node error text is cleaned and quoted as
+the node's (`nodeSaid`). `nodeUrlProblem` accepts `https://`, `http://` only
+to localhost, and a bare path only on regtest.
 
-What the sources show a fork has to do, beyond trimming the tokio feature
-lists:
+Raw JSON. Node payloads carry u64 and u128 values, and `JSON.parse` rounds
+integers above 2^53. Whatever the core reads (blocks, mempool kernels, the
+membership-proof snapshot, the tip header) stays as response text
+(`callRaw`), and the core parses the envelope. Parameters with 64-bit values
+(announcement flags, absolute index sets) are serialised by the core and
+spliced into the request as text (`paramsText`).
 
-- neptune-consensus `proof_abstractions/tasm/prover_job.rs` spawns an external
-  prover process with `tokio::process`. It must be gated out for wasm32; the
-  PWA calls Triton VM directly, as the desktop wallet's prover does.
-- neptune-primitives `data_directory.rs` uses `tokio::fs`. Gate out for wasm32;
-  the PWA has no filesystem.
-- `Instant::now()` in neptune-consensus `lib.rs` and `SystemTime::now()` in
-  neptune-primitives `timestamp.rs` compile for wasm32 but panic at runtime.
-  Replace with the `web-time` crate behind a target cfg. The timestamp one is
-  on the transaction path, so it matters.
-- Eleven `tokio::task::spawn_blocking` call sites in neptune-consensus (witness
-  linking, primitive witness, verifier). They compile with tokio's `rt`
-  feature on wasm32 but cannot run there. The PWA uses the synchronous
-  functions underneath; the async wrappers can stay unused or be gated.
+Sync (`web/src/wallet/sync.ts`). A pass runs every 15 s while unlocked and
+visible, and on reconnect; a Web Lock (`neptune-vault-sync:<id>`) allows one
+per wallet across windows. A pass:
 
-Conclusion: the prover and mutator-set layers are wasm-ready today. The
-consensus and primitives crates need a small fork with feature trims and
-target-gated modules before vault-core can build. Whether anything else breaks
-behind those modules is unknown until the fork is compiled; that is the first
-task of milestone M0. Proposed upstream: a `wasm` feature or target cfgs in
-neptune-core so the fork can be retired.
+1. Checks once per node URL that `node_network` matches the wallet.
+2. Runs a pending fast restore (below).
+3. Gets the position (`startPass`). If the last synced block is no longer
+   canonical, `rollBackIfForked` binary-searches the stored blocks (the
+   ledger keeps 1000) for the newest canonical one and rolls back to it. If
+   none is canonical it stops and changes nothing; the person may rescan.
+4. Fetches `wallet_getBlocks` in batches of 25, each scanned against the hash
+   it must follow. A `NOT_LINKED` answer rolls back and retries, at most three
+   times.
 
-## 10. Milestones
+Fast restore. With `restore: 'fast'` a pass asks
+`utxoindex_blockHeightsByFlags` for blocks with announcements for the
+wallet's keys and `utxoindex_blockHeightsByAbsoluteIndexSets` for blocks that
+spent its coins, scans those one by one, and repeats while keys or coins turn
+up (at most 40 rounds). It hands over to the ordinary scan `RESTORE_HANDOVER`
+(10) blocks below the tip. The node learns the wallet's receiver identifiers
+and coins. Import and rescan can also start from a date: `heightForDate`
+binary-searches `archival_getBlockHeader` timestamps.
 
-- M0, feasibility spike: vault-prover builds for wasm32 and proves one real
-  ProofCollection for a one-input transaction in Chrome on the S24, within the
-  10 minute budget. Output is a measured table of time and peak memory per
-  sub-proof. If M0 fails, R1 has to be revisited before anything else is
-  built.
-- M1, end to end on testnet (R28): account, backup, receive, balance, send.
-- Later: passkey wrapping, multiple accounts, batch send, NIP-2 payment URIs,
-  iOS device testing.
+Mempool watcher (`web/src/wallet/mempool.ts`). After each sync and every 30 s
+while unlocked and visible, it lists `mempool_transactions`, scans at most 30
+unseen kernels per poll, and keeps pending incoming rows keyed by output
+commitment (`incoming:<commitment>`). A row is dropped once its commitment has
+been absent for two polls; the block scan replaces it on confirmation.
+Outputs this seed created are not incoming. A spend of this wallet's coins
+that it did not build (another device, same phrase) becomes a pending sent
+row (`outgoing:<first input>`) that holds those coins. Own pending sends are
+checked with `mempool_getTransactionsByAdditionRecords`. A node without the
+`mempool` namespace turns the watcher off.
 
-## 11. Risks, ranked
+CORS and CSP. The page calls the node directly, so the node must allow
+cross-origin requests; the default Mainnet node
+(`https://wallet.neptunefundamentals.org`) does. The web CSP's `connect-src`
+is `'self' https: http://localhost:* http://127.0.0.1:*`, matching the URL
+rules. In development `/regtest-node` is proxied to `127.0.0.1:9797`
+(`web/vite.config.ts`).
 
-1. Proving memory on the phone (section 5). Mitigated by M0 before UI work.
-2. neptune-consensus and neptune-primitives do not build for wasm32 without
-   patching, confirmed (section 9). Mitigated by a fork with feature trims and
-   target-gated modules; the unknown is what else breaks once those modules
-   are gated, which M0 answers first.
-3. The default node blocks browser calls (O2). Mitigated by asking the operator
-   for CORS headers; fallback is an Azure-side proxy.
-4. iOS cannot be tested (R22). Safari has tighter memory limits than Chrome
-   and kills background PWAs aggressively. Treat iOS as best effort until a
-   device exists.
-5. Delta hardfork timing (R29). Building on 0.17 from the start avoids the
-   desktop wallet's breakage, but a testnet node must also be on 0.17.
-6. The wallet must stay in the foreground while proving. Android may still
-   discard the tab under memory pressure; the user is told to keep the app
-   open and the wake lock reduces the chance.
+## 5. Sending and proving
 
-## Data formats
+`SendService.send` in `web/src/app/send.ts`:
 
-Three formats hold a person's wallet: the IndexedDB database, the backup
-file, and the seed envelope inside both. The rules, pinned by
-`web/src/storage/formats.test.ts` and the fixtures beside it:
+1. `plan_inputs` over the ledger's `spendable` coins.
+2. `wallet_restoreMembershipProof`, then `chain_tipHeader`, in that order, so
+   a tip that moves in between fails the height check in `build_send`.
+3. `build_send`. A lustration requirement becomes `RequiresLustrationError`,
+   and the Send screen asks.
+4. The claim version for tip height + 1, the first block that can carry the
+   transaction: 5 means the legacy prover, 8 the current one, anything else
+   stops with "update the app".
+5. Prove, or on regtest take `mock_proof_collection`.
+6. If the tip moved during proving, start over, up to `MAX_SEND_ATTEMPTS` (3).
+7. `assemble_submission`; record the pending row and hold the inputs
+   (`recordPending`) before `wallet_submitTransaction`. A refusal releases
+   them (`discardPending`); a timeout keeps them held
+   (`SendUnconfirmedError`), so nobody pays twice on a lost answer. Cancel
+   works up to submission.
 
-- The database has one schema version (`DB_VERSION`). A change to a store
-  or a field raises it and ships an upgrade step that runs on its own when
-  the app opens, asks nothing, and never deletes a field it does not
-  understand. A database written by a newer app is refused with "update the
-  app" and left untouched.
-- The backup file carries its own version. Every version ever written stays
-  readable forever: a fixture of each is kept under `storage/fixtures` and
-  restored by the test suite, so a release that breaks an old file fails to
-  build. Export always writes the newest version. A file from a newer app is
-  refused with "update the app", never decoded by guesswork.
-- Version 3 of the backup file (storage/envelope.ts has the diagram) keeps
-  the contacts encrypted and authenticates everything readable. The password
-  opens a file key; the file key opens the content key, bound to the
-  readable part as additional authenticated data; the content key opens the
-  seed and the contacts. The first step is unbound on purpose, so a wrong
-  password and a changed file give different errors. The file's envelope is
-  not the database's: an older reader handed a version 3 file dressed as
-  version 2 takes the file key for the content key, and the seed does not
-  open, so the protection cannot be stripped by relabelling. A restore
-  writes an ordinary envelope to the database.
-- Whatever comes from a file or the database is checked before the password
-  touches it: the password hash settings against a ceiling (and, in the
-  core, a floor), and every salt, IV and wrapped key against the exact
-  length this app writes. An envelope opened with settings below today's
-  default is wrapped again at the default.
-- The seed envelope (Argon2id parameters, AES-GCM boxes) has a version; a
-  change to it is a new number, and the old number still opens.
+Browser prover (`web/src/backend/browser/proverClient.ts`, `proverWorker.ts`).
+A fresh worker per proof, so a failed or cancelled run frees its memory. It
+imports `/wasm/prover/vault_prover.js`, or
+`/wasm/prover-legacy/vault_prover_legacy.js` for claim version 5; both have
+the same exports. The thread pool starts only on a cross-origin isolated
+page, sized to all reported cores. The LDE trace is not cached, trading time
+for memory. Sub-proofs run one after another (removal-records integrity,
+collect lock scripts, kernel to outputs, collect type scripts, then one per
+lock script and per type script), with progress weighted by measured cost
+(`web/src/backend/proving.ts`). Errors are cut to their first line, because
+a VM dump can hold the spending secrets. A one-input proof on a Galaxy S24
+took 134 s with 10 threads, at a 985 MB peak
+([M0-BENCHMARK.md](M0-BENCHMARK.md)).
 
-Adding a version means: bump the constant, add the upgrade or reader,
-write the new fixture, and never remove an old one.
+Legacy prover (temporary). `crates/legacy/vault-prover-legacy` builds the
+0.15 consensus crates with Triton VM 7 for the claim version 5 proofs Mainnet
+requires below block 55,000. It is a separate workspace so the two
+generations never share a dependency graph, sharing only the vendored
+twenty-first ([crates/legacy/VENDOR.md](../crates/legacy/VENDOR.md)). The
+directory and the `prover-legacy` package are to be deleted a week after the
+fork. The desktop app does not include it: `prover_prove` with `legacy`
+returns an error asking the person to send from the web app until the fork.
+
+Native prover (`vault_bridge::Prover`). A rayon pool of exactly the requested
+size (default: all CPUs) with 32 MiB thread stacks, as the desktop node
+wallet needs, and the LDE trace cached. Cancel settles the page's promise at
+once; the Rust proof cannot be interrupted, runs to the end, and is
+discarded.
+
+The send job runs in `AppContext` (`startSend`), not in the Send screen, so
+it survives navigation and `SendStrip` shows it on every screen, the lock
+screen included. While it runs the window is marked busy (another window
+cannot take the wallet), a screen wake lock is requested
+(`web/src/app/wakeLock.ts`), and `setLockDeferred(true)` holds the idle and
+background locks until it ends. A manual lock mid-proof still lets the proof
+finish and submit; only a rebuild after a new block needs the keys, and then
+the send stops and says so.
+
+## 6. App shell
+
+One window owns the wallet (`web/src/app/windowOwner.ts`): it holds the Web
+Lock `neptune-vault-window`, and other windows say where the wallet is open
+and can ask for it. A window in the middle of a send refuses.
+
+Web updates (`web/src/components/UpdateStrip.tsx`). vite-plugin-pwa with
+`registerType: 'prompt'`: a new build downloads and waits, and is never
+applied while the app is open. It takes over when the person taps Update,
+which the strip does not offer during a send, or when the app next starts.
+The strip names the waiting build from `version.json` (version, commit, build
+date; emitted by `vite.config.ts`, never precached) and links the commits
+between. It checks hourly and when the app comes to the front. A page cannot
+refuse its host's next version; the defences are the gated deploy and
+published file hashes ([HOSTING.md](HOSTING.md)).
+
+Desktop updates (`web/src/components/DesktopUpdateNotice.tsx`). No service
+worker and no signed auto-updater yet. Every six hours the app asks the
+GitHub releases API for a published `desktop-v*` release newer than itself
+and offers the download page.
+
+Auto-lock (`web/src/app/accounts.ts`). The idle time is one of
+`LOCK_CHOICES_MS` (1, 5, 15 or 30 minutes; default 5), measured by the wall
+clock so a device that slept does not stay unlocked. The wallet also locks
+when the page is hidden (on the desktop, when the window is minimized). In
+the browser a lock terminates the wallet worker, and the seed, keys, content
+key and open logs go with its memory; natively `wallet_lock` drops the
+account and content key. A lock never waits on a busy worker. Rust secrets
+are overwritten on drop where the types allow: best effort, not a guarantee.
+
+Security headers (`web/public/staticwebapp.config.json`, also sent by
+`vite preview`): COOP `same-origin` and COEP `require-corp` (cross-origin
+isolation, for the prover's shared memory); CORP `same-origin`; a CSP with
+`default-src 'none'`, `script-src 'self' 'wasm-unsafe-eval'`, workers from
+`'self' blob:`, `frame-ancestors 'none'`, `form-action 'none'`;
+`X-Frame-Options: DENY`; `nosniff`; `Referrer-Policy: no-referrer`; and a
+`Permissions-Policy` granting only camera, clipboard write, screen wake lock,
+web share and passkeys.
+
+Desktop behaviours (`web/src/app/platform.ts`). Links leaving the app, and
+`window.open`, go to the system browser through `app_open_url`. F5, Ctrl+R
+and Ctrl+P are blocked; stray file drops are refused; the web view's context
+menu shows only in fields and over selected text. `web/src/App.tsx` adds Ctrl
+or Cmd with L (lock), N (send) and 1 to 4 (tabs). Backups go through the
+native Save dialog. Passkey unlock depends on the web view and is reported as
+unavailable when it is not.
+
+## 7. Build and test
+
+- `npm run wasm:core`, `wasm:prover` and `wasm:prover-legacy` (in `web/`)
+  run wasm-pack into `web/public/wasm/{core,prover,prover-legacy}`, served
+  untransformed and imported by absolute URL.
+- `rust-toolchain.toml` pins `nightly-2026-07-09`. `.cargo/config.toml`
+  builds wasm32 with `build-std`, `+atomics,+bulk-memory,+mutable-globals,+simd128`,
+  explicit `--shared-memory` and `--import-memory`, and a 4 GiB memory
+  maximum. The root `Cargo.toml` builds build scripts at `opt-level = 1`,
+  because Triton VM's constraint generator overflows the 1 MB stack of a
+  Windows main thread when unoptimized.
+- `vite build --mode desktop` (`npm run build:desktop`, Tauri's
+  `beforeBuildCommand`) drops the service worker and removes `wasm`, `bench`
+  and `staticwebapp.config.json` from the output.
+- Tests: vitest with fake-indexeddb. `web/src/backend/engineForTests.ts` runs
+  the built wasm core through the worker's own `EngineHost`.
+  `web/src/backend/native/surface.test.ts` reads `shells/tauri/src/lib.rs`
+  and the native clients and checks command and argument names match.
+  `web/src/storage/vector.test.ts` and vault-bridge's tests share the
+  envelope vector. Rust: `cargo test -p vault-core` (chain checks against
+  real Mainnet blocks included), vault-bridge's store tests, and an ignored
+  native prove-and-verify round trip in `crates/vault-prover/tests/roundtrip.rs`.
+- CI: `.github/workflows/deploy-web.yml` (Rust tests, wasm builds,
+  `npm ci --ignore-scripts`, tests, build, a published SHA-256 list, deploy to
+  Azure Static Web Apps) and `.github/workflows/release-desktop.yml`
+  (`desktop-v*` tags, draft releases). See [README.md](../README.md),
+  [HOSTING.md](HOSTING.md) and [DESKTOP-RELEASE.md](DESKTOP-RELEASE.md).
+
+## 8. Facts that shape the design
+
+- Integers above 2^53. Mainnet blocks carry `u64::MAX` in every removal
+  record's chunk dictionary, and UTXO-index identifiers are 64-bit. Passing
+  them through JavaScript objects produced values Rust rejected, and smaller
+  ones would round silently: hence the raw-JSON rule.
+- Block volume. Mainnet `wallet_getBlocks` returned 15 to 19 MB per 100
+  blocks when measured; the core scans that in under a second, so on a phone
+  the transfer dominates.
+- The UTXO index (`--utxo-index`, namespace `utxoindex`) is queried by
+  announcement flag, which carries the full 64-bit receiver identifier: the
+  node learns exactly which identifiers a wallet asks about. Measured
+  2026-09-16 on the public node: 0.15 s per flag lookup, and 3528 candidate
+  blocks for a very busy receiver.
+- On regtest the consensus verifier accepts only mock proofs, so a real proof
+  is rejected there. Real proving is tested natively, in the benchmark, and
+  on Mainnet.
+- Nodes build blocks only from single-proof transactions, so a ProofCollection
+  submission relies on some node upgrading it. A regtest node needs
+  single-proof capability and proof upgrading on (README recipe).
+- When the tip requires lustration announcements, a send must carry them; the
+  app asks first.
+- wasm-bindgen-rayon's helper re-fetches its own script into blob workers, so
+  the packages are served from the public directory untransformed, and the
+  CSP allows `blob:` workers.
+- Wasm linear memory never shrinks, so `wasm_memory_bytes` is the peak so
+  far, and a fresh prover worker per proof is the only way to return memory.
+- Generation addresses are about 3,500 characters and fit a QR code only as
+  upper-case alphanumeric at error-correction level L, hence the upper-cased
+  `NEPTUNECASH:<ADDRESS>` QR (`web/src/util/address.ts`).
+- The 0.17 crates and Triton VM 8 cannot make claim version 5 proofs.
+  `PrimitiveWitness` serialises the same in 0.15 and 0.17, so the witness from
+  the 0.17 core feeds the legacy prover unchanged.
+- This seed derives each output's sender randomness from the build height
+  and the receiving address, so coins it created are recognised exactly on
+  any device: the core tries the confirmation height and the
+  `OWN_OUTPUT_WINDOW` (1000) heights below (`own_build_height`). History folds
+  change and self-payments by it, and the mempool watcher skips them.
+- The node rewrites mempool transactions as blocks arrive, changing their ids
+  but not their output commitments. A UTXO is only a lock script and an
+  amount, so its hash repeats across equal payments. Hence commitments and
+  `hash:aocl_index` as keys.
+- AES-GCM does not commit to one key, so every IV and wrapped key is checked
+  for its exact length before decryption.
+- Without COOP and COEP there is no `SharedArrayBuffer` and no prover thread
+  pool, and with them every cross-origin request, the node included, must
+  pass CORS.

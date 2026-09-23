@@ -1,4 +1,4 @@
-// Receiving (F11): the address of each kind as text and QR code, and a
+// Receiving: the address of each kind as text and QR code, and a
 // payment request (NIP-002 link with amount, name and note) with its own
 // code. Two tabs, because the address code and the request code must never
 // be mistaken for one another. Key 0 of a kind is its main address; "next

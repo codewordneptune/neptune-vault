@@ -1,4 +1,4 @@
-// The send flow (F15 to F18): plan inputs, fetch membership proofs, build
+// The send flow: plan inputs, fetch membership proofs, build
 // the witness, prove in the prover worker, assemble, submit, and record the
 // pending transaction with its inputs reserved. On any failure before
 // submission nothing stays reserved.
@@ -211,7 +211,7 @@ export class SendService {
     }
   }
 
-  /** Mark the inputs reserved and add the pending history entry (R18). */
+  /** Mark the inputs reserved and add the pending history entry. */
   private async recordPending(txid: string, request: SendRequest, inputHashes: string[], amountNau: string, feeNau: string, changeNau: string | null, commitments: string[], note: string | null): Promise<void> {
     const entry: HistoryRecord = {
       key: `${this.accountId}:sent:${txid}`,

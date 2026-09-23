@@ -66,7 +66,7 @@ export function App() {
   // would bounce an existing account to onboarding.
   if (!ready) return <Loader className="vault-starting" aria-label="Starting" />;
 
-  // Any interaction postpones the idle lock (R11).
+  // Any interaction postpones the idle lock.
   const touch = () => services.accounts.touch();
 
   const gate = (element: ReactElement) => {

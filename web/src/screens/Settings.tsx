@@ -1,4 +1,4 @@
-// Network, node URL with connectivity check, backup actions, lock (F20 to F22).
+// Network, node URL with connectivity check, backup actions, lock.
 
 import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
 import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconWallet } from '@tabler/icons-react';

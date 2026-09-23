@@ -1,5 +1,5 @@
 // Account lifecycle: create or import, unlock, lock, and the auto-lock
-// policy (R11: after an idle time the person chooses, five minutes unless
+// policy: after an idle time the person chooses (five minutes unless
 // changed, and immediately on backgrounding).
 
 import { FRESH_KEY_INDICES, type AccountRecord, type ContactRecord, type Network, type SeedEnvelope, type VaultDb } from '../storage/db';
@@ -484,7 +484,7 @@ export class AccountService {
   }
 
   /**
-   * The export file (R8), version 3: the contacts encrypted, the rest
+   * The export file, version 3: the contacts encrypted, the rest
    * authenticated (see ExportFile). That takes the content key, and so the
    * password: being unlocked is not enough. Throws WrongPasswordError.
    */
@@ -519,7 +519,7 @@ export class AccountService {
     await this.core.ledger(accountId, { op: 'resetForRescan', height: Math.max(0, Math.floor(height)), fast });
   }
 
-  /** Record that the export file was saved (R8), for the reminder and Settings. */
+  /** Record that the export file was saved, for the reminder and Settings. */
   async markBackedUp(accountId: string, when = Date.now()): Promise<void> {
     await this.patch(accountId, (current) => ({ ...current, lastBackupAt: when }));
   }

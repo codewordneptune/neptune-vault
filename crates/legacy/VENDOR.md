@@ -14,9 +14,12 @@ crate to two versions. `twenty-first` is shared with `../vendor`.
 | triton-vm | 7.0.0 | `no_profile` removed from the default features so the phase profiler is compiled in; `[lib] crate-type` reduced to `rlib` (the cdylib output of a path dependency has no hash in its name and collides between the build-script and normal builds). |
 
 Reproduce: copy the crate from `~/.cargo/registry/src/*/<crate>-<version>`,
-delete `.cargo_checksum.json` and `.cargo-ok`, then apply the changes above.
+delete `.cargo-ok`, then apply the changes above.
 
-This directory exists only until the delta hardfork activates at mainnet
-block 55,000; after that every proof is claim version 8 and the current
-prover covers it. Delete `crates/legacy`, the `wasm:prover-legacy` script,
-the workflow step and the `legacy` branch in `web/src/prover/worker.ts`.
+This directory exists only until the delta hardfork has activated at
+mainnet block 55,000; after that every proof is claim version 8 and the
+current prover covers it. A week after the fork, delete `crates/legacy`, the
+`wasm:prover-legacy` script, its step in `.github/workflows/deploy-web.yml`,
+the legacy package selection in `web/src/backend/browser/proverWorker.ts`,
+the `legacy` flag in `web/src/backend/native/proverClient.ts` and the
+matching refusal in `shells/tauri/src/lib.rs`.

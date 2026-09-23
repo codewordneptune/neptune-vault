@@ -1,4 +1,4 @@
-// Send screen (F15 to F18, R23): one recipient, amount, fee; validation
+// Send screen: one recipient, amount, fee; validation
 // before a review step; the proof itself runs as a job in the app context
 // so it survives this screen being unmounted (backgrounding locks the app).
 
@@ -16,7 +16,7 @@ import { ContactForm } from './Contacts';
 import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
 import { networkLabel } from '../util/network';
 
-// Fee presets (R19). Every level clears the default proof-upgrader floor of
+// Fee presets. Every level clears the default proof-upgrader floor of
 // about 0.017 NPT; the spread is for when upgraders or composers have
 // transactions to choose between.
 const FEE_PRESETS: { value: string; label: string; fee: string }[] = [

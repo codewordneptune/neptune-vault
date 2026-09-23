@@ -8,12 +8,16 @@ them for Windows (x64), Linux (x64) and macOS (Apple silicon and Intel).
 ## Making a release
 
 1. Set the version in `web/package.json`; the desktop apps take it from there.
-2. Push a tag named `desktop-v<version>`, for example `desktop-v0.2.0`.
-3. The workflow builds the four installers and attaches them to a **draft**
-   release. Try them, then publish the draft on GitHub.
+2. Push a tag named `desktop-v<version>` with that same version, for example
+   `desktop-v0.2.0`. The running apps compare the tag's version with their
+   own to tell people a new version is out, so the two must match.
+3. The workflow builds for the four targets and attaches the installers to a
+   **draft** release. Try them, then publish the draft on GitHub. Only a
+   published release reaches the apps' update notice; a draft never does.
 
-A run started by hand from the Actions tab only builds; the installers are
-kept as workflow artifacts for a few days.
+A run started by hand from the Actions tab only builds. Every run, tagged or
+not, also keeps the installers as workflow artifacts, for as long as the
+repository's artifact retention setting says (90 days unless changed).
 
 What each platform gets:
 
@@ -21,9 +25,12 @@ What each platform gets:
 |---|---|
 | Windows | `.msi` and a `-setup.exe` (NSIS) |
 | Linux | `.deb`, `.rpm` and an `.AppImage` |
-| macOS | `.app` in a `.dmg`, one per chip |
+| macOS | `.app` in a `.dmg` (and a `.app.tar.gz`), one per chip |
 
 ## Building locally
+
+Install the web app's dependencies once (`npm ci` in `web`); the Rust
+toolchain comes from `rust-toolchain.toml`. Then:
 
 ```
 cd shells/tauri
@@ -40,7 +47,8 @@ The installers land in `<target>/release/bundle/`.
 
 These need keys only the maintainer can create. None of them goes in the
 repository: each is a secret under Settings, Secrets and variables, Actions,
-and the workflow passes them to `tauri-action`.
+and the workflow will pass them to `tauri-action` once they exist (today it
+passes only `GITHUB_TOKEN`).
 
 **macOS** (without it, macOS refuses to open the app until the person
 allows it in System Settings, Privacy and Security). An Apple Developer
@@ -59,6 +67,8 @@ pair with `npx tauri signer generate`, keep the private key and its
 password as `TAURI_SIGNING_PRIVATE_KEY` and
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and put the public key in the updater
 plugin's config; the app then checks the release's `latest.json`. The
-plugin is not in the shell yet.
+plugin is not in the shell yet. Until then the app only tells people that a
+newer version is out: it asks GitHub's releases API every few hours
+(`web/src/components/DesktopUpdateNotice.tsx`) and links the release page.
 
 Linux packages are usually not signed.

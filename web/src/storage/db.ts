@@ -1,7 +1,7 @@
 // IndexedDB schema for Neptune Vault.
 //
 // Every store is keyed by account id and network so several accounts and
-// both networks can coexist (R14, F20). The wallet core's own types
+// both networks can coexist. The wallet core's own types
 // (StoredUtxo, ScannedBlock, SendSummary) are stored as it produces them.
 
 import type { NextKeyIndices } from '../backend/types';
@@ -31,7 +31,7 @@ export interface AccountRecord {
   address0: string;
   /** Next unused derivation index per key kind, advanced by scanning. */
   nextKeyIndices: NextKeyIndices;
-  /** True once the user confirmed the seed phrase (F3). */
+  /** True once the user confirmed the seed phrase. */
   backupConfirmed: boolean;
   /** The wallet's name on this device, for telling several apart. Absent on the first wallets ever made. */
   name?: string;
@@ -71,7 +71,7 @@ export interface UtxoRecord {
   releaseDateMs: number | null;
   spentHeight: number | null;
   spentTxid: string | null;
-  /** Reserved by a pending outgoing transaction (R18). */
+  /** Reserved by a pending outgoing transaction. */
   pendingTxid: string | null;
 }
 
@@ -290,7 +290,7 @@ export async function saveSettings(db: VaultDb, settings: SettingsRecord): Promi
   await db.put('settings', settings);
 }
 
-/** Ask the browser not to evict our data under storage pressure (F7). */
+/** Ask the browser not to evict our data under storage pressure. */
 export async function requestPersistentStorage(): Promise<boolean> {
   try {
     if (navigator.storage?.persist) return await navigator.storage.persist();

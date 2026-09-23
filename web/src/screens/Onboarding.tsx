@@ -1,4 +1,4 @@
-// Account creation and import (F1 to F5): generate or enter a phrase,
+// Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
 import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
