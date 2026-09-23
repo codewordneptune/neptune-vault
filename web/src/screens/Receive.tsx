@@ -30,20 +30,22 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
   viewing: 'Viewing',
 };
 
-// Same guidance as the desktop wallet gives on its addresses page.
-// What the chosen kind means for whoever gets it; shown under both tabs,
-// since a request carries the same address as the bare code.
+// What the chosen kind is for, said the same way for each so they can be
+// compared: who it is for first, then its one trade-off. The same guidance
+// as the desktop wallet's addresses page. Shown right under the choice, on
+// both tabs (a request carries the same address), and before the code and
+// its Copy and Share, so the View-only caution is read before sharing.
 const KIND_NOTES: Record<KeyKind, string> = {
-  generation: 'Safe to reuse and the most private: the default for anything you publish.',
+  generation: 'The one to use by default. Safe to reuse and the most private. It is too long to type or read out: copy it or share the code.',
   ec_hybrid:
-    'Easy to share by message. Give each one to a single sender: if reused widely, a future quantum attacker could reveal, but never spend, the funds sent to it.',
+    'Short enough to paste into a chat. Give each one to a single sender: if one is reused widely, a future quantum computer could reveal the payments sent to it, though never spend them.',
   viewing:
-    'For auditing: anyone holding this address can see every payment it receives, though never spend them. Share it only with someone you trust to see that activity.',
+    'Lets someone watch payments, such as an accountant. Whoever holds it sees every payment it receives, but can never spend them. Share it only with someone you trust with that.',
 };
 
-// About the code for a kind of address, under both tabs: a request code
-// carries the same address and more, so it is at least as dense. What does
-// not fit in a request code has its own note.
+// About the code for a kind of address, under the code on both tabs: a
+// request code carries the same address and more, so it is at least as
+// dense. What does not fit in a request code has its own note.
 const CODE_HINTS: Partial<Record<KeyKind, string>> = {
   generation: 'The code is dense: scan from close up, or copy the address instead.',
 };
@@ -52,8 +54,8 @@ const CODE_HINTS: Partial<Record<KeyKind, string>> = {
 // Standard, which only reassures; text with an info mark for Short, which
 // asks for one sender per address; a caution for View-only, whose exposure
 // cannot be taken back.
-function KindNote({ kind, extra }: { kind: KeyKind; extra?: string }) {
-  const text = extra ? `${KIND_NOTES[kind]} ${extra}` : KIND_NOTES[kind];
+function KindNote({ kind }: { kind: KeyKind }) {
+  const text = KIND_NOTES[kind];
   if (kind === 'generation') {
     return (
       <Text size="sm" c="dimmed">
@@ -300,6 +302,7 @@ export function Receive() {
             ),
           }))}
         />
+        <KindNote kind={kind} />
 
         {tab === 'address' && (
           <>
@@ -325,7 +328,11 @@ export function Receive() {
                 </Button>
               )}
             </Group>
-            <KindNote kind={kind} extra={CODE_HINTS[kind]} />
+            {CODE_HINTS[kind] && (
+              <Text size="sm" c="dimmed">
+                {CODE_HINTS[kind]}
+              </Text>
+            )}
           </>
         )}
 
@@ -369,7 +376,11 @@ export function Receive() {
                 Share
               </Button>
             </Group>
-            <KindNote kind={kind} extra={CODE_HINTS[kind]} />
+            {CODE_HINTS[kind] && (
+              <Text size="sm" c="dimmed">
+                {CODE_HINTS[kind]}
+              </Text>
+            )}
           </>
         )}
 
