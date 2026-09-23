@@ -10,7 +10,7 @@ export interface PrivacySection {
   paragraphs: string[];
 }
 
-export const PRIVACY_UPDATED = '2026-09-18';
+export const PRIVACY_UPDATED = '2026-09-23';
 
 export const PRIVACY: PrivacySection[] = [
   {
@@ -50,15 +50,17 @@ export const PRIVACY: PrivacySection[] = [
     title: 'What this app does not do',
     paragraphs: [
       'No analytics, no telemetry, no crash reporting, no advertising, no cookies for tracking. The Diagnostics screen shows facts about this device to you; it sends them nowhere.',
-      'The camera, when you scan a code, is read on the device; no frame leaves it. The clipboard is written only when you tap Copy, and never read: the app has no Paste button, and the site tells the browser to refuse it clipboard reads altogether.',
+      NATIVE
+        ? 'The camera, when you scan a code, is read on the device; no frame leaves it. The clipboard is written only when you tap Copy. The app never reads it by itself: it sees only what you paste, into a field or, as an image, into the scanner.'
+        : 'The camera, when you scan a code, is read on the device; no frame leaves it. The clipboard is written only when you tap Copy. The app never reads it by itself: it sees only what you paste, into a field or, as an image, into the scanner, and the site tells the browser to refuse it clipboard reads altogether.',
       'Passkeys are created and stored by your device or its platform account, under that platform\'s own policy; the app stores only a wrapped key that is useless without the passkey.',
     ],
   },
   {
     title: 'Your choices',
     paragraphs: [
-      'You choose the node, and can run your own. You choose whether to install the app, which keeps its files on the device and reduces what the host sees to update checks. You choose what goes into a payment link. Backup files are yours: encrypted with your password, written where you save them, never uploaded.',
-      'This statement describes the app as published under this version. If a later version changes what leaves the device, this page changes with it, and the date below moves.',
+      'You choose the node, and can run your own.' + (NATIVE ? '' : ' You choose whether to install the app, which keeps its files on the device and reduces what the host sees to update checks.') + ' You choose what goes into a payment link. Backup files are yours: encrypted with your password, written where you save them, never uploaded.',
+      'This statement describes the app as published under this version. If a later version changes what leaves the device, this page changes with it, and the date above moves.',
     ],
   },
 ];
