@@ -862,6 +862,37 @@ html {
   min-width: 40px;
   min-height: 40px;
 }
+/* An alert's close is the library's 16 px square; sized like a notice's
+   close, with the extra room taken back so the alert keeps its shape. */
+.mantine-Alert-closeButton.mantine-Alert-closeButton {
+  flex: none;
+  min-width: 40px;
+  min-height: 40px;
+  margin: -12px -12px -12px 0;
+}
+/* On a touch screen a finger needs 44 px (Apple's guideline), where 40 is
+   ample for a mouse: the small actions, the header's wallet pill, the lock
+   screen's "Not this wallet?", menu rows and segmented choices grow to 44,
+   and the tap-links take the extra room back outside as before. */
+@media (pointer: coarse) {
+  .vault-tap {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .vault-tap-link {
+    min-width: 44px;
+    min-height: 44px;
+    margin-block: -12px;
+  }
+  .mantine-SegmentedControl-label.mantine-SegmentedControl-label,
+  .mantine-Menu-item.mantine-Menu-item {
+    min-height: 44px;
+  }
+  button.vault-network,
+  .vault-lock-other.vault-lock-other {
+    min-height: 44px;
+  }
+}
 
 /* A history row title (a contact name can be long) wraps to two lines,
    then truncates; the amount column keeps its width. */
