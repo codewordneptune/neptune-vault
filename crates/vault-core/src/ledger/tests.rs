@@ -384,3 +384,64 @@ fn a_wallet_with_no_scan_state_is_refused_rather_than_guessed_at() {
 fn print_the_wire_shape_of_a_coin() {
     println!("{}", serde_json::to_string(&coin("a", 5000, 120)).unwrap());
 }
+
+// ------------------------------------------------------------ giving up, and then not
+
+#[test]
+fn a_send_given_up_on_that_the_mempool_still_carries_comes_back_as_itself() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 10, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("tx", &["a"], &["o1", "o2"])));
+    run(&mut state, |s| forget_send(s, W, "tx"));
+    assert_eq!(row(&state, "sent:tx")["givenUp"], json!(true));
+
+    // The watcher sees the coin spent by a transaction it cannot place.
+    assert!(run(&mut state, |s| record_outgoing(s, outgoing("m1", &["a"]))));
+    assert!(!state.history.contains_key("w:outgoing:a"), "no second row for the same payment");
+    assert_eq!(row(&state, "sent:tx")["status"], json!("pending"));
+    assert_eq!(row(&state, "sent:tx")["error"], Value::Null);
+    assert_eq!(row(&state, "sent:tx")["recipient"], json!("nolgam1payee"));
+    assert_eq!(state.utxos["a"].pending_txid.as_deref(), Some("tx"), "held again");
+
+    // Seen again on the next poll: it is this device's own pending send now.
+    assert!(!run(&mut state, |s| record_outgoing(s, outgoing("m1", &["a"]))));
+    assert!(!state.history.contains_key("w:outgoing:a"));
+}
+
+#[test]
+fn a_send_given_up_on_that_a_block_carries_is_confirmed_as_itself() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 10, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("tx", &["a"], &["o1", "o2"])));
+    run(&mut state, |s| forget_send(s, W, "tx"));
+
+    persist(&mut state, &[block(121, vec![], &["a"], &["o1"])]);
+    assert_eq!(row(&state, "sent:tx")["status"], json!("confirmed"));
+    assert_eq!(row(&state, "sent:tx")["height"], json!(121));
+    assert_eq!(row(&state, "sent:tx")["error"], Value::Null);
+    assert!(!state.history.contains_key("w:spent:121"), "not a send made elsewhere");
+    assert_eq!(state.utxos["a"].spent_txid.as_deref(), Some("tx"));
+}
+
+#[test]
+fn a_send_given_up_on_stays_so_when_its_coins_went_elsewhere() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 10, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("tx", &["a"], &["o1", "o2"])));
+    run(&mut state, |s| forget_send(s, W, "tx"));
+
+    // Another device spent the coin; this send's outputs are not in the block.
+    persist(&mut state, &[block(121, vec![], &["a"], &["other"])]);
+    assert_eq!(row(&state, "sent:tx")["status"], json!("failed"));
+    assert!(state.history.contains_key("w:spent:121"));
+}
+
+#[test]
+fn the_watcher_never_writes_this_devices_own_pending_send_as_a_spend_from_elsewhere() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 10, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("tx", &["a"], &["o1"])));
+    assert!(!run(&mut state, |s| record_outgoing(s, outgoing("m1", &["a"]))));
+    assert!(!state.history.contains_key("w:outgoing:a"));
+    assert_eq!(state.utxos["a"].pending_txid.as_deref(), Some("tx"));
+}

@@ -96,6 +96,31 @@ fn nau(text: &str) -> i128 {
 }
 
 /// The commitments of a history entry's outputs.
+/// The note `forget_send` leaves on a send the person gave up on.
+const GAVE_UP: &str = "You gave up on this send.";
+
+/// Whether a row is a send the person gave up on. Rows written before the
+/// mark was kept are told by the note.
+fn given_up(entry: &HistoryEntry) -> bool {
+    entry.kind == "sent"
+        && entry.status == "failed"
+        && (entry.extra.get("givenUp").and_then(Value::as_bool) == Some(true) || entry.extra.get("error").and_then(Value::as_str) == Some(GAVE_UP))
+}
+
+/// The send given up on whose inputs include this coin, if any.
+fn given_up_spending(state: &WalletState, hash: &str) -> Option<HistoryEntry> {
+    state.history.values().find(|r| given_up(r) && r.input_hashes.iter().any(|h| h == hash)).cloned()
+}
+
+/// A send given up on that goes through after all: the same row again,
+/// with its recipient and fee, no longer failed.
+fn revived(entry: &HistoryEntry, status: &str, height: Option<u64>) -> HistoryEntry {
+    let mut extra = entry.extra.clone();
+    extra.insert("error".into(), Value::Null);
+    extra.remove("givenUp");
+    HistoryEntry { status: status.into(), height, extra, ..entry.clone() }
+}
+
 fn outputs(entry: &HistoryEntry) -> Vec<String> {
     entry
         .extra
@@ -323,22 +348,34 @@ pub fn persist_scan(
         let seen: BTreeSet<&str> = block.seen.iter().map(String::as_str).collect();
         for hash in &block.spent {
             let Some(existing) = tx.work.utxos.get(hash).cloned() else { continue };
+            // A send given up on no longer holds its coins, but it may have
+            // gone through anyway: then it is that send, not one made
+            // elsewhere, and its own row says so.
             let sent = existing
                 .pending_txid
                 .as_ref()
-                .and_then(|txid| tx.work.history.get(&record_key(wallet_id, &format!("sent:{txid}"))).cloned());
+                .and_then(|txid| tx.work.history.get(&record_key(wallet_id, &format!("sent:{txid}"))).cloned())
+                .or_else(|| given_up_spending(&tx.work, hash));
             // A send is in this block when the block carries its outputs. Its
             // inputs being spent is not enough: another device with the same
             // seed phrase can spend the same coins in another transaction,
             // and then this send never reached its recipient. Rows from
             // before outputs were recorded keep the old rule.
+            // A send given up on counts only by its outputs: without them, the
+            // same coins spent elsewhere could not be told from it.
             let recorded = sent.as_ref().map(outputs).unwrap_or_default();
-            let mine = sent.is_some() && (recorded.is_empty() || recorded.iter().any(|c| seen.contains(c.as_str())));
+            let seen_any = recorded.iter().any(|c| seen.contains(c.as_str()));
+            let mine = match &sent {
+                None => false,
+                Some(s) if given_up(s) => seen_any,
+                Some(_) => recorded.is_empty() || seen_any,
+            };
+            let spent_by = sent.as_ref().filter(|_| mine).map(|s| s.txid.clone());
             tx.push(WalletChange::PutUtxo {
                 utxo: Utxo {
                     spent_height: Some(block.height),
-                    spent_txid: if mine { existing.pending_txid.clone() } else { None },
-                    pending_txid: if mine { existing.pending_txid.clone() } else { None },
+                    spent_txid: spent_by.clone(),
+                    pending_txid: spent_by,
                     ..existing.clone()
                 },
             });
@@ -348,6 +385,8 @@ pub fn persist_scan(
                         tx.push(WalletChange::PutHistory {
                             entry: HistoryEntry { status: "confirmed".into(), height: Some(block.height), ..sent.clone() },
                         });
+                    } else if given_up(sent) {
+                        tx.push(WalletChange::PutHistory { entry: revived(sent, "confirmed", Some(block.height)) });
                     }
                 }
                 _ => {
@@ -523,7 +562,8 @@ pub fn forget_send(state: &WalletState, wallet_id: &str, txid: &str) -> Outcome 
     if let Some(entry) = state.history.get(&record_key(wallet_id, &format!("sent:{txid}"))).cloned() {
         release_inputs(&mut tx, &entry);
         let mut extra = entry.extra.clone();
-        extra.insert("error".into(), json!("You gave up on this send."));
+        extra.insert("error".into(), json!(GAVE_UP));
+        extra.insert("givenUp".into(), json!(true));
         tx.push(WalletChange::PutHistory { entry: HistoryEntry { status: "failed".into(), extra, ..entry } });
     }
     tx.done(())
@@ -550,6 +590,27 @@ pub fn record_outgoing(state: &WalletState, row: HistoryEntry) -> Outcome<bool> 
     let mut tx = Tx::new(state);
     if state.history.contains_key(&row.key) {
         return tx.done(false);
+    }
+    // Coins this device's own pending send holds are that send's, whatever
+    // the watcher made of the transaction.
+    let own = |hash: &String| {
+        state.utxos.get(hash).and_then(|c| c.pending_txid.as_ref()).is_some_and(|txid| {
+            state.history.values().any(|r| r.kind == "sent" && r.status == "pending" && r.txid == *txid && !r.key.contains(":outgoing:"))
+        })
+    };
+    if !row.input_hashes.is_empty() && row.input_hashes.iter().all(own) {
+        return tx.done(false);
+    }
+    // The coins of a send given up on, spent after all: that send is going
+    // through. Its row comes back as pending, with its recipient and fee,
+    // and holds its coins again, instead of a second row for the same
+    // payment without either.
+    if let Some(sent) = row.input_hashes.iter().find_map(|h| given_up_spending(state, h)) {
+        tx.push(WalletChange::PutHistory { entry: revived(&sent, "pending", None) });
+        for hash in &sent.input_hashes {
+            set_hold(&mut tx, hash, None, Some(&sent.txid));
+        }
+        return tx.done(true);
     }
     let (inputs, txid) = (row.input_hashes.clone(), row.txid.clone());
     tx.push(WalletChange::PutHistory { entry: row });
