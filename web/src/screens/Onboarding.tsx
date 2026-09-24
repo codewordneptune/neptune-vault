@@ -1,7 +1,7 @@
 // Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
 import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { Caution } from '../components/Notice';
+import { LINKS } from '../app/links';
 import { NATIVE } from '../app/platform';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
@@ -281,6 +282,27 @@ export function Onboarding() {
             )}
           </Stack>
         </Paper>
+      )}
+      {/* Before a wallet exists there is no Settings to find these in. Diagnostics
+          is open without a wallet on purpose, for whoever cannot get started. */}
+      {step === 'welcome' && !adding && (
+        <Group gap={6} justify="center">
+          <Anchor component="button" type="button" size="sm" c="dimmed" className="vault-tap-link" onClick={() => navigate('/privacy')}>
+            Privacy
+          </Anchor>
+          <Text span size="sm" c="dimmed" aria-hidden>
+            ·
+          </Text>
+          <Anchor component="button" type="button" size="sm" c="dimmed" className="vault-tap-link" onClick={() => navigate('/diagnostics')}>
+            Diagnostics
+          </Anchor>
+          <Text span size="sm" c="dimmed" aria-hidden>
+            ·
+          </Text>
+          <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" c="dimmed" className="vault-tap-link">
+            Report a problem
+          </Anchor>
+        </Group>
       )}
 
       {step === 'show' && (
