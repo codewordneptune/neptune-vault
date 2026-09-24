@@ -3,8 +3,8 @@
 import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
 import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconTrash, IconWallet } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, showNau, useApp } from '../app/AppContext';
@@ -37,6 +37,20 @@ export function Settings() {
   // What the last export came to, shown under its button: a file saved, or not.
   const [message, setMessage] = useState<{ done: boolean; text: string } | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Home's backup reminder links to /settings#backup: that card is brought
+  // into view, with focus on its heading. After a frame, since the app
+  // scrolls every new screen to its top once this screen has mounted.
+  const { hash } = useLocation();
+  const backupTitle = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (hash !== '#backup') return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById('backup')?.scrollIntoView({ block: 'start' });
+      backupTitle.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hash]);
 
   const changeNetwork = async (value: string | null) => {
     if (!value || value === network) return;
@@ -240,9 +254,9 @@ export function Settings() {
         Settings
       </Title>
       <WalletCard />
-      <Paper>
+      <Paper id="backup" className="vault-anchored">
         <Stack>
-          <Title order={3} className="vault-section-title">
+          <Title order={3} className="vault-section-title vault-step-title" tabIndex={-1} ref={backupTitle}>
             <IconShieldCheck size={18} stroke={1.8} aria-hidden />
             Backup
           </Title>

@@ -1611,3 +1611,8 @@ html {
 .vault-step-title:focus {
   outline: none;
 }
+
+/* A card reached by a link (Settings, Backup) clears the sticky header. */
+.vault-anchored {
+  scroll-margin-top: 80px;
+}
