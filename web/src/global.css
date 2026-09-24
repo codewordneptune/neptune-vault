@@ -67,6 +67,15 @@
   --v-fs-sm: 0.875rem;
   --v-fs-md: 0.9375rem;
   --v-shadow-accent: 0 8px 20px rgba(31, 111, 224, 0.25);
+  /* The content column's width, padding included: Mantine's xs container
+     (540 px) on a phone or a narrow window, 720 px from 900 px up (below).
+     The send and update strips under the header line up with it. */
+  --v-content-width: 540px;
+}
+@media (min-width: 900px) {
+  :root {
+    --v-content-width: 720px;
+  }
 }
 
 /* Mantine's own dimmed text in light: its default grey is 3.3:1 on white.
@@ -601,16 +610,21 @@ main h2[tabindex='-1']:focus {
 .vault-sendstrip:disabled {
   cursor: default;
 }
+/* Each line of the strip keeps to the content column: its width less the
+   column's 16 px side padding, which the strip has too, so the text starts
+   where the cards do at every width. */
+.vault-sendstrip > * {
+  max-width: calc(var(--v-content-width) - 2 * var(--mantine-spacing-md));
+  margin-inline: auto;
+}
 .vault-sendstrip-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  max-width: 540px;
   margin: 0 auto 6px;
 }
 .vault-sendstrip .mantine-Progress-root {
-  max-width: 540px;
   margin: 0 auto;
 }
 
@@ -1050,7 +1064,8 @@ html {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 540px;
+  /* Lined up with the content column, as the send strip is. */
+  max-width: calc(var(--v-content-width) - 2 * var(--mantine-spacing-md));
   margin: 0 auto;
 }
 .vault-updatestrip-body {
@@ -1513,7 +1528,7 @@ html {
   /* One width for every screen: room for the history table and a form that
      breathes, and not so wide that an amount drifts from what it is for. */
   .vault-main.vault-main {
-    max-width: 720px;
+    max-width: var(--v-content-width);
   }
   /* The balance as a band: the figures on the left, the actions on the right. */
   .vault-main-home .vault-balance-layout {
