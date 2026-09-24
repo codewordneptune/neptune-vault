@@ -5,6 +5,7 @@
 // (StoredUtxo, ScannedBlock, SendSummary) are stored as it produces them.
 
 import type { NextKeyIndices } from '../backend/types';
+import type { FiatCurrency } from '../util/fiat';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from 'idb';
 
 export type Network = 'main' | 'testnet' | 'regtest';
@@ -150,6 +151,8 @@ export interface SettingsRecord {
   feeCustom?: string;
   /** Balance and amounts masked on Home (an eye toggle). */
   hideBalance?: boolean;
+  /** The currency the balance is also shown in, fetched from a price site; absent: off, the default. */
+  fiatCurrency?: FiatCurrency;
   /** When the Home install notice was last dismissed; it returns after two weeks. Per device, not per wallet. */
   installNudgeDismissedAt?: number;
   /**

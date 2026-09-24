@@ -1557,3 +1557,22 @@ html {
 .vault-receive-actions > .mantine-Button-root:first-child {
   flex-grow: 999;
 }
+
+/* The balance in another currency: the estimate as a figure of its own,
+   a step below the balance, and where it comes from, quietly, beside it. */
+.vault-balance-fiat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.vault-balance-fiat-value {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--v-text-2);
+}
+.vault-balance-fiat-source {
+  font-size: var(--v-fs-xs);
+  color: var(--v-muted);
+}

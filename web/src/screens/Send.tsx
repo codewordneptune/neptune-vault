@@ -8,7 +8,9 @@ import { IconAddressBook, IconLink, IconPlus, IconScan } from '@tabler/icons-rea
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { formatNau, showNau, useApp } from '../app/AppContext';
+import { formatNau, NAU_PER_COIN, showNau, useApp } from '../app/AppContext';
+import { useQuote } from '../app/price';
+import { fiatOf, fiatOfTyped, formatFiat } from '../util/fiat';
 import { MAX_PAYMENTS, paymentsTotalNau, RequiresLustrationError, SendBusyError } from '../app/send';
 import { ContactPicker } from '../components/ContactPicker';
 import { Caution } from '../components/Notice';
@@ -40,6 +42,10 @@ const presetFee = (preset: string, custom: string | undefined) =>
 
 type Step = 'form' | 'review';
 
+// Where an amount's estimate in another currency sits: under the field, and
+// above any error, like the other notes about a field.
+const UNDER_THE_FIELD: ('label' | 'input' | 'description' | 'error')[] = ['label', 'input', 'description', 'error'];
+
 /** A recipient after the first: an address, an amount, and what is wrong with them. */
 interface ExtraPayee {
   id: number;
@@ -66,6 +72,14 @@ export function Send() {
   // recipient field is named when it is a saved one: the review is too late
   // to notice that the address is not the one meant.
   const [contacts, setContacts] = useState<ContactRecord[]>([]);
+  // With the balance shown in another currency, each amount is too: as a
+  // check on the NPT typed, never as what is sent. No price, or one over an
+  // hour old, shows nothing.
+  const quote = useQuote(services.settings.fiatCurrency);
+  const estimateOf = (text: string) => {
+    const value = quote ? fiatOfTyped(text, quote.price) : null;
+    return quote && value !== null ? `≈ ${formatFiat(value, quote.currency)}` : undefined;
+  };
   const loadContacts = useCallback(() => {
     if (account) void services.contacts.list(account.id).then(setContacts);
   }, [services, account]);
@@ -446,6 +460,11 @@ export function Send() {
               <span>Total</span>
               <b>{showNau(totalNau)} NPT</b>
             </div>
+            {quote && (
+              <Text size="xs" c="dimmed" ta="right" mt={-6} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                ≈ {formatFiat(fiatOf(totalNau, NAU_PER_COIN, quote.price), quote.currency)} · {quote.source}
+              </Text>
+            )}
             {totals.feeNau > totals.amountNau && (
               <Text size="sm" c="var(--v-warn-text)" mt="xs">
                 {payees.length === 1 ? 'The fee is larger than the amount.' : 'The fee is larger than the amounts together.'}
@@ -627,6 +646,8 @@ export function Send() {
               }}
               onBlur={() => void checkAmounts(true)}
               error={amountError}
+              description={estimateOf(amount)}
+              inputWrapperOrder={UNDER_THE_FIELD}
               rightSectionWidth={extras.length === 0 ? 64 : undefined}
               rightSection={
                 extras.length === 0 ? (
@@ -683,6 +704,8 @@ export function Send() {
                   onChange={(e) => updateExtra(x.id, { amount: e.currentTarget.value, amountError: null })}
                   onBlur={() => void checkAmounts(true)}
                   error={x.amountError}
+                  description={estimateOf(x.amount)}
+                  inputWrapperOrder={UNDER_THE_FIELD}
                 />
               </div>
             ))}

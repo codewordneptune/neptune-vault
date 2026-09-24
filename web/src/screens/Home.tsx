@@ -5,7 +5,9 @@ import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDow
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { showBlock, showNau, useApp } from '../app/AppContext';
+import { NAU_PER_COIN, showBlock, showNau, useApp } from '../app/AppContext';
+import { useQuote } from '../app/price';
+import { fiatOf, formatFiat } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
@@ -33,6 +35,8 @@ export function Home() {
     void services.updateSettings({ hideBalance: next });
   };
   const amount = (nau: bigint) => (hidden ? '••••' : showNau(nau));
+  // The balance in another currency, when the person asked for one.
+  const quote = useQuote(services.settings.fiatCurrency);
   // Re-render every 30 s so "2 min ago" stays right.
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -263,6 +267,15 @@ export function Home() {
               {loaded ? amount(balance.spendableNau) : '…'}
               <small> NPT</small>
             </div>
+            {/* An estimate, and said to be one: where the price is from, and how old it is. */}
+            {loaded && quote && (
+              <div className="vault-balance-fiat">
+                <span className="vault-balance-fiat-value">≈ {hidden ? '••••' : formatFiat(fiatOf(balance.spendableNau, NAU_PER_COIN, quote.price), quote.currency)}</span>
+                <span className="vault-balance-fiat-source">
+                  {quote.source} · {ago(quote.at)}
+                </span>
+              </div>
+            )}
             {/* Money on the way and money held, as two readings; the sentence behind them is one tap away. */}
             {incomingNau > 0n && (
               <Group gap={6} wrap="nowrap">

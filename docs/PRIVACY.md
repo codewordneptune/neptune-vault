@@ -3,7 +3,7 @@
 What this wallet keeps, what it sends and to whom, and what is public. The
 same text is shown in the app under Settings, About, Privacy; the app's copy
 (`web/src/content/privacy.ts`) is the reference and this file mirrors it.
-Last changed 2026-09-23.
+Last changed 2026-09-24.
 
 The desktop app shows the same statement with a few sentences changed where
 it differs from a browser; those are marked *In the desktop app* below.
@@ -49,6 +49,13 @@ about your wallet.
 and every few hours asks GitHub whether a newer version of it has been
 published. Like any web host, GitHub can log that request, including your
 network address. It receives nothing about your wallet.
+
+**Price sites, only if you turn on "Value in another currency" in Settings.**
+While it is on and the app is open, the app asks CoinGecko, or CoinPaprika
+when CoinGecko does not answer, for the price of NPT in the currency you
+chose, every 10 minutes. They see your network address and that this is a
+Neptune Cash wallet. They receive nothing about your wallet: no address, no
+balance. With the setting off, the app never contacts them.
 
 **Whoever you share with.** A payment link or QR code carries your address,
 the amount, and any name or note you typed; the share sheet hands it to the

@@ -10,7 +10,7 @@ export interface PrivacySection {
   paragraphs: string[];
 }
 
-export const PRIVACY_UPDATED = '2026-09-23';
+export const PRIVACY_UPDATED = '2026-09-24';
 
 export const PRIVACY: PrivacySection[] = [
   {
@@ -29,6 +29,7 @@ export const PRIVACY: PrivacySection[] = [
       NATIVE
         ? 'GitHub. The app carries its own files, and every few hours asks GitHub whether a newer version of it has been published. Like any web host, GitHub can log that request, including your network address. It receives nothing about your wallet.'
         : 'The host serving the app. Opening or updating the app fetches its files from the site it is installed from. Like any web host, it can log the requests it receives, including your network address. It receives nothing about your wallet.',
+      'Price sites, only if you turn on "Value in another currency" in Settings. While it is on and the app is open, the app asks CoinGecko, or CoinPaprika when CoinGecko does not answer, for the price of NPT in the currency you chose, every 10 minutes. They see your network address and that this is a Neptune Cash wallet. They receive nothing about your wallet: no address, no balance. With the setting off, the app never contacts them.',
       'Whoever you share with. A payment link or QR code carries your address, the amount, and any name or note you typed; the share sheet hands it to the app you pick. A sender\'s wallet shows the name as unverified. Nothing in a link reaches the chain.',
     ],
   },

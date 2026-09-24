@@ -16,6 +16,7 @@ import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
+import { FIAT_CURRENCIES, FIAT_LABELS, isFiatCurrency } from '../util/fiat';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import { formatDate, formatDateTime, formatTime } from '../util/time';
 import type { Network } from '../storage/db';
@@ -399,6 +400,7 @@ export function Settings() {
             App
           </Title>
           <AppearanceCard />
+          <FiatCard />
           {!NATIVE && <InstallCard />}
           <Text size="sm" c="dimmed">
             Device and app details to include when you report a problem.
@@ -563,6 +565,33 @@ function AppearanceCard() {
           { value: 'dark', label: 'Dark' },
         ]}
       />
+    </Stack>
+  );
+}
+
+// The balance in an ordinary currency, off unless asked for: turning it on
+// means asking a price site, which learns this device's address and that it
+// runs a Neptune Cash wallet. The sentence under the choice says so, and
+// that the figure is rough.
+function FiatCard() {
+  const { services } = useApp();
+  const [currency, setCurrency] = useState<string>(services.settings.fiatCurrency ?? 'off');
+  return (
+    <Stack gap="xs">
+      <Select
+        label="Value in another currency"
+        allowDeselect={false}
+        value={currency}
+        onChange={(v) => {
+          const next = v ?? 'off';
+          setCurrency(next);
+          void services.updateSettings({ fiatCurrency: isFiatCurrency(next) ? next : undefined });
+        }}
+        data={[{ value: 'off', label: 'Off' }, ...FIAT_CURRENCIES.map((c) => ({ value: c, label: FIAT_LABELS[c] }))]}
+      />
+      <Text size="sm" c="dimmed">
+        Shows an estimate under your balance. While it is on and the app is open, the app asks CoinGecko (or CoinPaprika, when CoinGecko does not answer) for the NPT price every 10 minutes. They see this device's network address and that it runs a Neptune Cash wallet, and nothing about your wallet. NPT trades in small volumes, so the price can move a lot: treat the figure as a rough guide.
+      </Text>
     </Stack>
   );
 }

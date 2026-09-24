@@ -59,6 +59,9 @@ choose.
   in a block explorer.
 - Rescan the chain fast, or from a block or a date.
 - Diagnostics for support requests.
+- Optionally, an estimate of the balance in another currency (off by
+  default; see [docs/PRIVACY.md](docs/PRIVACY.md) for what that tells the
+  price site).
 
 **Security**
 
