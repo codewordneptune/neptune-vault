@@ -34,7 +34,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
               <Text size="sm" fw={500}>
                 {c.name}
               </Text>
-              <Text size="xs" c="dimmed" ff="monospace">
+              <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
                 {abbreviateAddress(c.address)}
               </Text>
             </div>

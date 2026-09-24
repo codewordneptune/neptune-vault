@@ -17,7 +17,7 @@ import { DEFAULT_NODE_URLS, requestPersistentStorage, walletName } from '../stor
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
-import { isCancellation } from './Unlock';
+import { isCancellation } from '../app/passkey';
 import { copyText } from '../util/clipboard';
 import { FIAT_CURRENCIES, FIAT_LABELS, isFiatCurrency } from '../util/fiat';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
@@ -404,7 +404,7 @@ export function Settings() {
           </Modal>
           <TextInput label="Node URL" description={`Used on ${NETWORK_LABELS[network]}; each network has its own.`} value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
           {/* Always there, so what the test says as it runs and ends is announced. */}
-          <Text size="sm" c={probe && !probe.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status">
+          <Text size="sm" c={probe && !probe.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status" className={probe?.text ? undefined : 'sr-only'}>
             {probe?.text}
             {probe?.at && probe.text !== 'Testing…' ? ` · checked ${formatTime(probe.at)}` : ''}
           </Text>

@@ -442,7 +442,7 @@ export function Home() {
         ) : entries.length === 0 ? (
           <Text c="dimmed" size="sm">
             Nothing yet.{' '}
-            <UnstyledButton onClick={() => navigate('/receive')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-inline-link">
+            <UnstyledButton onClick={() => navigate('/receive')} fz="sm" className="vault-inline-link">
               Share your receiving address
             </UnstyledButton>{' '}
             to get started.

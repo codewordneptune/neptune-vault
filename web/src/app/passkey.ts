@@ -5,6 +5,13 @@
 // password keeps working as the fallback. Device-bound: the wrapping is not
 // part of the export file.
 
+/** A cancelled or timed-out system sheet is not an error to show, on the lock screen or in Settings. */
+export function isCancellation(e: unknown): boolean {
+  const name = (e as { name?: string }).name;
+  const message = (e as Error).message ?? '';
+  return name === 'NotAllowedError' || name === 'AbortError' || /cancel/i.test(message);
+}
+
 export interface PasskeyEnrolment {
   credentialId: string;
   prfSalt: string;

@@ -115,8 +115,10 @@
   /* The glow's blue darkens the page behind the rail's first tabs: muted
      text there falls to 4.4:1, this keeps it above 4.8:1. */
   --v-rail-label: #546377;
-  --v-field-border: #bcc7d4;
-  --v-field-border-hover: #9dabbd;
+  /* A field's edge is what shows where to type: 3.1:1 on the white card
+     and field (4.1:1 under the pointer), where #bcc7d4 was 1.7:1. */
+  --v-field-border: #8594a8;
+  --v-field-border-hover: #6f7f95;
   --v-light-button-ring: inset 0 0 0 1px rgba(43, 125, 233, 0.28);
   --v-default-button-ring: inset 0 0 0 1px rgba(21, 32, 46, 0.1);
   --v-segment-ring: inset 0 0 0 1px rgba(21, 32, 46, 0.06);
@@ -984,6 +986,10 @@ html {
   }
   button.vault-network,
   .vault-lock-other.vault-lock-other {
+    min-height: 44px;
+  }
+  .vault-notice-close.vault-notice-close {
+    min-width: 44px;
     min-height: 44px;
   }
 }

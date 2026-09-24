@@ -6,14 +6,8 @@ import { useEffect, useRef, useState } from 'react';
 // button is there for a retry, and the password field for the fallback.
 let promptedThisLoad = false;
 
-/** A cancelled or timed-out system sheet is not an error to show. Settings asks the same when a passkey is set up. */
-export function isCancellation(e: unknown): boolean {
-  const name = (e as { name?: string }).name;
-  const message = (e as Error).message ?? '';
-  return name === 'NotAllowedError' || name === 'AbortError' || /cancel/i.test(message);
-}
-
 import { useApp } from '../app/AppContext';
+import { isCancellation } from '../app/passkey';
 import { Logo } from '../components/Logo';
 import { byCreation, walletName, type AccountRecord } from '../storage/db';
 import { UnlockCancelledError } from '../app/accounts';

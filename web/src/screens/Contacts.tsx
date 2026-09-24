@@ -70,7 +70,7 @@ export function Contacts() {
                     <Text size="sm" fw={500} className="vault-row-title">
                       {c.name}
                     </Text>
-                    <Text size="xs" c="dimmed" ff="monospace">
+                    <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
                       {abbreviateAddress(c.address)}
                     </Text>
                     <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
@@ -236,7 +236,7 @@ export function ContactForm({
             data-autofocus
           />
           {fixedAddress ? (
-            <Text size="xs" c="dimmed" ff="monospace">
+            <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
               {abbreviateAddress(fixedAddress)}
             </Text>
           ) : (
