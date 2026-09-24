@@ -1143,6 +1143,16 @@ html {
   word-break: break-word;
   font-variant-numeric: tabular-nums;
 }
+/* The camera's readout (resolution, focus, zoom, readers, pace) is for
+   someone working out why a code will not read: closed by default, under
+   the controls, centred on them like the lines above. */
+.vault-scan-details {
+  align-self: center;
+  margin-top: 0;
+}
+.vault-scan-details summary {
+  margin-inline: auto;
+}
 
 /* A QR code at full size for someone else's camera. White in either theme:
    the white around the code is the quiet border a scanner needs, so these
