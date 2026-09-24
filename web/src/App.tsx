@@ -137,10 +137,12 @@ export function App() {
       <header className="vault-topbar">
         <Container size="xs" py="sm" className="vault-topbar-inner">
           <Group justify="space-between" align="center">
-            {/* The desktop app's title bar already names it: the header keeps the mark. */}
+            {/* The desktop app's title bar already names it: the header keeps
+                the mark. On a narrow phone the name gives way too, to leave
+                the wallet pill room (global.css, .vault-wordmark). */}
             <h1 className="vault-brand">
               <Logo size={26} />
-              <span className={NATIVE ? 'sr-only' : undefined}>Neptune Vault</span>
+              <span className={NATIVE ? 'sr-only' : 'vault-wordmark'}>Neptune Vault</span>
             </h1>
             {/* Until a wallet exists the header is the brand alone: setup keeps
                 the network question out of a newcomer's way, and the header

@@ -458,12 +458,17 @@ button.vault-network::before {
   text-transform: uppercase;
   color: var(--v-muted);
 }
+/* 36 px where there is room; on a small phone it scales with the width
+   (9vw is 29 px at 320 px), so "12 345.12345678", about 300 px wide at
+   36 px, comes to about 240 and fits the card's 248. Should a figure still
+   not fit, it breaks rather than run out of the card. */
 .vault-balance {
-  font-size: 2.25rem;
+  font-size: clamp(1.5rem, 9vw, 2.25rem);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 .vault-balance small {
   font-size: var(--v-fs-md);
@@ -1244,6 +1249,22 @@ html {
 .vault-network-net::before {
   content: "\00B7";
   margin-right: 6px;
+}
+/* Mark, name, a long wallet name, network and chevron need about 379 px:
+   below 400 px the name is left to the mark, as in the desktop app, and
+   stays for screen readers, so the header keeps to one row. */
+@media (max-width: 399.98px) {
+  .vault-wordmark {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 
 /* The lock screen: one card in the middle of the space under the header,
