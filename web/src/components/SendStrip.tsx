@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { showNau, useApp } from '../app/AppContext';
 import { paymentsTotalNau } from '../app/send';
+import { formatDuration } from '../util/time';
 
 const STAGE_TEXT: Record<string, string> = {
   planning: 'Choosing coins',
@@ -34,9 +35,9 @@ export function SendStrip() {
   const p = sendJob.progress.proving;
   const stage = STAGE_TEXT[sendJob.progress.stage] ?? sendJob.progress.stage;
   const detail = p ? `step ${Math.min(p.index + 1, p.total)} of ${p.total}` : stage;
-  const elapsed = Math.round((Date.now() - sendJob.startedAt) / 1000);
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-  const ss = String(elapsed % 60).padStart(2, '0');
+  // The same clock and the same words as the Send screen: time spent
+  // proving, which is where the minutes go.
+  const elapsed = sendJob.provingSince ? (Date.now() - sendJob.provingSince) / 1000 : null;
   const value = p ? 100 * (p.work ?? p.index / p.total) : 3;
 
   return (
@@ -45,9 +46,11 @@ export function SendStrip() {
         <Text size="sm" fw={500} truncate style={{ minWidth: 0 }} aria-live="polite">
           Sending {locked || services.settings.hideBalance ? '••••' : showNau(paymentsTotalNau(sendJob.request))} NPT · {detail}
         </Text>
-        <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {mm}:{ss}
-        </Text>
+        {elapsed !== null && (
+          <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {formatDuration(elapsed)}
+          </Text>
+        )}
       </div>
       {sendJob.progress.note && (
         <Text size="xs" c="dimmed" mb={6}>

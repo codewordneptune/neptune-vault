@@ -1596,3 +1596,11 @@ html {
   font-size: var(--v-fs-xs);
   color: var(--v-muted);
 }
+
+/* Sending and Home (ux audit 2) */
+
+/* How a send ended takes the focus so it is read out; the notice inside
+   is what shows, not a ring around it. */
+.vault-send-result:focus {
+  outline: none;
+}

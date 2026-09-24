@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { byCreation, type AccountRecord, type HistoryRecord, type Network, type SendFailure, type UtxoRecord } from '../storage/db';
 import type { ScanSettings, SendRequest } from '../backend/types';
 import type { SyncEngine, SyncProgress } from '../wallet/sync';
-import { paymentsTotalNau, RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type SendOutcome, type SendProgress } from './send';
+import { paymentsTotalNau, RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type LastSend, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
 import { useScreenWakeLock, type WakeLockState } from './wakeLock';
 
@@ -23,6 +23,12 @@ export interface SendJob {
   done: boolean;
   outcome: SendOutcome | null;
   error: string | null;
+  /**
+   * How it ended, once done: sent; handed to the node without an answer
+   * (it may have gone through); stopped by the person before anything went
+   * out; or failed with nothing sent.
+   */
+  ending: 'sent' | 'unconfirmed' | 'stopped' | 'failed' | null;
 }
 
 export interface Balance {
@@ -85,6 +91,9 @@ export interface AppState {
   /** The current wallet's last failed send, while it is unlocked, until dismissed or a later send goes through. */
   sendFailure: SendFailure | null;
   dismissSendFailure: () => void;
+  /** The current wallet's last send that reached the node, until dismissed or confirmed. */
+  lastSend: LastSend | null;
+  dismissLastSend: () => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -109,6 +118,7 @@ export function AppProvider({ services, children }: { services: Services; childr
   const [utxos, setUtxos] = useState<UtxoRecord[]>([]);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [sendFailure, setSendFailure] = useState<SendFailure | null>(null);
+  const [lastSend, setLastSend] = useState<LastSend | null>(null);
   const [network, setNetwork] = useState<Network>(services.settings.network);
   const [sendJob, setSendJob] = useState<SendJob | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
@@ -239,6 +249,20 @@ export function AppProvider({ services, children }: { services: Services; childr
       // Locked: nothing to show until it is unlocked.
     }
     setSendFailure(failure);
+    // The note about the last send that reached the node. It has done its
+    // work once its row settles: confirmed, or given up on.
+    let sent: LastSend | null = null;
+    try {
+      sent = await services.accounts.lastSend(accountId);
+      const row = sent ? rows.find((h) => h.kind === 'sent' && h.txid === sent?.txid) : undefined;
+      if (sent && row && row.status !== 'pending') {
+        await services.accounts.setLastSend(accountId, null);
+        sent = null;
+      }
+    } catch {
+      // Locked, as above.
+    }
+    setLastSend(sent);
     setLoadedFor(accountId);
     // A finished send whose row has confirmed no longer needs its notice.
     setSendJob((job) => {
@@ -265,6 +289,16 @@ export function AppProvider({ services, children }: { services: Services; childr
     },
     [services],
   );
+  // The note about a send that reached the node, kept the same way: a send
+  // that ends while the app is locked, or after it was closed, still says
+  // how it ended at the next unlock.
+  const noteLastSend = useCallback(
+    (forAccount: string, note: LastSend | null) => {
+      setLastSend(note);
+      void services.accounts.setLastSend(forAccount, note).catch(() => {});
+    },
+    [services],
+  );
 
   const startSend = useCallback(
     async (request: SendRequest, note: string | null = null): Promise<SendOutcome> => {
@@ -276,7 +310,17 @@ export function AppProvider({ services, children }: { services: Services; childr
       sendAbort.current = abort;
       const service = services.sendService(accountId);
       services.accounts.setLockDeferred(true);
-      setSendJob({ request, startedAt: Date.now(), provingSince: null, progress: { stage: 'planning' }, done: false, outcome: null, error: null });
+      setSendJob({ request, startedAt: Date.now(), provingSince: null, progress: { stage: 'planning' }, done: false, outcome: null, error: null, ending: null });
+      const noteOf = (txid: string, state: LastSend['state']): LastSend => ({
+        at: Date.now(),
+        accountId,
+        txid,
+        amountNau: paymentsTotalNau(request).toString(),
+        feeNau: request.fee_nau ?? '0',
+        recipient: request.payments[0]?.recipient ?? '',
+        others: request.payments.length - 1,
+        state,
+      });
       // What Diagnostics shows about the last proof, whichever way it ends.
       let claimVersion = 0;
       let threads = 0;
@@ -304,28 +348,40 @@ export function AppProvider({ services, children }: { services: Services; childr
             lastProving: { at: Date.now(), claimVersion: outcome.claimVersion, threads: outcome.proving.threads, peakMb: outcome.proving.memoryMb, seconds: outcome.proving.seconds, error: null },
           });
         }
-        setSendJob((job) => (job ? { ...job, done: true, outcome } : job));
+        setSendJob((job) => (job ? { ...job, done: true, outcome, ending: 'sent' } : job));
         noteSendFailure(accountId, null);
+        noteLastSend(accountId, noteOf(outcome.txid, 'submitted'));
         if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
-          notifications.show({ color: 'green', title: 'Sent', message: `${showNau(paymentsTotalNau(request))} NPT submitted. It shows as pending until it is confirmed.` });
+          notifications.show({ color: 'green', title: 'Sent', message: `${sentText(paymentsTotalNau(request), BigInt(request.fee_nau ?? '0'))} It shows as pending until a block confirms it.` });
         }
         await refresh();
         return outcome;
       } catch (e) {
         // The person cancelled in time: nothing went out, nothing to report.
         if (e instanceof SendCancelledError) {
-          setSendJob((job) => (job ? { ...job, done: true, error: e.message } : job));
+          setSendJob((job) => (job ? { ...job, done: true, error: e.message, ending: 'stopped' } : job));
           throw e;
         }
-        // Handed over without an answer: the pending row is in History.
-        if (e instanceof SendUnconfirmedError) await refresh();
+        // Handed over without an answer: it may have gone through, so it is
+        // no failure. The pending row is in History with its coins held, and
+        // the note says to wait, until the row settles.
+        if (e instanceof SendUnconfirmedError) {
+          setSendJob((job) => (job ? { ...job, done: true, error: e.message, ending: 'unconfirmed' } : job));
+          noteSendFailure(accountId, null);
+          noteLastSend(accountId, noteOf(e.txid, 'unconfirmed'));
+          await refresh();
+          if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
+            notifications.show({ color: 'yellow', title: 'Waiting for the node to confirm', message: e.message, autoClose: 10_000 });
+          }
+          throw e;
+        }
         const message = e instanceof RequiresLustrationError ? null : (e as Error).message;
         if (message && provingSince !== null) {
           void services.updateSettings({
             lastProving: { at: Date.now(), claimVersion, threads, peakMb, seconds: (Date.now() - provingSince) / 1000, error: message },
           });
         }
-        setSendJob((job) => (job ? { ...job, done: true, error: message } : job));
+        setSendJob((job) => (job ? { ...job, done: true, error: message, ending: message ? 'failed' : null } : job));
         if (message) noteSendFailure(accountId, { at: Date.now(), accountId, amount: showNau(paymentsTotalNau(request)), recipient: request.payments[0]?.recipient ?? '', others: request.payments.length - 1, message });
         if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message });
         throw e;
@@ -336,7 +392,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         services.accounts.setLockDeferred(false);
       }
     },
-    [services, accountId, refresh, noteSendFailure],
+    [services, accountId, refresh, noteSendFailure, noteLastSend],
   );
 
   // Cancel asks; the send answers. The screen says "cancelled" only when
@@ -353,6 +409,10 @@ export function AppProvider({ services, children }: { services: Services; childr
   const dismissSendFailure = useCallback(() => {
     if (accountId) noteSendFailure(accountId, null);
   }, [accountId, noteSendFailure]);
+
+  const dismissLastSend = useCallback(() => {
+    if (accountId) noteLastSend(accountId, null);
+  }, [accountId, noteLastSend]);
 
   useEffect(() => {
     void refresh();
@@ -482,8 +542,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   const screenAwake = useScreenWakeLock(Boolean(sendJob && !sendJob.done));
 
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, sendFailure, dismissSendFailure }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, sendFailure, dismissSendFailure],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, sendFailure, dismissSendFailure, lastSend, dismissLastSend }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, sendFailure, dismissSendFailure, lastSend, dismissLastSend],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -510,6 +570,15 @@ export function formatNau(nau: bigint): string {
  */
 export function showNau(nau: bigint): string {
   return groupDigits(formatNau(nau));
+}
+
+/**
+ * A send as its confirmation says it, the fee included, so the figure
+ * matches the one History shows for it: "5 NPT is on its way, plus a 0.3
+ * NPT fee."
+ */
+export function sentText(amountNau: bigint, feeNau: bigint): string {
+  return `${showNau(amountNau)} NPT is on its way, plus a ${showNau(feeNau)} NPT fee.`;
 }
 
 /** A block height for people to read, grouped like an amount. */

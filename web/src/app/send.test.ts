@@ -293,7 +293,7 @@ describe('send service', () => {
     expect(outcome.txid).toBe('tx-abc');
     expect(prover.calls).toBe(2);
     expect(node.submitted).toHaveLength(1);
-    expect(notes[0]).toMatch(/A new block arrived\. Proving again \(2 of 3\)/);
+    expect(notes[0]).toMatch(/A new block arrived, so the proof is being made again \(attempt 2 of 3\)\. Nothing has been sent yet\./);
     expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBe('tx-abc');
   });
 

@@ -3,21 +3,24 @@
 // runs as a job in the app context so it survives this screen being
 // unmounted (backgrounding locks the app).
 
-import { Alert, Badge, Button, Checkbox, Drawer, Group, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { Alert, Badge, Button, Checkbox, Group, Modal, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { IconAddressBook, IconLink, IconPlus, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-import { formatNau, NAU_PER_COIN, showNau, useApp } from '../app/AppContext';
+import { formatNau, NAU_PER_COIN, sentText, showNau, useApp } from '../app/AppContext';
+import { NATIVE } from '../app/platform';
+import { formatAbout, formatDuration } from '../util/time';
 import { useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
 import { fiatOf, fiatOfTyped, formatFiat } from '../util/fiat';
-import { MAX_PAYMENTS, paymentsTotalNau, RequiresLustrationError, SendBusyError } from '../app/send';
+import { MAX_PAYMENTS, paymentsTotalNau, RequiresLustrationError, SendBusyError, SendUnconfirmedError } from '../app/send';
 import { ContactPicker } from '../components/ContactPicker';
-import { Caution } from '../components/Notice';
+import { Caution, Done, Info } from '../components/Notice';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
-import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
+import { abbreviateAddress, addressKindLabel, parsePaymentText, shortAddress } from '../util/address';
 import { networkLabel } from '../util/network';
 import type { ContactRecord } from '../storage/db';
 
@@ -30,12 +33,6 @@ const FEE_PRESETS: { value: string; label: string; fee: string }[] = [
   { value: 'high', label: 'High', fee: '0.5' },
   { value: 'custom', label: 'Custom', fee: '' },
 ];
-/** Seconds as people say them: "45 seconds", "2 minutes". */
-function duration(seconds: number): string {
-  if (seconds < 90) return `${Math.max(1, Math.round(seconds))} seconds`;
-  return `${Math.round(seconds / 60)} minutes`;
-}
-
 const DEFAULT_PRESET = 'medium';
 const DEFAULT_FEE = FEE_PRESETS.find((p) => p.value === DEFAULT_PRESET)!.fee;
 const presetFee = (preset: string, custom: string | undefined) =>
@@ -56,17 +53,40 @@ interface ExtraPayee {
   amountError: string | null;
 }
 
+/**
+ * A form left half filled, per wallet, for this session: going to Contacts
+ * to add the person being paid, or anywhere else, and coming back finds it
+ * as it was. In memory only; a reload starts afresh.
+ */
+interface Draft {
+  recipient: string;
+  amount: string;
+  extras: ExtraPayee[];
+  feePreset: string;
+  fee: string;
+  linkMeta: { label?: string; message?: string } | null;
+}
+const drafts = new Map<string, Draft>();
+
 export function Send() {
-  const { services, account, balance, utxos, online, sendJob, screenAwake, startSend, cancelSend, dismissSendJob } = useApp();
+  const { services, account, balance, utxos, online, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend } = useApp();
   const location = useLocation();
+  const navigate = useNavigate();
   const prefill = (location.state as { recipient?: string } | null)?.recipient;
+  const draft = account ? drafts.get(account.id) : undefined;
   const [step, setStep] = useState<Step>('form');
-  const [recipient, setRecipient] = useState(prefill ?? '');
+  const [recipient, setRecipient] = useState(prefill ?? draft?.recipient ?? '');
   // The last successfully sent recipient, offered for saving as a contact.
-  const [lastRecipient, setLastRecipient] = useState<string | null>(null);
+  // A send that finished while the app was locked is still offered.
+  const [lastRecipient, setLastRecipient] = useState<string | null>(() =>
+    sendJob?.done && sendJob.ending === 'sent' && sendJob.request.payments.length === 1 ? sendJob.request.payments[0].recipient.trim().toLowerCase() : null,
+  );
   const [savedName, setSavedName] = useState<string | null>(null);
   // From a payment link: shown on the review step, never used for anything else.
-  const [linkMeta, setLinkMeta] = useState<{ label?: string; message?: string } | null>(null);
+  const [linkMeta, setLinkMeta] = useState<{ label?: string; message?: string } | null>(prefill ? null : (draft?.linkMeta ?? null));
+  // The review is a dialog like every other: centred on a wide screen, the
+  // whole screen on a phone.
+  const phone = useMediaQuery('(max-width: 36em)');
   const [saving, setSaving] = useState(false);
 
   // The wallet's contacts, so an address typed, pasted or scanned into a
@@ -102,13 +122,14 @@ export function Send() {
     if (!account || !lastRecipient) return;
     void services.contacts.findByAddress(account.id, lastRecipient).then((c) => setSavedName(c?.name ?? null));
   }, [services, account, lastRecipient]);
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(draft?.amount ?? '');
   // The fee level is remembered between sends (settings); a custom fee is
   // not. It was typed for one payment, and coming back to find an unusual
-  // fee already chosen is how someone pays it twice without meaning to.
+  // fee already chosen is how someone pays it twice without meaning to. A
+  // draft of this session keeps its own, custom or not.
   const rememberedPreset = services.settings.feePreset && services.settings.feePreset !== 'custom' ? services.settings.feePreset : DEFAULT_PRESET;
-  const [feePreset, setFeePreset] = useState(rememberedPreset);
-  const [fee, setFee] = useState(presetFee(rememberedPreset, undefined));
+  const [feePreset, setFeePreset] = useState(draft?.feePreset ?? rememberedPreset);
+  const [fee, setFee] = useState(draft?.fee ?? presetFee(rememberedPreset, undefined));
   // An unusually high fee must be agreed to on the review sheet, in so many words.
   const [feeAgreed, setFeeAgreed] = useState(false);
   // "Max" in exact nau: the shown text has eight decimals and the balance has more.
@@ -128,14 +149,36 @@ export function Send() {
   const [pickFor, setPickFor] = useState<number | null>(null);
   // Recipients after the first. Several payments in one transaction take
   // one proof and one fee, and none has to wait for the change of another.
-  const [extras, setExtras] = useState<ExtraPayee[]>([]);
-  const nextExtraId = useRef(1);
+  const [extras, setExtras] = useState<ExtraPayee[]>(draft?.extras ?? []);
+  const nextExtraId = useRef(1 + Math.max(0, ...(draft?.extras ?? []).map((x) => x.id)));
   const updateExtra = (id: number, patch: Partial<ExtraPayee>) => setExtras((all) => all.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  // A recipient just added gets the focus, so its fields are where the
+  // person is, and not somewhere below them unseen.
+  const focusExtra = useRef<number | null>(null);
   const addRecipient = () => {
-    setExtras((all) => [...all, { id: nextExtraId.current++, recipient: '', amount: '', recipientError: null, amountError: null }]);
+    const id = nextExtraId.current++;
+    focusExtra.current = id;
+    setExtras((all) => [...all, { id, recipient: '', amount: '', recipientError: null, amountError: null }]);
     // Max means everything to one recipient; with two it would mean nothing.
     setMaxExact(null);
   };
+
+  // The form as it stands, kept as this wallet's draft when the screen goes.
+  const formNow = useRef<Draft>({ recipient, amount, extras, feePreset, fee, linkMeta });
+  formNow.current = { recipient, amount, extras, feePreset, fee, linkMeta };
+  const draftFor = useRef(account?.id ?? null);
+  draftFor.current = account?.id ?? null;
+  useEffect(
+    () => () => {
+      const id = draftFor.current;
+      if (!id) return;
+      const f = formNow.current;
+      const empty = f.recipient.trim() === '' && f.amount.trim() === '' && f.extras.length === 0;
+      if (empty) drafts.delete(id);
+      else drafts.set(id, f);
+    },
+    [],
+  );
 
   // Field checks run on blur and again on submit. A value in nau, or the
   // message explaining why there is none.
@@ -177,7 +220,7 @@ export function Send() {
     const at = extras.findIndex((x) => x.id === id);
     if (at < 0) return true;
     const earlier = [recipient, ...extras.slice(0, at).map((x) => x.recipient)].map((a) => a.trim().toLowerCase());
-    const message = await addressProblem(extras[at].recipient, earlier);
+    const message = extras[at].recipient.trim() === '' ? 'Enter the address, or remove this recipient' : await addressProblem(extras[at].recipient, earlier);
     updateExtra(id, { recipientError: message });
     return message === null;
   };
@@ -192,7 +235,11 @@ export function Send() {
     const more = await Promise.all(extras.map((x) => parsePositive(x.amount, 'amount')));
     const f = await parsePositive(fee, 'fee');
     let amountMessage = 'message' in a ? a.message : null;
-    const moreMessages = more.map((m, i) => ('message' in m && !(leaving && extras[i].amount.trim() === '') ? m.message : null));
+    const moreMessages = more.map((m, i) => {
+      if (!('message' in m)) return null;
+      if (extras[i].amount.trim() === '') return leaving ? null : 'Enter the amount, or remove this recipient';
+      return m.message;
+    });
     const feeMessage = 'message' in f ? f.message : null;
     const parsed = [a, ...more];
     if (parsed.every((p) => 'nau' in p) && 'nau' in f) {
@@ -235,9 +282,19 @@ export function Send() {
     setAmountError(null);
   };
 
+  const formRef = useRef<HTMLFormElement>(null);
   const review = async () => {
     const checks = await Promise.all([checkRecipient(), ...extras.map((x) => checkExtraRecipient(x.id)), checkAmounts()]);
-    if (!checks.every(Boolean)) return;
+    if (!checks.every(Boolean)) {
+      // Review stays pressable, so what stands in its way is shown, and the
+      // first such field, which may be below the fold, gets the focus.
+      setTimeout(() => {
+        const first = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+        first?.focus();
+        first?.scrollIntoView({ block: 'center' });
+      }, 0);
+      return;
+    }
     const addresses = [recipient, ...extras.map((x) => x.recipient)].map((a) => a.trim());
     const names = await Promise.all(addresses.map(async (a) => (account ? ((await services.contacts.findByAddress(account.id, a))?.name ?? null) : null)));
     setReviewNames(names);
@@ -278,6 +335,15 @@ export function Send() {
       if (e instanceof RequiresLustrationError) {
         dismissSendJob();
         setAskLustration(true);
+      } else if (e instanceof SendUnconfirmedError) {
+        // It may have gone through: the filled form would make paying twice
+        // two taps away. It is in History, and the notice says so.
+        setRecipient('');
+        setAmount('');
+        setExtras([]);
+        setLinkMeta(null);
+        setTotals(null);
+        setStep('form');
       } else {
         // The failure notice lives on the form.
         setStep('form');
@@ -320,14 +386,54 @@ export function Send() {
     else applyExtraText(target, text);
   };
 
-  // A finished job's notice belongs to this visit; leaving the screen clears it.
+  // A finished job's notice belongs to this visit; leaving the screen
+  // clears it. Locking unmounts the screen too, and there the notice is kept:
+  // a send that ended while the app locked must still say how it ended.
   useEffect(() => {
     return () => {
-      if (sendJobRef.current?.done) dismissSendJob();
+      if (sendJobRef.current?.done && services.accounts.currentAccountId !== null) dismissSendJob();
     };
-  }, [dismissSendJob]);
+  }, [dismissSendJob, services]);
   const sendJobRef = useRef(sendJob);
   sendJobRef.current = sendJob;
+
+  // Max follows the fee: chosen, it means everything, whatever the fee.
+  const feeSeen = useRef(fee);
+  useEffect(() => {
+    if (feeSeen.current === fee) return;
+    feeSeen.current = fee;
+    if (maxExact && extras.length === 0 && amount === maxExact.text) void sendAll();
+    // Only a change of fee re-runs it; the rest is read as it stands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fee]);
+
+  // Stopping throws the proof away, so it is asked first.
+  const [confirmStop, setConfirmStop] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  useEffect(() => {
+    if (!sendJob || sendJob.done) setStopping(false);
+  }, [sendJob]);
+
+  // Focus follows the screen: to the proving view's title when it starts,
+  // and to the result when it ends.
+  const runningTitle = useRef<HTMLHeadingElement>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+  const isRunning = Boolean(sendJob && !sendJob.done);
+  const isDone = Boolean(sendJob?.done && sendJob.ending);
+  useEffect(() => {
+    if (isRunning) runningTitle.current?.focus();
+  }, [isRunning]);
+  useEffect(() => {
+    if (!isDone) return;
+    // After the review dialog has closed and handed focus back, or it
+    // would take the focus straight back from the result.
+    const t = setTimeout(() => resultRef.current?.focus(), 300);
+    return () => clearTimeout(t);
+  }, [isDone]);
+  const dismissResult = () => {
+    if (sendJob?.ending === 'sent' || sendJob?.ending === 'unconfirmed') dismissLastSend();
+    dismissSendJob();
+  };
 
   const running = Boolean(sendJob && !sendJob.done);
   const p = sendJob?.progress.proving;
@@ -349,35 +455,81 @@ export function Send() {
   const estimate = last && !last.error && last.seconds > 0 ? last.seconds : null;
 
   if (running && sendJob) {
+    // What is being sent, for a second look while it proves: the amount,
+    // who gets it, and the fee.
+    const request = sendJob.request;
+    const masked = services.settings.hideBalance;
+    const first = request.payments[0]?.recipient.trim() ?? '';
+    const who =
+      request.payments.length > 1
+        ? `${request.payments.length} recipients`
+        : (contacts.find((c) => c.address === first.toLowerCase())?.name ?? shortAddress(first));
     return (
       <Paper>
         <Stack>
-          <Title order={2}>Sending</Title>
-          <Text aria-live="polite">
-            {sendJob.progress.stage === 'planning' && 'Choosing coins…'}
-            {sendJob.progress.stage === 'membership-proofs' && 'Checking your coins with the node…'}
-            {sendJob.progress.stage === 'building' && 'Building the transaction…'}
-            {proving && (p ? `Proving, step ${Math.min(p.index + 1, p.total)} of ${p.total}` : 'Starting the prover…')}
-            {sendJob.progress.stage === 'submitting' && 'Submitting to the node…'}
+          <Title order={2} tabIndex={-1} ref={runningTitle}>
+            Sending
+          </Title>
+          <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {masked ? '••••' : showNau(paymentsTotalNau(request))} NPT to <span dir="auto" className="vault-bidi">{who}</span> · fee {masked ? '••••' : showNau(BigInt(request.fee_nau ?? '0'))} NPT
           </Text>
+          <div aria-live="polite">
+            <Text>
+              {sendJob.progress.stage === 'planning' && 'Choosing coins…'}
+              {sendJob.progress.stage === 'membership-proofs' && 'Checking your coins with the node…'}
+              {sendJob.progress.stage === 'building' && 'Building the transaction…'}
+              {proving && (p ? `Proving, step ${Math.min(p.index + 1, p.total)} of ${p.total}` : 'Starting the prover…')}
+              {sendJob.progress.stage === 'submitting' && 'Submitting to the node…'}
+            </Text>
+            {/* Why the steps started over, when they did: a block arrived. */}
+            {sendJob.progress.note && (
+              <Text size="sm" c="var(--v-warn-text)" mt={4}>
+                {sendJob.progress.note}
+              </Text>
+            )}
+          </div>
           {proving && p && <Progress value={100 * (p.work ?? p.index / p.total)} animated aria-label="Share of the proving work done" />}
           {proving && (
-            <Text size="sm" c="dimmed">
-              {estimate !== null ? `About ${duration(estimate)} on this device · ` : ''}
-              {duration(provingSeconds)} so far
+            <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {estimate !== null ? `${capitalise(formatAbout(estimate))} on this device · ` : ''}
+              {formatDuration(provingSeconds)} so far
             </Text>
           )}
           <Text size="sm">
             {screenAwake === 'refused'
-              ? 'This device would not keep the screen on. Keep the app open and touch the screen now and then until the send is submitted: a locked phone pauses the proof.'
-              : 'Keep this screen open until the send is submitted.'}
+              ? NATIVE
+                ? 'This computer would not promise to stay awake. Keep the app running and the computer awake until the send is submitted: sleep pauses the proof.'
+                : 'This device would not keep the screen on. Keep the app open and touch the screen now and then until the send is submitted: a locked phone pauses the proof.'
+              : NATIVE
+                ? 'Keep the app running until the send is submitted.'
+                : 'Keep the app open and in front until the send is submitted. You can move around the app meanwhile.'}
           </Text>
           {proving && (
-            <Button variant="light" color="red" onClick={cancelSend}>
-              Cancel
+            <Button variant="light" color="red" onClick={() => setConfirmStop(true)} loading={stopping}>
+              {stopping ? 'Stopping…' : 'Cancel'}
             </Button>
           )}
         </Stack>
+        <Modal opened={confirmStop} onClose={() => setConfirmStop(false)} title="Stop this send?">
+          <Stack>
+            <Text size="sm">The proof so far ({formatDuration(provingSeconds)}) is lost. Nothing has been sent.</Text>
+            <Group grow>
+              <Button variant="default" onClick={() => setConfirmStop(false)}>
+                Keep proving
+              </Button>
+              <Button
+                color="red"
+                onClick={() => {
+                  setConfirmStop(false);
+                  setStopping(true);
+                  cancelSend();
+                }}
+              >
+                Stop
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </Paper>
     );
   }
@@ -408,7 +560,8 @@ export function Send() {
     reviewSheet = (
         <Stack>
           <Text size="sm" c="dimmed">
-            Check the details. Once sending starts, the payment cannot be changed. It can take a few minutes on a phone.
+            Check the details. Once sending starts, the payment cannot be changed.
+            {estimate !== null ? ` Proving it takes ${formatAbout(estimate)} on this device.` : NATIVE ? '' : ' Proving it can take a few minutes on a phone.'}
           </Text>
           <div className="vault-review">
             {payees.length === 1 ? (
@@ -530,9 +683,9 @@ export function Send() {
   return (
     <Paper>
       <Stack>
-        <Drawer opened={reviewSheet !== null} onClose={() => setStep('form')} position="bottom" size="auto" title="Review" trapFocus>
+        <Modal opened={reviewSheet !== null} onClose={() => setStep('form')} title="Review" size={560} centered fullScreen={phone}>
           {reviewSheet}
-        </Drawer>
+        </Modal>
         <div>
           <Title order={2} className="sr-only">
             Send
@@ -541,31 +694,52 @@ export function Send() {
             Spendable {services.settings.hideBalance ? '••••' : showNau(balance.spendableNau)} NPT
           </Text>
         </div>
-        {sendJob?.done && sendJob.outcome && (
-          <Alert color="green" title="Submitted" withCloseButton onClose={dismissSendJob}>
-            {showNau(paymentsTotalNau(sendJob.request))} NPT is on its way. It shows as pending until it is confirmed
-            {sendJob.outcome.proving.seconds > 0 && `; the proof took ${sendJob.outcome.proving.seconds.toFixed(0)} s`}.
-            {lastRecipient && (
-              <div style={{ marginTop: 8 }}>
-                {savedName ? (
-                  <Text size="sm">Sent to {savedName}.</Text>
-                ) : (
-                  <Text size="sm">
-                    <UnstyledButton onClick={() => setSaving(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-                      Save recipient as a contact
-                    </UnstyledButton>
-                  </Text>
-                )}
-              </div>
+        {/* How the last send ended, where the person is: focused, so it is
+            read out, and dismissed here and on Home at once. */}
+        {sendJob?.done && sendJob.ending && (
+          <div ref={resultRef} tabIndex={-1} className="vault-send-result">
+            {sendJob.ending === 'sent' && sendJob.outcome && (
+              <Done title="Submitted" onClose={dismissResult} closeLabel="Dismiss">
+                <span>
+                  {sentText(paymentsTotalNau(sendJob.request), BigInt(sendJob.request.fee_nau ?? '0'))} It shows as pending until a block confirms it.
+                  {sendJob.outcome.proving.seconds > 0 && ` The proof took ${formatDuration(sendJob.outcome.proving.seconds)}.`}
+                </span>
+                {lastRecipient &&
+                  (savedName ? (
+                    <span>Sent to {savedName}.</span>
+                  ) : (
+                    <span>
+                      <UnstyledButton onClick={() => setSaving(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+                        Save recipient as a contact
+                      </UnstyledButton>
+                    </span>
+                  ))}
+              </Done>
             )}
-          </Alert>
-        )}
-        {sendJob?.done && sendJob.error && (
-          <Alert color="red" title="Not sent" withCloseButton onClose={dismissSendJob}>
-            {sendJob.error}
-          </Alert>
+            {sendJob.ending === 'unconfirmed' && (
+              <Caution title="Waiting for the node to confirm" onClose={dismissResult} closeLabel="Dismiss">
+                <span>{sendJob.error}</span>
+                <span>
+                  <UnstyledButton onClick={() => navigate('/')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+                    See in History
+                  </UnstyledButton>
+                </span>
+              </Caution>
+            )}
+            {sendJob.ending === 'stopped' && (
+              <Info onClose={dismissResult} closeLabel="Dismiss">
+                {sendJob.error}
+              </Info>
+            )}
+            {sendJob.ending === 'failed' && (
+              <Alert color="red" title="Not sent" withCloseButton onClose={dismissResult}>
+                {sendJob.error}
+              </Alert>
+            )}
+          </div>
         )}
         <form
+          ref={formRef}
           onSubmit={(e) => {
             e.preventDefault();
             void review();
@@ -684,6 +858,12 @@ export function Send() {
                     spellCheck={false}
                     placeholder="Address or payment link"
                     value={x.recipient}
+                    ref={(el) => {
+                      if (el && focusExtra.current === x.id) {
+                        focusExtra.current = null;
+                        el.focus();
+                      }
+                    }}
                     onChange={(e) => {
                       const value = e.currentTarget.value;
                       if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyExtraText(x.id, value);
@@ -771,10 +951,7 @@ export function Send() {
             {!online && (
               <Caution>You are offline. Sending needs the node; Review comes back when the connection does.</Caution>
             )}
-            <Button
-              type="submit"
-              disabled={!online || !recipient || !amount || !fee || Boolean(recipientError || amountError || feeError) || extras.some((x) => !x.recipient || !x.amount || x.recipientError || x.amountError)}
-            >
+            <Button type="submit" disabled={!online}>
               Review
             </Button>
           </Stack>
@@ -814,4 +991,9 @@ export function Send() {
       )}
     </Paper>
   );
+}
+
+/** "about 2 min" at the start of a sentence. */
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }

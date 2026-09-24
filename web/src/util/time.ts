@@ -81,3 +81,21 @@ export function formatWhen(ms: number, now = Date.now()): string {
   if (new Date(ms).getFullYear() === new Date(now).getFullYear()) return `${dayMonth(ms)} ${time}`;
   return formatDate(ms);
 }
+
+/**
+ * A length of time, one way everywhere: "45 s", "2 min 23 s", "1 h 5 min".
+ * Seconds drop away past the hour, where nobody counts them.
+ */
+export function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s} s`;
+  if (s < 3600) return s % 60 === 0 ? `${s / 60} min` : `${Math.floor(s / 60)} min ${s % 60} s`;
+  const m = Math.round(s / 60);
+  return m % 60 === 0 ? `${m / 60} h` : `${Math.floor(m / 60)} h ${m % 60} min`;
+}
+
+/** An estimate, rounded as people say one: "about 40 s", "about 2 min". */
+export function formatAbout(seconds: number): string {
+  const s = Math.max(1, Math.round(seconds));
+  return s < 90 ? `about ${s} s` : `about ${Math.round(s / 60)} min`;
+}

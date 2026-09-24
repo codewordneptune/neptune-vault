@@ -6,6 +6,7 @@ import { FRESH_KEY_INDICES, type AccountRecord, type ContactRecord, type Network
 
 /** The private note, in a wallet's sealed log, about its last failed send. */
 const LAST_SEND_FAILURE = 'lastSendFailure';
+const LAST_SEND = 'lastSend';
 import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeedKeepingKey, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
 import { CHAIN_PARTS, ENGINE_PARTS, type WalletPart } from '../backend/types';
 import { EngineParts } from './engineParts';
@@ -13,6 +14,7 @@ import type { PasskeyProvider } from './passkey';
 import { addressKindLabel } from '../util/address';
 import { distinctNames } from './contacts';
 import type { WalletCore } from '../backend/types';
+import type { LastSend } from './send';
 
 export type LockListener = (locked: boolean) => void;
 
@@ -272,6 +274,19 @@ export class AccountService {
   async setLastSendFailure(accountId: string, failure: SendFailure | null): Promise<void> {
     if (this.engine.where(accountId, 'private') !== 'engine') return;
     await this.core.storeCommit!(accountId, [failure ? { op: 'putPrivate', key: LAST_SEND_FAILURE, value: failure } : { op: 'deletePrivate', key: LAST_SEND_FAILURE }]);
+  }
+
+  /** The note about this wallet's last send that reached the node, or null; kept like the failure note. */
+  async lastSend(accountId: string): Promise<LastSend | null> {
+    if (this.engine.where(accountId, 'private') !== 'engine') return null;
+    const notes = (await this.core.storeRead!(accountId, 'private')) as { key: string; value: LastSend }[];
+    return notes.find((n) => n.key === LAST_SEND)?.value ?? null;
+  }
+
+  /** Keep, or with null clear, the note about this wallet's last send. Throws while locked. */
+  async setLastSend(accountId: string, note: LastSend | null): Promise<void> {
+    if (this.engine.where(accountId, 'private') !== 'engine') return;
+    await this.core.storeCommit!(accountId, [note ? { op: 'putPrivate', key: LAST_SEND, value: note } : { op: 'deletePrivate', key: LAST_SEND }]);
   }
 
   /** Proves the password opens this wallet; throws WrongPasswordError otherwise. */
