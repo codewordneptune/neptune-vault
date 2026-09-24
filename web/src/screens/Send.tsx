@@ -10,6 +10,7 @@ import { useLocation } from 'react-router-dom';
 
 import { formatNau, NAU_PER_COIN, showNau, useApp } from '../app/AppContext';
 import { useQuote } from '../app/price';
+import { decimalsProblem } from '../util/amount';
 import { fiatOf, fiatOfTyped, formatFiat } from '../util/fiat';
 import { MAX_PAYMENTS, paymentsTotalNau, RequiresLustrationError, SendBusyError } from '../app/send';
 import { ContactPicker } from '../components/ContactPicker';
@@ -143,6 +144,9 @@ export function Send() {
     const text = raw.replace(/[\s\u202F\u00A0]/g, '');
     if (text.trim() === '') return { message: `Enter the ${what}` };
     if (text.trim().startsWith('-')) return { message: `The ${what} must be greater than zero` };
+    // No more decimals than the review can show: it must show what is sent.
+    const tooPrecise = decimalsProblem(text);
+    if (tooPrecise) return { message: tooPrecise };
     let nau: bigint;
     try {
       nau = BigInt(await services.core.parseAmount(text));
