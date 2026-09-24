@@ -74,7 +74,8 @@ export function NewPasswordFields({
         label={repeatLabel}
         value={again}
         onChange={(e) => onAgain(e.currentTarget.value)}
-        error={again && again !== password ? 'Passwords differ' : undefined}
+        // Judged once it is complete: half-typed, it would always "differ".
+        error={again.length >= password.length && again !== password ? 'Passwords differ' : undefined}
         autoComplete="new-password"
       />
     </Stack>

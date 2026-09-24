@@ -453,7 +453,7 @@ export function Settings() {
           <Text size="sm" c="dimmed">
             {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Keys never leave this device, and it talks only to the node you choose. Early version, not audited: use only amounts you can afford to lose.
           </Text>
-          <Group gap="md">
+          <Group gap="md" style={{ rowGap: 24 }}>
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               Report a problem
             </Anchor>
@@ -907,7 +907,6 @@ function RemoveWalletCard() {
   const name = walletName(account);
   // Everything the wallet owns: spendable, held for a pending send, and time-locked.
   const holds = balance.spendableNau + balance.reservedNau + balance.lockedNau;
-  const hidden = services.settings.hideBalance ?? false;
 
   const remove = async () => {
     setBusy(true);
@@ -944,7 +943,8 @@ function RemoveWalletCard() {
           <Stack>
             {loaded && (
               <Text size="sm" fw={600}>
-                {name} holds {hidden ? '••••' : showNau(holds)} NPT.
+                {/* Shown even with amounts hidden: it is what the decision is about. */}
+                {name} holds {showNau(holds)} NPT.
               </Text>
             )}
             <Text size="sm">

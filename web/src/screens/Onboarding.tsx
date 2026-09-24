@@ -297,19 +297,19 @@ export function Onboarding() {
           is open without a wallet on purpose, for whoever cannot get started. */}
       {step === 'welcome' && !adding && (
         <Group gap={6} justify="center">
-          <Anchor component="button" type="button" size="sm" c="dimmed" className="vault-tap-link" onClick={() => navigate('/privacy')}>
+          <Anchor component="button" type="button" size="sm" className="vault-tap-link vault-inline-link" onClick={() => navigate('/privacy')}>
             Privacy
           </Anchor>
           <Text span size="sm" c="dimmed" aria-hidden>
             ·
           </Text>
-          <Anchor component="button" type="button" size="sm" c="dimmed" className="vault-tap-link" onClick={() => navigate('/diagnostics')}>
+          <Anchor component="button" type="button" size="sm" className="vault-tap-link vault-inline-link" onClick={() => navigate('/diagnostics')}>
             Diagnostics
           </Anchor>
           <Text span size="sm" c="dimmed" aria-hidden>
             ·
           </Text>
-          <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" c="dimmed" className="vault-tap-link">
+          <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link vault-inline-link">
             Report a problem
           </Anchor>
         </Group>
