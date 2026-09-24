@@ -1,6 +1,6 @@
 // Network, node URL with connectivity check, backup actions, lock.
 
-import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
+import { Alert, Anchor, Button, Checkbox, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
 import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconTrash, IconWallet } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useEffect, useRef, useState } from 'react';
@@ -432,6 +432,7 @@ export function Settings() {
           <AppearanceCard />
           <FiatCard />
           {!NATIVE && <InstallCard />}
+          {NATIVE && <Shortcuts />}
           <Text size="sm" c="dimmed">
             Device and app details to include when you report a problem.
           </Text>
@@ -583,6 +584,38 @@ function ChangePassword() {
         {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
       </Stack>
     </form>
+  );
+}
+
+// The desktop app's keyboard shortcuts, which nothing else mentions. They
+// are the ones App.tsx listens for, in the desktop app only (in a browser
+// these keys are the browser's), and only while a wallet is open.
+function Shortcuts() {
+  const mod = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? 'Cmd' : 'Ctrl';
+  const rows: [string, string][] = [
+    ['1', 'Home'],
+    ['2', 'Send'],
+    ['3', 'Receive'],
+    ['4', 'Settings'],
+    ['N', 'New send'],
+    ['L', 'Lock'],
+  ];
+  return (
+    <Stack gap="xs">
+      <Text size="sm" c="dimmed">
+        Keyboard shortcuts, while the wallet is unlocked
+      </Text>
+      <dl className="vault-shortcuts">
+        {rows.map(([key, what]) => (
+          <div key={key}>
+            <dt>
+              <Kbd>{mod}</Kbd> + <Kbd>{key}</Kbd>
+            </dt>
+            <dd>{what}</dd>
+          </div>
+        ))}
+      </dl>
+    </Stack>
   );
 }
 
