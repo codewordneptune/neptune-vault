@@ -188,8 +188,9 @@ export function ContactForm({
   }, [opened, fixedAddress]);
 
   // Same check as the Send screen: required, valid for the current network.
-  const checkAddress = async (): Promise<boolean> => {
-    const text = address.trim();
+  // A scan passes the address it filled in, since the state has not caught up yet.
+  const checkAddress = async (value: string = address): Promise<boolean> => {
+    const text = value.trim();
     if (text === '') {
       setAddressError('Enter the address');
       return false;
@@ -277,7 +278,11 @@ export function ContactForm({
           setScanning(false);
           const parsed = parsePaymentText(text);
           if (parsed.error) setAddressError(parsed.error);
-          else setAddress(parsed.address);
+          else {
+            // Checked at once: an "Enter the address" left from before the scan would keep Save disabled.
+            setAddress(parsed.address);
+            void checkAddress(parsed.address);
+          }
         }}
       />
     </Modal>
