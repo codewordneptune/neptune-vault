@@ -26,7 +26,7 @@ export function OpenElsewhere({ owner, onHere }: { owner: WindowOwner; onHere: (
           Using the wallet here locks it in the other window. Only one window can use it at a time, so they never overwrite each other.
         </Text>
         {refused && (
-          <Text c="red" role="alert">
+          <Text c="var(--v-danger-text)" role="alert">
             The other window is in the middle of a send, and a send is not interrupted. Try again when it has finished.
           </Text>
         )}

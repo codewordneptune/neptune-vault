@@ -42,7 +42,7 @@ function Root() {
     );
   }, [where, owner]);
   if (where === 'elsewhere') return <OpenElsewhere owner={owner} onHere={() => setWhere('here')} />;
-  if (error) return <Text c="red">Could not start: {error}</Text>;
+  if (error) return <Text c="var(--v-danger-text)">Could not start: {error}</Text>;
   if (!services) return <Loader className="vault-starting" aria-label="Starting" />;
   return (
     <AppProvider services={services}>
