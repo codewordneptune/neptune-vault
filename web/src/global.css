@@ -310,6 +310,39 @@ h3.mantine-Title-root {
   color: var(--v-muted);
 }
 
+/* The lists that drop from a field (Network, Lock after, Currency, Month,
+   Year) are the same surface as the header's menu: the second surface, no
+   hairline (the library's was 1.4:1 on the dark card), the menu's radius,
+   shadow and inset, rows with a chip's radius at 14 px, and the menu's
+   hover. Text is 12.6:1 on this surface in the dark palette, 13.7:1 in
+   the light. */
+.mantine-Select-dropdown,
+.mantine-Combobox-dropdown,
+.mantine-Popover-dropdown {
+  --combobox-padding: 6px;
+  background: var(--v-surface-2);
+  border: 0;
+  border-radius: var(--v-radius-sm);
+  box-shadow: var(--mantine-shadow-lg);
+}
+.mantine-Select-dropdown,
+.mantine-Combobox-dropdown {
+  padding: 6px;
+}
+.mantine-Select-option,
+.mantine-Combobox-option {
+  border-radius: var(--v-radius-xs);
+  font-size: var(--v-fs-sm);
+}
+@media (hover: hover) {
+  :root[data-mantine-color-scheme='dark'] :is(.mantine-Select-option, .mantine-Combobox-option):hover:not([data-combobox-selected], [data-combobox-disabled]) {
+    background-color: var(--mantine-color-dark-4);
+  }
+  :root[data-mantine-color-scheme='light'] :is(.mantine-Select-option, .mantine-Combobox-option):hover:not([data-combobox-selected], [data-combobox-disabled]) {
+    background-color: var(--mantine-color-gray-1);
+  }
+}
+
 /* Toasts drop in from the top: on an installed iPhone they start below the
    status bar, not behind the clock. The library's rule sits in :where(), so
    the position attribute alone is enough to outrank it. */
