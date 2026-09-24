@@ -37,11 +37,15 @@
   /* The rail's other tabs' labels, on the page's glow at its strongest. */
   --v-rail-label: var(--v-muted);
   /* A field's edge is the one exception: the field's fill is 1.1:1 off the
-     card, so an empty field was all but invisible. The faint grey is 3.4:1
-     on the card (#161f2b) and 3.8:1 on the fill; under the pointer it
-     lightens to 4.8:1 on the card. */
-  --v-field-border: var(--v-faint);
-  --v-field-border-hover: #7a8ca5;
+     card, so an empty field was all but invisible. A quiet edge, 2.4:1 on
+     the card (#161f2b) and 2.7:1 on the fill, marks it without outlining
+     every form heavily; the label above names each field, and under the
+     pointer the edge rises to 3.4:1. */
+  --v-field-border: #4a5b72;
+  --v-field-border-hover: var(--v-faint);
+  /* An unchecked box or radio has nothing but its edge to show it is
+     there, so that edge keeps 3:1: 3.4:1 on the card. */
+  --v-control-edge: var(--v-faint);
   --v-light-button-ring: none;
   --v-default-button-ring: none;
   --v-segment-ring: none;
@@ -115,10 +119,12 @@
   /* The glow's blue darkens the page behind the rail's first tabs: muted
      text there falls to 4.4:1, this keeps it above 4.8:1. */
   --v-rail-label: #546377;
-  /* A field's edge is what shows where to type: 3.1:1 on the white card
-     and field (4.1:1 under the pointer), where #bcc7d4 was 1.7:1. */
-  --v-field-border: #8594a8;
-  --v-field-border-hover: #6f7f95;
+  /* A field's edge: 2.5:1 on the white card and field, quiet but plainly
+     there, where #bcc7d4 was 1.7:1; 3.1:1 under the pointer. A box or
+     radio, which has only its edge, keeps 3.1:1. */
+  --v-field-border: #97a5b7;
+  --v-field-border-hover: #8594a8;
+  --v-control-edge: #8594a8;
   --v-light-button-ring: inset 0 0 0 1px rgba(43, 125, 233, 0.28);
   --v-default-button-ring: inset 0 0 0 1px rgba(21, 32, 46, 0.1);
   --v-segment-ring: inset 0 0 0 1px rgba(21, 32, 46, 0.06);
@@ -281,12 +287,13 @@ h3.mantine-Title-root.vault-prose-heading {
 /* Checkboxes and radios are safety gates here ("I have this wallet's seed
    phrase or a backup file", the high-fee agreement, the restore choices),
    and the library's unchecked edge was 1.4:1 on the dark card and 1.5:1 on
-   the white one. The muted grey is 6.9:1 on the dark card and 5.5:1 on the
-   light. Checked, disabled and error states keep the library's own colours:
+   the white one. Their edge now keeps 3:1 (3.4:1 dark, 3.1:1 light), the
+   least that shows a control by its edge alone, and no heavier than that.
+   Checked, disabled and error states keep the library's own colours:
    the accent fill when chosen, the disabled and error edges otherwise. */
 .mantine-Checkbox-input:not(:checked, :disabled, [data-indeterminate], [data-error]),
 .mantine-Radio-radio:not(:checked, :disabled, [data-error]) {
-  border-color: var(--v-muted);
+  border-color: var(--v-control-edge);
 }
 
 /* The chosen segment must read at a glance in both palettes: on the white
