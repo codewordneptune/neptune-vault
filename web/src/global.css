@@ -272,13 +272,28 @@ h3.mantine-Title-root {
   color: var(--v-muted);
 }
 
-/* Header: translucent, sticky; brand mark and a quiet network selector. */
+/* Toasts drop in from the top: on an installed iPhone they start below the
+   status bar, not behind the clock. The library's rule sits in :where(), so
+   the position attribute alone is enough to outrank it. */
+.mantine-Notifications-root[data-position^='top'] {
+  top: calc(var(--mantine-spacing-md) + env(safe-area-inset-top));
+}
+
+/* Header: translucent, sticky; brand mark and a quiet network selector.
+   Installed on an iPhone the page draws under the status bar (viewport-fit
+   cover, a translucent bar), so the header takes the safe area's top inset
+   as padding: its fill runs up behind the clock and the Dynamic Island, the
+   logo and the wallet pill sit below them. In landscape the side insets keep
+   both clear of the notch. Everywhere else the insets are 0. */
 .vault-topbar {
   position: sticky;
   top: 0;
   z-index: 40;
   background: var(--v-page);
   border-bottom: 1px solid var(--v-line);
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 .vault-brand {
   display: flex;
@@ -320,7 +335,7 @@ button.vault-network::before {
   color: var(--v-muted);
 }
 
-/* Fixed tab bar; respects the home indicator. */
+/* Fixed tab bar; respects the home indicator, and in landscape the notch. */
 .vault-tabbar {
   position: fixed;
   left: 0;
@@ -330,6 +345,8 @@ button.vault-network::before {
   background: var(--v-page-end);
   border-top: 1px solid var(--v-line);
   padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 .vault-tab {
   display: flex;
@@ -584,6 +601,20 @@ button.vault-network::before {
 }
 .mantine-Modal-content[data-full-screen] {
   border-radius: 0;
+}
+/* A full-screen view (the scanner, a code at full size) covers the status
+   bar too on an installed iPhone: its title and close button start below the
+   safe area's top inset, and never nearer the top than the usual 20 px. The
+   sides and the foot keep clear of the notch and the home indicator. */
+.mantine-Modal-content[data-full-screen] .mantine-Modal-header {
+  padding-top: max(20px, env(safe-area-inset-top));
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
+}
+.mantine-Modal-content[data-full-screen] .mantine-Modal-body {
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
 }
 .mantine-Modal-header {
   background: var(--v-surface);
@@ -1028,10 +1059,12 @@ html {
   text-align: center;
   padding-inline: 40px;
 }
+/* 4 px above and inside the header's padding, as before, so the button keeps
+   its place against the title below the status bar and clear of the notch. */
 .vault-qr-full-header .mantine-Modal-close {
   position: absolute;
-  top: var(--mantine-spacing-md);
-  right: var(--mantine-spacing-md);
+  top: calc(max(20px, env(safe-area-inset-top)) - 4px);
+  right: calc(max(20px, env(safe-area-inset-right)) - 4px);
 }
 .vault-qr-full-code {
   display: block;
@@ -1213,12 +1246,17 @@ html {
    the left, the header spans the window, and every screen shares one
    centred width, with Home's balance as a band over the history. */
 @media (min-width: 900px) {
+  /* The rail is 88 px plus, on an iPhone in landscape, the notch's inset:
+     its tabs keep their width clear of the notch, and the content column
+     keeps clear of an inset on the right. */
   .vault-shell.has-tabs {
     padding-bottom: 0;
-    padding-left: 88px;
+    padding-left: calc(88px + env(safe-area-inset-left));
+    padding-right: env(safe-area-inset-right);
   }
   .vault-shell.has-tabs .vault-topbar {
-    margin-left: -88px;
+    margin-left: calc(-88px - env(safe-area-inset-left));
+    margin-right: calc(-1 * env(safe-area-inset-right));
   }
   .vault-topbar-inner.vault-topbar-inner {
     max-width: none;
@@ -1227,9 +1265,9 @@ html {
   .vault-tabbar {
     top: 0;
     right: auto;
-    width: 88px;
+    width: calc(88px + env(safe-area-inset-left));
     z-index: 30;
-    padding: 72px 0 0;
+    padding: calc(72px + env(safe-area-inset-top)) 0 0 env(safe-area-inset-left);
     border-top: 0;
     border-right: 1px solid var(--v-line);
     /* The page's gradient runs on behind the rail: a flat fill showed as a
