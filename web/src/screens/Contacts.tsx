@@ -125,6 +125,7 @@ export function Contacts() {
         {renaming && (
           <RenameForm
             initial={renaming.name}
+            onCancel={() => setRenaming(null)}
             onSave={async (name) => {
               await services.contacts.rename(renaming.key, name);
               setRenaming(null);
@@ -137,11 +138,11 @@ export function Contacts() {
       <Modal opened={removing !== null} onClose={() => setRemoving(null)} title="Delete contact">
         <Stack>
           <Text size="sm">
-            Delete {removing?.name}? The address is not affected; only the saved name is removed.
+            Delete {removing?.name}? Only this saved contact is removed from this device. Past payments are not affected.
           </Text>
           <Group grow>
             <Button variant="default" onClick={() => setRemoving(null)}>
-              Keep
+              Cancel
             </Button>
             <Button color="red" onClick={() => void remove()}>
               Delete
@@ -283,7 +284,7 @@ export function ContactForm({
   );
 }
 
-function RenameForm({ initial, onSave }: { initial: string; onSave: (name: string) => Promise<void> }) {
+function RenameForm({ initial, onSave, onCancel }: { initial: string; onSave: (name: string) => Promise<void>; onCancel: () => void }) {
   const [name, setName] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -306,9 +307,14 @@ function RenameForm({ initial, onSave }: { initial: string; onSave: (name: strin
           }}
           data-autofocus
         />
-        <Button type="submit" disabled={!name.trim()}>
-          Save
-        </Button>
+        <Group grow>
+          <Button variant="default" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!name.trim()}>
+            Save
+          </Button>
+        </Group>
       </Stack>
     </form>
   );
