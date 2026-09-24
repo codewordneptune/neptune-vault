@@ -142,7 +142,10 @@ export function App() {
               <Logo size={26} />
               <span className={NATIVE ? 'sr-only' : undefined}>Neptune Vault</span>
             </h1>
-            <NetworkMenu />
+            {/* Until a wallet exists the header is the brand alone: setup keeps
+                the network question out of a newcomer's way, and the header
+                should not ask it either. */}
+            {account && <NetworkMenu />}
           </Group>
         </Container>
       </header>
