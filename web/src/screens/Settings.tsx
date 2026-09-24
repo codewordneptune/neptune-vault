@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
+import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { Caution } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
@@ -484,8 +485,6 @@ function ChangePassword() {
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
-  const mismatch = again !== '' && again !== next;
-  const tooShort = next !== '' && next.length < 8;
 
   const submit = async () => {
     if (!account) return;
@@ -529,13 +528,12 @@ function ChangePassword() {
       <Stack>
         {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
         <PasswordInput label="Current password" value={current} onChange={(e) => setCurrent(e.currentTarget.value)} autoComplete="current-password" />
-        <PasswordInput label="New password (at least 8 characters)" value={next} onChange={(e) => setNext(e.currentTarget.value)} error={tooShort ? 'At least 8 characters' : undefined} autoComplete="new-password" />
-        <PasswordInput label="Repeat new password" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={mismatch ? 'Passwords differ' : undefined} autoComplete="new-password" />
+        <NewPasswordFields password={next} onPassword={setNext} again={again} onAgain={setAgain} label="New password (at least 8 characters)" repeatLabel="Repeat new password" />
         <Group grow>
           <Button variant="default" onClick={() => { setOpen(false); setError(null); setCurrent(''); setNext(''); setAgain(''); }}>
             Cancel
           </Button>
-          <Button type="submit" loading={busy} disabled={!account || !current || next.length < 8 || next !== again}>
+          <Button type="submit" loading={busy} disabled={!account || !current || !newPasswordOk(next, again)}>
             Save new password
           </Button>
         </Group>
