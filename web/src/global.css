@@ -278,8 +278,12 @@ h3.mantine-Title-root {
   color: var(--v-muted);
   font-weight: 500;
 }
+/* The chosen pill stands only 1.2:1 off its track, and a colour change of
+   the label alone is a cue by colour only: the label is semibold as well,
+   as the side rail's current tab is bold. */
 .mantine-SegmentedControl-label[data-active] {
   color: var(--v-text);
+  font-weight: 600;
 }
 
 .mantine-Code-root {
