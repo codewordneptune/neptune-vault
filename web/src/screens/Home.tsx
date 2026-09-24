@@ -6,12 +6,15 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { NAU_PER_COIN, showBlock, showNau, useApp } from '../app/AppContext';
+import type { KeyKind } from '../backend/types';
+import { KEY_LOOKAHEAD } from '../backend/types';
+import { nextKeyIndicesOf } from '../storage/db';
 import { useQuote } from '../app/price';
 import { fiatOf, formatFiat } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
-import { Caution } from '../components/Notice';
+import { Caution, Done, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { LINKS } from '../app/links';
 import { PocNotice } from '../components/PocNotice';
@@ -20,8 +23,15 @@ import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
 import { dayKey, dayLabel, formatDate, formatDateTime, formatTime, formatWhen } from '../util/time';
 
+/**
+ * This wallet's own addresses as Receive offers them (each kind up to the
+ * first unused one and the few after it), per wallet, for this session:
+ * enough to tell a pending send to oneself from one that leaves.
+ */
+const ownAddresses = new Map<string, Promise<Set<string>>>();
+
 export function Home() {
-  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure } = useApp();
+  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure, lastSend, dismissLastSend } = useApp();
   // A send that failed while the person was elsewhere is easy to miss as a
   // toast; it stays here until dismissed, and survives a reload.
   const dismissFailure = () => {
@@ -53,17 +63,60 @@ export function Home() {
   const navigate = useNavigate();
 
   // Reminder until an export file exists; a dismissal snoozes it for a week.
+  // A seed phrase written down and confirmed is already the backup that
+  // matters, so then it only says what a file adds: the contacts.
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
   const showBackupNudge =
     Boolean(account) && !account?.lastBackupAt && !(account?.backupNudgeDismissedAt && Date.now() - account.backupNudgeDismissedAt < WEEK_MS);
+  const seedConfirmed = account?.backupConfirmed === true;
   const dismissNudge = async () => {
     if (!account) return;
     await services.accounts.dismissBackupNudge(account.id);
     await refresh();
   };
 
+  // A send to one of this wallet's own addresses is known as one once its
+  // coins come back in a block. Until then, its recipients are checked
+  // against the addresses Receive offers, so it does not read as money out.
+  const pendingToCheck = history.some((h) => h.kind === 'sent' && h.status === 'pending' && h.recipient !== null);
+  const [own, setOwn] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!account || !pendingToCheck) return;
+    // Keyed by the key counters too, so an address added since is known.
+    const next = nextKeyIndicesOf(account);
+    const cacheKey = `${account.id}:${next.generation}:${next.ec_hybrid}:${next.viewing}`;
+    let known = ownAddresses.get(cacheKey);
+    if (!known) {
+      known = (async () => {
+        const set = new Set<string>();
+        for (const kind of ['generation', 'ec_hybrid', 'viewing'] as KeyKind[]) {
+          for (let i = 0; i <= next[kind] + KEY_LOOKAHEAD; i++) {
+            try {
+              set.add((await services.core.address(kind, i)).toLowerCase());
+            } catch {
+              break;
+            }
+          }
+        }
+        return set;
+      })();
+      ownAddresses.set(cacheKey, known);
+    }
+    let live = true;
+    void known.then((set) => live && setOwn(set));
+    return () => {
+      live = false;
+    };
+  }, [services, account, pendingToCheck]);
+  const toSelf = (h: HistoryRecord) => {
+    const to = (h.payments?.length ? h.payments.map((p) => p.recipient) : h.recipient ? [h.recipient] : []).map((a) => a.toLowerCase());
+    return to.length > 0 && to.every((a) => own.has(a));
+  };
+
   // One entry per transaction, with the recipient named when it is a contact.
-  const entries = groupHistory(history, utxos);
+  const entries = groupHistory(history, utxos).map((e) =>
+    e.kind === 'sent' && e.record.status === 'pending' && toSelf(e.record) ? { ...e, kind: 'self' as const, shownNau: BigInt(e.record.feeNau ?? '0') } : e,
+  );
   const [contacts, setContacts] = useState<ContactRecord[]>([]);
   useEffect(() => {
     if (!account) return;
@@ -101,8 +154,13 @@ export function Home() {
   // What the balance becomes once every pending send is included: the held
   // coins minus what leaves in those sends (amount plus fee) comes back.
   const pendingSends = history.filter((h) => h.kind === 'sent' && h.status === 'pending');
-  const leavingNau = pendingSends.reduce((sum, h) => sum + BigInt(h.amountNau) + BigInt(h.feeNau ?? '0'), 0n);
+  // A send to this wallet's own address loses only its fee.
+  const leavingNau = pendingSends.reduce((sum, h) => sum + (toSelf(h) ? 0n : BigInt(h.amountNau)) + BigInt(h.feeNau ?? '0'), 0n);
   const afterPendingNau = balance.spendableNau + balance.reservedNau - leavingNau;
+  // The headline counts a pending send as gone and its change as back: a
+  // small send never turns the balance into 0 because its coin is held for a
+  // block. What can be spent meanwhile is on the line beneath.
+  const headlineNau = afterPendingNau;
 
   // A receipt's time lock, from the row or, for rows written before it was
   // kept there, from the coin. Null once the date has passed.
@@ -129,7 +187,9 @@ export function Home() {
 
   const incomingNau = history.filter((h) => h.kind === 'received' && h.status === 'pending').reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
   /** The row's title: short, always one line. Who a send went to is on the line beneath. */
-  const rowTitleOf = (e: HistoryEntry) => (e.kind === 'sent' ? 'Sent' : titleOf(e));
+  const rowTitleOf = (e: HistoryEntry) => (notSent(e) ? 'Not sent' : e.kind === 'sent' ? 'Sent' : titleOf(e));
+  /** A send that failed or was given up on: nothing left the wallet. */
+  const notSent = (e: HistoryEntry) => e.kind !== 'received' && e.record.status === 'failed';
   /** The payments of a send built here, when it paid more than one recipient. */
   const severalOf = (e: HistoryEntry) => ((e.record.payments?.length ?? 0) > 1 ? (e.record.payments ?? []) : null);
   /** Who a send went to, for the line under its title. */
@@ -146,11 +206,14 @@ export function Home() {
     e.kind === 'received' ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />;
   /** What a screen reader says for a row, list or table alike. */
   const rowLabelOf = (e: HistoryEntry) =>
-    `${titleOf(e)}, ${e.kind === 'received' ? 'plus' : 'minus'} ${amount(e.shownNau)} NPT${e.record.status !== 'confirmed' ? ', ' + e.record.status : ''}${lockOf(e.record) !== null ? ', time-locked' : ''}, details`;
+    notSent(e)
+      ? `Not sent, ${amount(e.shownNau)} NPT, not taken from your balance, details`
+      : `${titleOf(e)}, ${e.kind === 'received' ? 'plus' : 'minus'} ${amount(e.shownNau)} NPT${e.record.status !== 'confirmed' ? ', ' + e.record.status : ''}${lockOf(e.record) !== null ? ', time-locked' : ''}, details`;
   /** The full title, for the detail sheet and for screen readers. */
   const titleOf = (e: HistoryEntry) => {
     if (e.kind === 'received') return e.record.status === 'pending' ? 'Incoming' : 'Received';
-    if (e.kind === 'self') return 'Moved to yourself';
+    if (notSent(e)) return 'Not sent';
+    if (e.kind === 'self') return e.record.status === 'pending' ? 'Moving to yourself' : 'Moved to yourself';
     if (e.record.txid === '' || e.record.recipient === null) return 'Sent';
     const several = severalOf(e);
     if (several) return `Sent to ${several.length} recipients`;
@@ -199,7 +262,15 @@ export function Home() {
   const explorer = account?.network === 'main' ? LINKS.explorerOutput : null;
 
   const statusOf = (h: HistoryRecord) =>
-    h.status === 'confirmed' ? (h.height !== null ? `Confirmed in block ${showBlock(h.height)}` : 'Confirmed') : h.status === 'pending' ? 'Pending, waiting for a block' : 'Failed';
+    h.status === 'confirmed'
+      ? h.height !== null
+        ? `Confirmed in block ${showBlock(h.height)}`
+        : 'Confirmed'
+      : h.status === 'pending'
+        ? 'Pending, waiting for a block'
+        : h.kind === 'sent'
+          ? 'Not sent. Nothing left this wallet.'
+          : 'Failed';
   const nodeStatusOf = (h: HistoryRecord) => {
     if (h.kind !== 'sent' || h.status !== 'pending' || !h.mempoolCheckedAt) return null;
     return h.mempoolSeenAt ? `The node has it, waiting for a block (checked ${formatWhen(h.mempoolCheckedAt)})` : 'The node has not seen it yet';
@@ -211,23 +282,54 @@ export function Home() {
         Home
       </Title>
       <PocNotice />
+      {/* How the last send that reached the node ended, until it confirms or is dismissed: a send that
+          finished while the app was locked still says so here. */}
+      {lastSend && lastSend.accountId === account?.id && (
+        (() => {
+          const c = contactFor(lastSend.recipient.toLowerCase());
+          const who = !lastSend.others && own.has(lastSend.recipient.toLowerCase()) ? 'yourself' : `${c ? c.name : shortAddress(lastSend.recipient)}${lastSend.others ? ` and ${lastSend.others} more` : ''}`;
+          const dismiss = () => {
+            dismissLastSend();
+            dismissSendJob();
+          };
+          return lastSend.state === 'unconfirmed' ? (
+            <Caution title="Waiting for the node to confirm" onClose={dismiss} closeLabel="Dismiss">
+              {amount(BigInt(lastSend.amountNau))} NPT to {who}, {formatDateTime(lastSend.at)}. This send may already be on its way. It is pending below, with its coins held. Do not send it again until it confirms or you give up on it.
+            </Caution>
+          ) : (
+            <Done title="Sent" onClose={dismiss} closeLabel="Dismiss">
+              {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee, {formatDateTime(lastSend.at)}. It shows as pending until a block confirms it.
+            </Done>
+          );
+        })()
+      )}
       {failure && failure.accountId === account?.id && (
         <Alert color="red" title="Not sent" withCloseButton onClose={dismissFailure}>
           <Text size="sm">
-            {failure.amount} NPT to {abbreviateAddress(failure.recipient)}
+            {failure.amount} NPT to {shortAddress(failure.recipient)}
             {failure.others ? ` and ${failure.others} more` : ''}, {formatDateTime(failure.at)}. {failure.message}
           </Text>
         </Alert>
       )}
       {/* One notice at a time: the backup first, since a lost seed phrase is worse than a missing install. */}
       {!showBackupNudge && <InstallNudge />}
-      {showBackupNudge && (
+      {showBackupNudge && seedConfirmed && (
+        <Info icon={<IconShieldCheck size={18} stroke={1.8} />} title="Your seed phrase restores this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
+          A backup file also keeps your contacts.
+          <div>
+            <UnstyledButton onClick={() => navigate('/settings#backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+              Export backup file
+            </UnstyledButton>
+          </div>
+        </Info>
+      )}
+      {showBackupNudge && !seedConfirmed && (
         <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
           {NATIVE
             ? 'This wallet lives only on this device. Export a backup file so you can restore it, with its contacts, if the device is lost or its data deleted.'
             : "This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared."}
           <div>
-            <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+            <UnstyledButton onClick={() => navigate('/settings#backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
               Export backup file
             </UnstyledButton>
           </div>
@@ -267,14 +369,14 @@ export function Home() {
                 {hidden ? <IconEyeOff size={20} stroke={1.8} /> : <IconEye size={20} stroke={1.8} />}
               </ActionIcon>
             </div>
-            <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${showNau(balance.spendableNau)} NPT`}>
-              {loaded ? amount(balance.spendableNau) : '…'}
+            <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${showNau(headlineNau)} NPT`}>
+              {loaded ? amount(headlineNau) : '…'}
               <small> NPT</small>
             </div>
             {/* An estimate, and said to be one: where the price is from, and how old it is. */}
             {loaded && quote && (
               <div className="vault-balance-fiat">
-                <span className="vault-balance-fiat-value">≈ {hidden ? '••••' : formatFiat(fiatOf(balance.spendableNau, NAU_PER_COIN, quote.price), quote.currency)}</span>
+                <span className="vault-balance-fiat-value">≈ {hidden ? '••••' : formatFiat(fiatOf(headlineNau, NAU_PER_COIN, quote.price), quote.currency)}</span>
                 <span className="vault-balance-fiat-source">
                   {quote.source} · {ago(quote.at)}
                 </span>
@@ -288,9 +390,11 @@ export function Home() {
               </Group>
             )}
             {balance.reservedNau > 0n && (
-              <Group gap={6} wrap="nowrap">
-                <IconLock size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
-                <Text size="sm">{amount(balance.reservedNau)} NPT held until confirmed</Text>
+              <Group gap={6} wrap="nowrap" align="flex-start">
+                <IconLock size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
+                <Text size="sm">
+                  {amount(balance.spendableNau)} NPT spendable until your {pendingSends.length === 1 ? 'send confirms' : 'sends confirm'}, usually within a few blocks
+                </Text>
               </Group>
             )}
             {balance.lockedNau > 0n && (
@@ -311,7 +415,7 @@ export function Home() {
                     {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
                     {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT is yours but time-locked by the payer. It cannot be spent before its release date, so it is not counted as spendable. `}
                     {balance.reservedNau > 0n &&
-                      `${amount(balance.reservedNau)} NPT is held by ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`}${pendingSends.length === 1 ? `: ${amount(BigInt(pendingSends[0].amountNau))} NPT to ${(pendingSends[0].payments?.length ?? 1) > 1 ? 'the recipients' : 'the recipient'} and ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee` : ''}. Once ${pendingSends.length === 1 ? 'it is' : 'they are'} confirmed, usually within a few blocks, ${amount(afterPendingNau)} NPT is spendable.`}
+                      `The balance above counts ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`} as already gone${pendingSends.length === 1 ? ` (${amount(BigInt(pendingSends[0].amountNau))} NPT to ${(pendingSends[0].payments?.length ?? 1) > 1 ? 'the recipients' : 'the recipient'} and a ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee)` : ''}. Until ${pendingSends.length === 1 ? 'it confirms' : 'they confirm'}, usually within a few blocks, the ${amount(balance.reservedNau)} NPT of coins that pay for ${pendingSends.length === 1 ? 'it are' : 'them are'} held, and what comes back as change is spendable after that.`}
                   </Text>
                 )}
               </>
@@ -338,7 +442,7 @@ export function Home() {
         ) : entries.length === 0 ? (
           <Text c="dimmed" size="sm">
             Nothing yet.{' '}
-            <UnstyledButton onClick={() => navigate('/receive')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+            <UnstyledButton onClick={() => navigate('/receive')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-inline-link">
               Share your receiving address
             </UnstyledButton>{' '}
             to get started.
@@ -346,7 +450,7 @@ export function Home() {
         ) : (
           <div>
             {days.map((day) => (
-              <section key={day.key} className="vault-history-day" aria-label={day.label}>
+              <section key={day.key} className="vault-history-day">
                 <h4 className="vault-history-day-label">{day.label}</h4>
                 <div>
                   {day.entries.map((e) => {
@@ -362,7 +466,7 @@ export function Home() {
                             </Text>
                             <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
                               {formatTime(h.timestampMs)}
-                              {h.status !== 'confirmed' && (
+                              {h.status !== 'confirmed' && !notSent(e) && (
                                 <>
                                   {' · '}
                                   <Text span inherit className={h.status === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
@@ -379,14 +483,17 @@ export function Home() {
                                 </>
                               )}
                               {e.kind === 'self' && !hidden && ' · fee only'}
+                              {/* The figure on a send is what left: the payment and the fee. */}
+                              {e.kind === 'sent' && !notSent(e) && h.feeNau && h.recipient !== null && ' · incl. fee'}
                               {/* Last, so that on a narrow screen it is what gives way. */}
                               {recipientOf(e) && ` · ${recipientOf(e)}`}
                             </Text>
                           </div>
                         </Group>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <Text size="sm" fw={600} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
-                            {incoming ? '+' : '−'}
+                          {/* Nothing left the wallet: the figure is struck through, with no sign. */}
+                          <Text size="sm" fw={600} c={notSent(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {notSent(e) ? '' : incoming ? '+' : '−'}
                             {amount(e.shownNau)}
                           </Text>
                         </div>
@@ -423,7 +530,6 @@ export function Home() {
             {/* The figure on the row, where it is made of two: what left the wallet. */}
             {/* When some of it paid this wallet's own addresses, the amounts and the fee add up to more than what left, so the row says which it is. */}
             {detail.kind === 'sent' && detail.record.feeNau && <DetailRow label={detail.ownPayments.length > 0 ? 'Left this wallet' : 'Total'} value={`${amount(detail.shownNau)} NPT`} />}
-            {detail.kind === 'sent' && detail.changeNau !== null && <DetailRow label="Change returned" value={`${amount(detail.changeNau)} NPT`} />}
             {/* A send to several: each recipient, with what it got, in the order sent. */}
             {detail.kind !== 'received' &&
               severalOf(detail)?.map((p, i) => {
@@ -453,9 +559,9 @@ export function Home() {
               <DetailRow label="Recipient" value="Not recorded. The send was made on another device or before a restore, so the amount above includes the fee." />
             )}
             {detail.record.note && <DetailRow label="Note from the link" value={detail.record.note} isolate />}
-            {detail.record.error && <DetailRow label="Error" value={detail.record.error} />}
+            {detail.record.error && <DetailRow label="What happened" value={detail.record.error} />}
             {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
-            {outputsOf(detail).length > 0 && (
+            {(outputsOf(detail).length > 0 || (detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n)) && (
               <>
                 {/* A section of the sheet, not a link beside the address's own
                     link: a line above it, the muted colour, a chevron that turns. */}
@@ -463,7 +569,11 @@ export function Home() {
                   <span>Technical details</span>
                   <IconChevronDown size={16} stroke={1.8} aria-hidden className={tech ? 'vault-chevron open' : 'vault-chevron'} />
                 </UnstyledButton>
-                {tech && (
+                {/* The change is the send's own business: what came back to this wallet, not money received. */}
+                {tech && detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n && (
+                  <DetailRow label="Change" value={`${amount(detail.changeNau)} NPT, which came back to this wallet`} />
+                )}
+                {tech && outputsOf(detail).length > 0 && (
                   <Text size="sm" c="dimmed">
                     Identifiers of the coins this payment created, for looking them up in a block explorer. They reveal no amount and no address.
                   </Text>
@@ -497,17 +607,17 @@ export function Home() {
           <Stack>
             <Text size="sm">
               {givingUp.mempoolCheckedAt && !givingUp.mempoolSeenAt
-                ? 'The node no longer has this transaction. Giving up removes it from your list and frees the coins held for it.'
+                ? 'The node no longer has this transaction. Giving up frees the coins held for it. The send stays in your list, marked Not sent.'
                 : givingUp.mempoolSeenAt
                   ? 'The node still has this transaction, so it may still go through. Giving up frees its coins here, but if it confirms anyway, it shows up as sent.'
-                  : 'Giving up frees the coins held for it. If it confirms anyway, it still goes through and shows up as sent.'}
+                  : 'Giving up frees the coins held for it, and the send stays in your list, marked Not sent. If it confirms anyway, it still goes through and shows up as sent.'}
             </Text>
             <Text size="sm" c="dimmed">
               This send: {showNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee`}. Held for it: {showNau(reservedFor(givingUp))} NPT, which becomes spendable again.
             </Text>
             <Group grow>
               <Button variant="default" onClick={() => setGivingUp(null)}>
-                Keep waiting
+                Cancel
               </Button>
               <Button color="red" onClick={() => void giveUp()}>
                 Give up
