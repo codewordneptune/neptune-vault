@@ -5,10 +5,8 @@ import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDow
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { NAU_PER_COIN, showBlock, showNau, useApp } from '../app/AppContext';
-import type { KeyKind } from '../backend/types';
-import { KEY_LOOKAHEAD } from '../backend/types';
-import { nextKeyIndicesOf } from '../storage/db';
+import { NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
+import { ownAddresses } from '../app/ownAddresses';
 import { useQuote } from '../app/price';
 import { fiatOf, formatFiat } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
@@ -22,13 +20,6 @@ import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
 import { dayKey, dayLabel, formatDate, formatDateTime, formatTime, formatWhen } from '../util/time';
-
-/**
- * This wallet's own addresses as Receive offers them (each kind up to the
- * first unused one and the few after it), per wallet, for this session:
- * enough to tell a pending send to oneself from one that leaves.
- */
-const ownAddresses = new Map<string, Promise<Set<string>>>();
 
 export function Home() {
   const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure, lastSend, dismissLastSend } = useApp();
@@ -79,38 +70,22 @@ export function Home() {
   // coins come back in a block. Until then, its recipients are checked
   // against the addresses Receive offers, so it does not read as money out.
   const pendingToCheck = history.some((h) => h.kind === 'sent' && h.status === 'pending' && h.recipient !== null);
-  const [own, setOwn] = useState<Set<string>>(new Set());
+  // Until they are known for this wallet, the balance waits rather than
+  // count a move to oneself as money out and then jump back.
+  const [own, setOwn] = useState<{ accountId: string; set: Set<string> } | null>(null);
+  const ownReady = !pendingToCheck || own?.accountId === account?.id;
   useEffect(() => {
     if (!account || !pendingToCheck) return;
-    // Keyed by the key counters too, so an address added since is known.
-    const next = nextKeyIndicesOf(account);
-    const cacheKey = `${account.id}:${next.generation}:${next.ec_hybrid}:${next.viewing}`;
-    let known = ownAddresses.get(cacheKey);
-    if (!known) {
-      known = (async () => {
-        const set = new Set<string>();
-        for (const kind of ['generation', 'ec_hybrid', 'viewing'] as KeyKind[]) {
-          for (let i = 0; i <= next[kind] + KEY_LOOKAHEAD; i++) {
-            try {
-              set.add((await services.core.address(kind, i)).toLowerCase());
-            } catch {
-              break;
-            }
-          }
-        }
-        return set;
-      })();
-      ownAddresses.set(cacheKey, known);
-    }
     let live = true;
-    void known.then((set) => live && setOwn(set));
+    void ownAddresses(services.core, account).then((set) => live && setOwn({ accountId: account.id, set }));
     return () => {
       live = false;
     };
   }, [services, account, pendingToCheck]);
+  const isOwn = (address: string) => own?.accountId === account?.id && Boolean(own?.set.has(address.toLowerCase()));
   const toSelf = (h: HistoryRecord) => {
     const to = (h.payments?.length ? h.payments.map((p) => p.recipient) : h.recipient ? [h.recipient] : []).map((a) => a.toLowerCase());
-    return to.length > 0 && to.every((a) => own.has(a));
+    return to.length > 0 && to.every(isOwn);
   };
 
   // One entry per transaction, with the recipient named when it is a contact.
@@ -161,6 +136,18 @@ export function Home() {
   // small send never turns the balance into 0 because its coin is held for a
   // block. What can be spent meanwhile is on the line beneath.
   const headlineNau = afterPendingNau;
+  // What the headline did with the pending sends, in words that match it.
+  const pendingExplained = () => {
+    const one = pendingSends.length === 1 ? pendingSends[0] : null;
+    const fee = one?.feeNau ? BigInt(one.feeNau) : null;
+    const gone = !one
+      ? `The balance above counts ${pendingSends.length} pending sends as already gone.`
+      : toSelf(one)
+        ? `The balance above counts a pending move to yourself: only its fee${fee !== null ? ` of ${amount(fee)} NPT` : ''} is gone.`
+        : `The balance above counts a pending send as already gone: ${amount(BigInt(one.amountNau))} NPT to ${(one.payments?.length ?? 1) > 1 ? 'the recipients' : 'the recipient'}${fee !== null ? ` and a ${amount(fee)} NPT fee` : ''}.`;
+    const it = pendingSends.length === 1;
+    return `${gone} Until ${it ? 'it confirms' : 'they confirm'}, usually within a few blocks, the ${amount(balance.reservedNau)} NPT of coins that pay for ${it ? 'it are' : 'them are'} held, and what comes back as change is spendable after that.`;
+  };
 
   // A receipt's time lock, from the row or, for rows written before it was
   // kept there, from the coin. Null once the date has passed.
@@ -282,59 +269,6 @@ export function Home() {
         Home
       </Title>
       <PocNotice />
-      {/* How the last send that reached the node ended, until it confirms or is dismissed: a send that
-          finished while the app was locked still says so here. */}
-      {lastSend && lastSend.accountId === account?.id && (
-        (() => {
-          const c = contactFor(lastSend.recipient.toLowerCase());
-          const who = !lastSend.others && own.has(lastSend.recipient.toLowerCase()) ? 'yourself' : `${c ? c.name : shortAddress(lastSend.recipient)}${lastSend.others ? ` and ${lastSend.others} more` : ''}`;
-          const dismiss = () => {
-            dismissLastSend();
-            dismissSendJob();
-          };
-          return lastSend.state === 'unconfirmed' ? (
-            <Caution title="Waiting for the node to confirm" onClose={dismiss} closeLabel="Dismiss">
-              {amount(BigInt(lastSend.amountNau))} NPT to {who}, {formatDateTime(lastSend.at)}. This send may already be on its way. It is pending below, with its coins held. Do not send it again until it confirms or you give up on it.
-            </Caution>
-          ) : (
-            <Done title="Sent" onClose={dismiss} closeLabel="Dismiss">
-              {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee, {formatDateTime(lastSend.at)}. It shows as pending until a block confirms it.
-            </Done>
-          );
-        })()
-      )}
-      {failure && failure.accountId === account?.id && (
-        <Alert color="red" title="Not sent" withCloseButton onClose={dismissFailure}>
-          <Text size="sm">
-            {failure.amount} NPT to {shortAddress(failure.recipient)}
-            {failure.others ? ` and ${failure.others} more` : ''}, {formatDateTime(failure.at)}. {failure.message}
-          </Text>
-        </Alert>
-      )}
-      {/* One notice at a time: the backup first, since a lost seed phrase is worse than a missing install. */}
-      {!showBackupNudge && <InstallNudge />}
-      {showBackupNudge && seedConfirmed && (
-        <Info icon={<IconShieldCheck size={18} stroke={1.8} />} title="Your seed phrase restores this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
-          A backup file also keeps your contacts.
-          <div>
-            <UnstyledButton onClick={() => navigate('/settings#backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-              Export backup file
-            </UnstyledButton>
-          </div>
-        </Info>
-      )}
-      {showBackupNudge && !seedConfirmed && (
-        <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
-          {NATIVE
-            ? 'This wallet lives only on this device. Export a backup file so you can restore it, with its contacts, if the device is lost or its data deleted.'
-            : "This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared."}
-          <div>
-            <UnstyledButton onClick={() => navigate('/settings#backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-              Export backup file
-            </UnstyledButton>
-          </div>
-        </Caution>
-      )}
       {/* The dot answers "is this current?" without reading: green up to date, amber while working, red when it cannot say. */}
       <div className="vault-status">
         <span className="vault-status-text">
@@ -370,11 +304,11 @@ export function Home() {
               </ActionIcon>
             </div>
             <div className="vault-balance" aria-label={hidden ? 'Balance hidden' : `${showNau(headlineNau)} NPT`}>
-              {loaded ? amount(headlineNau) : '…'}
+              {loaded && ownReady ? amount(headlineNau) : '…'}
               <small> NPT</small>
             </div>
             {/* An estimate, and said to be one: where the price is from, and how old it is. */}
-            {loaded && quote && (
+            {loaded && ownReady && quote && (
               <div className="vault-balance-fiat">
                 <span className="vault-balance-fiat-value">≈ {hidden ? '••••' : formatFiat(fiatOf(headlineNau, NAU_PER_COIN, quote.price), quote.currency)}</span>
                 <span className="vault-balance-fiat-source">
@@ -407,15 +341,14 @@ export function Home() {
             )}
             {(incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n) && (
               <>
-                <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-expanded={why}>
+                <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start" aria-expanded={why}>
                   {why ? 'Less' : 'What does this mean?'}
                 </UnstyledButton>
                 {why && (
                   <Text size="sm" c="dimmed">
                     {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
                     {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT is yours but time-locked by the payer. It cannot be spent before its release date, so it is not counted as spendable. `}
-                    {balance.reservedNau > 0n &&
-                      `The balance above counts ${pendingSends.length === 1 ? 'a pending send' : `${pendingSends.length} pending sends`} as already gone${pendingSends.length === 1 ? ` (${amount(BigInt(pendingSends[0].amountNau))} NPT to ${(pendingSends[0].payments?.length ?? 1) > 1 ? 'the recipients' : 'the recipient'} and a ${amount(BigInt(pendingSends[0].feeNau ?? '0'))} NPT fee)` : ''}. Until ${pendingSends.length === 1 ? 'it confirms' : 'they confirm'}, usually within a few blocks, the ${amount(balance.reservedNau)} NPT of coins that pay for ${pendingSends.length === 1 ? 'it are' : 'them are'} held, and what comes back as change is spendable after that.`}
+                    {balance.reservedNau > 0n && `${pendingExplained()} `}
                   </Text>
                 )}
               </>
@@ -431,6 +364,62 @@ export function Home() {
           </Group>
         </div>
       </Paper>
+
+      {/* Notices about what happened and what to do, after the balance so it
+          keeps the first screen: one about a send at a time, then the backup. */}
+      {/* How the last send that reached the node ended, until it confirms or is dismissed: a send that
+          finished while the app was locked still says so here. */}
+      {lastSend && lastSend.accountId === account?.id && !(failure && failure.accountId === account.id && failure.at > lastSend.at) && (
+        (() => {
+          const c = contactFor(lastSend.recipient.toLowerCase());
+          const who = !lastSend.others && isOwn(lastSend.recipient) ? 'yourself' : `${c ? c.name : shortAddress(lastSend.recipient)}${lastSend.others ? ` and ${lastSend.others} more` : ''}`;
+          const dismiss = () => {
+            dismissLastSend();
+            dismissSendJob();
+          };
+          return lastSend.state === 'unconfirmed' ? (
+            <Caution title={UNANSWERED_TITLE} onClose={dismiss} closeLabel="Dismiss">
+              {amount(BigInt(lastSend.amountNau))} NPT to {who}, {formatDateTime(lastSend.at)}. It may already be on its way. It is pending in History, with its coins held. Do not send it again until a block confirms it or you give up on it.
+            </Caution>
+          ) : (
+            <Done title="Sent" onClose={dismiss} closeLabel="Dismiss">
+              {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee, {formatDateTime(lastSend.at)}. It shows as pending until a block confirms it.
+            </Done>
+          );
+        })()
+      )}
+      {failure && failure.accountId === account?.id && !(lastSend && lastSend.accountId === account.id && lastSend.at >= failure.at) && (
+        <Alert color="red" title="Not sent" withCloseButton onClose={dismissFailure}>
+          <Text size="sm">
+            {hidden ? '••••' : failure.amount} NPT to {shortAddress(failure.recipient)}
+            {failure.others ? ` and ${failure.others} more` : ''}, {formatDateTime(failure.at)}. {failure.message}
+          </Text>
+        </Alert>
+      )}
+      {/* One notice at a time: the backup first, since a lost seed phrase is worse than a missing install. */}
+      {!showBackupNudge && <InstallNudge />}
+      {showBackupNudge && seedConfirmed && (
+        <Info icon={<IconShieldCheck size={18} stroke={1.8} />} title="Your seed phrase restores this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
+          A backup file also keeps your contacts.
+          <div>
+            <UnstyledButton onClick={() => navigate('/settings#backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+              Export backup file
+            </UnstyledButton>
+          </div>
+        </Info>
+      )}
+      {showBackupNudge && !seedConfirmed && (
+        <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
+          {NATIVE
+            ? 'This wallet lives only on this device. Export a backup file so you can restore it, with its contacts, if the device is lost or its data deleted.'
+            : "This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared."}
+          <div>
+            <UnstyledButton onClick={() => navigate('/settings#backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+              Export backup file
+            </UnstyledButton>
+          </div>
+        </Caution>
+      )}
 
       <Paper>
         <Stack>
