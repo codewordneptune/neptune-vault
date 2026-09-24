@@ -9,7 +9,8 @@ import { IconAddressBook, IconLink, IconPlus, IconScan } from '@tabler/icons-rea
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import { formatNau, NAU_PER_COIN, sentText, showNau, useApp } from '../app/AppContext';
+import { formatNau, NAU_PER_COIN, sentText, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
+import { clearSendDraft, keepSendDraft, sendDraft, type ExtraPayee, type SendDraft } from '../app/sendDraft';
 import { NATIVE } from '../app/platform';
 import { formatAbout, formatDuration } from '../util/time';
 import { useQuote } from '../app/price';
@@ -44,36 +45,16 @@ type Step = 'form' | 'review';
 // above any error, like the other notes about a field.
 const UNDER_THE_FIELD: ('label' | 'input' | 'description' | 'error')[] = ['label', 'input', 'description', 'error'];
 
-/** A recipient after the first: an address, an amount, and what is wrong with them. */
-interface ExtraPayee {
-  id: number;
-  recipient: string;
-  amount: string;
-  recipientError: string | null;
-  amountError: string | null;
-}
-
-/**
- * A form left half filled, per wallet, for this session: going to Contacts
- * to add the person being paid, or anywhere else, and coming back finds it
- * as it was. In memory only; a reload starts afresh.
- */
-interface Draft {
-  recipient: string;
-  amount: string;
-  extras: ExtraPayee[];
-  feePreset: string;
-  fee: string;
-  linkMeta: { label?: string; message?: string } | null;
-}
-const drafts = new Map<string, Draft>();
 
 export function Send() {
-  const { services, account, balance, utxos, online, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend } = useApp();
+  const { services, account, balance, utxos, history, online, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
-  const prefill = (location.state as { recipient?: string } | null)?.recipient;
-  const draft = account ? drafts.get(account.id) : undefined;
+  const arrival = location.state as { recipient?: string; fresh?: boolean } | null;
+  const prefill = arrival?.recipient;
+  // "Send to" a contact, or a new send by shortcut, starts with an empty
+  // form: a draft's amount or extra recipients were meant for someone else.
+  const draft = account && !prefill && !arrival?.fresh ? sendDraft(account.id) : undefined;
   const [step, setStep] = useState<Step>('form');
   const [recipient, setRecipient] = useState(prefill ?? draft?.recipient ?? '');
   // The last successfully sent recipient, offered for saving as a contact.
@@ -164,7 +145,7 @@ export function Send() {
   };
 
   // The form as it stands, kept as this wallet's draft when the screen goes.
-  const formNow = useRef<Draft>({ recipient, amount, extras, feePreset, fee, linkMeta });
+  const formNow = useRef<SendDraft>({ recipient, amount, extras, feePreset, fee, linkMeta });
   formNow.current = { recipient, amount, extras, feePreset, fee, linkMeta };
   const draftFor = useRef(account?.id ?? null);
   draftFor.current = account?.id ?? null;
@@ -172,10 +153,14 @@ export function Send() {
     () => () => {
       const id = draftFor.current;
       if (!id) return;
+      // A form whose send is running is that send, not a draft: kept, it
+      // would come back pre-filled after the payment went out.
+      const job = sendJobRef.current;
+      if (job && !job.done) return clearSendDraft(id);
       const f = formNow.current;
       const empty = f.recipient.trim() === '' && f.amount.trim() === '' && f.extras.length === 0;
-      if (empty) drafts.delete(id);
-      else drafts.set(id, f);
+      if (empty) clearSendDraft(id);
+      else keepSendDraft(id, { ...f, extras: f.extras.map((x) => ({ ...x, recipientError: null, amountError: null })) });
     },
     [],
   );
@@ -391,9 +376,14 @@ export function Send() {
   // a send that ended while the app locked must still say how it ended.
   useEffect(() => {
     return () => {
-      if (sendJobRef.current?.done && services.accounts.currentAccountId !== null) dismissSendJob();
+      const job = sendJobRef.current;
+      if (!job?.done || services.accounts.currentAccountId === null) return;
+      // Seen here, so Home need not say it again. A send the node never
+      // answered about keeps its note there until its row settles.
+      if (job.ending === 'sent') dismissLastSend();
+      dismissSendJob();
     };
-  }, [dismissSendJob, services]);
+  }, [dismissSendJob, dismissLastSend, services]);
   const sendJobRef = useRef(sendJob);
   sendJobRef.current = sendJob;
 
@@ -402,6 +392,9 @@ export function Send() {
   useEffect(() => {
     if (feeSeen.current === fee) return;
     feeSeen.current = fee;
+    // A custom fee is being typed: half a number would read as an error.
+    // It is followed when the field is left.
+    if (feePreset === 'custom') return;
     if (maxExact && extras.length === 0 && amount === maxExact.text) void sendAll();
     // Only a change of fee re-runs it; the rest is read as it stands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -430,10 +423,13 @@ export function Send() {
     const t = setTimeout(() => resultRef.current?.focus(), 300);
     return () => clearTimeout(t);
   }, [isDone]);
+  // One dismiss clears the result here and its note on Home.
   const dismissResult = () => {
     if (sendJob?.ending === 'sent' || sendJob?.ending === 'unconfirmed') dismissLastSend();
+    if (sendJob?.ending === 'failed') dismissSendFailure();
     dismissSendJob();
   };
+  const maxFollowsFee = () => Boolean(maxExact && extras.length === 0 && amount === maxExact.text);
 
   const running = Boolean(sendJob && !sendJob.done);
   const p = sendJob?.progress.proving;
@@ -506,7 +502,7 @@ export function Send() {
           </Text>
           {proving && (
             <Button variant="light" color="red" onClick={() => setConfirmStop(true)} loading={stopping}>
-              {stopping ? 'Stopping…' : 'Cancel'}
+              {stopping ? 'Stopping…' : 'Stop'}
             </Button>
           )}
         </Stack>
@@ -692,16 +688,20 @@ export function Send() {
           </Title>
           <Text size="sm" c="dimmed">
             Spendable {services.settings.hideBalance ? '••••' : showNau(balance.spendableNau)} NPT
+            {/* Home counts held coins in the balance; here they are the difference. */}
+            {balance.reservedNau > 0n && ` · ${services.settings.hideBalance ? '••••' : showNau(balance.reservedNau)} NPT held until your ${history.filter((h) => h.kind === 'sent' && h.status === 'pending').length > 1 ? 'sends confirm' : 'send confirms'}`}
           </Text>
         </div>
         {/* How the last send ended, where the person is: focused, so it is
             read out, and dismissed here and on Home at once. */}
         {sendJob?.done && sendJob.ending && (
-          <div ref={resultRef} tabIndex={-1} className="vault-send-result">
+          // Focused when it appears, so it is read out once, as focus
+          // arrives; its notice is not a live region as well.
+          <div ref={resultRef} tabIndex={-1} className="vault-send-result" data-focus-managed>
             {sendJob.ending === 'sent' && sendJob.outcome && (
-              <Done title="Submitted" onClose={dismissResult} closeLabel="Dismiss">
+              <Done title="Sent" onClose={dismissResult} closeLabel="Dismiss" role={undefined}>
                 <span>
-                  {sentText(paymentsTotalNau(sendJob.request), BigInt(sendJob.request.fee_nau ?? '0'))} It shows as pending until a block confirms it.
+                  {sentText(paymentsTotalNau(sendJob.request), BigInt(sendJob.request.fee_nau ?? '0'), services.settings.hideBalance)} It shows as pending until a block confirms it.
                   {sendJob.outcome.proving.seconds > 0 && ` The proof took ${formatDuration(sendJob.outcome.proving.seconds)}.`}
                 </span>
                 {lastRecipient &&
@@ -717,7 +717,7 @@ export function Send() {
               </Done>
             )}
             {sendJob.ending === 'unconfirmed' && (
-              <Caution title="Waiting for the node to confirm" onClose={dismissResult} closeLabel="Dismiss">
+              <Caution title={UNANSWERED_TITLE} onClose={dismissResult} closeLabel="Dismiss">
                 <span>{sendJob.error}</span>
                 <span>
                   <UnstyledButton onClick={() => navigate('/')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
@@ -732,7 +732,7 @@ export function Send() {
               </Info>
             )}
             {sendJob.ending === 'failed' && (
-              <Alert color="red" title="Not sent" withCloseButton onClose={dismissResult}>
+              <Alert color="red" title="Not sent" withCloseButton onClose={dismissResult} role={undefined}>
                 {sendJob.error}
               </Alert>
             )}
@@ -943,7 +943,7 @@ export function Send() {
                   setFee(e.currentTarget.value);
                   setFeeError(null);
                 }}
-                onBlur={() => void checkAmounts(true)}
+                onBlur={() => void (maxFollowsFee() ? sendAll() : checkAmounts(true))}
                 error={feeError}
                 ref={customFeeRef}
               />

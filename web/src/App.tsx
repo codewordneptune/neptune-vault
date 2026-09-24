@@ -89,6 +89,10 @@ export function App() {
     if (!interacted.current) return;
     const active = document.activeElement;
     if (active && active !== document.body && active.closest('main')) return;
+    // A screen that moves focus itself (a result on Send, a card reached by
+    // a link such as /settings#backup) is left to it: two moves in a row
+    // cut off what the first one started to read out.
+    if (window.location.hash || document.querySelector('main [data-focus-managed]')) return;
     const heading = document.querySelector<HTMLElement>('main h2');
     if (!heading) return;
     if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1;
@@ -112,7 +116,8 @@ export function App() {
         void services.accounts.lock();
       } else if (key === 'n' && open) {
         event.preventDefault();
-        navigate('/send');
+        // A new send: an empty form, not the half-filled one of before.
+        navigate('/send', { state: { fresh: true } });
       } else if (/^[1-4]$/.test(key) && open) {
         event.preventDefault();
         navigate(TABS[Number(key) - 1].to);

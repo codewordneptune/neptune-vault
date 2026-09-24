@@ -11,6 +11,8 @@ import type { SyncEngine, SyncProgress } from '../wallet/sync';
 import { paymentsTotalNau, RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type LastSend, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
 import { useScreenWakeLock, type WakeLockState } from './wakeLock';
+import { clearSendDraft } from './sendDraft';
+import { forgetOwnAddresses } from './ownAddresses';
 
 /** A send in flight, or just finished; lives here so it survives the
  * Send screen unmounting when the app locks on backgrounding. */
@@ -170,6 +172,9 @@ export function AppProvider({ services, children }: { services: Services; childr
       // does the mempool watcher kept for it.
       if (services.settings.lastSendFailure?.accountId === id) await services.updateSettings({ lastSendFailure: undefined });
       services.forgetAccount(id);
+      // What this session kept of it in memory: a half-filled send, and its addresses.
+      clearSendDraft(id);
+      forgetOwnAddresses(id);
       const rest = byCreation(await services.db.getAllFromIndex('accounts', 'byNetwork', record.network));
       const next = rest[0] ?? null;
       await services.updateSettings({ currentAccountId: next?.id ?? null });
@@ -248,20 +253,34 @@ export function AppProvider({ services, children }: { services: Services; childr
     } catch {
       // Locked: nothing to show until it is unlocked.
     }
-    setSendFailure(failure);
     // The note about the last send that reached the node. It has done its
-    // work once its row settles: confirmed, or given up on.
+    // work once its row settles: confirmed, given up on, or dropped.
     let sent: LastSend | null = null;
     try {
       sent = await services.accounts.lastSend(accountId);
       const row = sent ? rows.find((h) => h.kind === 'sent' && h.txid === sent?.txid) : undefined;
       if (sent && row && row.status !== 'pending') {
+        // Settled. A send that failed without the person giving up on it
+        // was dropped: after "Sent", that is news, so it becomes the note
+        // about a send that did not go through.
+        if (row.status === 'failed' && !/gave up/i.test(row.error ?? '')) {
+          failure = {
+            at: Date.now(),
+            accountId,
+            amount: showNau(BigInt(sent.amountNau)),
+            recipient: sent.recipient,
+            others: sent.others,
+            message: 'The node dropped this send, so nothing went out. Its coins are spendable again.',
+          };
+          await services.accounts.setLastSendFailure(accountId, failure);
+        }
         await services.accounts.setLastSend(accountId, null);
         sent = null;
       }
     } catch {
       // Locked, as above.
     }
+    setSendFailure(failure);
     setLastSend(sent);
     setLoadedFor(accountId);
     // A finished send whose row has confirmed no longer needs its notice.
@@ -350,9 +369,14 @@ export function AppProvider({ services, children }: { services: Services; childr
         }
         setSendJob((job) => (job ? { ...job, done: true, outcome, ending: 'sent' } : job));
         noteSendFailure(accountId, null);
-        noteLastSend(accountId, noteOf(outcome.txid, 'submitted'));
+        clearSendDraft(accountId);
+        // Seen as it happened (on Send, or as the toast below), it needs no
+        // note on Home; ended out of sight (backgrounded, or locked as soon
+        // as it finished), it gets one, so it still says how it ended.
+        const seen = document.visibilityState === 'visible' && services.accounts.currentAccountId === accountId;
+        noteLastSend(accountId, seen ? null : noteOf(outcome.txid, 'submitted'));
         if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
-          notifications.show({ color: 'green', title: 'Sent', message: `${sentText(paymentsTotalNau(request), BigInt(request.fee_nau ?? '0'))} It shows as pending until a block confirms it.` });
+          notifications.show({ color: 'green', title: 'Sent', message: `${sentText(paymentsTotalNau(request), BigInt(request.fee_nau ?? '0'), services.settings.hideBalance)} It shows as pending until a block confirms it.` });
         }
         await refresh();
         return outcome;
@@ -368,10 +392,12 @@ export function AppProvider({ services, children }: { services: Services; childr
         if (e instanceof SendUnconfirmedError) {
           setSendJob((job) => (job ? { ...job, done: true, error: e.message, ending: 'unconfirmed' } : job));
           noteSendFailure(accountId, null);
+          clearSendDraft(accountId);
+          // Always noted: until the row settles, it says not to send again.
           noteLastSend(accountId, noteOf(e.txid, 'unconfirmed'));
           await refresh();
           if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
-            notifications.show({ color: 'yellow', title: 'Waiting for the node to confirm', message: e.message, autoClose: 10_000 });
+            notifications.show({ color: 'yellow', title: UNANSWERED_TITLE, message: e.message, autoClose: 10_000 });
           }
           throw e;
         }
@@ -402,8 +428,10 @@ export function AppProvider({ services, children }: { services: Services; childr
     services.prover.cancel();
   }, [services]);
 
+  // Only a finished job is dismissed: a note about an earlier send closed
+  // while another proves must not take the running one with it.
   const dismissSendJob = useCallback(() => {
-    setSendJob(null);
+    setSendJob((job) => (job && !job.done ? job : null));
   }, []);
 
   const dismissSendFailure = useCallback(() => {
@@ -575,11 +603,15 @@ export function showNau(nau: bigint): string {
 /**
  * A send as its confirmation says it, the fee included, so the figure
  * matches the one History shows for it: "5 NPT is on its way, plus a 0.3
- * NPT fee."
+ * NPT fee." Masked when amounts are hidden.
  */
-export function sentText(amountNau: bigint, feeNau: bigint): string {
-  return `${showNau(amountNau)} NPT is on its way, plus a ${showNau(feeNau)} NPT fee.`;
+export function sentText(amountNau: bigint, feeNau: bigint, hidden = false): string {
+  const show = (nau: bigint) => (hidden ? '••••' : showNau(nau));
+  return `${show(amountNau)} NPT is on its way, plus a ${show(feeNau)} NPT fee.`;
 }
+
+/** The title of a send the node took without answering: it has ended, and may have gone through. */
+export const UNANSWERED_TITLE = 'Sent, but the node did not answer';
 
 /** A block height for people to read, grouped like an amount. */
 export function showBlock(height: number): string {

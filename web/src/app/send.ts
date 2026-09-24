@@ -89,7 +89,7 @@ export class SendCancelledError extends Error {
  */
 export class SendUnconfirmedError extends Error {
   constructor(public readonly txid: string) {
-    super('This send may already be on its way. It is in History as pending, with its coins held. Do not send it again until it confirms or you give up on it.');
+    super('It may already be on its way. It is pending in History, with its coins held. Do not send it again until a block confirms it or you give up on it.');
     this.name = 'SendUnconfirmedError';
   }
 }
