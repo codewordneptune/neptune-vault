@@ -1,11 +1,12 @@
 // Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, TextInput, Title, SegmentedControl } from '@mantine/core';
 import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import { WALLET_NAME_MAX, WalletNameTakenError } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
@@ -86,6 +87,13 @@ export function Onboarding() {
   const [fast, setFast] = useState(draft?.fast ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Adding a wallet beside others offers a name; this is the one it gets otherwise.
+  const [defaultName, setDefaultName] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!adding) return;
+    void services.accounts.nextName(network).then(setDefaultName, () => setDefaultName(null));
+  }, [adding, services, network]);
 
   // A new step starts at its top, with focus on its heading: the steps swap
   // content in place, and the button that led here (often at the foot of a
@@ -159,9 +167,10 @@ export function Onboarding() {
   const allPlaced = bank.length === 0 && checks.length > 0;
   const confirmed = allPlaced && checks.every((i) => slots[i] === phrase[i]);
 
-  const finish = async (password: string) => {
+  const finish = async (password: string, name: string) => {
     setBusy(true);
     setError(null);
+    setNameError(null);
     try {
       // The coin index finds everything whatever the date, so it is offered only when the date is not known.
       const fastRestore = imported && fast && when === 'unknown';
@@ -179,14 +188,15 @@ export function Onboarding() {
         }
       }
       await pauseSync();
-      const record = await services.accounts.createAccount(phrase, password, network, height, { fastRestore });
+      const record = await services.accounts.createAccount(phrase, password, network, height, { fastRestore, name: adding ? name : undefined });
       saveDraft(null);
       await services.accounts.markBackupConfirmed(record.id);
       await services.updateSettings({ currentAccountId: record.id });
       setAccount({ ...record, backupConfirmed: true });
       navigate('/');
     } catch (e) {
-      setError((e as Error).message);
+      if (e instanceof WalletNameTakenError) setNameError(e.message);
+      else setError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -373,7 +383,17 @@ export function Onboarding() {
       )}
 
       {step === 'password' && (
-        <PasswordStep busy={busy} error={error} onSubmit={finish} stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'} actionLabel={imported ? 'Restore wallet' : 'Create wallet'} onBack={() => setStep(imported ? 'import' : 'confirm')} />
+        <PasswordStep
+          busy={busy}
+          error={error}
+          onSubmit={finish}
+          stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'}
+          actionLabel={imported ? 'Restore wallet' : 'Create wallet'}
+          onBack={() => setStep(imported ? 'import' : 'confirm')}
+          defaultName={adding ? defaultName : undefined}
+          nameError={nameError}
+          onNameEdit={() => setNameError(null)}
+        />
       )}
 
       {step === 'import' && (
@@ -497,9 +517,31 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
-function PasswordStep({ busy, error, onSubmit, stepLabel, actionLabel, onBack }: { busy: boolean; error: string | null; onSubmit: (password: string) => void; stepLabel: string; actionLabel: string; onBack: () => void }) {
+function PasswordStep({
+  busy,
+  error,
+  onSubmit,
+  stepLabel,
+  actionLabel,
+  onBack,
+  defaultName,
+  nameError,
+  onNameEdit,
+}: {
+  busy: boolean;
+  error: string | null;
+  onSubmit: (password: string, name: string) => void;
+  stepLabel: string;
+  actionLabel: string;
+  onBack: () => void;
+  /** When adding a wallet beside others: the name it gets if none is typed, and the field to type one. */
+  defaultName?: string | null;
+  nameError?: string | null;
+  onNameEdit?: () => void;
+}) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
+  const [name, setName] = useState('');
   const ok = newPasswordOk(password, again);
   return (
     <Paper>
@@ -509,8 +551,23 @@ function PasswordStep({ busy, error, onSubmit, stepLabel, actionLabel, onBack }:
         <Text size="sm" c="dimmed">
           Asked on every unlock, and it cannot be recovered. Forgetting it is not fatal: your seed phrase restores the wallet.
         </Text>
+        {/* A second wallet is told apart by its name; the first needs none yet. */}
+        {defaultName !== undefined && (
+          <TextInput
+            label="Wallet name (optional)"
+            placeholder={defaultName ?? undefined}
+            description={defaultName ? `Left empty, it is called ${defaultName}. You can rename it in Settings.` : undefined}
+            maxLength={WALLET_NAME_MAX}
+            value={name}
+            error={nameError}
+            onChange={(e) => {
+              setName(e.currentTarget.value);
+              onNameEdit?.();
+            }}
+          />
+        )}
         <NewPasswordFields password={password} onPassword={setPassword} again={again} onAgain={setAgain} />
-        <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password)}>{actionLabel}</Button>
+        <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password, name)}>{actionLabel}</Button>
         {error && <Alert color="red">{error}</Alert>}
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
