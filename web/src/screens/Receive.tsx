@@ -305,7 +305,7 @@ export function Receive() {
                 Could not derive this address: {addressError}
               </Text>
             )}
-            <Group grow className="vault-receive-col">
+            <Group className="vault-receive-col vault-receive-actions">
               <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address}>
                 Copy address
               </Button>
@@ -350,7 +350,7 @@ export function Receive() {
                 {requestQrNote}
               </Text>
             )}
-            <Group grow className="vault-receive-col">
+            <Group className="vault-receive-col vault-receive-actions">
               <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed)} disabled={requestInvalid}>
                 Copy link
               </Button>
