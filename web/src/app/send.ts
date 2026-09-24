@@ -54,10 +54,30 @@ export class SendBusyError extends Error {
   }
 }
 
+/**
+ * The note kept about a wallet's last send that reached the node, in its
+ * sealed log: what it paid and to whom, and whether the node answered.
+ * Home shows it until it is dismissed or its row confirms, so a send that
+ * ended while the app was locked, or closed, still says how it ended.
+ */
+export interface LastSend {
+  at: number;
+  accountId: string;
+  txid: string;
+  /** What the recipients get together, and the fee, in nau. */
+  amountNau: string;
+  feeNau: string;
+  /** The first recipient; `others` counts the rest. */
+  recipient: string;
+  others: number;
+  /** 'submitted': the node took it. 'unconfirmed': handed over, no answer. */
+  state: 'submitted' | 'unconfirmed';
+}
+
 /** The person cancelled before anything was handed to the node. Nothing was sent and nothing is held. */
 export class SendCancelledError extends Error {
   constructor() {
-    super('Cancelled. Nothing was sent.');
+    super('Stopped. Nothing was sent.');
     this.name = 'SendCancelledError';
   }
 }
@@ -69,7 +89,7 @@ export class SendCancelledError extends Error {
  */
 export class SendUnconfirmedError extends Error {
   constructor(public readonly txid: string) {
-    super('Do not send this again yet. The node did not answer, so the send may or may not have gone through. It stays in History as pending, with its coins held: it turns confirmed if it went through, and if not, you can give up on it there.');
+    super('This send may already be on its way. It is in History as pending, with its coins held. Do not send it again until it confirms or you give up on it.');
     this.name = 'SendUnconfirmedError';
   }
 }
@@ -200,7 +220,7 @@ export class SendService {
         // spends is gone.
         if (await moved()) {
           if (attempt >= MAX_SEND_ATTEMPTS) throw new Error(`Nothing was sent: new blocks kept arriving during the proof. Try again in a moment.`);
-          again = `A new block arrived. Proving again (${attempt + 1} of ${MAX_SEND_ATTEMPTS}).`;
+          again = `A new block arrived, so the proof is being made again (attempt ${attempt + 1} of ${MAX_SEND_ATTEMPTS}). Nothing has been sent yet.`;
           continue;
         }
         throw new Error("Nothing was sent: the node says one of the coins is already spent. Rescan in Settings to refresh your coins, then try again.");

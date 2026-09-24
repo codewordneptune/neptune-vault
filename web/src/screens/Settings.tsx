@@ -1,21 +1,25 @@
 // Network, node URL with connectivity check, backup actions, lock.
 
-import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
-import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconWallet } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Alert, Anchor, Button, Checkbox, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
+import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconTrash, IconWallet } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
-import { showBlock, useApp } from '../app/AppContext';
-import { Caution } from '../components/Notice';
+import { showBlock, showNau, useApp } from '../app/AppContext';
+import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
+import { Caution, Done, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
-import { requestPersistentStorage, walletName } from '../storage/db';
+import { DEFAULT_NODE_URLS, requestPersistentStorage, walletName } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
-import { StartBlockPicker } from '../components/StartBlockPicker';
+import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
+import { isCancellation } from '../app/passkey';
 import { copyText } from '../util/clipboard';
+import { FIAT_CURRENCIES, FIAT_LABELS, isFiatCurrency } from '../util/fiat';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import { formatDate, formatDateTime, formatTime } from '../util/time';
 import type { Network } from '../storage/db';
@@ -30,8 +34,23 @@ export function Settings() {
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
   const [probe, setProbe] = useState<{ ok: boolean; text: string; at?: number } | null>(services.settings.nodeProbe?.[network] ?? null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  // What the last export came to, shown under its button: a file saved, or not.
+  const [message, setMessage] = useState<{ done: boolean; text: string } | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Home's backup reminder links to /settings#backup: that card is brought
+  // into view, with focus on its heading. After a frame, since the app
+  // scrolls every new screen to its top once this screen has mounted.
+  const { hash } = useLocation();
+  const backupTitle = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (hash !== '#backup') return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById('backup')?.scrollIntoView({ block: 'start' });
+      backupTitle.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hash]);
 
   const changeNetwork = async (value: string | null) => {
     if (!value || value === network) return;
@@ -86,6 +105,9 @@ export function Settings() {
 
   const savedUrl = services.settings.nodeUrls[network] ?? '';
   const dirty = nodeUrl.trim() !== savedUrl;
+  // The way back after trying another node: it fills the field, and the
+  // button then tests it before it is saved, like any other URL.
+  const defaultUrl = DEFAULT_NODE_URLS[network];
   const saveAndTestNode = async () => {
     if (!(await testNode())) {
       setProbe((p) => (p ? { ...p, text: `Not saved. ${p.text}` } : p));
@@ -139,13 +161,13 @@ export function Settings() {
         const { saveFile } = await import('../backend/native/appClient');
         const saved = await saveFile(fileName, text);
         if (!saved) {
-          setMessage('Not saved. Export it again when you are ready.');
+          setMessage({ done: false, text: 'Not saved. Export it again when you are ready.' });
           return;
         }
         // Only a file that was written counts as a backup: the dialog says so, unlike a browser download.
         await services.accounts.markBackedUp(account.id, file.exportedAt);
         await refresh();
-        setMessage(`Backup file saved to ${saved}. It is encrypted with your password.`);
+        setMessage({ done: true, text: `Backup file saved to ${saved}. It is encrypted with your password.` });
       } catch (e) {
         setMessage(null);
         setExportError((e as Error).message);
@@ -154,7 +176,7 @@ export function Settings() {
     }
     await services.accounts.markBackedUp(account.id, file.exportedAt);
     await refresh();
-    setMessage(`Backup file ready, encrypted with your password. If you cancelled saving it, export it again.`);
+    setMessage({ done: true, text: 'Backup file ready, encrypted with your password. If you cancelled saving it, export it again.' });
     const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -231,12 +253,10 @@ export function Settings() {
       <Title order={2} className="sr-only">
         Settings
       </Title>
-      {message && <Alert color="green" onClose={() => setMessage(null)} withCloseButton>{message}</Alert>}
-      {exportError && <Alert color="red" onClose={() => setExportError(null)} withCloseButton>Could not make the backup file: {exportError}</Alert>}
       <WalletCard />
-      <Paper>
+      <Paper id="backup" className="vault-anchored">
         <Stack>
-          <Title order={3} className="vault-section-title">
+          <Title order={3} className="vault-section-title vault-step-title" tabIndex={-1} ref={backupTitle}>
             <IconShieldCheck size={18} stroke={1.8} aria-hidden />
             Backup
           </Title>
@@ -276,6 +296,15 @@ export function Settings() {
               {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
             </Button>
           </Group>
+          {message &&
+            (message.done ? (
+              <Done onClose={() => setMessage(null)}>{message.text}</Done>
+            ) : (
+              <Info role="status" onClose={() => setMessage(null)}>
+                {message.text}
+              </Info>
+            ))}
+          {exportError && <Alert color="red" onClose={() => setExportError(null)} withCloseButton>Could not make the backup file: {exportError}</Alert>}
           <Modal opened={exportAsking} onClose={() => setExportAsking(false)} title="Export backup file">
             <form
               onSubmit={(e) => {
@@ -374,19 +403,21 @@ export function Settings() {
             </Stack>
           </Modal>
           <TextInput label="Node URL" description={`Used on ${NETWORK_LABELS[network]}; each network has its own.`} value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
-          {probe && (
-            <Text size="sm" c={probe.ok ? 'dimmed' : 'red'}>
-              {probe.text}
-              {probe.at && probe.text !== 'Testing…' ? ` · checked ${formatTime(probe.at)}` : ''}
-            </Text>
-          )}
+          {/* Always there, so what the test says as it runs and ends is announced. */}
+          <Text size="sm" c={probe && !probe.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status" className={probe?.text ? undefined : 'sr-only'}>
+            {probe?.text}
+            {probe?.at && probe.text !== 'Testing…' ? ` · checked ${formatTime(probe.at)}` : ''}
+          </Text>
+          {/* One button: a URL that differs from the saved one is tested, then saved. */}
           <Group>
-            <Button onClick={() => void saveAndTestNode()} disabled={!dirty} loading={testing && dirty}>
-              Test and save
+            <Button variant={dirty ? 'filled' : 'light'} onClick={() => void (dirty ? saveAndTestNode() : testNode())} loading={testing}>
+              {dirty ? 'Test and save' : 'Test'}
             </Button>
-            <Button variant="light" onClick={() => void testNode()} disabled={dirty} loading={testing && !dirty}>
-              Test
-            </Button>
+            {defaultUrl && savedUrl !== defaultUrl && nodeUrl.trim() !== defaultUrl && (
+              <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => setNodeUrl(defaultUrl)}>
+                Use the default node
+              </Anchor>
+            )}
           </Group>
           <RescanCard />
         </Stack>
@@ -399,7 +430,9 @@ export function Settings() {
             App
           </Title>
           <AppearanceCard />
+          <FiatCard />
           {!NATIVE && <InstallCard />}
+          {NATIVE && <Shortcuts />}
           <Text size="sm" c="dimmed">
             Device and app details to include when you report a problem.
           </Text>
@@ -442,6 +475,8 @@ export function Settings() {
           </Text>
         </Stack>
       </Paper>
+
+      <RemoveWalletCard />
     </Stack>
   );
 }
@@ -479,16 +514,17 @@ function ChangePassword() {
   const [next, setNext] = useState('');
   const [again, setAgain] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // A wrong current password is said at that field; anything else under the buttons.
+  const [currentError, setCurrentError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
-  const mismatch = again !== '' && again !== next;
-  const tooShort = next !== '' && next.length < 8;
 
   const submit = async () => {
     if (!account) return;
     setBusy(true);
     setError(null);
+    setCurrentError(null);
     setDone(false);
     try {
       await services.accounts.changePassword(account.id, current, next);
@@ -498,7 +534,8 @@ function ChangePassword() {
       setDone(true);
       setOpen(false);
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+      if (e instanceof WrongPasswordError) setCurrentError('Wrong password. Try again.');
+      else setError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -507,12 +544,12 @@ function ChangePassword() {
   if (!open) {
     return (
       <Stack>
-        {done && <Alert color="green" withCloseButton onClose={() => setDone(false)}>Password changed. An older backup file still opens with the old password, so export a new one if you keep one.</Alert>}
         <Group>
           <Button variant="light" disabled={!account} onClick={() => { setDone(false); setOpen(true); }}>
             Change password
           </Button>
         </Group>
+        {done && <Done onClose={() => setDone(false)}>Password changed. An older backup file still opens with the old password, so export a new one if you keep one.</Done>}
       </Stack>
     );
   }
@@ -525,20 +562,60 @@ function ChangePassword() {
       }}
     >
       <Stack>
-        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
-        <PasswordInput label="Current password" value={current} onChange={(e) => setCurrent(e.currentTarget.value)} autoComplete="current-password" />
-        <PasswordInput label="New password (at least 8 characters)" value={next} onChange={(e) => setNext(e.currentTarget.value)} error={tooShort ? 'At least 8 characters' : undefined} autoComplete="new-password" />
-        <PasswordInput label="Repeat new password" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={mismatch ? 'Passwords differ' : undefined} autoComplete="new-password" />
+        <PasswordInput
+          label="Current password"
+          value={current}
+          onChange={(e) => {
+            setCurrent(e.currentTarget.value);
+            setCurrentError(null);
+          }}
+          error={currentError}
+          autoComplete="current-password"
+        />
+        <NewPasswordFields password={next} onPassword={setNext} again={again} onAgain={setAgain} label="New password (at least 8 characters)" repeatLabel="Repeat new password" />
         <Group grow>
-          <Button variant="default" onClick={() => { setOpen(false); setError(null); setCurrent(''); setNext(''); setAgain(''); }}>
+          <Button variant="default" onClick={() => { setOpen(false); setError(null); setCurrentError(null); setCurrent(''); setNext(''); setAgain(''); }}>
             Cancel
           </Button>
-          <Button type="submit" loading={busy} disabled={!account || !current || next.length < 8 || next !== again}>
+          <Button type="submit" loading={busy} disabled={!account || !current || !newPasswordOk(next, again)}>
             Save new password
           </Button>
         </Group>
+        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
       </Stack>
     </form>
+  );
+}
+
+// The desktop app's keyboard shortcuts, which nothing else mentions. They
+// are the ones App.tsx listens for, in the desktop app only (in a browser
+// these keys are the browser's), and only while a wallet is open.
+function Shortcuts() {
+  const mod = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? 'Cmd' : 'Ctrl';
+  const rows: [string, string][] = [
+    ['1', 'Home'],
+    ['2', 'Send'],
+    ['3', 'Receive'],
+    ['4', 'Settings'],
+    ['N', 'New send'],
+    ['L', 'Lock'],
+  ];
+  return (
+    <Stack gap="xs">
+      <Text size="sm" c="dimmed">
+        Keyboard shortcuts, while the wallet is unlocked
+      </Text>
+      <dl className="vault-shortcuts">
+        {rows.map(([key, what]) => (
+          <div key={key}>
+            <dt>
+              <Kbd>{mod}</Kbd> + <Kbd>{key}</Kbd>
+            </dt>
+            <dd>{what}</dd>
+          </div>
+        ))}
+      </dl>
+    </Stack>
   );
 }
 
@@ -563,6 +640,33 @@ function AppearanceCard() {
           { value: 'dark', label: 'Dark' },
         ]}
       />
+    </Stack>
+  );
+}
+
+// The balance in an ordinary currency, off unless asked for: turning it on
+// means asking a price site, which learns this device's address and that it
+// runs a Neptune Cash wallet. The sentence under the choice says so, and
+// that the figure is rough.
+function FiatCard() {
+  const { services } = useApp();
+  const [currency, setCurrency] = useState<string>(services.settings.fiatCurrency ?? 'off');
+  return (
+    <Stack gap="xs">
+      <Select
+        label="Value in another currency"
+        allowDeselect={false}
+        value={currency}
+        onChange={(v) => {
+          const next = v ?? 'off';
+          setCurrency(next);
+          void services.updateSettings({ fiatCurrency: isFiatCurrency(next) ? next : undefined });
+        }}
+        data={[{ value: 'off', label: 'Off' }, ...FIAT_CURRENCIES.map((c) => ({ value: c, label: FIAT_LABELS[c] }))]}
+      />
+      <Text size="sm" c="dimmed">
+        Shows an estimate under your balance. While it is on and the app is open, the app asks CoinGecko (or CoinPaprika, when CoinGecko does not answer) for the NPT price every 10 minutes. They see this device's network address and that it runs a Neptune Cash wallet, and nothing about your wallet. NPT trades in small volumes, so the price can move a lot: treat the figure as a rough guide.
+      </Text>
     </Stack>
   );
 }
@@ -622,7 +726,10 @@ function PasskeyCard() {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Set up just now, on this visit: said under where the button was.
+  const [justEnabled, setJustEnabled] = useState(false);
   const enabled = Boolean(account?.passkey);
 
   useEffect(() => {
@@ -633,13 +740,17 @@ function PasskeyCard() {
     if (!account) return;
     setBusy(true);
     setError(null);
+    setPasswordError(null);
     try {
       await services.accounts.enablePasskey(account.id, password);
       setPassword('');
       setOpen(false);
+      setJustEnabled(true);
       await refresh();
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+      // Closing the system sheet is a choice, not a failure, as on the lock screen.
+      if (e instanceof WrongPasswordError) setPasswordError('Wrong password. Try again.');
+      else if (!isCancellation(e)) setError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -647,6 +758,7 @@ function PasskeyCard() {
 
   const disable = async () => {
     if (!account) return;
+    setJustEnabled(false);
     await services.accounts.disablePasskey(account.id);
     await refresh();
   };
@@ -669,6 +781,7 @@ function PasskeyCard() {
             Turn off passkey unlock
           </Button>
         </Group>
+        {justEnabled && <Done onClose={() => setJustEnabled(false)}>Passkey set up. Next time, unlock with your fingerprint, face or device PIN.</Done>}
       </Stack>
     );
   }
@@ -694,32 +807,38 @@ function PasskeyCard() {
       }}
     >
       <Stack>
-        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
-        <PasswordInput label="Confirm your password" description="Needed once, to connect the passkey to this wallet." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" data-autofocus />
+        <PasswordInput
+          label="Confirm your password"
+          description="Needed once, to connect the passkey to this wallet."
+          value={password}
+          onChange={(e) => {
+            setPassword(e.currentTarget.value);
+            setPasswordError(null);
+          }}
+          error={passwordError}
+          autoComplete="current-password"
+          data-autofocus
+        />
         <Group grow>
-          <Button variant="default" onClick={() => { setOpen(false); setPassword(''); setError(null); }}>
+          <Button variant="default" onClick={() => { setOpen(false); setPassword(''); setError(null); setPasswordError(null); }}>
             Cancel
           </Button>
           <Button type="submit" loading={busy} disabled={!password}>
             Create passkey
           </Button>
         </Group>
+        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
       </Stack>
     </form>
   );
 }
 
-// This wallet's name, another wallet, and removal from this device.
+// This wallet's name, and another wallet. Removal has a card of its own, last.
 function WalletCard() {
-  const { services, account, refresh, removeAccount, sendJob } = useApp();
+  const { services, account, refresh, sendJob } = useApp();
   const navigate = useNavigate();
   const [name, setName] = useState(account ? walletName(account) : '');
   const [nameError, setNameError] = useState<string | null>(null);
-  const [removing, setRemoving] = useState(false);
-  const [password, setPassword] = useState('');
-  const [haveBackup, setHaveBackup] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   useEffect(() => {
     setName(account ? walletName(account) : '');
   }, [account?.id, account?.name]);
@@ -734,21 +853,6 @@ function WalletCard() {
       await refresh();
     } catch (e) {
       setNameError((e as Error).message);
-    }
-  };
-
-  const remove = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await services.accounts.verifyPassword(account.id, password);
-      await removeAccount(account.id);
-      setRemoving(false);
-      navigate('/');
-    } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -780,12 +884,69 @@ function WalletCard() {
           <Button variant="light" disabled={sending} onClick={() => navigate('/onboarding?add=1')}>
             Add another wallet
           </Button>
+        </Group>
+      </Stack>
+    </Paper>
+  );
+}
+
+// Removal from this device, in a card of its own at the foot of Settings,
+// away from everyday buttons. The dialog says what the wallet holds, so the
+// stakes are in front of the person, and afterwards a notice says what
+// happened: the next screen is another lock screen, or setup.
+function RemoveWalletCard() {
+  const { services, account, balance, loaded, removeAccount, sendJob } = useApp();
+  const navigate = useNavigate();
+  const [removing, setRemoving] = useState(false);
+  const [password, setPassword] = useState('');
+  const [haveBackup, setHaveBackup] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!account) return null;
+  const sending = Boolean(sendJob && !sendJob.done);
+  const name = walletName(account);
+  // Everything the wallet owns: spendable, held for a pending send, and time-locked.
+  const holds = balance.spendableNau + balance.reservedNau + balance.lockedNau;
+  const hidden = services.settings.hideBalance ?? false;
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await services.accounts.verifyPassword(account.id, password);
+      await removeAccount(account.id);
+      setRemoving(false);
+      notifications.show({ message: `${name} was removed from this device.` });
+      navigate('/');
+    } catch (e) {
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Paper>
+      <Stack>
+        <Title order={3} className="vault-section-title">
+          <IconTrash size={18} stroke={1.8} aria-hidden />
+          Remove wallet
+        </Title>
+        <Text size="sm" c="dimmed">
+          Removes {name} from this device only. Its coins stay on the chain, and its seed phrase or a backup file brings it back.
+        </Text>
+        <Group>
           <Button variant="subtle" color="red" className="vault-danger" disabled={sending} onClick={() => setRemoving(true)}>
             Remove from this device
           </Button>
         </Group>
-        <Modal opened={removing} onClose={() => setRemoving(false)} title={`Remove ${walletName(account)} from this device?`}>
+        <Modal opened={removing} onClose={() => setRemoving(false)} title={`Remove ${name} from this device?`}>
           <Stack>
+            {loaded && (
+              <Text size="sm" fw={600}>
+                {name} holds {hidden ? '••••' : showNau(holds)} NPT.
+              </Text>
+            )}
             <Text size="sm">
               This device forgets the wallet, its history and its contacts. The coins stay on the chain, and only the seed phrase or a backup file brings them back.
             </Text>
@@ -811,6 +972,13 @@ function RescanCard() {
   const [open, setOpen] = useState(false);
   const [height, setHeight] = useState<number | string>(account?.birthdayHeight ?? 1);
   const [busy, setBusy] = useState(false);
+  // A start above the chain is the block field's problem; anything else
+  // that stops the rescan is shown under its button, in either mode.
+  const [startError, setStartError] = useState<string | null>(null);
+  const [rescanError, setRescanError] = useState<string | null>(null);
+  const [lookup, setLookup] = useState<StartLookup>('idle');
+  const [started, setStarted] = useState(false);
+  const [fast, setFast] = useState(true);
   if (!account) return null;
   const from = account.birthdayHeight === 0 ? 'the current tip (not set yet)' : `block ${showBlock(account.birthdayHeight)}`;
   // After a fast restore nothing was left out: the index was asked about the
@@ -825,17 +993,16 @@ function RescanCard() {
       : `Restored on ${restoredOn} with a fast restore, which checks the whole chain. No payments to this wallet found.`
     : `Scanned from ${from}. Payments before that block are not found, so rescan from an earlier block if you expect some.`;
 
-  const [rescanError, setRescanError] = useState<string | null>(null);
-  const [fast, setFast] = useState(true);
   const rescan = async (fast: boolean) => {
     setBusy(true);
+    setStartError(null);
     setRescanError(null);
     try {
       if (!fast) {
         try {
           const tip = await services.node().probe();
           if (Number(height) > tip) {
-            setRescanError(`The chain is only at block ${showBlock(tip)}; enter that or a lower block.`);
+            setStartError(`The chain is only at block ${showBlock(tip)}; enter that or a lower block.`);
             return;
           }
         } catch {
@@ -844,6 +1011,7 @@ function RescanCard() {
       }
       await rescanFrom(fast ? 0 : Number(height) || 0, fast);
       setOpen(false);
+      setStarted(true);
     } catch (e) {
       setRescanError((e as Error).message);
     } finally {
@@ -857,10 +1025,22 @@ function RescanCard() {
         {how}
       </Text>
       <Group>
-        <Button variant="light" onClick={() => { setHeight(account.birthdayHeight || 1); setOpen(true); }}>
+        <Button
+          variant="light"
+          onClick={() => {
+            setHeight(account.birthdayHeight || 1);
+            setStartError(null);
+            setRescanError(null);
+            setStarted(false);
+            setOpen(true);
+          }}
+        >
           Rescan
         </Button>
       </Group>
+      {started && (
+        <Done onClose={() => setStarted(false)}>Rescan started. The balance and history fill in again as it runs.</Done>
+      )}
       <Modal opened={open} onClose={() => setOpen(false)} title="Rescan">
         <Stack>
           <Text size="sm">
@@ -882,15 +1062,31 @@ function RescanCard() {
             </Text>
           ) : (
             <>
+              {/* The same question as a private restore: the month, with the block number behind a disclosure. */}
               <Text size="sm" c="dimmed">
-                The node learns nothing about your coins. Every block from the one you choose is downloaded and scanned here, so an earlier block takes longer.
+                When did this wallet first receive funds? Every block from then is downloaded and scanned here, so an earlier month takes longer.
               </Text>
-              <StartBlockPicker value={height} onChange={setHeight} node={() => services.node()} error={rescanError} />
+              <StartBlockPicker
+                value={height}
+                onChange={(v) => {
+                  setHeight(v);
+                  setStartError(null);
+                }}
+                node={() => services.node()}
+                onLookup={setLookup}
+                error={startError}
+              />
             </>
           )}
-          <Button loading={busy} onClick={() => void rescan(fast)} disabled={!fast && !Number(height)}>
-            Rescan
-          </Button>
+          <Group grow>
+            <Button variant="default" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button loading={busy} onClick={() => void rescan(fast)} disabled={!fast && (!Number(height) || lookup === 'looking')}>
+              Rescan
+            </Button>
+          </Group>
+          {rescanError && <Alert color="red">Could not start the rescan: {rescanError}</Alert>}
         </Stack>
       </Modal>
     </Stack>

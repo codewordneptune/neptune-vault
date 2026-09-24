@@ -43,6 +43,17 @@ The installers land in `<target>/release/bundle/`.
 
 `tauri dev` runs the shell against the web dev server on port 4400.
 
+## The app icon
+
+The icons in `shells/tauri/icons` are all generated from one source,
+`shells/tauri/app-icon.svg`: the brand mark in the light accent (`#7db4f5`) on
+a navy tile, light enough to read at taskbar size. After changing it,
+regenerate every size and format from `shells/tauri`:
+
+```
+npx --prefix ../../web tauri icon app-icon.svg
+```
+
 ## Not done yet: signing and updates
 
 These need keys only the maintainer can create. None of them goes in the

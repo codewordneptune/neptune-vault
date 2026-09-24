@@ -23,7 +23,9 @@ export function Privacy() {
         </Text>
         {PRIVACY.map((section) => (
           <Stack key={section.title} gap="xs">
-            <Title order={3}>{section.title}</Title>
+            <Title order={3} className="vault-prose-heading">
+              {section.title}
+            </Title>
             {section.paragraphs.map((p, i) => (
               <Text key={i} size="sm">
                 {p}

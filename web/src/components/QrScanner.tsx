@@ -19,11 +19,11 @@
 // Two readers look at each square: the browser's own detector where there is
 // one (fast, weak on dense codes), and zxing in a worker (slower, strong on
 // them), so nothing heavy runs on the thread that draws the preview. A dim
-// line says what the camera actually gave, because which of these a given
-// phone grants to a web page only that phone can tell.
+// line under Camera details says what the camera actually gave, because
+// which of these a given phone grants to a web page only that phone can tell.
 
 import { Button, Group, Modal, Stack, Text } from '@mantine/core';
-import { IconBulb, IconBulbOff, IconCameraRotate, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
+import { IconBulb, IconBulbOff, IconCameraRotate, IconChevronRight, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { NATIVE } from '../app/platform';
@@ -101,7 +101,11 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   const [zoomRange, setZoomRange] = useState<{ min: number; max: number } | null>(null);
   const [zoomed, setZoomed] = useState(true);
   const [portrait, setPortrait] = useState(true);
+  // What the scanner is doing while the camera opens, said to everyone.
   const [status, setStatus] = useState('');
+  // What the camera gave, once it runs: for someone working out why a code
+  // will not read, so it waits behind Camera details.
+  const [readout, setReadout] = useState('');
 
   // A code on screen or in a saved picture: read from an image instead of
   // the camera. For a desktop without a camera, and for a screenshot sent
@@ -240,7 +244,8 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
       const readers = [detector ? 'built-in' : null, worker && !workerBroken ? 'zxing' : workerBroken ? 'zxing on the page' : null].filter(Boolean).join(' + ');
       const pace = passes > 0 ? ` · ${Math.round(passMillis)} ms a look${readerMillis ? `, zxing ${Math.round(readerMillis)} ms` : ''}` : '';
       const which = count > 1 ? `camera ${index + 1} of ${count}` : 'the only camera';
-      setStatus(`${size} · ${which}${track.label ? ` (${track.label})` : ''} · focus: ${focus} · zoom: ${zoom} · ${readers}${pace}`);
+      setStatus('');
+      setReadout(`${size} · ${which}${track.label ? ` (${track.label})` : ''} · focus: ${focus} · zoom: ${zoom} · ${readers}${pace}`);
     };
 
     const tick = async (track: MediaStreamTrack, caps: CameraCaps, count: number, index: number) => {
@@ -295,6 +300,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     void (async () => {
       try {
         setStatus('Opening the camera…');
+        setReadout('');
         const wanted = picked ?? remembered();
         try {
           stream = await openCamera(wanted);
@@ -409,10 +415,10 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   const at = cameras.findIndex((c) => c.deviceId === cameraId);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md">
+    <Modal opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md" classNames={{ body: 'vault-scan-body' }}>
       <Stack>
         {error ? (
-          <Text c="red" size="sm">
+          <Text c="var(--v-danger-text)" size="sm">
             {error}
           </Text>
         ) : (
@@ -478,6 +484,17 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           <Text size="xs" c="dimmed" className="vault-scan-status" aria-live="off">
             {status}
           </Text>
+        )}
+        {!error && readout && (
+          <details className="vault-setting vault-scan-details">
+            <summary>
+              <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
+              Camera details
+            </summary>
+            <Text size="xs" c="dimmed" className="vault-scan-status" aria-live="off" mt={8}>
+              {readout}
+            </Text>
+          </details>
         )}
       </Stack>
     </Modal>

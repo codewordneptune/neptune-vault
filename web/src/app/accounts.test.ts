@@ -8,7 +8,7 @@ import { openSeed, WrongPasswordError } from '../storage/envelope';
 import type { WalletCore } from '../backend/types';
 import { CHAIN_PARTS } from '../backend/types';
 import { chainView, testEngine } from '../backend/engineForTests';
-import { AccountService, DEFAULT_LOCK_MS, lockTimeoutOf, UnlockCancelledError } from './accounts';
+import { AccountService, clashingName, DEFAULT_LOCK_MS, lockTimeoutOf, nextWalletName, UnlockCancelledError, WalletNameTakenError } from './accounts';
 import type { PasskeyProvider } from './passkey';
 
 class FakePasskeys implements PasskeyProvider {
@@ -22,7 +22,6 @@ class FakePasskeys implements PasskeyProvider {
 class FakeCore implements Partial<WalletCore> {
   unlocked: string[] | null = null;
   /** Set to make the next address derivation fail, as a full disk or a broken worker would. */
-  failAddress = false;
   /** Resolved by a test to let a slow password hash finish. */
   gate: Promise<void> | null = null;
   async isValidAddress(address: string) {
@@ -44,7 +43,6 @@ class FakeCore implements Partial<WalletCore> {
     this.unlocked = null;
   }
   async address(_kind: string, index: number) {
-    if (this.failAddress) throw new Error('worker failed');
     return `nolgar1-${this.unlocked?.[0]}-${index}`;
   }
 }
@@ -150,8 +148,8 @@ describe('the engine store, as the account service drives it', () => {
     const { core, service } = await withStore();
     const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
     expect(core.contentKeys).toBe(1);
-    // Contacts on their own, and the chain as one batch: the parts the sync writes together.
-    expect(core.migrations.map((m) => m.parts)).toEqual([['contacts'], CHAIN_PARTS]);
+    // Contacts and the private notes on their own, and the chain as one batch: the parts the sync writes together.
+    expect(core.migrations.map((m) => m.parts)).toEqual([['contacts'], ['private'], CHAIN_PARTS]);
     expect(service.engine.where(record.id, 'contacts')).toBe('engine');
   });
 
@@ -165,7 +163,7 @@ describe('the engine store, as the account service drives it', () => {
     await db.put('contacts', { key: 'someone-else:1', id: '1', accountId: 'someone-else', name: 'Not mine', address: 'nolgar1x', kind: 'k', createdAt: 1, updatedAt: 1 });
 
     await service.unlock(record.id, 'pw');
-    expect(core.migrations).toHaveLength(2);
+    expect(core.migrations).toHaveLength(3);
     const contacts = core.migrations.find((m) => m.parts.includes('contacts'))!;
     expect(contacts.dump.contacts).toHaveLength(1);
     expect(contacts.dump.accounts).toHaveLength(1);
@@ -173,7 +171,28 @@ describe('the engine store, as the account service drives it', () => {
     await service.lock();
     expect(() => service.engine.where(record.id, 'contacts')).toThrow('wallet is locked');
     await service.unlock(record.id, 'pw');
-    expect(core.migrations).toHaveLength(2);
+    expect(core.migrations).toHaveLength(3);
+  });
+
+  it('keeps the note about a failed send in the sealed log, and hands an older one from the settings to the move', async () => {
+    const { core, service } = await withStore();
+    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const failure = { at: 1, accountId: record.id, amount: '2', recipient: 'nolgar1x', message: 'no route' };
+    await service.setLastSendFailure(record.id, failure);
+    expect(core.commits.at(-1)).toEqual([{ op: 'putPrivate', key: 'lastSendFailure', value: failure }]);
+    await service.setLastSendFailure(record.id, null);
+    expect(core.commits.at(-1)).toEqual([{ op: 'deletePrivate', key: 'lastSendFailure' }]);
+
+    // An older version kept it in the clear in the settings: the next unlock
+    // gives the settings to the move of the private notes.
+    await service.lock();
+    core.moved = [];
+    core.migrations = [];
+    await db.put('settings', { id: 'settings', network: 'regtest', nodeUrls: { main: '', testnet: '', regtest: '' }, currentAccountId: record.id, lockTimeoutMs: 300000, lastSendFailure: failure });
+    await service.unlock(record.id, 'pw');
+    const notes = core.migrations.find((m) => m.parts.includes('private'))!;
+    expect((notes.dump as { settings?: { lastSendFailure?: unknown } }).settings?.lastSendFailure).toEqual(failure);
+    expect(service.engine.where(record.id, 'private')).toBe('engine');
   });
 
   it('a chain that will not move is rebuilt from the chain, and says so', async () => {
@@ -204,7 +223,8 @@ describe('the engine store, as the account service drives it', () => {
     expect(service.currentAccountId).toBe(record.id);
     // But its contacts are not guessed at from the rows left behind.
     expect(() => service.engine.where(record.id, 'contacts')).toThrow('the disk is full');
-    expect(service.engine.describe(record.id, 'contacts')).toBe('Not readable');
+    // And Diagnostics says why.
+    expect(service.engine.problems(record.id)).toEqual(['the sealed log did not open: the disk is full']);
   });
 
   it('deleting a wallet drops its log, locked or not', async () => {
@@ -297,10 +317,17 @@ describe('account service', () => {
 
   it('a create that fails half way leaves no keys loaded, and a malformed backup file leaves no wallet', async () => {
     const { core, service } = await setup();
-    core.failAddress = true;
+    // A failure after the keys are loaded: opening the wallet's store, the
+    // step both a create and an import take once the keys are in the core.
+    const steps = service as unknown as { openStore: (id: string) => Promise<void> };
+    const openStore = steps.openStore.bind(service);
+    const failOpening = (fail: boolean) => {
+      steps.openStore = fail ? async () => Promise.reject(new Error('worker failed')) : openStore;
+    };
+    failOpening(true);
     await expect(service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1)).rejects.toThrow(/worker failed/);
     expect(core.unlocked).toBeNull();
-    core.failAddress = false;
+    failOpening(false);
 
     const made = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
     const file = await service.exportFile(made.id, 'pw');
@@ -318,7 +345,7 @@ describe('account service', () => {
     // A network the app does not know is refused before anything is touched.
     await expect(service.importFile({ ...file, network: 'moon' } as never, 'pw')).rejects.toThrow(/network/);
     // A failure after the keys are loaded unloads them and leaves no wallet behind.
-    core.failAddress = true;
+    failOpening(true);
     await expect(service.importFile(file, 'pw')).rejects.toThrow(/worker failed/);
     expect(core.unlocked).toBeNull();
     expect((await db.getAll('accounts')).length).toBe(before + 1);
@@ -422,7 +449,8 @@ describe('account service', () => {
     const phrase = await service.generatePhrase();
     const record = await service.createAccount(phrase, 'pw', 'regtest', 12);
     expect(record.birthdayHeight).toBe(12);
-    expect(record.address0).toBe('nolgar1-w0-0');
+    // The main address is not kept in the clear; screens derive it from the keys.
+    expect(record.address0).toBeUndefined();
     expect(record.backupConfirmed).toBe(false);
     expect(service.currentAccountId).toBe(record.id);
     expect(core.unlocked).toEqual(phrase);
@@ -591,7 +619,48 @@ describe('account service', () => {
     await expect(service.importFile(file, 'wrong')).rejects.toBeInstanceOf(WrongPasswordError);
     const imported = await service.importFile(file, 'pw');
     expect(imported.id).not.toBe(created.id);
-    expect(imported.address0).toBe(created.address0);
+    expect(imported.address0).toBeUndefined();
     expect(imported.backupConfirmed).toBe(true);
+  });
+});
+
+describe('wallet names', () => {
+  it('a new wallet takes the lowest free number, whatever the count', () => {
+    expect(nextWalletName([])).toBe('Wallet 1');
+    expect(nextWalletName(['Wallet 1', 'Wallet 2'])).toBe('Wallet 3');
+    // Wallet 1 of two was removed: the gap is filled, not a second Wallet 2 made.
+    expect(nextWalletName(['Wallet 2'])).toBe('Wallet 1');
+    expect(nextWalletName(['wallet 1 ', 'Savings', 'Wallet 3'])).toBe('Wallet 2');
+  });
+
+  it('a clash ignores case and outer spaces, and names the wallet it clashes with', () => {
+    expect(clashingName(' savings ', ['Wallet 1', 'Savings'])).toBe('Savings');
+    expect(clashingName('Savings 2', ['Savings'])).toBeNull();
+  });
+
+  it('the service fills gaps, refuses a repeated name on one network, and takes a name when a wallet is added', async () => {
+    const { service } = await setup();
+    const first = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const second = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    await service.deleteAccount(first.id);
+    expect(await service.nextName('regtest')).toBe('Wallet 1');
+    const third = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    expect(third.name).toBe('Wallet 1');
+
+    await service.rename(second.id, 'Savings');
+    await expect(service.rename(third.id, 'savings')).rejects.toBeInstanceOf(WalletNameTakenError);
+    await expect(service.rename(third.id, 'savings')).rejects.toThrow('Another wallet here is called Savings.');
+    // Its own name, in another case, is not a clash.
+    await service.rename(second.id, 'SAVINGS');
+    // Another network is another list.
+    const elsewhere = await service.createAccount(await service.generatePhrase(), 'pw', 'testnet', 1, { name: 'Savings' });
+    expect(elsewhere.name).toBe('Savings');
+
+    const named = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1, { name: '  Spending  ' });
+    expect(named.name).toBe('Spending');
+    await expect(service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1, { name: 'spending' })).rejects.toBeInstanceOf(WalletNameTakenError);
+    // An empty name asked for is no name: the next free number.
+    const blank = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1, { name: '   ' });
+    expect(blank.name).toBe('Wallet 2');
   });
 });

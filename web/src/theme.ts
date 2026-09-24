@@ -37,8 +37,11 @@ export const theme = createTheme({
   colors: { dark, neptune },
   primaryColor: 'neptune',
   primaryShade: { light: 6, dark: 6 },
-  fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Roboto Mono, monospace',
+  // The system's own face everywhere: nothing is bundled, so a named web font
+  // (Inter led the stack) only ever showed where someone had installed it.
+  fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  // The one monospace stack; global.css reads it as --mantine-font-family-monospace.
+  fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   fontSizes: { xs: '0.75rem', sm: '0.875rem', md: '0.9375rem', lg: '1.0625rem', xl: '1.25rem' },
   // One radius scale: xs chips, sm controls, md cards, xl pills (badges only).
   defaultRadius: 'sm',
@@ -46,10 +49,10 @@ export const theme = createTheme({
   headings: {
     fontWeight: '600',
     sizes: {
-      // h1 is the brand in the header; h2 a screen title; h3 a section label.
+      // h1 is the brand in the header; h2 a screen title. An h3 is sized in
+      // global.css: a section label in a card, or a prose heading on Privacy.
       h1: { fontSize: '0.9375rem', lineHeight: '1.2' },
       h2: { fontSize: '1.125rem' },
-      h3: { fontSize: '0.8125rem' },
     },
   },
   components: {

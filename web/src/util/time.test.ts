@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dayKey, dayLabel, formatDate, formatDateTime, formatTime, formatWhen } from './time';
+import { dayKey, dayLabel, formatAbout, formatDate, formatDateTime, formatDuration, formatTime, formatWhen } from './time';
 
 // Sunday 13 September 2026, 16:30 on this machine's clock.
 const now = new Date(2026, 8, 13, 16, 30).getTime();
@@ -49,5 +49,21 @@ describe('dayKey', () => {
   it('is one key per calendar day on this device', () => {
     expect(dayKey(at(2026, 8, 13, 0, 1))).toBe(dayKey(at(2026, 8, 13, 23, 59)));
     expect(dayKey(at(2026, 8, 13, 0, 1))).not.toBe(dayKey(at(2026, 8, 12, 23, 59)));
+  });
+});
+
+describe('formatDuration', () => {
+  it('writes seconds, minutes and seconds, then hours and minutes', () => {
+    expect(formatDuration(0)).toBe('0 s');
+    expect(formatDuration(45.4)).toBe('45 s');
+    expect(formatDuration(60)).toBe('1 min');
+    expect(formatDuration(143)).toBe('2 min 23 s');
+    expect(formatDuration(3600)).toBe('1 h');
+    expect(formatDuration(3900)).toBe('1 h 5 min');
+  });
+
+  it('rounds an estimate the way people say one', () => {
+    expect(formatAbout(40)).toBe('about 40 s');
+    expect(formatAbout(143)).toBe('about 2 min');
   });
 });

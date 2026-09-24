@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- The desktop app icon: the brand mark in the app's light accent on the
+       page's navy, as a full-bleed rounded tile. Source for `tauri icon`. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22344d"/>
+      <stop offset="1" stop-color="#0d131c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.08" cy="0.06" r="0.6">
+      <stop offset="0" stop-color="#5ca3ff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#5ca3ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="113" fill="url(#tile)"/>
+  <rect width="512" height="512" rx="113" fill="url(#glow)"/>
+  <g fill="#7db4f5" transform="translate(256 256) scale(1.901) translate(-150 -150.05)">
+    <path d="M98.3,223.9H73.2v-95.9c0-30.6,24.9-55.5,55.5-55.5s55.5,24.9,55.5,55.5v51.7h-25.1v-51.7c0-16.8-13.6-30.4-30.4-30.4s-30.4,13.6-30.4,30.4V223.9z"/>
+    <path d="M171.3,227.5c-30.6,0-55.5-24.9-55.5-55.5v-51.7h25.1v51.7c0,16.8,13.6,30.4,30.4,30.4s30.4-13.6,30.4-30.4V76.1h25.1v95.9C226.8,202.6,201.9,227.5,171.3,227.5z"/>
+  </g>
+</svg>

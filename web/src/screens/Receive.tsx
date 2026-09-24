@@ -4,7 +4,7 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { Button, Group, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { Button, Group, Loader, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { IconArrowsMaximize, IconCopy, IconShare } from '@tabler/icons-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
@@ -13,10 +13,13 @@ import { QrFullScreen } from '../components/QrFullScreen';
 import { Caution, Info } from '../components/Notice';
 
 import { formatNau, useApp } from '../app/AppContext';
+import { useQuote } from '../app/price';
+import { decimalsProblem } from '../util/amount';
+import { fiatOfTyped, formatFiat } from '../util/fiat';
 import { nextKeyIndicesOf } from '../storage/db';
 import { abbreviateAddress, metaProblem, paymentQrPayload, paymentUri } from '../util/address';
 import { copyText } from '../util/clipboard';
-import { showInt } from '../util/format';
+import { groupDigits, showInt } from '../util/format';
 import { KEY_LOOKAHEAD, type KeyKind } from '../backend/types';
 
 // Labelled by what the address is for; the protocol name is the caption.
@@ -71,16 +74,32 @@ function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => 
   );
 }
 
+/**
+ * The code's place while it is being drawn: the same white square and
+ * footer, so the buttons beneath stay where they are when another kind of
+ * address is chosen instead of jumping up and back under the finger.
+ */
+function QrPending() {
+  return (
+    <div className="vault-receive-col vault-qr-code" style={{ cursor: 'default' }} aria-hidden>
+      <div style={{ aspectRatio: '1', display: 'grid', placeItems: 'center' }}>
+        <Loader size="sm" color="gray" />
+      </div>
+      <span className="vault-qr-foot">&nbsp;</span>
+    </div>
+  );
+}
+
 type Tab = 'address' | 'request';
 
 const QR_OPTIONS = { type: 'image/png' as const, width: 1200, margin: 2, errorCorrectionLevel: 'L' as const };
 
 export function Receive() {
-  const { services, account, refresh } = useApp();
+  const { services, account } = useApp();
   const [tab, setTab] = useState<Tab>('address');
   const [kind, setKind] = useState<KeyKind>('generation');
   const [indices, setIndices] = useState<Record<KeyKind, number>>({ generation: 0, ec_hybrid: 0, viewing: 0 });
-  const [address, setAddress] = useState<string>(account?.address0 ?? '');
+  const [address, setAddress] = useState('');
   const [qr, setQr] = useState<string>('');
   const [addressError, setAddressError] = useState<string | null>(null);
   // Which code, if any, is shown as large as the screen allows.
@@ -91,6 +110,14 @@ export function Receive() {
   // screen: kept while switching tabs, gone when the screen is left.
   const [requestAmount, setRequestAmount] = useState('');
   const [amountError, setAmountError] = useState<string | null>(null);
+  // With the balance shown in another currency, the amount asked for is
+  // too, as on Send: an estimate on this screen only. The link and the code
+  // carry NPT alone.
+  const quote = useQuote(services.settings.fiatCurrency);
+  const requestEstimate = (() => {
+    const value = quote ? fiatOfTyped(requestAmount, quote.price) : null;
+    return quote && value !== null && !amountError ? `≈ ${formatFiat(value, quote.currency)}` : undefined;
+  })();
   // The requested amount as a conforming NIP-002 decimal (from nau, so
   // "1,5" or ".5" never reach the link), or undefined when none is asked.
   const [linkAmount, setLinkAmount] = useState<string | undefined>(undefined);
@@ -115,6 +142,14 @@ export function Receive() {
     if (text === '') {
       setLinkAmount(undefined);
       setAmountError(null);
+      return;
+    }
+    // The link carries the amount as the app shows it, eight decimals at
+    // most; more would be asked for in one figure and paid in another.
+    const tooPrecise = decimalsProblem(text);
+    if (tooPrecise) {
+      setAmountError(tooPrecise);
+      setLinkAmount(undefined);
       return;
     }
     void (async () => {
@@ -155,13 +190,10 @@ export function Receive() {
     setAddressError(null);
     void (async () => {
       try {
-        // Always from the keys, the main address included. The copy kept in
-        // the database is there for screens shown while locked; it is not
-        // protected by anything, and an address shown here is one people pay
-        // to. If the two ever differ the keys are right, and the copy is mended.
+        // Always from the keys, the main address included: an address shown
+        // here is one people pay to, and nothing unprotected stands in for it.
         const a = await services.core.address(kind, index);
         if (cancelled) return;
-        if (kind === 'generation' && index === 0 && account && account.address0 !== a) void services.accounts.repairAddress0(account.id, a).then(refresh);
         setAddress(a);
         try {
           setQr(await QRCode.toDataURL(paymentQrPayload(a), QR_OPTIONS));
@@ -293,7 +325,7 @@ export function Receive() {
 
         {tab === 'address' && (
           <>
-            {qr && <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => setEnlarged('address')} />}
+            {qr ? <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => setEnlarged('address')} /> : !addressError && <QrPending />}
             {/* The address shortened, for recognising it by its start and end.
                 Copy, Share and the code always carry it in full; a Standard
                 address runs to some 3,500 characters, which nobody reads. */}
@@ -301,7 +333,7 @@ export function Receive() {
               <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
             </div>
             {addressError && (
-              <Text size="sm" c="red">
+              <Text size="sm" c="var(--v-danger-text)">
                 Could not derive this address: {addressError}
               </Text>
             )}
@@ -326,6 +358,8 @@ export function Receive() {
               value={requestAmount}
               onChange={(e) => setRequestAmount(e.currentTarget.value)}
               error={amountError}
+              description={requestEstimate}
+              inputWrapperOrder={['label', 'input', 'description', 'error']}
             />
             <TextInput
               label="Your name (optional)"
@@ -396,7 +430,7 @@ export function Receive() {
           subtitle={enlarged === 'request' ? `${KIND_LABELS[kind]} address · ${KIND_PROTOCOL[kind]}` : KIND_PROTOCOL[kind]}
           // The title says what kind of address it is; under the code goes the
           // address itself, and for a request the amount asked for above it.
-          caption={`${enlarged === 'request' && linkAmount ? `${linkAmount} NPT
+          caption={`${enlarged === 'request' && linkAmount ? `${groupDigits(linkAmount)} NPT
 ` : ''}${address ? abbreviateAddress(address) : ''}`}
         />
       </Stack>

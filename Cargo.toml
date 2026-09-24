@@ -22,6 +22,13 @@ triton-vm = { path = "crates/vendor/triton-vm" }
 [profile.dev.build-override]
 opt-level = 1
 
+# Dependencies optimised in debug builds too: unoptimised, Triton VM proves
+# about seven times slower, which turns a one-minute proof in `tauri dev`
+# into eight. The workspace's own crates stay unoptimised and debuggable.
+# The wasm packages and release builds use the release profile, unaffected.
+[profile.dev.package."*"]
+opt-level = 3
+
 [profile.release.build-override]
 opt-level = 1
 

@@ -29,7 +29,7 @@ function coreWithStore() {
     async storeCommit(accountId: string, changes: WalletChange[]) {
       for (const change of changes) {
         if (change.op === 'putContact') of(accountId).set(change.contact.id, change.contact);
-        else of(accountId).delete(change.id);
+        else if (change.op === 'deleteContact') of(accountId).delete(change.id);
       }
     },
   };

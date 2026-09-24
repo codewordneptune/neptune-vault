@@ -9,4 +9,6 @@ export const LINKS = {
   /** GitHub compare page; append `<from>...<to>` commits. */
   compare: 'https://github.com/codewordneptune/neptune-vault/compare/',
   neptune: 'https://neptune.cash',
+  /** Explorer page for an output, by canonical commitment; Mainnet only. */
+  explorerOutput: 'https://neptunefundamentals.org/output/',
 };

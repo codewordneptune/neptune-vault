@@ -340,7 +340,7 @@ async fn app_save_file(app: tauri::AppHandle, suggested_name: String, contents: 
 /// the system's browser. Anything else is refused, so a page that went
 /// wrong cannot send the person to a site of its choosing. Kept in step
 /// with web/src/app/links.ts.
-const LINK_HOSTS: &[&str] = &["useneptune.org", "t.me", "talk.neptune.cash", "github.com", "neptune.cash"];
+const LINK_HOSTS: &[&str] = &["useneptune.org", "t.me", "talk.neptune.cash", "github.com", "neptune.cash", "neptunefundamentals.org"];
 
 fn allowed_link(url: &str) -> bool {
     let Some(rest) = url.strip_prefix("https://") else {

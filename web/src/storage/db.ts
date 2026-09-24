@@ -5,6 +5,7 @@
 // (StoredUtxo, ScannedBlock, SendSummary) are stored as it produces them.
 
 import type { NextKeyIndices } from '../backend/types';
+import type { FiatCurrency } from '../util/fiat';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from 'idb';
 
 export type Network = 'main' | 'testnet' | 'regtest';
@@ -27,8 +28,12 @@ export interface AccountRecord {
    * (the node was unreachable at creation) and becomes the tip at first sync. */
   birthdayHeight: number;
   envelope: SeedEnvelope;
-  /** Address of key 0, so the receive screen works before unlocking. */
-  address0: string;
+  /**
+   * Address of key 0. No longer written: it tied this device to its
+   * payments for anyone who could read the database, and every screen that
+   * shows an address derives it from the keys. Older records may carry it.
+   */
+  address0?: string;
   /** Next unused derivation index per key kind, advanced by scanning. */
   nextKeyIndices: NextKeyIndices;
   /** True once the user confirmed the seed phrase. */
@@ -146,18 +151,35 @@ export interface SettingsRecord {
   feeCustom?: string;
   /** Balance and amounts masked on Home (an eye toggle). */
   hideBalance?: boolean;
+  /** The currency the balance is also shown in, fetched from a price site; absent: off, the default. */
+  fiatCurrency?: FiatCurrency;
   /** When the Home install notice was last dismissed; it returns after two weeks. Per device, not per wallet. */
   installNudgeDismissedAt?: number;
   /**
-   * The last send that failed, shown on Home until dismissed: a toast is
-   * missed, a notice is not. `recipient` is the first recipient; `others`
-   * counts the rest of a send to several (absent on older records).
+   * Where older versions kept the note about a failed send, in the clear. It
+   * now lives in the wallet's sealed log (`SendFailure`); one found here
+   * moves there at that wallet's next unlock and is then removed.
    */
-  lastSendFailure?: { at: number; accountId: string; amount: string; recipient: string; others?: number; message: string };
+  lastSendFailure?: SendFailure;
   /** Last connection test per network, kept so Settings shows it on return. */
   nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
   /** How the last proof on this device went, for Diagnostics and bug reports. */
   lastProving?: LastProving;
+}
+
+/**
+ * The last send of a wallet that failed, shown on Home until dismissed: a
+ * toast is missed, a notice is not. Kept in the wallet's sealed log, as its
+ * private note `lastSendFailure`. `recipient` is the first recipient;
+ * `others` counts the rest of a send to several (absent on older notes).
+ */
+export interface SendFailure {
+  at: number;
+  accountId: string;
+  amount: string;
+  recipient: string;
+  others?: number;
+  message: string;
 }
 
 export interface LastProving {

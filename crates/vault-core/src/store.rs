@@ -128,7 +128,9 @@ pub enum DeviceChange {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WalletDetails {
-    /// Address of key 0.
+    /// Address of key 0. The app no longer keeps it in the clear, so a
+    /// wallet made since has none, and none is written back for it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub address0: String,
     #[serde(default)]
     pub backup_confirmed: bool,

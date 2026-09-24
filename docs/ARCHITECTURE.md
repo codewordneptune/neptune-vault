@@ -70,7 +70,8 @@ returns over a Tauri `Channel`. Beyond the wallet the shell does little:
   path) and opener (behind `app_open_url`).
 - Links: `app_open_url` opens only `https://` URLs whose host is in
   `LINK_HOSTS` (useneptune.org, t.me, talk.neptune.cash, github.com,
-  neptune.cash), kept in step with `web/src/app/links.ts`.
+  neptune.cash, neptunefundamentals.org for the explorer), kept in step with
+  `web/src/app/links.ts`.
 - Storage: sealed logs under `<app data dir>/logs`.
 
 It does not talk to the node. The window has only `core:default`
