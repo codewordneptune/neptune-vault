@@ -16,6 +16,7 @@ import { requestPersistentStorage, walletName } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
+import { isCancellation } from './Unlock';
 import { copyText } from '../util/clipboard';
 import { FIAT_CURRENCIES, FIAT_LABELS, isFiatCurrency } from '../util/fiat';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
@@ -670,7 +671,10 @@ function PasskeyCard() {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Set up just now, on this visit: said under where the button was.
+  const [justEnabled, setJustEnabled] = useState(false);
   const enabled = Boolean(account?.passkey);
 
   useEffect(() => {
@@ -681,13 +685,17 @@ function PasskeyCard() {
     if (!account) return;
     setBusy(true);
     setError(null);
+    setPasswordError(null);
     try {
       await services.accounts.enablePasskey(account.id, password);
       setPassword('');
       setOpen(false);
+      setJustEnabled(true);
       await refresh();
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+      // Closing the system sheet is a choice, not a failure, as on the lock screen.
+      if (e instanceof WrongPasswordError) setPasswordError('Wrong password. Try again.');
+      else if (!isCancellation(e)) setError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -695,6 +703,7 @@ function PasskeyCard() {
 
   const disable = async () => {
     if (!account) return;
+    setJustEnabled(false);
     await services.accounts.disablePasskey(account.id);
     await refresh();
   };
@@ -717,6 +726,7 @@ function PasskeyCard() {
             Turn off passkey unlock
           </Button>
         </Group>
+        {justEnabled && <Done onClose={() => setJustEnabled(false)}>Passkey set up. Next time, unlock with your fingerprint, face or device PIN.</Done>}
       </Stack>
     );
   }
@@ -742,16 +752,27 @@ function PasskeyCard() {
       }}
     >
       <Stack>
-        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
-        <PasswordInput label="Confirm your password" description="Needed once, to connect the passkey to this wallet." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" data-autofocus />
+        <PasswordInput
+          label="Confirm your password"
+          description="Needed once, to connect the passkey to this wallet."
+          value={password}
+          onChange={(e) => {
+            setPassword(e.currentTarget.value);
+            setPasswordError(null);
+          }}
+          error={passwordError}
+          autoComplete="current-password"
+          data-autofocus
+        />
         <Group grow>
-          <Button variant="default" onClick={() => { setOpen(false); setPassword(''); setError(null); }}>
+          <Button variant="default" onClick={() => { setOpen(false); setPassword(''); setError(null); setPasswordError(null); }}>
             Cancel
           </Button>
           <Button type="submit" loading={busy} disabled={!password}>
             Create passkey
           </Button>
         </Group>
+        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
       </Stack>
     </form>
   );

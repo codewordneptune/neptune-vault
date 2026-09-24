@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from 'react';
 // button is there for a retry, and the password field for the fallback.
 let promptedThisLoad = false;
 
-/** A cancelled or timed-out system sheet is not an error to show. */
-function isCancellation(e: unknown): boolean {
+/** A cancelled or timed-out system sheet is not an error to show. Settings asks the same when a passkey is set up. */
+export function isCancellation(e: unknown): boolean {
   const name = (e as { name?: string }).name;
   const message = (e as Error).message ?? '';
   return name === 'NotAllowedError' || name === 'AbortError' || /cancel/i.test(message);
@@ -33,16 +33,18 @@ export function Unlock() {
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
+  // A passkey that failed is said under its button: it is not the password field's error.
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
   const hasPasskey = Boolean(account?.passkey);
 
   const unlockWithPasskey = async () => {
     if (!account) return;
     setPasskeyBusy(true);
-    setError(null);
+    setPasskeyError(null);
     try {
       await services.accounts.unlockWithPasskey(account.id);
     } catch (e) {
-      if (!isCancellation(e) && !(e instanceof UnlockCancelledError)) setError((e as Error).message);
+      if (!isCancellation(e) && !(e instanceof UnlockCancelledError)) setPasskeyError((e as Error).message);
       inputRef.current?.focus();
     } finally {
       setPasskeyBusy(false);
@@ -108,6 +110,11 @@ export function Unlock() {
                 <Button leftSection={<IconFingerprint size={18} stroke={1.8} />} loading={passkeyBusy} onClick={() => void unlockWithPasskey()}>
                   Unlock with passkey
                 </Button>
+                {passkeyError && (
+                  <Text size="sm" c="var(--v-danger-text)" role="alert">
+                    {passkeyError}
+                  </Text>
+                )}
                 <Divider label="or use the password" labelPosition="center" />
               </>
             )}
