@@ -22,9 +22,11 @@
   --v-accent-2: #1f6fe0;
   --v-accent-deep: #1a5fc4;
   --v-accent-text: #7db4f5;
-  /* The tile behind the side rail's current tab: a card's surface, lifted
-     a step in the dark palette so it stands off the rail. */
-  --v-rail-tile: var(--v-surface-2);
+  /* The tile behind the side rail's current tab. The page's glow sits
+     behind the rail's first tabs, as light as a card there, so in the dark
+     palette the tile is lighter still: like the cards, it stands off by its
+     fill alone, as in the light palette it takes the cards' edge. */
+  --v-rail-tile: #2e3e56;
   /* Lines (dividers, the edges of the header, tab bar and rail) apart from
      fills: in the dark palette they share a colour, in the light one they
      cannot, since a fill pale enough to sit behind text is too pale to draw
@@ -32,6 +34,8 @@
   --v-line: #1c2734;
   --v-card-shadow: none;
   --v-rail-tile-shadow: none;
+  /* The rail's other tabs' labels, on the page's glow at its strongest. */
+  --v-rail-label: var(--v-muted);
   --v-field-border: transparent;
   --v-field-border-hover: transparent;
   --v-light-button-ring: none;
@@ -87,6 +91,9 @@
   --v-line: #d3dbe6;
   --v-card-shadow: 0 0 0 1px rgba(21, 32, 46, 0.07), 0 1px 3px rgba(21, 32, 46, 0.06);
   --v-rail-tile-shadow: 0 0 0 1px rgba(21, 32, 46, 0.08), 0 1px 3px rgba(21, 32, 46, 0.08);
+  /* The glow's blue darkens the page behind the rail's first tabs: muted
+     text there falls to 4.4:1, this keeps it above 4.8:1. */
+  --v-rail-label: #546377;
   --v-field-border: #bcc7d4;
   --v-field-border-hover: #9dabbd;
   --v-light-button-ring: inset 0 0 0 1px rgba(43, 125, 233, 0.28);
@@ -1240,6 +1247,7 @@ html {
     flex: none;
     width: 100%;
     padding: 12px 4px;
+    color: var(--v-rail-label);
   }
   /* In the rail the current tab sits on a tile of the cards' own surface,
      icon and label together, not a line: a line on the rail's outer edge
@@ -1260,6 +1268,12 @@ html {
   .vault-tab.active::before {
     background: var(--v-rail-tile);
     box-shadow: var(--v-rail-tile-shadow);
+  }
+  /* A tile quiet enough to sit behind text stands well short of 3:1 off
+     the page, and the label's blue differs from the others' grey by hue
+     alone, so the current tab's label is bold: a cue that is not colour. */
+  .vault-tab.active {
+    font-weight: 700;
   }
   /* Under the pointer, a fainter tile says where a click would go. */
   @media (hover: hover) and (pointer: fine) {
