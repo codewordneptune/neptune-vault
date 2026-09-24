@@ -86,6 +86,19 @@ export function Onboarding() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // A new step starts at its top, with focus on its heading: the steps swap
+  // content in place, and the button that led here (often at the foot of a
+  // long step) is gone. An error belongs to the step it was made on.
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const shownStep = useRef(step);
+  useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    setError(null);
+    window.scrollTo(0, 0);
+    stepsRef.current?.querySelector<HTMLElement>('.vault-step-title')?.focus({ preventScroll: true });
+  }, [step]);
+
   // Confirmation: CHECKS random positions are blanked and their words go
   // into a shuffled bank; the user taps them back into place (as the desktop
   // wallet does). A wrong placement can be undone by tapping the slot.
@@ -152,17 +165,8 @@ export function Onboarding() {
       // The coin index finds everything whatever the date, so it is offered only when the date is not known.
       const fastRestore = imported && fast && when === 'unknown';
       const fromTip = when === 'never';
+      // A start above the chain was refused on the seed phrase step, before the password was asked for.
       let height = imported && (fromTip || fastRestore) ? 0 : when === 'unknown' ? 1 : Number(birthday) || 1;
-      if (imported && !fromTip && !fastRestore) {
-        // Refuse a start above the chain when the node can say where it is.
-        try {
-          const tip = await services.node().probe();
-          if (height > tip) throw new Error(`The chain is only at block ${showBlock(tip)}; enter that or a lower block`);
-        } catch (e) {
-          if ((e as Error).message.startsWith('The chain is only')) throw e;
-          // Node unreachable: the sync clamps the height on first contact.
-        }
-      }
       if (!imported) {
         // A fresh account has nothing before the current tip. If the node
         // cannot be reached now, 0 marks the height as unknown and the first
@@ -219,20 +223,19 @@ export function Onboarding() {
   };
 
   return (
-    <Stack gap="md">
-      {error && <Alert color="red">{error}</Alert>}
-
+    <Stack gap="md" ref={stepsRef}>
       {step === 'welcome' && !adding && <PocNotice />}
       {step === 'welcome' && (
         <Paper>
           <Stack>
-            <Title order={2}>{adding ? 'Add a wallet' : 'Set up your wallet'}</Title>
+            <Title order={2} tabIndex={-1} className="vault-step-title">{adding ? 'Add a wallet' : 'Set up your wallet'}</Title>
             <Text size="sm" c="dimmed">
               {adding
                 ? 'Another seed phrase, with its own password and its own backup. The wallet you have stays on this device; the header menu switches between them.'
                 : 'Your keys stay on this device. The seed phrase restores the wallet anywhere, and a backup file is an encrypted copy of it.'}
             </Text>
             <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
+            {error && <Alert color="red">{error}</Alert>}
             <Button variant="light" onClick={() => setStep('import')}>Restore with a seed phrase</Button>
             <Button variant="light" onClick={() => setStep('file')}>Restore from a backup file</Button>
             {/* Most people want Mainnet and should not meet the question first.
@@ -275,7 +278,7 @@ export function Onboarding() {
         <Paper>
           <Stack>
             <span className="vault-eyebrow">Step 1 of 3</span>
-            <Title order={2}>Write down these 18 words</Title>
+            <Title order={2} tabIndex={-1} className="vault-step-title">Write down these 18 words</Title>
             <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your funds. {NATIVE ? 'If this device is lost, only what you write down brings the wallet back.' : 'Clearing the browser deletes everything except what you write down.'}</Text>
             <WordGrid words={phrase} />
             {/* The button, then what copying means, beneath it at every width
@@ -303,7 +306,7 @@ export function Onboarding() {
         <Paper>
           <Stack>
             <span className="vault-eyebrow">Step 2 of 3</span>
-            <Title order={2}>Confirm your seed phrase</Title>
+            <Title order={2} tabIndex={-1} className="vault-step-title">Confirm your seed phrase</Title>
             <Text size="sm" c="dimmed">
               {nextSlot === undefined
                 ? 'Tap a word in the grid to take it out again.'
@@ -339,7 +342,7 @@ export function Onboarding() {
       )}
 
       {step === 'password' && (
-        <PasswordStep busy={busy} onSubmit={finish} stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'} actionLabel={imported ? 'Restore wallet' : 'Create wallet'} onBack={() => setStep(imported ? 'import' : 'confirm')} />
+        <PasswordStep busy={busy} error={error} onSubmit={finish} stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'} actionLabel={imported ? 'Restore wallet' : 'Create wallet'} onBack={() => setStep(imported ? 'import' : 'confirm')} />
       )}
 
       {step === 'import' && (
@@ -366,14 +369,14 @@ export function Onboarding() {
         />
       )}
 
-      {step === 'file' && <FileStep busy={busy} onFile={importFile} onBack={() => setStep('welcome')} />}
+      {step === 'file' && <FileStep busy={busy} error={error} onFile={importFile} onBack={() => setStep('welcome')} />}
     </Stack>
   );
 }
 
 // Restore from a backup file made by this app: the file carries the seed,
 // the network, the start block and the contacts; its password opens it.
-function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File, password: string, fast: boolean) => void; onBack: () => void }) {
+function FileStep({ busy, error, onFile, onBack }: { busy: boolean; error: string | null; onFile: (file: File, password: string, fast: boolean) => void; onBack: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState('');
@@ -402,7 +405,7 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
       }}
     >
       <Stack>
-        <Title order={2}>Restore a backup file</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">Restore a backup file</Title>
         <Text size="sm" c="dimmed">Restores the wallet with its network, start block and contacts. It opens with the password it was saved under.</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">
@@ -439,6 +442,7 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
         <Button disabled={!file || !password} loading={busy} onClick={() => file && onFile(file, password, fast)}>
           Restore
         </Button>
+        {error && <Alert color="red">{error}</Alert>}
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
     </Paper>
@@ -456,7 +460,7 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
-function PasswordStep({ busy, onSubmit, stepLabel, actionLabel, onBack }: { busy: boolean; onSubmit: (password: string) => void; stepLabel: string; actionLabel: string; onBack: () => void }) {
+function PasswordStep({ busy, error, onSubmit, stepLabel, actionLabel, onBack }: { busy: boolean; error: string | null; onSubmit: (password: string) => void; stepLabel: string; actionLabel: string; onBack: () => void }) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
   const ok = newPasswordOk(password, again);
@@ -464,12 +468,13 @@ function PasswordStep({ busy, onSubmit, stepLabel, actionLabel, onBack }: { busy
     <Paper>
       <Stack>
         <span className="vault-eyebrow">{stepLabel}</span>
-        <Title order={2}>Choose a password</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">Choose a password</Title>
         <Text size="sm" c="dimmed">
           Asked on every unlock, and it cannot be recovered. Forgetting it is not fatal: your seed phrase restores the wallet.
         </Text>
         <NewPasswordFields password={password} onPassword={setPassword} again={again} onAgain={setAgain} />
         <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password)}>{actionLabel}</Button>
+        {error && <Alert color="red">{error}</Alert>}
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
     </Paper>
@@ -518,6 +523,8 @@ function ImportStep({
 
   // How the month lookup stands: Continue waits for it.
   const [lookup, setLookup] = useState<StartLookup>('idle');
+  // A start above the chain, found before the password step rather than after it.
+  const [startError, setStartError] = useState<string | null>(null);
   // A month, or a block typed instead, before the scan has somewhere to start.
   const startKnown = when !== 'month' || (lookup !== 'looking' && (lookup === 'found' || Number(birthday) > 1));
 
@@ -526,8 +533,22 @@ function ImportStep({
     setChecking(true);
     try {
       const problem = await checkPhrase(lower);
-      if (problem) setPhraseError(problem);
-      else onPhrase(lower);
+      if (problem) {
+        setPhraseError(problem);
+        return;
+      }
+      if (when === 'month') {
+        try {
+          const tip = await node().probe();
+          if ((Number(birthday) || 1) > tip) {
+            setStartError(`The chain is only at block ${showBlock(tip)}; enter that or a lower block.`);
+            return;
+          }
+        } catch {
+          // Node unreachable: the sync clamps the height on first contact.
+        }
+      }
+      onPhrase(lower);
     } catch (e) {
       setPhraseError((e as Error).message);
     } finally {
@@ -538,7 +559,7 @@ function ImportStep({
     <Paper>
       <Stack>
         <span className="vault-eyebrow">Step 1 of 2</span>
-        <Title order={2}>Import a seed phrase</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">Import a seed phrase</Title>
         <Textarea
           label="Seed phrase (18 words)"
           description={words.length === 0 ? undefined : words.length > 18 ? '18 words needed, you have ' + words.length : words.length + ' of 18 words'}
@@ -582,7 +603,20 @@ function ImportStep({
             </Text>
           </>
         )}
-        {when === 'month' && <StartBlockPicker value={birthday} onChange={setBirthday} node={node} month={month} onMonthChange={setMonth} onLookup={setLookup} />}
+        {when === 'month' && (
+          <StartBlockPicker
+            value={birthday}
+            onChange={(v) => {
+              setBirthday(v);
+              setStartError(null);
+            }}
+            node={node}
+            month={month}
+            onMonthChange={setMonth}
+            onLookup={setLookup}
+            error={startError}
+          />
+        )}
         {when === 'never' && (
           <Text size="sm" c="dimmed">
             The wallet starts at the current block. Anything paid to this seed phrase before now would not show.
