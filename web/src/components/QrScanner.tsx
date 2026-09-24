@@ -412,7 +412,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     <Modal opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md">
       <Stack>
         {error ? (
-          <Text c="red" size="sm">
+          <Text c="var(--v-danger-text)" size="sm">
             {error}
           </Text>
         ) : (
