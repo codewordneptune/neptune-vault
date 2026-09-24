@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
-import { Caution, Done } from '../components/Notice';
+import { Caution, Done, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
@@ -32,7 +32,8 @@ export function Settings() {
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
   const [probe, setProbe] = useState<{ ok: boolean; text: string; at?: number } | null>(services.settings.nodeProbe?.[network] ?? null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  // What the last export came to, shown under its button: a file saved, or not.
+  const [message, setMessage] = useState<{ done: boolean; text: string } | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const changeNetwork = async (value: string | null) => {
@@ -141,13 +142,13 @@ export function Settings() {
         const { saveFile } = await import('../backend/native/appClient');
         const saved = await saveFile(fileName, text);
         if (!saved) {
-          setMessage('Not saved. Export it again when you are ready.');
+          setMessage({ done: false, text: 'Not saved. Export it again when you are ready.' });
           return;
         }
         // Only a file that was written counts as a backup: the dialog says so, unlike a browser download.
         await services.accounts.markBackedUp(account.id, file.exportedAt);
         await refresh();
-        setMessage(`Backup file saved to ${saved}. It is encrypted with your password.`);
+        setMessage({ done: true, text: `Backup file saved to ${saved}. It is encrypted with your password.` });
       } catch (e) {
         setMessage(null);
         setExportError((e as Error).message);
@@ -156,7 +157,7 @@ export function Settings() {
     }
     await services.accounts.markBackedUp(account.id, file.exportedAt);
     await refresh();
-    setMessage(`Backup file ready, encrypted with your password. If you cancelled saving it, export it again.`);
+    setMessage({ done: true, text: 'Backup file ready, encrypted with your password. If you cancelled saving it, export it again.' });
     const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -233,8 +234,6 @@ export function Settings() {
       <Title order={2} className="sr-only">
         Settings
       </Title>
-      {message && <Alert color="green" onClose={() => setMessage(null)} withCloseButton>{message}</Alert>}
-      {exportError && <Alert color="red" onClose={() => setExportError(null)} withCloseButton>Could not make the backup file: {exportError}</Alert>}
       <WalletCard />
       <Paper>
         <Stack>
@@ -278,6 +277,15 @@ export function Settings() {
               {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
             </Button>
           </Group>
+          {message &&
+            (message.done ? (
+              <Done onClose={() => setMessage(null)}>{message.text}</Done>
+            ) : (
+              <Info role="status" onClose={() => setMessage(null)}>
+                {message.text}
+              </Info>
+            ))}
+          {exportError && <Alert color="red" onClose={() => setExportError(null)} withCloseButton>Could not make the backup file: {exportError}</Alert>}
           <Modal opened={exportAsking} onClose={() => setExportAsking(false)} title="Export backup file">
             <form
               onSubmit={(e) => {
@@ -482,6 +490,8 @@ function ChangePassword() {
   const [next, setNext] = useState('');
   const [again, setAgain] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // A wrong current password is said at that field; anything else under the buttons.
+  const [currentError, setCurrentError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -490,6 +500,7 @@ function ChangePassword() {
     if (!account) return;
     setBusy(true);
     setError(null);
+    setCurrentError(null);
     setDone(false);
     try {
       await services.accounts.changePassword(account.id, current, next);
@@ -499,7 +510,8 @@ function ChangePassword() {
       setDone(true);
       setOpen(false);
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+      if (e instanceof WrongPasswordError) setCurrentError('Wrong password. Try again.');
+      else setError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -508,12 +520,12 @@ function ChangePassword() {
   if (!open) {
     return (
       <Stack>
-        {done && <Alert color="green" withCloseButton onClose={() => setDone(false)}>Password changed. An older backup file still opens with the old password, so export a new one if you keep one.</Alert>}
         <Group>
           <Button variant="light" disabled={!account} onClick={() => { setDone(false); setOpen(true); }}>
             Change password
           </Button>
         </Group>
+        {done && <Done onClose={() => setDone(false)}>Password changed. An older backup file still opens with the old password, so export a new one if you keep one.</Done>}
       </Stack>
     );
   }
@@ -526,17 +538,26 @@ function ChangePassword() {
       }}
     >
       <Stack>
-        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
-        <PasswordInput label="Current password" value={current} onChange={(e) => setCurrent(e.currentTarget.value)} autoComplete="current-password" />
+        <PasswordInput
+          label="Current password"
+          value={current}
+          onChange={(e) => {
+            setCurrent(e.currentTarget.value);
+            setCurrentError(null);
+          }}
+          error={currentError}
+          autoComplete="current-password"
+        />
         <NewPasswordFields password={next} onPassword={setNext} again={again} onAgain={setAgain} label="New password (at least 8 characters)" repeatLabel="Repeat new password" />
         <Group grow>
-          <Button variant="default" onClick={() => { setOpen(false); setError(null); setCurrent(''); setNext(''); setAgain(''); }}>
+          <Button variant="default" onClick={() => { setOpen(false); setError(null); setCurrentError(null); setCurrent(''); setNext(''); setAgain(''); }}>
             Cancel
           </Button>
           <Button type="submit" loading={busy} disabled={!account || !current || !newPasswordOk(next, again)}>
             Save new password
           </Button>
         </Group>
+        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
       </Stack>
     </form>
   );
