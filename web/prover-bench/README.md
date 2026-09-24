@@ -5,12 +5,11 @@ time and wasm memory per sub-proof. Results are in `docs/M0-BENCHMARK.md`.
 
 ## Build the prover
 
-The page offers three packages: the two the app ships and a local one.
+The page offers two packages: the one the app ships and a local one.
 
 ```
 cd web
 npm run wasm:prover           # "current": web/public/wasm/prover
-npm run wasm:prover-legacy    # "legacy", pre-fork: web/public/wasm/prover-legacy
 ```
 
 For the "local" package, build straight into the bench folder:
@@ -60,7 +59,8 @@ top of the page must say `crossOriginIsolated: true` for threads to be used.
 ## Run
 
 Pick the prover package, the witness, the network and the block height (the
-height decides the claim version; 55,000 and above is the post-fork format),
+height decides the claim version; the prover makes only the post-fork one,
+so keep it at 55,000 or above on Mainnet),
 leave the LDE cache off, set the thread count (defaults to the device's core
 count when isolated, else 0), optionally turn on the phase profile, and press
 Prove. Keep the tab in

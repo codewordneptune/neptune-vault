@@ -3,11 +3,10 @@
 // the posted witness and reports one message per progress event with the
 // wasm memory size after it.
 
-// The package under test: the app's current prover or the pre-fork one, as
-// served by the app (web/public/wasm), or a local build in ./pkg.
+// The package under test: the app's prover as served by the app
+// (web/public/wasm), or a local build in ./pkg.
 const PACKAGES = {
   current: '../public/wasm/prover/vault_prover.js',
-  legacy: '../public/wasm/prover-legacy/vault_prover_legacy.js',
   pkg: './pkg/vault_prover.js',
 };
 

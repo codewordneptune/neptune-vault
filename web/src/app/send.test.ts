@@ -46,14 +46,19 @@ class FakeCore implements Partial<WalletCore> {
   /** Heights the send flow asked about, in order. */
   askedHeights: number[] = [];
   /**
-   * What the real core does: the rule set of the block at that height, and
-   * so the claim version its proofs must carry. Delta starts at 55,000.
+   * The first delta block. What the real core does: the rule set of the
+   * block at a height, and so the claim version its proofs must carry.
+   * Every network is past it; a test sets it to see the flow refuse.
    */
+  forkHeight = 0;
   async claimVersion(_network: string, blockHeight: number) {
     this.askedHeights.push(blockHeight);
-    return blockHeight < 55000 ? 5 : 8;
+    return blockHeight < this.forkHeight ? 5 : 8;
   }
 }
+
+/** How a node's JSON-RPC answer reads when it refuses a transaction that does not fit the chain. */
+const NOT_CONFIRMABLE = 'wallet_submitTransaction: Server error ({"SubmitTransaction":"NotConfirmable"})';
 
 class FakeNode {
   accept = true;
@@ -62,6 +67,8 @@ class FakeNode {
   heights: number[] = [10];
   /** Thrown by the next submission, once. */
   submitError: string | null = null;
+  /** How many submissions in a row the node refuses as not confirmable. */
+  refusals = 0;
   /** The next submission reaches the node, which takes it, and the answer is lost on the way back. */
   loseAnswer = false;
   /** What the wallet had written down at the moment the node was handed the transaction. */
@@ -86,6 +93,10 @@ class FakeNode {
       this.submitError = null;
       throw new Error(message);
     }
+    if (this.refusals > 0) {
+      this.refusals -= 1;
+      throw new Error(NOT_CONFIRMABLE);
+    }
     this.submitted.push(tx);
     return this.accept;
   }
@@ -101,13 +112,13 @@ class FakeProver implements Prover {
   }
   fail = false;
   calls = 0;
-  /** What the last proof was asked to prove, for the tests about the fork. */
-  last: { blockHeight?: number; legacy?: boolean } | null = null;
+  /** What the last proof was asked to prove, for the tests about the rules. */
+  last: { blockHeight?: number } | null = null;
   /** Runs while the proof is "being made": where a test presses Cancel. */
   during: (() => void) | null = null;
-  async prove(req: { witness: Uint8Array; blockHeight?: number; legacy?: boolean }, onProgress: (p: never) => void) {
+  async prove(req: { witness: Uint8Array; blockHeight?: number }, onProgress: (p: never) => void) {
     this.calls += 1;
-    this.last = { blockHeight: req.blockHeight, legacy: req.legacy };
+    this.last = { blockHeight: req.blockHeight };
     this.during?.();
     onProgress({ index: 1, total: 6, name: 'x', elapsedSeconds: 1, memoryMb: 900, threads: 4 } as never);
     if (this.fail) throw new Error('out of memory');
@@ -256,10 +267,25 @@ describe('send service', () => {
     expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
   });
 
-  it('proves again when a block arrives during proving, then sends', async () => {
+  // A node takes a transaction built against one of the tip's recent
+  // ancestors (neptune-core 0.18 and later), so a proof finished after a
+  // new block is offered as it is.
+  it('offers a proof made before a new block to the node, and proves once when the node takes it', async () => {
     const { node, prover, service } = await setup();
-    // Reads: build (10), check after proving (11), build again (11), check (11).
-    node.heights = [10, 11, 11, 11];
+    // Reads: build (10); the tip is 12 by the time the proof is done.
+    node.heights = [10, 12];
+    const outcome = await service.send(request, () => {});
+    expect(outcome.txid).toBe('tx-abc');
+    expect(prover.calls).toBe(1);
+    expect(node.submitted).toHaveLength(1);
+    expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBe('tx-abc');
+  });
+
+  it('proves again when the node refuses a proof made before new blocks, then sends', async () => {
+    const { node, prover, service } = await setup();
+    node.refusals = 1;
+    // Reads: build (10), check after the refusal (14), build again (14).
+    node.heights = [10, 14, 14];
     const notes: string[] = [];
     const outcome = await service.send(request, (p) => {
       if (p.note) notes.push(p.note);
@@ -271,29 +297,21 @@ describe('send service', () => {
     expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBe('tx-abc');
   });
 
-  it('gives up after three proofs when blocks keep arriving, reserving nothing', async () => {
+  it('gives up after three proofs the node refuses as blocks keep arriving, holding nothing', async () => {
     const { node, prover, service } = await setup();
+    node.refusals = 3;
+    // Each attempt: build, then a check after the refusal that finds a newer tip.
     node.heights = [10, 11, 11, 12, 12, 13];
     await expect(service.send(request, () => {})).rejects.toThrow(/Nothing was sent: new blocks kept arriving/);
     expect(prover.calls).toBe(3);
     expect(node.submitted).toHaveLength(0);
     expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
-  });
-
-  it('proves again when the node refuses because a block arrived just before', async () => {
-    const { node, prover, service } = await setup();
-    node.submitError = 'wallet_submitTransaction: Server error ({"SubmitTransaction":"NotConfirmable"})';
-    // Reads: build (10), check (10), check after the refusal (11), build again (11), check (11).
-    node.heights = [10, 10, 11, 11, 11];
-    const outcome = await service.send(request, () => {});
-    expect(outcome.txid).toBe('tx-abc');
-    expect(prover.calls).toBe(2);
-    expect(node.submitted).toHaveLength(1);
+    expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
   });
 
   it('names a spent coin when the node refuses and the tip has not moved', async () => {
     const { node, prover, service } = await setup();
-    node.submitError = 'wallet_submitTransaction: Server error ({"SubmitTransaction":"NotConfirmable"})';
+    node.submitError = NOT_CONFIRMABLE;
     await expect(service.send(request, () => {})).rejects.toThrow(/Nothing was sent: the node says one of the coins is already spent/);
     expect(prover.calls).toBe(1);
     expect(node.submitted).toHaveLength(0);
@@ -323,18 +341,24 @@ describe('send service', () => {
   // and at the fork the two differ.
   it('proves for the block the transaction can be mined into, not for the tip', async () => {
     const { core, node, prover, service } = await setup();
+    core.forkHeight = 55000;
     node.heights = [54999];
     await service.send(request, () => {});
     expect(core.askedHeights).toEqual([55000]);
-    expect(prover.last).toEqual({ blockHeight: 55000, legacy: false });
+    expect(prover.last).toEqual({ blockHeight: 55000 });
   });
 
-  it('asks the pre-fork prover while the next block is still pre-fork', async () => {
+  // Every network is past the delta fork. A chain that still asked for the
+  // older proofs is one this build cannot serve, and it says so before
+  // proving anything or holding any coin.
+  it('refuses to prove under rules older than the delta fork', async () => {
     const { core, node, prover, service } = await setup();
+    core.forkHeight = 55000;
     node.heights = [54000];
-    await service.send(request, () => {});
+    await expect(service.send(request, () => {})).rejects.toThrow(/cannot send under the network's current rules/);
     expect(core.askedHeights).toEqual([54001]);
-    expect(prover.last).toEqual({ blockHeight: 54001, legacy: true });
+    expect(prover.calls).toBe(0);
+    expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
   });
 
   it('proves under one rule set: the prover is given the height the version was chosen for', async () => {

@@ -117,11 +117,14 @@ export class SendService {
     onProgress({ stage: 'planning' });
     const plan = await this.core.planInputs(await this.spendable(now), request, now);
 
-    // The proof commits to the inputs as of one snapshot of the chain. A
-    // block mined during the minutes of proving makes that snapshot stale
-    // and the node refuses the transaction, so the flow checks the tip
-    // before submitting and starts over, a few times, rather than spending
-    // the proof on a submission that cannot succeed.
+    // The proof commits to the inputs as of one snapshot of the chain, and
+    // blocks may be mined during the minutes of proving. Nodes from
+    // neptune-core 0.18 on take a transaction built against any of the tip's
+    // last three blocks and carry it forward; older nodes often take one a
+    // block behind when that block left its coins alone. So a finished proof
+    // is always offered to the node, and only when the node refuses it and
+    // blocks have arrived meanwhile does the flow build on the new tip and
+    // prove again, a few times at most.
     let again: string | undefined;
     for (let attempt = 1; ; attempt++) {
       stopIfCancelled();
@@ -146,27 +149,21 @@ export class SendService {
         throw e;
       }
 
-      // Before the delta fork the rules want claim version 5, produced by the
-      // pre-fork prover package; after it, version 8 from the current one.
-      //
-      // The height that decides this is the one the transaction will be
-      // confirmed at, not the tip: a transaction cannot be mined into the
-      // block that already exists, so the earliest block that can carry it
-      // is the next one, and it is that block's rules it has to satisfy.
-      // One block either side of the fork, those are different rules, and a
-      // proof made for the wrong one is dropped with the mempool when the
-      // fork arrives.
+      // A proof is made for the rules of the block that can confirm the
+      // transaction: not the tip, which already exists, but the next one.
+      // Every network is past the delta fork, whose proofs carry claim
+      // version 8; any other version means rules this app does not know.
       const confirmationHeight = tipHeader.height + 1;
       const version = (await this.core.claimVersion?.(this.network, confirmationHeight)) ?? 8;
       onProgress({ stage: 'proving', claimVersion: version, note: again });
-      if (version !== 5 && version !== 8) throw new Error(`This version of the app cannot send under the network's current rules. Update the app.`);
+      if (version !== 8) throw new Error(`This version of the app cannot send under the network's current rules. Update the app.`);
       stopIfCancelled();
       let proving: ProveOutcome;
       try {
         proving = this.useMockProofs
           ? { proofCollection: await this.core.mockProofCollection(built.witness), seconds: 0, memoryMb: 0, threads: 0 }
           : await this.prover.prove(
-              { witness: built.witness, network: this.network, blockHeight: confirmationHeight, threads: this.threads, legacy: version === 5, inputs: plan.inputs.length },
+              { witness: built.witness, network: this.network, blockHeight: confirmationHeight, threads: this.threads, inputs: plan.inputs.length },
               (p) => onProgress({ stage: 'proving', proving: p, note: again }),
             );
       } catch (e) {
@@ -178,12 +175,6 @@ export class SendService {
       onProgress({ stage: 'submitting', note: again });
 
       const moved = async () => (await this.node.tipHeaderRaw()).height !== tipHeader.height;
-      if (await moved()) {
-        if (attempt >= MAX_SEND_ATTEMPTS) throw new Error(`Nothing was sent: new blocks kept arriving during the proof. Try again in a moment.`);
-        again = `A new block arrived. Proving again (${attempt + 1} of ${MAX_SEND_ATTEMPTS}).`;
-        continue;
-      }
-
       const transaction = await this.core.assembleSubmission(built.kernel, proving.proofCollection);
       // The last moment Cancel means anything.
       stopIfCancelled();
@@ -203,7 +194,12 @@ export class SendService {
         // The node answered, and the answer was no: nothing is out there.
         await this.discardPending(txid);
         if (!isNotConfirmable(e)) throw e;
-        if ((await moved()) && attempt < MAX_SEND_ATTEMPTS) {
+        // Refused as unconfirmable. With blocks mined since the snapshot, the
+        // proof was built too far behind the tip, or a new block touched its
+        // coins: build on the new tip and prove again. With none, a coin it
+        // spends is gone.
+        if (await moved()) {
+          if (attempt >= MAX_SEND_ATTEMPTS) throw new Error(`Nothing was sent: new blocks kept arriving during the proof. Try again in a moment.`);
           again = `A new block arrived. Proving again (${attempt + 1} of ${MAX_SEND_ATTEMPTS}).`;
           continue;
         }

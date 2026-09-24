@@ -1,7 +1,7 @@
 # Hosting on Azure Static Web Apps
 
 The web app is static files: `web/dist` after `npm run build`, with the
-three wasm packages under `wasm/` (`core`, `prover`, `prover-legacy`).
+two wasm packages under `wasm/` (`core` and `prover`).
 The desktop apps do not use this hosting at all; see
 [DESKTOP-RELEASE.md](DESKTOP-RELEASE.md).
 
@@ -45,7 +45,7 @@ The site is `https://vault.dev.useneptune.org`.
 
 Pushes to `main` that touch the web app or the crates run
 `.github/workflows/deploy-web.yml`: it runs the Rust tests (`vault-core`
-and the vendored field-inverse test), builds the three wasm packages (the
+and the vendored field-inverse test), builds the two wasm packages (the
 nightly toolchain and wasm-pack, cached between runs), runs the web tests,
 builds `dist`, publishes the file hashes, and uploads it. The first run compiles everything and takes
 about 30 minutes; later runs reuse the cargo cache.
@@ -54,7 +54,7 @@ To deploy from this PC instead, build locally and upload with the SWA CLI:
 
 ```
 cd web
-npm run wasm:core && npm run wasm:prover && npm run wasm:prover-legacy
+npm run wasm:core && npm run wasm:prover
 npm run build
 npx @azure/static-web-apps-cli deploy dist --deployment-token <token> --env production
 ```

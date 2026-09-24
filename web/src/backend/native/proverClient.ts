@@ -68,7 +68,6 @@ export class NativeProverClient implements Prover {
       network: request.network,
       blockHeight: request.blockHeight,
       threads: request.threads,
-      legacy: Boolean(request.legacy),
       onEvent: channel,
     }).then((wire) => ({
       proofCollection: fromBase64(wire.proofCollection),

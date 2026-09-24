@@ -8,17 +8,12 @@
 import type { ProveRequest } from '../types';
 
 type ProverModule = typeof import('../../../public/wasm/prover/vault_prover');
-// The pre-fork package (claim version 5, Triton VM 7) exports the same
-// functions; it is only fetched when the chain still asks for it.
-const PACKAGES = {
-  current: '/wasm/prover/vault_prover.js',
-  legacy: '/wasm/prover-legacy/vault_prover_legacy.js',
-} as const;
+const PACKAGE = '/wasm/prover/vault_prover.js';
 let prover: ProverModule | null = null;
-async function loadProver(legacy: boolean): Promise<ProverModule> {
+async function loadProver(): Promise<ProverModule> {
   // An absolute URL keeps both TypeScript and Vite's dev-time import rewriting
   // (which appends a query to root-relative dynamic imports) out of the way.
-  const url = new URL(legacy ? PACKAGES.legacy : PACKAGES.current, self.location.origin).href;
+  const url = new URL(PACKAGE, self.location.origin).href;
   prover ??= (await import(/* @vite-ignore */ url)) as ProverModule;
   return prover;
 }
@@ -33,9 +28,9 @@ export type ProveMessage =
 let ready: Promise<ProverModule> | null = null;
 let poolSize = 0;
 
-async function ensureReady(threads: number, legacy: boolean): Promise<ProverModule> {
+async function ensureReady(threads: number): Promise<ProverModule> {
   const p = ready ?? (async () => {
-    const m = await loadProver(legacy);
+    const m = await loadProver();
     await m.default();
     if (self.crossOriginIsolated && threads > 0) {
       try {
@@ -55,7 +50,7 @@ const post = (m: ProveMessage, transfer: Transferable[] = []) => (self as unknow
 
 self.onmessage = async ({ data }: MessageEvent<ProveRequest>) => {
   try {
-    const m = await ensureReady(data.threads, Boolean(data.legacy));
+    const m = await ensureReady(data.threads);
     const total = m.count_sub_proofs(data.witness);
     post({ kind: 'ready', total, threads: poolSize });
     const result = m.prove_proof_collection(data.witness, data.network, BigInt(data.blockHeight), false, false, (json: string) => {

@@ -279,20 +279,8 @@ async fn prover_prove(
     network: String,
     block_height: u64,
     threads: usize,
-    legacy: bool,
     on_event: Channel<ProveEvent>,
 ) -> Result<ProveOutcome> {
-    if legacy {
-        // The pre-fork prover is a separate workspace on purpose, so that the
-        // two generations of the consensus crates never share a dependency
-        // graph, and it is due to be deleted a week after the fork. Rather
-        // than link it in or drop the flag on the floor, say plainly that
-        // this build cannot make a claim-version-5 proof.
-        return Err(BridgeError {
-            name: "Error".to_string(),
-            message: "This build cannot make pre-fork proofs. Send from the web app until the fork, or update this app after it.".to_string(),
-        });
-    }
     let witness = bytes("the witness", &witness)?;
     let prover = app.prover.clone();
     tauri::async_runtime::spawn_blocking(move || {
