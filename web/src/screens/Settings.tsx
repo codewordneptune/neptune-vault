@@ -1,12 +1,13 @@
 // Network, node URL with connectivity check, backup actions, lock.
 
 import { Alert, Anchor, Button, Checkbox, Group, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
-import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconWallet } from '@tabler/icons-react';
+import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconTrash, IconWallet } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
-import { showBlock, useApp } from '../app/AppContext';
+import { showBlock, showNau, useApp } from '../app/AppContext';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { Caution, Done, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
@@ -459,6 +460,8 @@ export function Settings() {
           </Text>
         </Stack>
       </Paper>
+
+      <RemoveWalletCard />
     </Stack>
   );
 }
@@ -783,17 +786,12 @@ function PasskeyCard() {
   );
 }
 
-// This wallet's name, another wallet, and removal from this device.
+// This wallet's name, and another wallet. Removal has a card of its own, last.
 function WalletCard() {
-  const { services, account, refresh, removeAccount, sendJob } = useApp();
+  const { services, account, refresh, sendJob } = useApp();
   const navigate = useNavigate();
   const [name, setName] = useState(account ? walletName(account) : '');
   const [nameError, setNameError] = useState<string | null>(null);
-  const [removing, setRemoving] = useState(false);
-  const [password, setPassword] = useState('');
-  const [haveBackup, setHaveBackup] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   useEffect(() => {
     setName(account ? walletName(account) : '');
   }, [account?.id, account?.name]);
@@ -808,21 +806,6 @@ function WalletCard() {
       await refresh();
     } catch (e) {
       setNameError((e as Error).message);
-    }
-  };
-
-  const remove = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await services.accounts.verifyPassword(account.id, password);
-      await removeAccount(account.id);
-      setRemoving(false);
-      navigate('/');
-    } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -854,12 +837,69 @@ function WalletCard() {
           <Button variant="light" disabled={sending} onClick={() => navigate('/onboarding?add=1')}>
             Add another wallet
           </Button>
+        </Group>
+      </Stack>
+    </Paper>
+  );
+}
+
+// Removal from this device, in a card of its own at the foot of Settings,
+// away from everyday buttons. The dialog says what the wallet holds, so the
+// stakes are in front of the person, and afterwards a notice says what
+// happened: the next screen is another lock screen, or setup.
+function RemoveWalletCard() {
+  const { services, account, balance, loaded, removeAccount, sendJob } = useApp();
+  const navigate = useNavigate();
+  const [removing, setRemoving] = useState(false);
+  const [password, setPassword] = useState('');
+  const [haveBackup, setHaveBackup] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!account) return null;
+  const sending = Boolean(sendJob && !sendJob.done);
+  const name = walletName(account);
+  // Everything the wallet owns: spendable, held for a pending send, and time-locked.
+  const holds = balance.spendableNau + balance.reservedNau + balance.lockedNau;
+  const hidden = services.settings.hideBalance ?? false;
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await services.accounts.verifyPassword(account.id, password);
+      await removeAccount(account.id);
+      setRemoving(false);
+      notifications.show({ message: `${name} was removed from this device.` });
+      navigate('/');
+    } catch (e) {
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Paper>
+      <Stack>
+        <Title order={3} className="vault-section-title">
+          <IconTrash size={18} stroke={1.8} aria-hidden />
+          Remove wallet
+        </Title>
+        <Text size="sm" c="dimmed">
+          Removes {name} from this device only. Its coins stay on the chain, and its seed phrase or a backup file brings it back.
+        </Text>
+        <Group>
           <Button variant="subtle" color="red" className="vault-danger" disabled={sending} onClick={() => setRemoving(true)}>
             Remove from this device
           </Button>
         </Group>
-        <Modal opened={removing} onClose={() => setRemoving(false)} title={`Remove ${walletName(account)} from this device?`}>
+        <Modal opened={removing} onClose={() => setRemoving(false)} title={`Remove ${name} from this device?`}>
           <Stack>
+            {loaded && (
+              <Text size="sm" fw={600}>
+                {name} holds {hidden ? '••••' : showNau(holds)} NPT.
+              </Text>
+            )}
             <Text size="sm">
               This device forgets the wallet, its history and its contacts. The coins stay on the chain, and only the seed phrase or a backup file brings them back.
             </Text>
