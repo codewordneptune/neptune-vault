@@ -97,7 +97,7 @@ export function Contacts() {
                         <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => setRenaming(c)}>
                           Rename
                         </Menu.Item>
-                        <Menu.Item leftSection={<IconTrash size={14} />} color="red" onClick={() => setRemoving(c)}>
+                        <Menu.Item leftSection={<IconTrash size={14} />} c="var(--v-danger-text)" onClick={() => setRemoving(c)}>
                           Delete
                         </Menu.Item>
                       </Menu.Dropdown>

@@ -377,7 +377,7 @@ export function Settings() {
           </Modal>
           <TextInput label="Node URL" description={`Used on ${NETWORK_LABELS[network]}; each network has its own.`} value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
           {probe && (
-            <Text size="sm" c={probe.ok ? 'dimmed' : 'red'}>
+            <Text size="sm" c={probe.ok ? 'dimmed' : 'var(--v-danger-text)'}>
               {probe.text}
               {probe.at && probe.text !== 'Testing…' ? ` · checked ${formatTime(probe.at)}` : ''}
             </Text>

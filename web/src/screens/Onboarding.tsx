@@ -603,7 +603,7 @@ function ImportStep({
               <Select label="Month" placeholder="Month" data={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, '0'), label: name }))} value={monthNo || null} onChange={(v) => setPart(year, v ?? '')} />
               <Select label="Year" placeholder="Year" data={years} value={year || null} onChange={(v) => setPart(v ?? '', monthNo)} />
             </Group>
-            <Text size="sm" c={lookup.kind === 'failed' ? 'red' : 'dimmed'}>
+            <Text size="sm" c={lookup.kind === 'failed' ? 'var(--v-danger-text)' : 'dimmed'}>
               {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
               {lookup.kind === 'found' && `The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.`}
               {lookup.kind === 'failed' && lookup.message}

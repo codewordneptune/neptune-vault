@@ -92,7 +92,7 @@ export function StartBlockPicker({
         </Text>
       )}
       {status.kind === 'failed' && (
-        <Text size="sm" c="red">
+        <Text size="sm" c="var(--v-danger-text)">
           {status.message}
         </Text>
       )}
