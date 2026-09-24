@@ -53,7 +53,7 @@ export function Diagnostics() {
             />
             <Fact
               label="Prover"
-              value={`${last.claimVersion === 5 ? 'Pre-fork package, claim version 5' : `Claim version ${last.claimVersion}`}${last.error && last.peakMb > 0 ? `, ${showInt(last.peakMb)} MB before it failed` : ''}`}
+              value={`Claim version ${last.claimVersion}${last.error && last.peakMb > 0 ? `, ${showInt(last.peakMb)} MB before it failed` : ''}`}
             />
           </Stack>
         ) : (

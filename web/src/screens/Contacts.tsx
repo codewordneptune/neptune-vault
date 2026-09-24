@@ -2,7 +2,7 @@
 // delete, and start a send to one.
 
 import { ActionIcon, Alert, Badge, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
-import { IconChevronLeft, IconDotsVertical, IconPencil, IconScan, IconSend, IconTrash, IconUserPlus } from '@tabler/icons-react';
+import { IconChevronLeft, IconCopy, IconDotsVertical, IconPencil, IconScan, IconSend, IconTrash, IconUserPlus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,6 +10,7 @@ import { useApp } from '../app/AppContext';
 import { QrScanner } from '../components/QrScanner';
 import type { ContactRecord } from '../storage/db';
 import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
+import { copyText } from '../util/clipboard';
 import { networkLabel } from '../util/network';
 
 export function Contacts() {
@@ -89,6 +90,10 @@ export function Contacts() {
                         </ActionIcon>
                       </Menu.Target>
                       <Menu.Dropdown>
+                        {/* The row shows the address shortened; this copies it whole, to hand on or paste into another wallet. */}
+                        <Menu.Item leftSection={<IconCopy size={14} />} onClick={() => void copyText(c.address, 'Address copied')}>
+                          Copy address
+                        </Menu.Item>
                         <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => setRenaming(c)}>
                           Rename
                         </Menu.Item>

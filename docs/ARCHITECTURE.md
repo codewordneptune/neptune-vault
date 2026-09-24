@@ -23,7 +23,7 @@ Last reviewed 2026-09-23 against the code.
          | browser                                            | desktop (Tauri 2)
          | wallet worker: vault-core as wasm                  | shells/tauri: thin commands
          | prover worker: vault-prover as wasm                | vault-bridge: vault-core and
-         |   (vault-prover-legacy before the fork)            |   vault-prover, native
+         |                                                    |   vault-prover, native
          | IndexedDB: app database + sealed logs              | sealed logs as files
          +-------------------------+--------------------------+
                                    |
@@ -56,8 +56,6 @@ Rust crates (root `Cargo.toml` workspace):
 - `crates/vendor`: neptune-consensus 0.17.0, neptune-primitives 0.17.0,
   twenty-first 1.1.0 and triton-vm 8.0.0, patched for wasm32 and applied
   through `[patch.crates-io]` ([crates/vendor/VENDOR.md](../crates/vendor/VENDOR.md)).
-- `crates/legacy`: the pre-fork prover, its own workspace. Temporary
-  (section 5).
 
 The native shell (`shells/tauri/src/lib.rs`) has no logic of its own: each
 command decodes its arguments, calls `vault_bridge`, and returns the result.
@@ -130,9 +128,11 @@ receiver, so two equal payments would be one output twice), adds lustration anno
 when the tip requires them and the request allows it, and returns the
 bincode `PrimitiveWitness` and kernel. The txid is the kernel's MAST hash.
 
-Claim versions. Triton VM claim version 5 is required before the Mainnet
-delta fork at block 55,000, version 8 after. `claim_version` reads it from
-`ConsensusRuleSet::infer_from`, and the app chooses a prover by it.
+Claim versions. Proofs for the rules since the delta fork (Mainnet block
+55,000, Testnet 5,400, Regtest from the start) carry Triton VM claim version
+8, the only one the app makes. `claim_version` reads it from
+`ConsensusRuleSet::infer_from`; a version the app does not know stops a send
+before proving.
 
 The ledger (`src/ledger.rs`, `src/ledger/op.rs`). The sync, the mempool
 watcher and a send all change coins and history. Each change is one ledger
@@ -330,21 +330,25 @@ rules. In development `/regtest-node` is proxied to `127.0.0.1:9797`
 3. `build_send`. A lustration requirement becomes `RequiresLustrationError`,
    and the Send screen asks.
 4. The claim version for tip height + 1, the first block that can carry the
-   transaction: 5 means the legacy prover, 8 the current one, anything else
-   stops with "update the app".
+   transaction: 8, or the send stops with "update the app".
 5. Prove, or on regtest take `mock_proof_collection`.
-6. If the tip moved during proving, start over, up to `MAX_SEND_ATTEMPTS` (3).
-7. `assemble_submission`; record the pending row and hold the inputs
-   (`recordPending`) before `wallet_submitTransaction`. A refusal releases
-   them (`discardPending`); a timeout keeps them held
-   (`SendUnconfirmedError`), so nobody pays twice on a lost answer. Cancel
-   works up to submission.
+6. `assemble_submission`; record the pending row and hold the inputs
+   (`recordPending`) before `wallet_submitTransaction`, whether or not
+   blocks arrived during the proof: nodes from neptune-core 0.18 admit a
+   transaction synced to one of the tip's last three blocks
+   (`MAX_TX_SYNC_DEPTH`) and carry it forward, and older ones often take one
+   a block behind. A timeout keeps the inputs held (`SendUnconfirmedError`),
+   so nobody pays twice on a lost answer. Cancel works up to submission.
+7. A refusal releases the inputs (`discardPending`). `NotConfirmable` with
+   a tip that has moved means the proof was too far behind or a new block
+   touched its coins: build on the new tip and prove again, up to
+   `MAX_SEND_ATTEMPTS` (3). With the tip unmoved, a coin is spent, and the
+   send stops and says so.
 
 Browser prover (`web/src/backend/browser/proverClient.ts`, `proverWorker.ts`).
 A fresh worker per proof, so a failed or cancelled run frees its memory. It
-imports `/wasm/prover/vault_prover.js`, or
-`/wasm/prover-legacy/vault_prover_legacy.js` for claim version 5; both have
-the same exports. The thread pool starts only on a cross-origin isolated
+imports `/wasm/prover/vault_prover.js`. The thread pool starts only on a
+cross-origin isolated
 page, sized to all reported cores. The LDE trace is not cached, trading time
 for memory. Sub-proofs run one after another (removal-records integrity,
 collect lock scripts, kernel to outputs, collect type scripts, then one per
@@ -353,15 +357,6 @@ lock script and per type script), with progress weighted by measured cost
 a VM dump can hold the spending secrets. A one-input proof on a Galaxy S24
 took 134 s with 10 threads, at a 985 MB peak
 ([M0-BENCHMARK.md](M0-BENCHMARK.md)).
-
-Legacy prover (temporary). `crates/legacy/vault-prover-legacy` builds the
-0.15 consensus crates with Triton VM 7 for the claim version 5 proofs Mainnet
-requires below block 55,000. It is a separate workspace so the two
-generations never share a dependency graph, sharing only the vendored
-twenty-first ([crates/legacy/VENDOR.md](../crates/legacy/VENDOR.md)). The
-directory and the `prover-legacy` package are to be deleted a week after the
-fork. The desktop app does not include it: `prover_prove` with `legacy`
-returns an error asking the person to send from the web app until the fork.
 
 Native prover (`vault_bridge::Prover`). A rayon pool of exactly the requested
 size (default: all CPUs) with 32 MiB thread stacks, as the desktop node
@@ -427,9 +422,9 @@ unavailable when it is not.
 
 ## 7. Build and test
 
-- `npm run wasm:core`, `wasm:prover` and `wasm:prover-legacy` (in `web/`)
-  run wasm-pack into `web/public/wasm/{core,prover,prover-legacy}`, served
-  untransformed and imported by absolute URL.
+- `npm run wasm:core` and `wasm:prover` (in `web/`) run wasm-pack into
+  `web/public/wasm/{core,prover}`, served untransformed and imported by
+  absolute URL.
 - `rust-toolchain.toml` pins `nightly-2026-07-09`. `.cargo/config.toml`
   builds wasm32 with `build-std`, `+atomics,+bulk-memory,+mutable-globals,+simd128`,
   explicit `--shared-memory` and `--import-memory`, and a 4 GiB memory
@@ -483,9 +478,6 @@ unavailable when it is not.
 - Generation addresses are about 3,500 characters and fit a QR code only as
   upper-case alphanumeric at error-correction level L, hence the upper-cased
   `NEPTUNECASH:<ADDRESS>` QR (`web/src/util/address.ts`).
-- The 0.17 crates and Triton VM 8 cannot make claim version 5 proofs.
-  `PrimitiveWitness` serialises the same in 0.15 and 0.17, so the witness from
-  the 0.17 core feeds the legacy prover unchanged.
 - This seed derives each output's sender randomness from the build height
   and the receiving address, so coins it created are recognised exactly on
   any device: the core tries the confirmation height and the

@@ -337,8 +337,6 @@ export interface ProveRequest {
   network: string;
   blockHeight: number;
   threads: number;
-  /** Use the pre-fork prover package (claim version 5). */
-  legacy?: boolean;
 }
 
 export interface ProveProgress {

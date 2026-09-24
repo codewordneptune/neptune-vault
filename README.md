@@ -91,9 +91,11 @@ browser storage.
   storage.
 - **Sending takes a few minutes.** A transaction proof needs about 1 GB of
   free memory and a few minutes on a recent phone. Devices with 4 GB of RAM
-  or less may run out of memory. If a block arrives while the proof is
-  being made, the proof no longer fits the chain. The app then builds and
-  proves again and tells you, with up to three attempts in all.
+  or less may run out of memory. A block that arrives while the proof is
+  being made is usually no problem: nodes from neptune-core 0.18 take a
+  proof built up to three blocks behind the tip. If the node refuses it,
+  the app builds and proves again and tells you, with up to three attempts
+  in all.
 - **There are two ways to restore.**
   - **Fast** takes seconds. It asks the node's coin index which blocks
     hold your payments. The node learns which coins are yours, but not the
@@ -169,7 +171,6 @@ crates/vault-bridge     vault-core and the prover as native code, for the deskto
 crates/vault-fixtures   deterministic witnesses for prover tests
 crates/vendor           neptune-consensus, neptune-primitives, triton-vm, twenty-first,
                         patched for wasm (see crates/vendor/VENDOR.md)
-crates/legacy           pre-fork prover with its own vendored crates (temporary)
 shells/tauri            the desktop app (Tauri 2)
 fixtures/, test-vectors/  test inputs
 docs/                   design, privacy, hosting, releases
@@ -248,11 +249,8 @@ Things to know about regtest:
 - You set the node in Settings.
 - In a browser, the node must send CORS headers, because the page calls it
   directly. The default Mainnet node does.
-- Until the network's fork at Mainnet block 55,000, transactions need
-  proofs in an older format (claim version 5).
-  - `npm run wasm:prover-legacy` builds that prover from `crates/legacy`.
-  - The app picks the prover that the chain tip requires.
-  - The legacy prover will be removed after the fork.
+- Every network is past the delta fork (Mainnet block 55,000), so every
+  proof is in the post-fork format (claim version 8).
 
 ### Desktop app
 
