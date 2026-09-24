@@ -36,8 +36,12 @@
   --v-rail-tile-shadow: none;
   /* The rail's other tabs' labels, on the page's glow at its strongest. */
   --v-rail-label: var(--v-muted);
-  --v-field-border: transparent;
-  --v-field-border-hover: transparent;
+  /* A field's edge is the one exception: the field's fill is 1.1:1 off the
+     card, so an empty field was all but invisible. The faint grey is 3.4:1
+     on the card (#161f2b) and 3.8:1 on the fill; under the pointer it
+     lightens to 4.8:1 on the card. */
+  --v-field-border: var(--v-faint);
+  --v-field-border-hover: #7a8ca5;
   --v-light-button-ring: none;
   --v-default-button-ring: none;
   --v-segment-ring: none;
@@ -199,8 +203,8 @@ h3.mantine-Title-root {
   color: var(--v-faint);
 }
 
-/* Fields: a darker well in the dark palette, a white field with a grey
-   edge in the light one; the accent edge on focus in both. */
+/* Fields: a darker well with a grey edge in the dark palette, a white field
+   with a grey edge in the light one; the accent edge on focus in both. */
 .mantine-Input-input {
   background: var(--v-field);
   border: 1px solid var(--v-field-border);
@@ -225,6 +229,16 @@ h3.mantine-Title-root {
 }
 .mantine-InputWrapper-description {
   color: var(--v-muted);
+}
+/* Checkboxes and radios are safety gates here ("I have this wallet's seed
+   phrase or a backup file", the high-fee agreement, the restore choices),
+   and the library's unchecked edge was 1.4:1 on the dark card and 1.5:1 on
+   the white one. The muted grey is 6.9:1 on the dark card and 5.5:1 on the
+   light. Checked, disabled and error states keep the library's own colours:
+   the accent fill when chosen, the disabled and error edges otherwise. */
+.mantine-Checkbox-input:not(:checked, :disabled, [data-indeterminate], [data-error]),
+.mantine-Radio-radio:not(:checked, :disabled, [data-error]) {
+  border-color: var(--v-muted);
 }
 
 /* The chosen segment must read at a glance in both palettes: on the white
