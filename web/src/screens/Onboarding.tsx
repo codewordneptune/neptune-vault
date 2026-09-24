@@ -1,7 +1,7 @@
 // Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
+import { Alert, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
 import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -11,8 +11,8 @@ import { PocNotice } from '../components/PocNotice';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { Caution } from '../components/Notice';
 import { NATIVE } from '../app/platform';
+import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
-import { startOfDayMs } from '../util/blockdate';
 import { copyText } from '../util/clipboard';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import type { NodeClient } from '../node/rpc';
@@ -461,10 +461,6 @@ function PasswordStep({ busy, onSubmit, stepLabel, actionLabel, onBack }: { busy
 /** When an imported seed phrase first received funds, as far as the person knows. */
 type FirstFunds = 'unknown' | 'month' | 'never';
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-/** Neptune's mainnet began in 2025: no wallet received funds before. */
-const FIRST_YEAR = 2025;
-
 function ImportStep({
   birthday,
   setBirthday,
@@ -502,39 +498,10 @@ function ImportStep({
   const [checking, setChecking] = useState(false);
   const words = text.trim().split(/\s+/).filter(Boolean);
 
-  // The month to a block: the first block of its first day, found by the node.
-  const [lookup, setLookup] = useState<{ kind: 'idle' } | { kind: 'looking' } | { kind: 'found'; height: number } | { kind: 'failed'; message: string }>({ kind: 'idle' });
-  const latest = useRef(0);
-  const [year, monthNo] = month ? month.split('-') : ['', ''];
-  const now = new Date();
-  const years = Array.from({ length: now.getFullYear() - FIRST_YEAR + 1 }, (_, i) => String(now.getFullYear() - i));
-  const setPart = (y: string, m: string) => setMonth(y && m ? `${y}-${m}` : y ? `${y}-` : m ? `-${m}` : '');
-  useEffect(() => {
-    const dateMs = /^\d{4}-\d{2}$/.test(month) ? startOfDayMs(`${month}-01`) : null;
-    if (dateMs === null || when !== 'month') {
-      setLookup({ kind: 'idle' });
-      return;
-    }
-    const token = ++latest.current;
-    setLookup({ kind: 'looking' });
-    void (async () => {
-      try {
-        const height = await node().heightForDate(dateMs);
-        if (token !== latest.current) return;
-        setBirthday(height);
-        setLookup({ kind: 'found', height });
-      } catch (e) {
-        if (token !== latest.current) return;
-        const message = (e as Error).message;
-        setLookup({ kind: 'failed', message: /not found|-32601/i.test(message) ? 'This node cannot look blocks up by date: enter a block number below instead.' : `Could not ask the node: ${message}` });
-      }
-    })();
-    // setBirthday and node are fresh closures each render; the lookup reruns on the month only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, when]);
-  const monthName = /^\d{4}-\d{2}$/.test(month) ? `${MONTHS[Number(monthNo) - 1]} ${year}` : '';
+  // How the month lookup stands: Continue waits for it.
+  const [lookup, setLookup] = useState<StartLookup>('idle');
   // A month, or a block typed instead, before the scan has somewhere to start.
-  const startKnown = when !== 'month' || (lookup.kind !== 'looking' && (lookup.kind === 'found' || Number(birthday) > 1));
+  const startKnown = when !== 'month' || (lookup !== 'looking' && (lookup === 'found' || Number(birthday) > 1));
 
   const continueWithPhrase = async () => {
     const lower = words.map((w) => w.toLowerCase());
@@ -597,36 +564,7 @@ function ImportStep({
             </Text>
           </>
         )}
-        {when === 'month' && (
-          <Stack gap="xs">
-            <Group grow>
-              <Select label="Month" placeholder="Month" data={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, '0'), label: name }))} value={monthNo || null} onChange={(v) => setPart(year, v ?? '')} />
-              <Select label="Year" placeholder="Year" data={years} value={year || null} onChange={(v) => setPart(v ?? '', monthNo)} />
-            </Group>
-            <Text size="sm" c={lookup.kind === 'failed' ? 'var(--v-danger-text)' : 'dimmed'}>
-              {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
-              {lookup.kind === 'found' && `The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.`}
-              {lookup.kind === 'failed' && lookup.message}
-              {lookup.kind === 'idle' && 'Scanning starts at the first block of that month, on this device. The node learns nothing about your coins.'}
-            </Text>
-            <details className="vault-more" open={lookup.kind === 'failed'}>
-              <summary>Enter a block number instead</summary>
-              <NumberInput
-                mt="xs"
-                label="Start block"
-                description="The block your first funds arrived in, or earlier."
-                min={1}
-                value={birthday}
-                onChange={(v) => {
-                  setBirthday(v);
-                  if (lookup.kind === 'found' && v !== lookup.height) setLookup({ kind: 'idle' });
-                }}
-                hideControls
-                inputMode="numeric"
-              />
-            </details>
-          </Stack>
-        )}
+        {when === 'month' && <StartBlockPicker value={birthday} onChange={setBirthday} node={node} month={month} onMonthChange={setMonth} onLookup={setLookup} />}
         {when === 'never' && (
           <Text size="sm" c="dimmed">
             The wallet starts at the current block. Anything paid to this seed phrase before now would not show.

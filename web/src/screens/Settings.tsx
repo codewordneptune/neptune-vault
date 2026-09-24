@@ -8,13 +8,13 @@ import { useNavigate } from 'react-router-dom';
 import { LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
-import { Caution } from '../components/Notice';
+import { Caution, Done } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
 import { requestPersistentStorage, walletName } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
-import { StartBlockPicker } from '../components/StartBlockPicker';
+import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
 import { FIAT_CURRENCIES, FIAT_LABELS, isFiatCurrency } from '../util/fiat';
@@ -838,6 +838,13 @@ function RescanCard() {
   const [open, setOpen] = useState(false);
   const [height, setHeight] = useState<number | string>(account?.birthdayHeight ?? 1);
   const [busy, setBusy] = useState(false);
+  // A start above the chain is the block field's problem; anything else
+  // that stops the rescan is shown under its button, in either mode.
+  const [startError, setStartError] = useState<string | null>(null);
+  const [rescanError, setRescanError] = useState<string | null>(null);
+  const [lookup, setLookup] = useState<StartLookup>('idle');
+  const [started, setStarted] = useState(false);
+  const [fast, setFast] = useState(true);
   if (!account) return null;
   const from = account.birthdayHeight === 0 ? 'the current tip (not set yet)' : `block ${showBlock(account.birthdayHeight)}`;
   // After a fast restore nothing was left out: the index was asked about the
@@ -852,17 +859,16 @@ function RescanCard() {
       : `Restored on ${restoredOn} with a fast restore, which checks the whole chain. No payments to this wallet found.`
     : `Scanned from ${from}. Payments before that block are not found, so rescan from an earlier block if you expect some.`;
 
-  const [rescanError, setRescanError] = useState<string | null>(null);
-  const [fast, setFast] = useState(true);
   const rescan = async (fast: boolean) => {
     setBusy(true);
+    setStartError(null);
     setRescanError(null);
     try {
       if (!fast) {
         try {
           const tip = await services.node().probe();
           if (Number(height) > tip) {
-            setRescanError(`The chain is only at block ${showBlock(tip)}; enter that or a lower block.`);
+            setStartError(`The chain is only at block ${showBlock(tip)}; enter that or a lower block.`);
             return;
           }
         } catch {
@@ -871,6 +877,7 @@ function RescanCard() {
       }
       await rescanFrom(fast ? 0 : Number(height) || 0, fast);
       setOpen(false);
+      setStarted(true);
     } catch (e) {
       setRescanError((e as Error).message);
     } finally {
@@ -884,10 +891,22 @@ function RescanCard() {
         {how}
       </Text>
       <Group>
-        <Button variant="light" onClick={() => { setHeight(account.birthdayHeight || 1); setOpen(true); }}>
+        <Button
+          variant="light"
+          onClick={() => {
+            setHeight(account.birthdayHeight || 1);
+            setStartError(null);
+            setRescanError(null);
+            setStarted(false);
+            setOpen(true);
+          }}
+        >
           Rescan
         </Button>
       </Group>
+      {started && (
+        <Done onClose={() => setStarted(false)}>Rescan started. The balance and history fill in again as it runs.</Done>
+      )}
       <Modal opened={open} onClose={() => setOpen(false)} title="Rescan">
         <Stack>
           <Text size="sm">
@@ -909,15 +928,31 @@ function RescanCard() {
             </Text>
           ) : (
             <>
+              {/* The same question as a private restore: the month, with the block number behind a disclosure. */}
               <Text size="sm" c="dimmed">
-                The node learns nothing about your coins. Every block from the one you choose is downloaded and scanned here, so an earlier block takes longer.
+                When did this wallet first receive funds? Every block from then is downloaded and scanned here, so an earlier month takes longer.
               </Text>
-              <StartBlockPicker value={height} onChange={setHeight} node={() => services.node()} error={rescanError} />
+              <StartBlockPicker
+                value={height}
+                onChange={(v) => {
+                  setHeight(v);
+                  setStartError(null);
+                }}
+                node={() => services.node()}
+                onLookup={setLookup}
+                error={startError}
+              />
             </>
           )}
-          <Button loading={busy} onClick={() => void rescan(fast)} disabled={!fast && !Number(height)}>
-            Rescan
-          </Button>
+          <Group grow>
+            <Button variant="default" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button loading={busy} onClick={() => void rescan(fast)} disabled={!fast && (!Number(height) || lookup === 'looking')}>
+              Rescan
+            </Button>
+          </Group>
+          {rescanError && <Alert color="red">Could not start the rescan: {rescanError}</Alert>}
         </Stack>
       </Modal>
     </Stack>
