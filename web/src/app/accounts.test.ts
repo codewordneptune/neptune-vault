@@ -204,7 +204,8 @@ describe('the engine store, as the account service drives it', () => {
     expect(service.currentAccountId).toBe(record.id);
     // But its contacts are not guessed at from the rows left behind.
     expect(() => service.engine.where(record.id, 'contacts')).toThrow('the disk is full');
-    expect(service.engine.describe(record.id, 'contacts')).toBe('Not readable');
+    // And Diagnostics says why.
+    expect(service.engine.problems(record.id)).toEqual(['the sealed log did not open: the disk is full']);
   });
 
   it('deleting a wallet drops its log, locked or not', async () => {

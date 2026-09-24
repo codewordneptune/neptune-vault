@@ -36,7 +36,6 @@ export function Diagnostics() {
           <Fact label="Running as" value={installed ? 'Installed app' : 'Browser tab'} state={installed ? 'ok' : 'warn'} />
           <Fact label="App version" value={`${__APP_VERSION__} (${__APP_COMMIT__}), built ${formatDateTime(Date.parse(__APP_BUILT_AT__))}`} />
           <Fact label="Wallet core" value={services.backendKind === 'native' ? 'Native, in the app' : 'WebAssembly, in a worker'} />
-          {accountId && <Fact label="Contacts" value={engine.describe(accountId, 'contacts')} state={engine.describe(accountId, 'contacts') === 'In the sealed log' ? 'ok' : 'warn'} />}
           {accountId && engine.problems(accountId).map((problem) => <Fact key={problem} label="Did not move" value={problem} state="warn" />)}
         </Stack>
         <Title order={3}>Last proof on this device</Title>

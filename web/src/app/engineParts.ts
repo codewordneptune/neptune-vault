@@ -80,15 +80,6 @@ export class EngineParts {
     ];
   }
 
-  /** Where a part is kept, in words, for Diagnostics. Never throws. */
-  describe(accountId: string, part: WalletPart): string {
-    try {
-      return this.where(accountId, part) === 'engine' ? 'In the sealed log' : 'In the app database';
-    } catch {
-      return 'Not readable';
-    }
-  }
-
   /** Locking ends the worker that held the logs: nothing is open until the next unlock. */
   forgetAll(): void {
     this.moved.clear();
