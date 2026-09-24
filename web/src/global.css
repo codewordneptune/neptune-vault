@@ -848,6 +848,27 @@ html {
   color: var(--v-ok-text);
 }
 
+/* One link style, in the accent text colour (7.7:1 on the dark card, 6.0:1
+   on the light). Inside a sentence a link is always underlined, since its
+   blue differs from the text around it by hue more than by lightness (1.4:1
+   against the dark theme's second text colour), and colour alone does not
+   mark it; a link standing on its own underlines under the pointer. Mantine's
+   Anchor takes the same colour, in both palettes (doubled to outrank the
+   variables the library writes at run time). */
+:root:root[data-mantine-color-scheme] {
+  --mantine-color-anchor: var(--v-accent-text);
+}
+.vault-inline-link {
+  color: var(--v-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.vault-tap-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* Touch targets: at least 40 px to hit, drawn no larger than before. */
 .vault-tap {
   min-width: 40px;
