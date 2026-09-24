@@ -432,7 +432,13 @@ function FileStep({ busy, error, onFile, onBack }: { busy: boolean; error: strin
             )}
           </Text>
         </Group>
-        <PasswordInput label="Backup file password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
+        <Stack gap={4}>
+          <PasswordInput label="Backup file password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
+          {/* The restored wallet keeps the file's password: said here, so an old password does not surprise at the next unlock. */}
+          <Text size="sm" c="dimmed">
+            After restoring, this password also unlocks the wallet. You can change it in Settings.
+          </Text>
+        </Stack>
         <SegmentedControl
           aria-label="How to restore"
           fullWidth
