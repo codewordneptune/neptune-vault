@@ -97,7 +97,7 @@ export function Contacts() {
                         <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => setRenaming(c)}>
                           Rename
                         </Menu.Item>
-                        <Menu.Item leftSection={<IconTrash size={14} />} color="red" onClick={() => setRemoving(c)}>
+                        <Menu.Item leftSection={<IconTrash size={14} />} c="var(--v-danger-text)" onClick={() => setRemoving(c)}>
                           Delete
                         </Menu.Item>
                       </Menu.Dropdown>
@@ -125,6 +125,7 @@ export function Contacts() {
         {renaming && (
           <RenameForm
             initial={renaming.name}
+            onCancel={() => setRenaming(null)}
             onSave={async (name) => {
               await services.contacts.rename(renaming.key, name);
               setRenaming(null);
@@ -137,11 +138,11 @@ export function Contacts() {
       <Modal opened={removing !== null} onClose={() => setRemoving(null)} title="Delete contact">
         <Stack>
           <Text size="sm">
-            Delete {removing?.name}? The address is not affected; only the saved name is removed.
+            Delete {removing?.name}? Only this saved contact is removed from this device. Past payments are not affected.
           </Text>
           <Group grow>
             <Button variant="default" onClick={() => setRemoving(null)}>
-              Keep
+              Cancel
             </Button>
             <Button color="red" onClick={() => void remove()}>
               Delete
@@ -187,8 +188,9 @@ export function ContactForm({
   }, [opened, fixedAddress]);
 
   // Same check as the Send screen: required, valid for the current network.
-  const checkAddress = async (): Promise<boolean> => {
-    const text = address.trim();
+  // A scan passes the address it filled in, since the state has not caught up yet.
+  const checkAddress = async (value: string = address): Promise<boolean> => {
+    const text = value.trim();
     if (text === '') {
       setAddressError('Enter the address');
       return false;
@@ -276,14 +278,18 @@ export function ContactForm({
           setScanning(false);
           const parsed = parsePaymentText(text);
           if (parsed.error) setAddressError(parsed.error);
-          else setAddress(parsed.address);
+          else {
+            // Checked at once: an "Enter the address" left from before the scan would keep Save disabled.
+            setAddress(parsed.address);
+            void checkAddress(parsed.address);
+          }
         }}
       />
     </Modal>
   );
 }
 
-function RenameForm({ initial, onSave }: { initial: string; onSave: (name: string) => Promise<void> }) {
+function RenameForm({ initial, onSave, onCancel }: { initial: string; onSave: (name: string) => Promise<void>; onCancel: () => void }) {
   const [name, setName] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -306,9 +312,14 @@ function RenameForm({ initial, onSave }: { initial: string; onSave: (name: strin
           }}
           data-autofocus
         />
-        <Button type="submit" disabled={!name.trim()}>
-          Save
-        </Button>
+        <Group grow>
+          <Button variant="default" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!name.trim()}>
+            Save
+          </Button>
+        </Group>
       </Stack>
     </form>
   );

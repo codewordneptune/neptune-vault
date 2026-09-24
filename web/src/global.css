@@ -1864,3 +1864,44 @@ html {
 .vault-send-result:focus {
   outline: none;
 }
+
+/* Setup and settings (ux audit 2) */
+
+/* The slot the next tapped word goes into, in the accent, so a word never
+   lands somewhere unexpected. */
+.vault-word.slot.empty.next {
+  box-shadow: inset 0 0 0 2px var(--v-accent);
+}
+
+/* A heading that takes focus when its step or section opens: focus is
+   there so a screen reader starts from it, and a ring round a heading
+   would only look like something to press. */
+.vault-step-title:focus {
+  outline: none;
+}
+
+/* A card reached by a link (Settings, Backup) clears the sticky header. */
+.vault-anchored {
+  scroll-margin-top: 80px;
+}
+
+/* The desktop app's keyboard shortcuts in Settings, App: keys, then what
+   they do, in two columns that stay lined up. */
+.vault-shortcuts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 16px;
+  row-gap: 6px;
+  margin: 0;
+  font-size: var(--v-fs-sm);
+}
+.vault-shortcuts > div {
+  display: contents;
+}
+.vault-shortcuts dt {
+  white-space: nowrap;
+  color: var(--v-muted);
+}
+.vault-shortcuts dd {
+  margin: 0;
+}

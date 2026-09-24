@@ -2,7 +2,7 @@
 // policy: after an idle time the person chooses (five minutes unless
 // changed, and immediately on backgrounding).
 
-import { FRESH_KEY_INDICES, type AccountRecord, type ContactRecord, type Network, type SeedEnvelope, type SendFailure, type VaultDb } from '../storage/db';
+import { FRESH_KEY_INDICES, walletName, type AccountRecord, type ContactRecord, type Network, type SeedEnvelope, type SendFailure, type VaultDb } from '../storage/db';
 
 /** The private note, in a wallet's sealed log, about its last failed send. */
 const LAST_SEND_FAILURE = 'lastSendFailure';
@@ -31,6 +31,35 @@ export class UnlockCancelledError extends Error {
  * unlocked on a shared or lost device is what the lock is there for, and
  * locking on backgrounding stays whatever is chosen here.
  */
+/** A wallet name already used by another wallet on the same network, where the two would share a menu. */
+export class WalletNameTakenError extends Error {
+  constructor(readonly taken: string) {
+    super(`Another wallet here is called ${taken}.`);
+    this.name = 'WalletNameTakenError';
+  }
+}
+
+/** Longest name a wallet can have; longer ones are cut. */
+export const WALLET_NAME_MAX = 40;
+
+/**
+ * "Wallet n" for a new wallet: the lowest n no wallet in `names` uses.
+ * Counting the wallets instead would repeat a name once an earlier one was
+ * removed: two of two, remove Wallet 1, add one, and there were two Wallet 2s.
+ */
+export function nextWalletName(names: string[]): string {
+  const taken = new Set(names.map((n) => n.trim().toLowerCase()));
+  let n = 1;
+  while (taken.has(`wallet ${n}`)) n += 1;
+  return `Wallet ${n}`;
+}
+
+/** The name in `names` that `name` would repeat, ignoring case and outer spaces, or null. */
+export function clashingName(name: string, names: string[]): string | null {
+  const wanted = name.trim().toLowerCase();
+  return names.find((n) => n.trim().toLowerCase() === wanted) ?? null;
+}
+
 export const LOCK_CHOICES_MS = [1, 5, 15, 30].map((minutes) => minutes * 60 * 1000);
 export const DEFAULT_LOCK_MS = 5 * 60 * 1000;
 /** A stored idle time, or the default when it is not one of the choices. */
@@ -241,21 +270,36 @@ export class AccountService {
   }
 
   /**
-   * Store a new account for `phrase` under `password` and unlock it.
-   * `birthdayHeight` is where scanning starts: the current tip for a fresh
-   * account, a user-supplied height (or 1) for an import.
+   * The names of the wallets on a network, but for one. Names are unique
+   * per network, as the header menu and "Not this wallet?" list them.
    */
-  /** "Wallet n" for the next wallet on this network, counting the ones already there. */
-  private async nextName(network: Network): Promise<string> {
-    const count = (await this.db.getAllFromIndex('accounts', 'byNetwork', network)).length;
-    return 'Wallet ' + (count + 1);
+  private async namesOn(network: Network, except?: string): Promise<string[]> {
+    return (await this.db.getAllFromIndex('accounts', 'byNetwork', network)).filter((a) => a.id !== except).map((a) => walletName(a));
   }
 
+  /** The name a new wallet on this network gets when none is given. */
+  async nextName(network: Network): Promise<string> {
+    return nextWalletName(await this.namesOn(network));
+  }
+
+  /** A name asked for, trimmed and checked; the next free "Wallet n" when none was. Throws WalletNameTakenError. */
+  private async newName(network: Network, asked: string | undefined): Promise<string> {
+    const trimmed = (asked ?? '').trim().slice(0, WALLET_NAME_MAX);
+    const names = await this.namesOn(network);
+    if (!trimmed) return nextWalletName(names);
+    const taken = clashingName(trimmed, names);
+    if (taken !== null) throw new WalletNameTakenError(taken);
+    return trimmed;
+  }
+
+  /** Throws WalletNameTakenError for a name another wallet on its network has. */
   async rename(accountId: string, name: string): Promise<void> {
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
-    const trimmed = name.trim().slice(0, 40);
+    const trimmed = name.trim().slice(0, WALLET_NAME_MAX);
     if (!trimmed) throw new Error('A wallet needs a name');
+    const taken = clashingName(trimmed, await this.namesOn(record.network, accountId));
+    if (taken !== null) throw new WalletNameTakenError(taken);
     await this.patch(accountId, (current) => ({ ...current, name: trimmed }));
   }
 
@@ -332,10 +376,16 @@ export class AccountService {
     await tx.done;
   }
 
-  async createAccount(phrase: string[], password: string, network: Network, birthdayHeight: number, options: { fastRestore?: boolean } = {}): Promise<AccountRecord> {
+  /**
+   * Store a new account for `phrase` under `password` and unlock it.
+   * `birthdayHeight` is where scanning starts: the current tip for a fresh
+   * account, a user-supplied height (or 1) for an import. `name` is the
+   * one asked for, if any; throws WalletNameTakenError when it is taken.
+   */
+  async createAccount(phrase: string[], password: string, network: Network, birthdayHeight: number, options: { fastRestore?: boolean; name?: string } = {}): Promise<AccountRecord> {
     // Read before the first await: a lock that arrives at any point after this cancels what follows.
     const epoch = this.epoch;
-    const name = await this.nextName(network);
+    const name = await this.newName(network, options.name);
     // The new wallet's log is keyed from the content key, which is made here
     // with the envelope and handed to the core once, along with the phrase.
     const { envelope, contentKey } = await sealSeedKeepingKey(phrase, password, this.derive, DEFAULT_KDF);

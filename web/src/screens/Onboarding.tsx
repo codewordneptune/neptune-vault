@@ -1,17 +1,20 @@
 // Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Button, Group, NumberInput, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, Title, SegmentedControl } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, TextInput, Title, SegmentedControl } from '@mantine/core';
 import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import { WALLET_NAME_MAX, WalletNameTakenError } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
+import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { Caution } from '../components/Notice';
+import { LINKS } from '../app/links';
 import { NATIVE } from '../app/platform';
+import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
-import { startOfDayMs } from '../util/blockdate';
 import { copyText } from '../util/clipboard';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import type { NodeClient } from '../node/rpc';
@@ -84,6 +87,26 @@ export function Onboarding() {
   const [fast, setFast] = useState(draft?.fast ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Adding a wallet beside others offers a name; this is the one it gets otherwise.
+  const [defaultName, setDefaultName] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!adding) return;
+    void services.accounts.nextName(network).then(setDefaultName, () => setDefaultName(null));
+  }, [adding, services, network]);
+
+  // A new step starts at its top, with focus on its heading: the steps swap
+  // content in place, and the button that led here (often at the foot of a
+  // long step) is gone. An error belongs to the step it was made on.
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const shownStep = useRef(step);
+  useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    setError(null);
+    window.scrollTo(0, 0);
+    stepsRef.current?.querySelector<HTMLElement>('.vault-step-title')?.focus({ preventScroll: true });
+  }, [step]);
 
   // Confirmation: CHECKS random positions are blanked and their words go
   // into a shuffled bank; the user taps them back into place (as the desktop
@@ -91,6 +114,11 @@ export function Onboarding() {
   const [checks, setChecks] = useState<number[]>([]);
   const [slots, setSlots] = useState<Record<number, string>>({});
   const [bank, setBank] = useState<string[]>([]);
+  // Each placement is said aloud, since a tapped word leaves the bank and
+  // appears in a slot elsewhere on the screen.
+  const [placed, setPlaced] = useState('');
+  // Words go into the empty slots in order; this is the one that fills next.
+  const nextSlot = checks.find((i) => slots[i] === undefined);
 
   const startCreate = async () => {
     setBusy(true);
@@ -113,15 +141,17 @@ export function Onboarding() {
     const sorted = [...positions].sort((a, b) => a - b);
     setChecks(sorted);
     setSlots({});
+    setPlaced('');
     setBank(shuffle(sorted.map((i) => phrase[i])));
     setStep('confirm');
   };
 
   const pick = (bankIndex: number) => {
-    const target = checks.find((i) => slots[i] === undefined);
+    const target = nextSlot;
     if (target === undefined) return;
     setSlots({ ...slots, [target]: bank[bankIndex] });
     setBank(bank.filter((_, i) => i !== bankIndex));
+    setPlaced(`Word ${target + 1}: ${bank[bankIndex]}`);
   };
 
   const unpick = (position: number) => {
@@ -131,29 +161,22 @@ export function Onboarding() {
     delete rest[position];
     setSlots(rest);
     setBank([...bank, word]);
+    setPlaced(`Word ${position + 1} emptied`);
   };
 
   const allPlaced = bank.length === 0 && checks.length > 0;
   const confirmed = allPlaced && checks.every((i) => slots[i] === phrase[i]);
 
-  const finish = async (password: string) => {
+  const finish = async (password: string, name: string) => {
     setBusy(true);
     setError(null);
+    setNameError(null);
     try {
       // The coin index finds everything whatever the date, so it is offered only when the date is not known.
       const fastRestore = imported && fast && when === 'unknown';
       const fromTip = when === 'never';
+      // A start above the chain was refused on the seed phrase step, before the password was asked for.
       let height = imported && (fromTip || fastRestore) ? 0 : when === 'unknown' ? 1 : Number(birthday) || 1;
-      if (imported && !fromTip && !fastRestore) {
-        // Refuse a start above the chain when the node can say where it is.
-        try {
-          const tip = await services.node().probe();
-          if (height > tip) throw new Error(`The chain is only at block ${showBlock(tip)}; enter that or a lower block`);
-        } catch (e) {
-          if ((e as Error).message.startsWith('The chain is only')) throw e;
-          // Node unreachable: the sync clamps the height on first contact.
-        }
-      }
       if (!imported) {
         // A fresh account has nothing before the current tip. If the node
         // cannot be reached now, 0 marks the height as unknown and the first
@@ -165,14 +188,15 @@ export function Onboarding() {
         }
       }
       await pauseSync();
-      const record = await services.accounts.createAccount(phrase, password, network, height, { fastRestore });
+      const record = await services.accounts.createAccount(phrase, password, network, height, { fastRestore, name: adding ? name : undefined });
       saveDraft(null);
       await services.accounts.markBackupConfirmed(record.id);
       await services.updateSettings({ currentAccountId: record.id });
       setAccount({ ...record, backupConfirmed: true });
       navigate('/');
     } catch (e) {
-      setError((e as Error).message);
+      if (e instanceof WalletNameTakenError) setNameError(e.message);
+      else setError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -210,44 +234,52 @@ export function Onboarding() {
   };
 
   return (
-    <Stack gap="md">
-      {error && <Alert color="red">{error}</Alert>}
-
+    <Stack gap="md" ref={stepsRef}>
       {step === 'welcome' && !adding && <PocNotice />}
       {step === 'welcome' && (
         <Paper>
           <Stack>
-            <Title order={2}>{adding ? 'Add a wallet' : 'Set up your wallet'}</Title>
+            <Title order={2} tabIndex={-1} className="vault-step-title">{adding ? 'Add a wallet' : 'Set up your wallet'}</Title>
             <Text size="sm" c="dimmed">
               {adding
                 ? 'Another seed phrase, with its own password and its own backup. The wallet you have stays on this device; the header menu switches between them.'
                 : 'Your keys stay on this device. The seed phrase restores the wallet anywhere, and a backup file is an encrypted copy of it.'}
             </Text>
             <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
+            {error && <Alert color="red">{error}</Alert>}
             <Button variant="light" onClick={() => setStep('import')}>Restore with a seed phrase</Button>
             <Button variant="light" onClick={() => setStep('file')}>Restore from a backup file</Button>
-            {/* Most people want Mainnet and should not meet the question first.
-                Off Mainnet it is open, so a tester sees where the wallet will go. */}
-            {/* Named for what it holds, and stating it: a fact to a newcomer, a
-                choice to a tester. Its contents sit under its words, not beside them. */}
-            <details className="vault-setting" open={network !== 'main'}>
-              <summary>
-                <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
-                Network: {NETWORK_LABELS[network]}
-              </summary>
-              <div className="vault-setting-body">
-                <Select
-                  aria-label="Network"
-                  data={NETWORK_OPTIONS}
-                  value={network}
-                  onChange={(v) => {
-                    if (!v) return;
-                    setNetwork(v as Network);
-                    void switchNetwork(v as Network);
-                  }}
-                />
-              </div>
-            </details>
+            {/* Adding a wallet goes to the network that is open. Choosing another
+                here would lock the open wallet at once, with no question asked;
+                the header menu asks first, so that is where to switch. */}
+            {adding ? (
+              <Text size="sm" c="dimmed">
+                Adds to {NETWORK_LABELS[network]}. To add on another network, switch network from the header first.
+              </Text>
+            ) : (
+              /* Most people want Mainnet and should not meet the question first.
+                 Off Mainnet it is open, so a tester sees where the wallet will go.
+                 Named for what it holds, and stating it: a fact to a newcomer, a
+                 choice to a tester. Its contents sit under its words, not beside them. */
+              <details className="vault-setting" open={network !== 'main'}>
+                <summary>
+                  <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
+                  Network: {NETWORK_LABELS[network]}
+                </summary>
+                <div className="vault-setting-body">
+                  <Select
+                    aria-label="Network"
+                    data={NETWORK_OPTIONS}
+                    value={network}
+                    onChange={(v) => {
+                      if (!v) return;
+                      setNetwork(v as Network);
+                      void switchNetwork(v as Network);
+                    }}
+                  />
+                </div>
+              </details>
+            )}
             {draft && (
               <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>
                 Discard the unfinished wallet
@@ -261,12 +293,33 @@ export function Onboarding() {
           </Stack>
         </Paper>
       )}
+      {/* Before a wallet exists there is no Settings to find these in. Diagnostics
+          is open without a wallet on purpose, for whoever cannot get started. */}
+      {step === 'welcome' && !adding && (
+        <Group gap={6} justify="center">
+          <Anchor component="button" type="button" size="sm" c="dimmed" className="vault-tap-link" onClick={() => navigate('/privacy')}>
+            Privacy
+          </Anchor>
+          <Text span size="sm" c="dimmed" aria-hidden>
+            ·
+          </Text>
+          <Anchor component="button" type="button" size="sm" c="dimmed" className="vault-tap-link" onClick={() => navigate('/diagnostics')}>
+            Diagnostics
+          </Anchor>
+          <Text span size="sm" c="dimmed" aria-hidden>
+            ·
+          </Text>
+          <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" c="dimmed" className="vault-tap-link">
+            Report a problem
+          </Anchor>
+        </Group>
+      )}
 
       {step === 'show' && (
         <Paper>
           <Stack>
             <span className="vault-eyebrow">Step 1 of 3</span>
-            <Title order={2}>Write down these 18 words</Title>
+            <Title order={2} tabIndex={-1} className="vault-step-title">Write down these 18 words</Title>
             <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your funds. {NATIVE ? 'If this device is lost, only what you write down brings the wallet back.' : 'Clearing the browser deletes everything except what you write down.'}</Text>
             <WordGrid words={phrase} />
             {/* The button, then what copying means, beneath it at every width
@@ -294,13 +347,23 @@ export function Onboarding() {
         <Paper>
           <Stack>
             <span className="vault-eyebrow">Step 2 of 3</span>
-            <Title order={2}>Confirm your seed phrase</Title>
-            <Text size="sm" c="dimmed">Tap the words below to put them back in their places.</Text>
+            <Title order={2} tabIndex={-1} className="vault-step-title">Confirm your seed phrase</Title>
+            <Text size="sm" c="dimmed">
+              {nextSlot === undefined
+                ? 'Tap a word in the grid to take it out again.'
+                : Object.keys(slots).length === 0
+                  ? `Tap the missing words in order, starting with word ${nextSlot + 1}.`
+                  : `Next: word ${nextSlot + 1}.`}
+            </Text>
             <WordGrid
               words={phrase.map((w, i) => (checks.includes(i) ? (slots[i] ?? '') : w))}
               blanks={checks}
+              next={nextSlot}
               onClear={unpick}
             />
+            <div className="sr-only" aria-live="polite">
+              {placed}
+            </div>
             <Group gap="xs" justify="center" mih={44}>
               {bank.map((w, i) => (
                 <Button key={`${w}-${i}`} variant="default" className="vault-chip" onClick={() => pick(i)}>
@@ -320,7 +383,17 @@ export function Onboarding() {
       )}
 
       {step === 'password' && (
-        <PasswordStep busy={busy} onSubmit={finish} stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'} actionLabel={imported ? 'Restore wallet' : 'Create wallet'} onBack={() => setStep(imported ? 'import' : 'confirm')} />
+        <PasswordStep
+          busy={busy}
+          error={error}
+          onSubmit={finish}
+          stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'}
+          actionLabel={imported ? 'Restore wallet' : 'Create wallet'}
+          onBack={() => setStep(imported ? 'import' : 'confirm')}
+          defaultName={adding ? defaultName : undefined}
+          nameError={nameError}
+          onNameEdit={() => setNameError(null)}
+        />
       )}
 
       {step === 'import' && (
@@ -347,14 +420,14 @@ export function Onboarding() {
         />
       )}
 
-      {step === 'file' && <FileStep busy={busy} onFile={importFile} onBack={() => setStep('welcome')} />}
+      {step === 'file' && <FileStep busy={busy} error={error} onFile={importFile} onBack={() => setStep('welcome')} />}
     </Stack>
   );
 }
 
 // Restore from a backup file made by this app: the file carries the seed,
 // the network, the start block and the contacts; its password opens it.
-function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File, password: string, fast: boolean) => void; onBack: () => void }) {
+function FileStep({ busy, error, onFile, onBack }: { busy: boolean; error: string | null; onFile: (file: File, password: string, fast: boolean) => void; onBack: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState('');
@@ -383,7 +456,7 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
       }}
     >
       <Stack>
-        <Title order={2}>Restore a backup file</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">Restore a backup file</Title>
         <Text size="sm" c="dimmed">Restores the wallet with its network, start block and contacts. It opens with the password it was saved under.</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">
@@ -401,7 +474,13 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
             )}
           </Text>
         </Group>
-        <PasswordInput label="Backup file password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
+        <Stack gap={4}>
+          <PasswordInput label="Backup file password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
+          {/* The restored wallet keeps the file's password: said here, so an old password does not surprise at the next unlock. */}
+          <Text size="sm" c="dimmed">
+            After restoring, this password also unlocks the wallet. You can change it in Settings.
+          </Text>
+        </Stack>
         <SegmentedControl
           aria-label="How to restore"
           fullWidth
@@ -420,6 +499,7 @@ function FileStep({ busy, onFile, onBack }: { busy: boolean; onFile: (file: File
         <Button disabled={!file || !password} loading={busy} onClick={() => file && onFile(file, password, fast)}>
           Restore
         </Button>
+        {error && <Alert color="red">{error}</Alert>}
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
     </Paper>
@@ -437,42 +517,58 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
-function PasswordStep({ busy, onSubmit, stepLabel, actionLabel, onBack }: { busy: boolean; onSubmit: (password: string) => void; stepLabel: string; actionLabel: string; onBack: () => void }) {
+function PasswordStep({
+  busy,
+  error,
+  onSubmit,
+  stepLabel,
+  actionLabel,
+  onBack,
+  defaultName,
+  nameError,
+  onNameEdit,
+}: {
+  busy: boolean;
+  error: string | null;
+  onSubmit: (password: string, name: string) => void;
+  stepLabel: string;
+  actionLabel: string;
+  onBack: () => void;
+  /** When adding a wallet beside others: the name it gets if none is typed, and the field to type one. */
+  defaultName?: string | null;
+  nameError?: string | null;
+  onNameEdit?: () => void;
+}) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
-  const ok = password.length >= 8 && password === again;
-  // Length is the only signal worth showing; anything finer misleads. The
-  // word is coloured, not a bar: four words say as much as the app knows.
-  const level = password.length === 0 ? null : password.length < 8 ? 'short' : password.length < 12 ? 'weak' : password.length < 16 ? 'good' : 'strong';
-  const strengthWord = { short: 'Too short', weak: 'Weak', good: 'Good', strong: 'Strong' } as const;
-  const strengthColour = level === 'short' ? 'red' : level === 'weak' ? 'yellow' : 'green';
+  const [name, setName] = useState('');
+  const ok = newPasswordOk(password, again);
   return (
     <Paper>
       <Stack>
         <span className="vault-eyebrow">{stepLabel}</span>
-        <Title order={2}>Choose a password</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">Choose a password</Title>
         <Text size="sm" c="dimmed">
           Asked on every unlock, and it cannot be recovered. Forgetting it is not fatal: your seed phrase restores the wallet.
         </Text>
-        <PasswordInput
-          label="Password (at least 8 characters)"
-          description={
-            level ? (
-              <>
-                Strength:{' '}
-                <Text span inherit fw={600} c={strengthColour}>
-                  {strengthWord[level]}
-                </Text>
-              </>
-            ) : (
-              'Longer beats complicated.'
-            )
-          }
-          value={password}
-          onChange={(e) => setPassword(e.currentTarget.value)}
-        />
-        <PasswordInput label="Repeat" value={again} onChange={(e) => setAgain(e.currentTarget.value)} error={again && again !== password ? 'Passwords differ' : undefined} />
-        <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password)}>{actionLabel}</Button>
+        {/* A second wallet is told apart by its name; the first needs none yet. */}
+        {defaultName !== undefined && (
+          <TextInput
+            label="Wallet name (optional)"
+            placeholder={defaultName ?? undefined}
+            description={defaultName ? `Left empty, it is called ${defaultName}. You can rename it in Settings.` : undefined}
+            maxLength={WALLET_NAME_MAX}
+            value={name}
+            error={nameError}
+            onChange={(e) => {
+              setName(e.currentTarget.value);
+              onNameEdit?.();
+            }}
+          />
+        )}
+        <NewPasswordFields password={password} onPassword={setPassword} again={again} onAgain={setAgain} />
+        <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password, name)}>{actionLabel}</Button>
+        {error && <Alert color="red">{error}</Alert>}
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
     </Paper>
@@ -481,10 +577,6 @@ function PasswordStep({ busy, onSubmit, stepLabel, actionLabel, onBack }: { busy
 
 /** When an imported seed phrase first received funds, as far as the person knows. */
 type FirstFunds = 'unknown' | 'month' | 'never';
-
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-/** Neptune's mainnet began in 2025: no wallet received funds before. */
-const FIRST_YEAR = 2025;
 
 function ImportStep({
   birthday,
@@ -523,47 +615,34 @@ function ImportStep({
   const [checking, setChecking] = useState(false);
   const words = text.trim().split(/\s+/).filter(Boolean);
 
-  // The month to a block: the first block of its first day, found by the node.
-  const [lookup, setLookup] = useState<{ kind: 'idle' } | { kind: 'looking' } | { kind: 'found'; height: number } | { kind: 'failed'; message: string }>({ kind: 'idle' });
-  const latest = useRef(0);
-  const [year, monthNo] = month ? month.split('-') : ['', ''];
-  const now = new Date();
-  const years = Array.from({ length: now.getFullYear() - FIRST_YEAR + 1 }, (_, i) => String(now.getFullYear() - i));
-  const setPart = (y: string, m: string) => setMonth(y && m ? `${y}-${m}` : y ? `${y}-` : m ? `-${m}` : '');
-  useEffect(() => {
-    const dateMs = /^\d{4}-\d{2}$/.test(month) ? startOfDayMs(`${month}-01`) : null;
-    if (dateMs === null || when !== 'month') {
-      setLookup({ kind: 'idle' });
-      return;
-    }
-    const token = ++latest.current;
-    setLookup({ kind: 'looking' });
-    void (async () => {
-      try {
-        const height = await node().heightForDate(dateMs);
-        if (token !== latest.current) return;
-        setBirthday(height);
-        setLookup({ kind: 'found', height });
-      } catch (e) {
-        if (token !== latest.current) return;
-        const message = (e as Error).message;
-        setLookup({ kind: 'failed', message: /not found|-32601/i.test(message) ? 'This node cannot look blocks up by date: enter a block number below instead.' : `Could not ask the node: ${message}` });
-      }
-    })();
-    // setBirthday and node are fresh closures each render; the lookup reruns on the month only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, when]);
-  const monthName = /^\d{4}-\d{2}$/.test(month) ? `${MONTHS[Number(monthNo) - 1]} ${year}` : '';
+  // How the month lookup stands: Continue waits for it.
+  const [lookup, setLookup] = useState<StartLookup>('idle');
+  // A start above the chain, found before the password step rather than after it.
+  const [startError, setStartError] = useState<string | null>(null);
   // A month, or a block typed instead, before the scan has somewhere to start.
-  const startKnown = when !== 'month' || (lookup.kind !== 'looking' && (lookup.kind === 'found' || Number(birthday) > 1));
+  const startKnown = when !== 'month' || (lookup !== 'looking' && (lookup === 'found' || Number(birthday) > 1));
 
   const continueWithPhrase = async () => {
     const lower = words.map((w) => w.toLowerCase());
     setChecking(true);
     try {
       const problem = await checkPhrase(lower);
-      if (problem) setPhraseError(problem);
-      else onPhrase(lower);
+      if (problem) {
+        setPhraseError(problem);
+        return;
+      }
+      if (when === 'month') {
+        try {
+          const tip = await node().probe();
+          if ((Number(birthday) || 1) > tip) {
+            setStartError(`The chain is only at block ${showBlock(tip)}; enter that or a lower block.`);
+            return;
+          }
+        } catch {
+          // Node unreachable: the sync clamps the height on first contact.
+        }
+      }
+      onPhrase(lower);
     } catch (e) {
       setPhraseError((e as Error).message);
     } finally {
@@ -574,7 +653,7 @@ function ImportStep({
     <Paper>
       <Stack>
         <span className="vault-eyebrow">Step 1 of 2</span>
-        <Title order={2}>Import a seed phrase</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">Import a seed phrase</Title>
         <Textarea
           label="Seed phrase (18 words)"
           description={words.length === 0 ? undefined : words.length > 18 ? '18 words needed, you have ' + words.length : words.length + ' of 18 words'}
@@ -619,34 +698,18 @@ function ImportStep({
           </>
         )}
         {when === 'month' && (
-          <Stack gap="xs">
-            <Group grow>
-              <Select label="Month" placeholder="Month" data={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, '0'), label: name }))} value={monthNo || null} onChange={(v) => setPart(year, v ?? '')} />
-              <Select label="Year" placeholder="Year" data={years} value={year || null} onChange={(v) => setPart(v ?? '', monthNo)} />
-            </Group>
-            <Text size="sm" c={lookup.kind === 'failed' ? 'red' : 'dimmed'}>
-              {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
-              {lookup.kind === 'found' && `The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.`}
-              {lookup.kind === 'failed' && lookup.message}
-              {lookup.kind === 'idle' && 'Scanning starts at the first block of that month, on this device. The node learns nothing about your coins.'}
-            </Text>
-            <details className="vault-more" open={lookup.kind === 'failed'}>
-              <summary>Enter a block number instead</summary>
-              <NumberInput
-                mt="xs"
-                label="Start block"
-                description="The block your first funds arrived in, or earlier."
-                min={1}
-                value={birthday}
-                onChange={(v) => {
-                  setBirthday(v);
-                  if (lookup.kind === 'found' && v !== lookup.height) setLookup({ kind: 'idle' });
-                }}
-                hideControls
-                inputMode="numeric"
-              />
-            </details>
-          </Stack>
+          <StartBlockPicker
+            value={birthday}
+            onChange={(v) => {
+              setBirthday(v);
+              setStartError(null);
+            }}
+            node={node}
+            month={month}
+            onMonthChange={setMonth}
+            onLookup={setLookup}
+            error={startError}
+          />
         )}
         {when === 'never' && (
           <Text size="sm" c="dimmed">
