@@ -51,6 +51,9 @@
   --v-danger-text: #ff8a80;
   /* 8% red over the card: the danger text keeps 6.6:1 on it. */
   --v-danger-hover: rgba(255, 107, 107, 0.08);
+  /* A light red button's hover, a step stronger: the text keeps 6.0:1. */
+  --v-danger-hover-strong: rgba(255, 107, 107, 0.14);
+  --v-danger-ring: none;
   --v-disabled-bg: rgba(255, 255, 255, 0.05);
   --v-disabled-border: rgba(255, 255, 255, 0.08);
   --v-backdrop: rgba(9, 14, 21, 0.7);
@@ -109,6 +112,9 @@
   --v-danger-text: #c62828;
   /* 8% red over the card: the danger text keeps 5.0:1 on it. */
   --v-danger-hover: rgba(224, 49, 49, 0.08);
+  /* A step stronger for a light red button's hover: the text keeps 4.6:1. */
+  --v-danger-hover-strong: rgba(224, 49, 49, 0.14);
+  --v-danger-ring: inset 0 0 0 1px rgba(198, 40, 40, 0.28);
   --v-disabled-bg: rgba(0, 0, 0, 0.05);
   --v-disabled-border: rgba(0, 0, 0, 0.1);
   --v-backdrop: rgba(30, 40, 55, 0.5);
@@ -174,6 +180,20 @@ h3.mantine-Title-root {
   color: var(--v-accent-text);
   border: 0;
   box-shadow: var(--v-light-button-ring);
+}
+/* A light red button ("Give up on this send", the proving Cancel) is a
+   danger action, not an accent one: the rule above made it the same light
+   blue as Receive. The library names the colour only in the variables it
+   writes into the style attribute, so that is what is matched. Red text on
+   an 8% red tint, 6.6:1 dark and 5.0:1 light; a stronger tint under the
+   pointer. Filled red buttons carry no variant attribute and stay filled. */
+.mantine-Button-root[data-variant='light'][style*='--mantine-color-red'] {
+  background: var(--v-danger-hover);
+  color: var(--v-danger-text);
+  box-shadow: var(--v-danger-ring);
+}
+.mantine-Button-root[data-variant='light'][style*='--mantine-color-red']:hover {
+  background: var(--v-danger-hover-strong);
 }
 .mantine-Button-root[data-variant='default'] {
   background: var(--v-surface-2);
