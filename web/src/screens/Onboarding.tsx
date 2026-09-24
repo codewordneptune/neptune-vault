@@ -92,6 +92,11 @@ export function Onboarding() {
   const [checks, setChecks] = useState<number[]>([]);
   const [slots, setSlots] = useState<Record<number, string>>({});
   const [bank, setBank] = useState<string[]>([]);
+  // Each placement is said aloud, since a tapped word leaves the bank and
+  // appears in a slot elsewhere on the screen.
+  const [placed, setPlaced] = useState('');
+  // Words go into the empty slots in order; this is the one that fills next.
+  const nextSlot = checks.find((i) => slots[i] === undefined);
 
   const startCreate = async () => {
     setBusy(true);
@@ -114,15 +119,17 @@ export function Onboarding() {
     const sorted = [...positions].sort((a, b) => a - b);
     setChecks(sorted);
     setSlots({});
+    setPlaced('');
     setBank(shuffle(sorted.map((i) => phrase[i])));
     setStep('confirm');
   };
 
   const pick = (bankIndex: number) => {
-    const target = checks.find((i) => slots[i] === undefined);
+    const target = nextSlot;
     if (target === undefined) return;
     setSlots({ ...slots, [target]: bank[bankIndex] });
     setBank(bank.filter((_, i) => i !== bankIndex));
+    setPlaced(`Word ${target + 1}: ${bank[bankIndex]}`);
   };
 
   const unpick = (position: number) => {
@@ -132,6 +139,7 @@ export function Onboarding() {
     delete rest[position];
     setSlots(rest);
     setBank([...bank, word]);
+    setPlaced(`Word ${position + 1} emptied`);
   };
 
   const allPlaced = bank.length === 0 && checks.length > 0;
@@ -296,12 +304,22 @@ export function Onboarding() {
           <Stack>
             <span className="vault-eyebrow">Step 2 of 3</span>
             <Title order={2}>Confirm your seed phrase</Title>
-            <Text size="sm" c="dimmed">Tap the words below to put them back in their places.</Text>
+            <Text size="sm" c="dimmed">
+              {nextSlot === undefined
+                ? 'Tap a word in the grid to take it out again.'
+                : Object.keys(slots).length === 0
+                  ? `Tap the missing words in order, starting with word ${nextSlot + 1}.`
+                  : `Next: word ${nextSlot + 1}.`}
+            </Text>
             <WordGrid
               words={phrase.map((w, i) => (checks.includes(i) ? (slots[i] ?? '') : w))}
               blanks={checks}
+              next={nextSlot}
               onClear={unpick}
             />
+            <div className="sr-only" aria-live="polite">
+              {placed}
+            </div>
             <Group gap="xs" justify="center" mih={44}>
               {bank.map((w, i) => (
                 <Button key={`${w}-${i}`} variant="default" className="vault-chip" onClick={() => pick(i)}>

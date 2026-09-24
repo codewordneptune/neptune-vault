@@ -1596,3 +1596,11 @@ html {
   font-size: var(--v-fs-xs);
   color: var(--v-muted);
 }
+
+/* Setup and settings (ux audit 2) */
+
+/* The slot the next tapped word goes into, in the accent, so a word never
+   lands somewhere unexpected. */
+.vault-word.slot.empty.next {
+  box-shadow: inset 0 0 0 2px var(--v-accent);
+}
