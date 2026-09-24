@@ -238,28 +238,37 @@ export function Onboarding() {
             {error && <Alert color="red">{error}</Alert>}
             <Button variant="light" onClick={() => setStep('import')}>Restore with a seed phrase</Button>
             <Button variant="light" onClick={() => setStep('file')}>Restore from a backup file</Button>
-            {/* Most people want Mainnet and should not meet the question first.
-                Off Mainnet it is open, so a tester sees where the wallet will go. */}
-            {/* Named for what it holds, and stating it: a fact to a newcomer, a
-                choice to a tester. Its contents sit under its words, not beside them. */}
-            <details className="vault-setting" open={network !== 'main'}>
-              <summary>
-                <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
-                Network: {NETWORK_LABELS[network]}
-              </summary>
-              <div className="vault-setting-body">
-                <Select
-                  aria-label="Network"
-                  data={NETWORK_OPTIONS}
-                  value={network}
-                  onChange={(v) => {
-                    if (!v) return;
-                    setNetwork(v as Network);
-                    void switchNetwork(v as Network);
-                  }}
-                />
-              </div>
-            </details>
+            {/* Adding a wallet goes to the network that is open. Choosing another
+                here would lock the open wallet at once, with no question asked;
+                the header menu asks first, so that is where to switch. */}
+            {adding ? (
+              <Text size="sm" c="dimmed">
+                Adds to {NETWORK_LABELS[network]}. To add on another network, switch network from the header first.
+              </Text>
+            ) : (
+              /* Most people want Mainnet and should not meet the question first.
+                 Off Mainnet it is open, so a tester sees where the wallet will go.
+                 Named for what it holds, and stating it: a fact to a newcomer, a
+                 choice to a tester. Its contents sit under its words, not beside them. */
+              <details className="vault-setting" open={network !== 'main'}>
+                <summary>
+                  <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
+                  Network: {NETWORK_LABELS[network]}
+                </summary>
+                <div className="vault-setting-body">
+                  <Select
+                    aria-label="Network"
+                    data={NETWORK_OPTIONS}
+                    value={network}
+                    onChange={(v) => {
+                      if (!v) return;
+                      setNetwork(v as Network);
+                      void switchNetwork(v as Network);
+                    }}
+                  />
+                </div>
+              </details>
+            )}
             {draft && (
               <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>
                 Discard the unfinished wallet
