@@ -66,6 +66,11 @@
   --v-fs-xs: 0.75rem;
   --v-fs-sm: 0.875rem;
   --v-fs-md: 0.9375rem;
+  /* Addresses and IDs, wherever they are shown for reading or checking: one
+     size, since a monospace face already reads smaller than its size. The
+     face itself is the theme's monospace stack (theme.ts), read here through
+     the library's --mantine-font-family-monospace. */
+  --v-fs-mono: var(--v-fs-sm);
   --v-shadow-accent: 0 8px 20px rgba(31, 111, 224, 0.25);
   /* The content column's width, padding included: Mantine's xs container
      (540 px) on a phone or a narrow window, 720 px from 900 px up (below).
@@ -559,8 +564,8 @@ button.vault-network::before {
   gap: 2px;
 }
 .vault-detail-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--v-fs-mono);
   word-break: break-all;
 }
 .vault-row-icon {
@@ -1262,7 +1267,7 @@ html {
 }
 .vault-qr-full-caption {
   color: #15202e;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--mantine-font-family-monospace);
   /* What it is on one line, the address on the next, neither broken. */
   white-space: pre-line;
 }
@@ -1660,8 +1665,8 @@ html {
   text-align: center;
 }
 .vault-address-text {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: var(--v-fs-sm);
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--v-fs-mono);
   line-height: 1.5;
   word-break: break-all;
 }
