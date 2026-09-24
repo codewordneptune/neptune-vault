@@ -1340,9 +1340,25 @@ html {
   padding-left: 20px;
 }
 
-/* Room at the foot for the tab bar, on a phone. */
+/* Room at the foot for the tab bar, on a phone: the bar is 62 px at the
+   default text size plus the home indicator's inset (34 px on an iPhone),
+   which a fixed 84 px did not leave room for. 1em more keeps a gap, and
+   grows with a larger text setting, as the bar's label does. */
 .vault-shell.has-tabs {
-  padding-bottom: 84px;
+  padding-bottom: calc(62px + env(safe-area-inset-bottom) + 1em);
+}
+/* While a field takes typing on a touch screen, the bar steps aside. On
+   Android an installed app's page shrinks to the space above the keyboard,
+   and a bar fixed to the foot rode up with it and covered Review while an
+   amount was typed. This is chosen over the viewport's interactive-widget
+   setting, which only Chromium reads and which changes how every screen
+   meets the keyboard; here Safari and Firefox behave the same, and without
+   :has() the bar simply stays. Checkboxes, radios and read-only fields (a
+   Select) bring up no keyboard, so they leave it. */
+@media (pointer: coarse) and (max-width: 899.98px) {
+  body:has(:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='button'], [type='submit'], [readonly]), textarea:not([readonly])):focus) .vault-tabbar {
+    display: none;
+  }
 }
 /* The balance card: the figures, then the actions under them, as far below
    as a card's rows are apart plus the space above a button row. */
