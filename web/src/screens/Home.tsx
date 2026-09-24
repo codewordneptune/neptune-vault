@@ -142,7 +142,9 @@ export function Home() {
     const fee = one?.feeNau ? BigInt(one.feeNau) : null;
     const gone = !one
       ? `The balance above counts ${pendingSends.length} pending sends as already gone.`
-      : toSelf(one)
+      : one.recipient === null
+        ? `The balance above counts a pending send made elsewhere as already gone: ${amount(BigInt(one.amountNau))} NPT, its recipient and fee not known here.`
+        : toSelf(one)
         ? `The balance above counts a pending move to yourself: only its fee${fee !== null ? ` of ${amount(fee)} NPT` : ''} is gone.`
         : `The balance above counts a pending send as already gone: ${amount(BigInt(one.amountNau))} NPT to ${(one.payments?.length ?? 1) > 1 ? 'the recipients' : 'the recipient'}${fee !== null ? ` and a ${amount(fee)} NPT fee` : ''}.`;
     const it = pendingSends.length === 1;
