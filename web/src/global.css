@@ -1326,6 +1326,9 @@ html {
 .vault-info {
   color: var(--v-muted);
 }
+.vault-done {
+  color: var(--v-text-2);
+}
 .vault-notice-icon {
   flex: none;
   display: flex;
@@ -1336,6 +1339,9 @@ html {
 }
 .vault-info .vault-notice-icon {
   color: var(--v-muted);
+}
+.vault-done .vault-notice-icon {
+  color: var(--v-ok-text);
 }
 .vault-notice-body {
   flex: 1;

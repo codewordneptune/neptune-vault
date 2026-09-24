@@ -7,9 +7,15 @@
 //   backup, a public announcement, an address that shows every payment.
 // - information (this Info): plain text with an icon, in the page's own
 //   colours. For what helps but asks nothing.
+//
+// The result of something the person just did (a file exported, a password
+// changed, a send submitted) is a Done: information with a check, announced,
+// placed right under the control that caused it. Events that happen on
+// their own (a payment arriving, a send finishing on another screen) are
+// toasts; errors from a form sit under the form's button.
 
 import { CloseButton } from '@mantine/core';
-import { IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
 import type { HTMLAttributes, ReactNode } from 'react';
 
 type NoticeProps = {
@@ -22,11 +28,17 @@ type NoticeProps = {
   closeLabel?: string;
 } & Omit<HTMLAttributes<HTMLDivElement>, 'title'>;
 
-function Notice({ tier, title, children, icon, onClose, closeLabel, className, ...rest }: NoticeProps & { tier: 'caution' | 'info' }) {
+const ICONS = {
+  caution: <IconAlertTriangle size={18} stroke={1.8} />,
+  info: <IconInfoCircle size={18} stroke={1.8} />,
+  done: <IconCircleCheck size={18} stroke={1.8} />,
+};
+
+function Notice({ tier, title, children, icon, onClose, closeLabel, className, ...rest }: NoticeProps & { tier: 'caution' | 'info' | 'done' }) {
   return (
     <div className={`vault-notice vault-${tier}${className ? ' ' + className : ''}`} {...rest}>
       <span className="vault-notice-icon" aria-hidden>
-        {icon ?? (tier === 'caution' ? <IconAlertTriangle size={18} stroke={1.8} /> : <IconInfoCircle size={18} stroke={1.8} />)}
+        {icon ?? ICONS[tier]}
       </span>
       <div className="vault-notice-body">
         {title && <div className="vault-notice-title">{title}</div>}
@@ -53,4 +65,9 @@ export function Caution(props: NoticeProps) {
 
 export function Info(props: NoticeProps) {
   return <Notice tier="info" {...props} />;
+}
+
+/** The result of an action, announced; see the rules at the top. */
+export function Done(props: NoticeProps) {
+  return <Notice tier="done" role="status" {...props} />;
 }
