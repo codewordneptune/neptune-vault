@@ -50,6 +50,10 @@ and every few hours asks GitHub whether a newer version of it has been
 published. Like any web host, GitHub can log that request, including your
 network address. It receives nothing about your wallet.
 
+**The explorer, if you tap a link to it.** An explorer link opens a page
+about one output on an external site, which then knows that someone looked
+at that output. You choose whether to tap.
+
 **Price sites, only if you turn on "Value in another currency" in Settings.**
 While it is on and the app is open, the app asks CoinGecko, or CoinPaprika
 when CoinGecko does not answer, for the price of NPT in the currency you

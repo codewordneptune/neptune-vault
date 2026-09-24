@@ -1,7 +1,7 @@
 // Balance, sync status and history.
 
 import { ActionIcon, Alert, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDown, IconClockPause, IconCopy, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
+import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDown, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,6 +13,7 @@ import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
 import { Caution } from '../components/Notice';
 import { NATIVE } from '../app/platform';
+import { LINKS } from '../app/links';
 import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
@@ -193,6 +194,9 @@ export function Home() {
       }),
     );
   };
+
+  // The explorer knows Mainnet only.
+  const explorer = account?.network === 'main' ? LINKS.explorerOutput : null;
 
   const statusOf = (h: HistoryRecord) =>
     h.status === 'confirmed' ? (h.height !== null ? `Confirmed in block ${showBlock(h.height)}` : 'Confirmed') : h.status === 'pending' ? 'Pending, waiting for a block' : 'Failed';
@@ -466,7 +470,7 @@ export function Home() {
                 )}
                 {tech &&
                   outputsOf(detail).map((o) => (
-                    <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Identifier copied" />
+                    <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Identifier copied" href={explorer ? explorer + o.commitment : undefined} />
                   ))}
               </>
             )}
@@ -517,7 +521,7 @@ export function Home() {
 }
 
 /** A label and its value in the detail sheet; long values wrap and can be copied. */
-function DetailRow({ label, value, mono, copy, abbreviate, isolate }: { label: string; value: string; mono?: boolean; copy?: string; abbreviate?: boolean; isolate?: boolean }) {
+function DetailRow({ label, value, mono, copy, href, abbreviate, isolate }: { label: string; value: string; mono?: boolean; copy?: string; href?: string; abbreviate?: boolean; isolate?: boolean }) {
   // Long values (a generation address is about 3,500 characters) show
   // abbreviated with a toggle; copying always takes the full value.
   const [full, setFull] = useState(false);
@@ -528,10 +532,19 @@ function DetailRow({ label, value, mono, copy, abbreviate, isolate }: { label: s
         <Text size="xs" c="dimmed" className="vault-detail-label">
           {label}
         </Text>
-        {copy && (
-          <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copyText(value, copy)}>
-            <IconCopy size={16} stroke={1.8} />
-          </ActionIcon>
+        {(copy || href) && (
+          <Group gap={2} wrap="nowrap">
+            {copy && (
+              <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copyText(value, copy)}>
+                <IconCopy size={16} stroke={1.8} />
+              </ActionIcon>
+            )}
+            {href && (
+              <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="lg" className="vault-tap" aria-label={`Open ${label.toLowerCase()} in the explorer`}>
+                <IconExternalLink size={16} stroke={1.8} />
+              </ActionIcon>
+            )}
+          </Group>
         )}
       </Group>
       <Text size="sm" className={mono ? 'vault-detail-mono' : isolate ? 'vault-bidi vault-link-meta-text' : undefined} dir={isolate ? 'auto' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>

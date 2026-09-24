@@ -55,8 +55,8 @@ choose.
 **History and upkeep**
 
 - One row per transaction, grouped by day, with a detail sheet.
-- The detail sheet shows each output's commitment, which you can look up
-  in a block explorer.
+- The detail sheet shows each output's commitment, with a link to it on
+  the explorer (Mainnet only).
 - Rescan the chain fast, or from a block or a date.
 - Diagnostics for support requests.
 - Optionally, an estimate of the balance in another currency (off by
