@@ -159,6 +159,18 @@ h3.mantine-Title-root {
   text-transform: uppercase;
   color: var(--v-muted);
 }
+/* Long-form pages (Privacy) have headings that are sentences, like "What
+   leaves your device, and to whom": as 12 px spaced capitals they were hard
+   to read. They are prose headings instead, 15 px semibold in sentence case
+   and the text colour (13.8:1 on the dark card, 16.4:1 on the light). */
+h3.mantine-Title-root.vault-prose-heading {
+  font-size: var(--v-fs-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  text-transform: none;
+  color: var(--v-text);
+}
 
 /* Cards: a lighter surface, no border; in the light palette a hairline
    and a soft shadow give them the edge the surface step alone does not. */

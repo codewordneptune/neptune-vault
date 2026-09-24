@@ -49,10 +49,10 @@ export const theme = createTheme({
   headings: {
     fontWeight: '600',
     sizes: {
-      // h1 is the brand in the header; h2 a screen title; h3 a section label.
+      // h1 is the brand in the header; h2 a screen title. An h3 is sized in
+      // global.css: a section label in a card, or a prose heading on Privacy.
       h1: { fontSize: '0.9375rem', lineHeight: '1.2' },
       h2: { fontSize: '1.125rem' },
-      h3: { fontSize: '0.8125rem' },
     },
   },
   components: {
