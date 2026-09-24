@@ -12,7 +12,7 @@ import { Caution, Done, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
-import { requestPersistentStorage, walletName } from '../storage/db';
+import { DEFAULT_NODE_URLS, requestPersistentStorage, walletName } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
@@ -90,6 +90,9 @@ export function Settings() {
 
   const savedUrl = services.settings.nodeUrls[network] ?? '';
   const dirty = nodeUrl.trim() !== savedUrl;
+  // The way back after trying another node: it fills the field, and the
+  // button then tests it before it is saved, like any other URL.
+  const defaultUrl = DEFAULT_NODE_URLS[network];
   const saveAndTestNode = async () => {
     if (!(await testNode())) {
       setProbe((p) => (p ? { ...p, text: `Not saved. ${p.text}` } : p));
@@ -385,19 +388,21 @@ export function Settings() {
             </Stack>
           </Modal>
           <TextInput label="Node URL" description={`Used on ${NETWORK_LABELS[network]}; each network has its own.`} value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
-          {probe && (
-            <Text size="sm" c={probe.ok ? 'dimmed' : 'var(--v-danger-text)'}>
-              {probe.text}
-              {probe.at && probe.text !== 'Testing…' ? ` · checked ${formatTime(probe.at)}` : ''}
-            </Text>
-          )}
+          {/* Always there, so what the test says as it runs and ends is announced. */}
+          <Text size="sm" c={probe && !probe.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status">
+            {probe?.text}
+            {probe?.at && probe.text !== 'Testing…' ? ` · checked ${formatTime(probe.at)}` : ''}
+          </Text>
+          {/* One button: a URL that differs from the saved one is tested, then saved. */}
           <Group>
-            <Button onClick={() => void saveAndTestNode()} disabled={!dirty} loading={testing && dirty}>
-              Test and save
+            <Button variant={dirty ? 'filled' : 'light'} onClick={() => void (dirty ? saveAndTestNode() : testNode())} loading={testing}>
+              {dirty ? 'Test and save' : 'Test'}
             </Button>
-            <Button variant="light" onClick={() => void testNode()} disabled={dirty} loading={testing && !dirty}>
-              Test
-            </Button>
+            {defaultUrl && savedUrl !== defaultUrl && nodeUrl.trim() !== defaultUrl && (
+              <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => setNodeUrl(defaultUrl)}>
+                Use the default node
+              </Anchor>
+            )}
           </Group>
           <RescanCard />
         </Stack>
