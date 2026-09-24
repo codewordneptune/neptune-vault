@@ -18,15 +18,11 @@ import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/histo
 import { dayKey, dayLabel, formatDate, formatDateTime, formatTime, formatWhen } from '../util/time';
 
 export function Home() {
-  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, sendJob, dismissSendJob, loaded } = useApp();
+  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure } = useApp();
   // A send that failed while the person was elsewhere is easy to miss as a
   // toast; it stays here until dismissed, and survives a reload.
-  const [failure, setFailure] = useState(services.settings.lastSendFailure);
-  useEffect(() => {
-    setFailure(services.settings.lastSendFailure);
-  }, [services, sendJob?.done, sendJob?.error]);
   const dismissFailure = () => {
-    setFailure(undefined);
+    dismissSendFailure();
     dismissSendJob();
   };
   // Masked amounts for reading the app in public; remembered across visits.

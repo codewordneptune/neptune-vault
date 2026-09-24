@@ -232,12 +232,14 @@ export interface LedgerAnswers {
 export type LedgerAnswer<O extends LedgerOp> = LedgerAnswers[O['op']];
 
 /** The parts the app reads from the engine today. The rest are still read from the app's own database. */
-export const ENGINE_PARTS: WalletPart[] = ['contacts', 'scan', 'sync', 'utxos', 'blocks', 'history'];
+export const ENGINE_PARTS: WalletPart[] = ['contacts', 'scan', 'sync', 'utxos', 'blocks', 'history', 'private'];
 
 /** One edit to a wallet's sealed log; the names are the engine's. */
 export type WalletChange =
   | { op: 'putContact'; contact: ContactRecord }
-  | { op: 'deleteContact'; id: string };
+  | { op: 'deleteContact'; id: string }
+  | { op: 'putPrivate'; key: string; value: unknown }
+  | { op: 'deletePrivate'; key: string };
 
 /** Everything the app asks of the wallet core, unlocked or not. */
 export interface WalletCore {

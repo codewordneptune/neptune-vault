@@ -76,11 +76,11 @@ type Tab = 'address' | 'request';
 const QR_OPTIONS = { type: 'image/png' as const, width: 1200, margin: 2, errorCorrectionLevel: 'L' as const };
 
 export function Receive() {
-  const { services, account, refresh } = useApp();
+  const { services, account } = useApp();
   const [tab, setTab] = useState<Tab>('address');
   const [kind, setKind] = useState<KeyKind>('generation');
   const [indices, setIndices] = useState<Record<KeyKind, number>>({ generation: 0, ec_hybrid: 0, viewing: 0 });
-  const [address, setAddress] = useState<string>(account?.address0 ?? '');
+  const [address, setAddress] = useState('');
   const [qr, setQr] = useState<string>('');
   const [addressError, setAddressError] = useState<string | null>(null);
   // Which code, if any, is shown as large as the screen allows.
@@ -155,13 +155,10 @@ export function Receive() {
     setAddressError(null);
     void (async () => {
       try {
-        // Always from the keys, the main address included. The copy kept in
-        // the database is there for screens shown while locked; it is not
-        // protected by anything, and an address shown here is one people pay
-        // to. If the two ever differ the keys are right, and the copy is mended.
+        // Always from the keys, the main address included: an address shown
+        // here is one people pay to, and nothing unprotected stands in for it.
         const a = await services.core.address(kind, index);
         if (cancelled) return;
-        if (kind === 'generation' && index === 0 && account && account.address0 !== a) void services.accounts.repairAddress0(account.id, a).then(refresh);
         setAddress(a);
         try {
           setQr(await QRCode.toDataURL(paymentQrPayload(a), QR_OPTIONS));

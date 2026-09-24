@@ -2,7 +2,10 @@
 // policy: after an idle time the person chooses (five minutes unless
 // changed, and immediately on backgrounding).
 
-import { FRESH_KEY_INDICES, type AccountRecord, type ContactRecord, type Network, type SeedEnvelope, type VaultDb } from '../storage/db';
+import { FRESH_KEY_INDICES, type AccountRecord, type ContactRecord, type Network, type SeedEnvelope, type SendFailure, type VaultDb } from '../storage/db';
+
+/** The private note, in a wallet's sealed log, about its last failed send. */
+const LAST_SEND_FAILURE = 'lastSendFailure';
 import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeedKeepingKey, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
 import { CHAIN_PARTS, ENGINE_PARTS, type WalletPart } from '../backend/types';
 import { EngineParts } from './engineParts';
@@ -117,6 +120,8 @@ export class AccountService {
       else if (part === 'blocks') dump.blocks = await this.db.getAllFromIndex('blocks', 'byAccountHeight', IDBKeyRange.bound([accountId, 0], [accountId, Infinity]));
       else if (part === 'sync') dump.syncState = [await this.db.get('syncState', accountId)].filter(Boolean);
       else if (part === 'scan') continue; // Read from the account record, which is always in the dump.
+      // The note about a failed send, which older versions kept in the settings.
+      else if (part === 'private') dump.settings = await this.db.get('settings', 'settings');
       else throw new Error(`the app does not move ${part} yet`);
     }
     return dump;
@@ -252,10 +257,21 @@ export class AccountService {
     await this.patch(accountId, (current) => ({ ...current, name: trimmed }));
   }
 
-  /** Set the stored copy of the main address to what the keys say it is. */
-  async repairAddress0(accountId: string, address0: string): Promise<void> {
-    if (this.unlockedId !== accountId) return;
-    await this.patch(accountId, (current) => ({ ...current, address0 }));
+  /**
+   * The note about this wallet's last failed send, from its sealed log,
+   * where it is readable only while the wallet is unlocked. Throws while
+   * locked. A wallet whose notes could not move keeps none.
+   */
+  async lastSendFailure(accountId: string): Promise<SendFailure | null> {
+    if (this.engine.where(accountId, 'private') !== 'engine') return null;
+    const notes = (await this.core.storeRead!(accountId, 'private')) as { key: string; value: SendFailure }[];
+    return notes.find((n) => n.key === LAST_SEND_FAILURE)?.value ?? null;
+  }
+
+  /** Keep, or with null clear, the note about this wallet's last failed send. Throws while locked. */
+  async setLastSendFailure(accountId: string, failure: SendFailure | null): Promise<void> {
+    if (this.engine.where(accountId, 'private') !== 'engine') return;
+    await this.core.storeCommit!(accountId, [failure ? { op: 'putPrivate', key: LAST_SEND_FAILURE, value: failure } : { op: 'deletePrivate', key: LAST_SEND_FAILURE }]);
   }
 
   /** Proves the password opens this wallet; throws WrongPasswordError otherwise. */
@@ -312,14 +328,12 @@ export class AccountService {
     // From here the keys are in the core. Whatever fails below, they must
     // not stay there with no lock armed.
     try {
-      const address0 = await this.core.address('generation', 0);
       const record: AccountRecord = {
         id: crypto.randomUUID(),
         network,
         createdAt: Date.now(),
         birthdayHeight: Math.max(0, birthdayHeight),
         envelope,
-        address0,
         nextKeyIndices: FRESH_KEY_INDICES,
         backupConfirmed: false,
         name,
@@ -576,14 +590,12 @@ export class AccountService {
     });
     let recordId: string | null = null;
     try {
-      const address0 = await this.core.address('generation', 0);
       const record: AccountRecord = {
         id: crypto.randomUUID(),
         network,
         createdAt: Date.now(),
         birthdayHeight: Math.max(1, birthday),
         envelope,
-        address0,
         nextKeyIndices: FRESH_KEY_INDICES,
         backupConfirmed: true,
         name,

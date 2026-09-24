@@ -5,7 +5,7 @@ import { notifications } from '@mantine/notifications';
 import { groupDigits, showInt } from '../util/format';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { byCreation, type AccountRecord, type HistoryRecord, type Network, type UtxoRecord } from '../storage/db';
+import { byCreation, type AccountRecord, type HistoryRecord, type Network, type SendFailure, type UtxoRecord } from '../storage/db';
 import type { ScanSettings, SendRequest } from '../backend/types';
 import type { SyncEngine, SyncProgress } from '../wallet/sync';
 import { paymentsTotalNau, RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type SendOutcome, type SendProgress } from './send';
@@ -82,6 +82,9 @@ export interface AppState {
   startSend: (request: SendRequest, note?: string | null) => Promise<SendOutcome>;
   cancelSend: () => void;
   dismissSendJob: () => void;
+  /** The current wallet's last failed send, while it is unlocked, until dismissed or a later send goes through. */
+  sendFailure: SendFailure | null;
+  dismissSendFailure: () => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -105,6 +108,7 @@ export function AppProvider({ services, children }: { services: Services; childr
   const [sync, setSync] = useState<SyncProgress | null>(null);
   const [utxos, setUtxos] = useState<UtxoRecord[]>([]);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [sendFailure, setSendFailure] = useState<SendFailure | null>(null);
   const [network, setNetwork] = useState<Network>(services.settings.network);
   const [sendJob, setSendJob] = useState<SendJob | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
@@ -150,9 +154,10 @@ export function AppProvider({ services, children }: { services: Services; childr
       if (!record) return;
       await stopSync();
       await services.accounts.deleteAccount(id);
-      // The removal promises that nothing of the wallet stays on the device:
-      // that includes the note about its last failed send, which names a
-      // recipient and an amount, and the mempool watcher kept for it.
+      // The removal promises that nothing of the wallet stays on the device.
+      // Its note about a failed send goes with its sealed log; an older
+      // version may have left one in the settings, which goes too, and so
+      // does the mempool watcher kept for it.
       if (services.settings.lastSendFailure?.accountId === id) await services.updateSettings({ lastSendFailure: undefined });
       services.forgetAccount(id);
       const rest = byCreation(await services.db.getAllFromIndex('accounts', 'byNetwork', record.network));
@@ -221,6 +226,19 @@ export function AppProvider({ services, children }: { services: Services; childr
     setUtxos(coins);
     rows.sort((a, b) => b.timestampMs - a.timestampMs);
     setHistory(rows);
+    // The note about the wallet's last failed send, from its sealed log. An
+    // older version kept it in the clear in the settings; once the log has
+    // taken it over (at this unlock), that copy is removed.
+    let failure: SendFailure | null = null;
+    try {
+      failure = await services.accounts.lastSendFailure(accountId);
+      if (services.settings.lastSendFailure?.accountId === accountId && services.accounts.engine.where(accountId, 'private') === 'engine') {
+        await services.updateSettings({ lastSendFailure: undefined });
+      }
+    } catch {
+      // Locked: nothing to show until it is unlocked.
+    }
+    setSendFailure(failure);
     setLoadedFor(accountId);
     // A finished send whose row has confirmed no longer needs its notice.
     setSendJob((job) => {
@@ -235,6 +253,18 @@ export function AppProvider({ services, children }: { services: Services; childr
   // lock of the send already running.
   const sending = useRef(false);
   const sendAbort = useRef<AbortController | null>(null);
+
+  // The note about a failed send: shown on Home until dismissed, and kept in
+  // the wallet's sealed log, so it survives a reload and is never readable
+  // while the wallet is locked. A send that fails after the wallet was
+  // locked by hand keeps its note for this session only.
+  const noteSendFailure = useCallback(
+    (forAccount: string, failure: SendFailure | null) => {
+      setSendFailure(failure);
+      void services.accounts.setLastSendFailure(forAccount, failure).catch(() => {});
+    },
+    [services],
+  );
 
   const startSend = useCallback(
     async (request: SendRequest, note: string | null = null): Promise<SendOutcome> => {
@@ -275,7 +305,7 @@ export function AppProvider({ services, children }: { services: Services; childr
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, outcome } : job));
-        if (services.settings.lastSendFailure) void services.updateSettings({ lastSendFailure: undefined });
+        noteSendFailure(accountId, null);
         if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
           notifications.show({ color: 'green', title: 'Sent', message: `${showNau(paymentsTotalNau(request))} NPT submitted. It shows as pending until it is confirmed.` });
         }
@@ -296,7 +326,7 @@ export function AppProvider({ services, children }: { services: Services; childr
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, error: message } : job));
-        if (message) void services.updateSettings({ lastSendFailure: { at: Date.now(), accountId, amount: showNau(paymentsTotalNau(request)), recipient: request.payments[0]?.recipient ?? '', others: request.payments.length - 1, message } });
+        if (message) noteSendFailure(accountId, { at: Date.now(), accountId, amount: showNau(paymentsTotalNau(request)), recipient: request.payments[0]?.recipient ?? '', others: request.payments.length - 1, message });
         if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message });
         throw e;
       } finally {
@@ -306,7 +336,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         services.accounts.setLockDeferred(false);
       }
     },
-    [services, accountId, refresh],
+    [services, accountId, refresh, noteSendFailure],
   );
 
   // Cancel asks; the send answers. The screen says "cancelled" only when
@@ -318,8 +348,11 @@ export function AppProvider({ services, children }: { services: Services; childr
 
   const dismissSendJob = useCallback(() => {
     setSendJob(null);
-    if (services.settings.lastSendFailure) void services.updateSettings({ lastSendFailure: undefined });
-  }, [services]);
+  }, []);
+
+  const dismissSendFailure = useCallback(() => {
+    if (accountId) noteSendFailure(accountId, null);
+  }, [accountId, noteSendFailure]);
 
   useEffect(() => {
     void refresh();
@@ -449,8 +482,8 @@ export function AppProvider({ services, children }: { services: Services; childr
   const screenAwake = useScreenWakeLock(Boolean(sendJob && !sendJob.done));
 
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, sendFailure, dismissSendFailure }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, sendFailure, dismissSendFailure],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

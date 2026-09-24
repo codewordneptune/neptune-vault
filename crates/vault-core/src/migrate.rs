@@ -479,6 +479,15 @@ mod tests {
     }
 
     #[test]
+    fn a_wallet_whose_record_carries_no_address_comes_through_too() {
+        let mut dump = dump();
+        dump.accounts[0].as_object_mut().unwrap().remove("address0");
+        let (device, wallet) = migrated(&dump, "a");
+        verify_wallet(&dump, &device.wallets["a"], &wallet).unwrap();
+        assert_eq!(wallet.details.unwrap().address0, "");
+    }
+
+    #[test]
     fn a_wallet_from_the_first_version_comes_through_too() {
         let dump = dump();
         let (device, wallet) = migrated(&dump, "old");

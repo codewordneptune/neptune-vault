@@ -86,7 +86,7 @@ describe('backup files', () => {
       const core = new FakeCore();
       const service = new AccountService(db, core as unknown as WalletCore, 300_000);
       const record = await service.importFile(fixture(name), PASSWORD);
-      expect(record.address0).toBe('nolgar1-w0-0');
+      expect(record.address0).toBeUndefined();
       expect(record.birthdayHeight).toBe(3);
       expect(core.unlocked).toEqual(PHRASE);
       const contacts = await db.getAll('contacts');
@@ -184,7 +184,6 @@ describe('backup files', () => {
     const again = await service.exportFile(record.id, PASSWORD);
     await service.lock();
     const second = await service.importFile(again, PASSWORD);
-    expect(second.address0).toBe(record.address0);
     expect((await db.getAllFromIndex('contacts', 'byAccount', second.id)).map((c) => c.name)).toEqual(['Alice']);
   });
   it('an envelope with weaker settings than the default is wrapped again at the default once it has been opened', async () => {
