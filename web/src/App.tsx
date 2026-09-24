@@ -1,6 +1,6 @@
 import { Box, Container, Group, Loader } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
-import { useEffect, type ReactElement } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import { useApp } from './app/AppContext';
@@ -27,6 +27,27 @@ const TABS = [
   { to: '/settings', label: 'Settings', Icon: IconSettings },
 ];
 
+const SCREEN_NAMES: Record<string, string> = {
+  '/': 'Home',
+  '/send': 'Send',
+  '/receive': 'Receive',
+  '/settings': 'Settings',
+  '/contacts': 'Contacts',
+  '/diagnostics': 'Diagnostics',
+  '/privacy': 'Privacy',
+  '/onboarding': 'Set up',
+};
+
+/** The screen a path shows, for the page title; null for a path about to be redirected. */
+function screenName(pathname: string, hasWallet: boolean, locked: boolean): string | null {
+  // Privacy is open to all; every other screen of a wallet waits behind the lock.
+  if (pathname === '/privacy') return SCREEN_NAMES[pathname];
+  if (hasWallet && locked) return 'Locked';
+  // With no wallet, only setup and the device facts are shown; the rest redirect.
+  if (!hasWallet && pathname !== '/onboarding' && pathname !== '/diagnostics') return null;
+  return SCREEN_NAMES[pathname] ?? null;
+}
+
 export function App() {
   const { ready, account, locked, services } = useApp();
   // A new screen starts at its top; the router alone keeps the old scroll position.
@@ -35,6 +56,34 @@ export function App() {
   const addingWallet = new URLSearchParams(search).has('add');
   useEffect(() => {
     window.scrollTo(0, 0);
+  }, [pathname]);
+
+  // The title names the screen, so a tab, the window list and a screen
+  // reader all say where the app is, not only "Neptune Vault".
+  const hasWallet = Boolean(account);
+  useEffect(() => {
+    const name = screenName(pathname, hasWallet, locked);
+    document.title = name ? `${name} · Neptune Vault` : 'Neptune Vault';
+  }, [pathname, hasWallet, locked]);
+
+  // A new screen takes focus at its heading (every screen has an h2, some
+  // visually hidden), so a keyboard or screen-reader user starts there and
+  // hears where they are, instead of on the page's body. Not on the first
+  // load, or on redirects before the person has done anything, where the
+  // browser's own start is right; and not when the screen has focused a
+  // field of its own (the lock screen's password).
+  const interacted = useRef(false);
+  const shownPath = useRef(pathname);
+  useEffect(() => {
+    if (shownPath.current === pathname) return;
+    shownPath.current = pathname;
+    if (!interacted.current) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.closest('main')) return;
+    const heading = document.querySelector<HTMLElement>('main h2');
+    if (!heading) return;
+    if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
   }, [pathname]);
 
   // Keyboard shortcuts, in the desktop app only: in a browser these keys
@@ -46,6 +95,8 @@ export function App() {
     if (!NATIVE) return;
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+      // Pressed with focus on the page's body, outside the shell's handlers.
+      interacted.current = true;
       const key = event.key.toLowerCase();
       if (key === 'l' && open) {
         event.preventDefault();
@@ -66,8 +117,12 @@ export function App() {
   // would bounce an existing account to onboarding.
   if (!ready) return <Loader className="vault-starting" aria-label="Starting" />;
 
-  // Any interaction postpones the idle lock.
-  const touch = () => services.accounts.touch();
+  // Any interaction postpones the idle lock, and from the first one on a
+  // change of screen moves focus to its heading.
+  const touch = () => {
+    interacted.current = true;
+    services.accounts.touch();
+  };
 
   const gate = (element: ReactElement) => {
     if (!account) return <Navigate to="/onboarding" replace />;
