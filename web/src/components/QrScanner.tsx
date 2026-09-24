@@ -409,7 +409,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   const at = cameras.findIndex((c) => c.deviceId === cameraId);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md">
+    <Modal opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md" classNames={{ body: 'vault-scan-body' }}>
       <Stack>
         {error ? (
           <Text c="var(--v-danger-text)" size="sm">

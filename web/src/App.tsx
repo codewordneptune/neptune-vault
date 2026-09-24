@@ -48,6 +48,15 @@ function screenName(pathname: string, hasWallet: boolean, locked: boolean): stri
   return SCREEN_NAMES[pathname] ?? null;
 }
 
+/**
+ * The desktop app's shortcut for a tab, in its tooltip and for assistive
+ * technology, so the shortcuts below are not a secret. Cmd on a Mac.
+ */
+function shortcutProps(label: string, digit: number): { title: string; 'aria-keyshortcuts': string } {
+  const mac = /Mac/i.test(navigator.userAgent);
+  return { title: `${label} (${mac ? 'Cmd' : 'Ctrl'}+${digit})`, 'aria-keyshortcuts': `${mac ? 'Meta' : 'Control'}+${digit}` };
+}
+
 export function App() {
   const { ready, account, locked, services } = useApp();
   // A new screen starts at its top; the router alone keeps the old scroll position.
@@ -177,8 +186,8 @@ export function App() {
         <nav className="vault-tabbar" aria-label="Main">
           <Container size="xs" px={0} className="vault-tabbar-inner">
             <Group gap={0} wrap="nowrap" className="vault-tabs">
-              {TABS.map(({ to, label, Icon }) => (
-                <NavLink key={to} to={to} end className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`}>
+              {TABS.map(({ to, label, Icon }, i) => (
+                <NavLink key={to} to={to} end className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`} {...(NATIVE ? shortcutProps(label, i + 1) : {})}>
                   <Icon size={22} stroke={1.6} />
                   {label}
                 </NavLink>

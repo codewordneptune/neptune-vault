@@ -1105,6 +1105,21 @@ html {
 .vault-scan video {
   width: 100%;
   display: block;
+  /* In a maximised desktop window the preview grew past the fold and took
+     Cancel and the torch and zoom buttons with it: it keeps room for the
+     title, the hint and its controls (about 380 px, plus the safe areas on
+     an iPhone). Cropped rather than letterboxed: the crop takes the top and
+     bottom, so on a phone, whose guide is measured on the width, the guide
+     still matches the square that is read, and with a landscape camera it
+     falls inside that square. */
+  max-height: max(200px, calc(100dvh - 380px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  object-fit: cover;
+}
+/* A column of a readable width in a wide window, centred. */
+.vault-scan-body.vault-scan-body {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
 }
 .vault-scan-guide {
   position: absolute;
