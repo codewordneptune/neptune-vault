@@ -12,7 +12,7 @@ import { fiatOf, formatFiat } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
 import type { ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
-import { Caution, Done, Info } from '../components/Notice';
+import { Caution, Done } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { LINKS } from '../app/links';
 import { PocNotice } from '../components/PocNotice';
@@ -53,13 +53,17 @@ export function Home() {
   };
   const navigate = useNavigate();
 
-  // Reminder until an export file exists; a dismissal snoozes it for a week.
-  // A seed phrase written down and confirmed is already the backup that
-  // matters, so then it only says what a file adds: the contacts.
+  // A seed phrase written down and confirmed is the backup that matters,
+  // and every way of setting a wallet up confirms it, so Home does not ask
+  // for a file on top (Settings, Backup still offers one, for contacts). A
+  // wallet whose phrase was never confirmed (an early version, or a setup
+  // cut short) is warned until a file exists; a dismissal snoozes it for a week.
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
   const showBackupNudge =
-    Boolean(account) && !account?.lastBackupAt && !(account?.backupNudgeDismissedAt && Date.now() - account.backupNudgeDismissedAt < WEEK_MS);
-  const seedConfirmed = account?.backupConfirmed === true;
+    Boolean(account) &&
+    account?.backupConfirmed !== true &&
+    !account?.lastBackupAt &&
+    !(account?.backupNudgeDismissedAt && Date.now() - account.backupNudgeDismissedAt < WEEK_MS);
   const dismissNudge = async () => {
     if (!account) return;
     await services.accounts.dismissBackupNudge(account.id);
@@ -271,6 +275,20 @@ export function Home() {
         Home
       </Title>
       <PocNotice />
+      {/* A wallet with no confirmed seed phrase and no backup file can be lost
+          with this device or browser: a warning, at the top, under the early-version one. */}
+      {showBackupNudge && (
+        <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
+          {NATIVE
+            ? 'This wallet lives only on this device. Export a backup file so you can restore it, with its contacts, if the device is lost or its data deleted.'
+            : "This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared."}
+          <div>
+            <UnstyledButton onClick={() => navigate('/settings#backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+              Export backup file
+            </UnstyledButton>
+          </div>
+        </Caution>
+      )}
       {/* The dot answers "is this current?" without reading: green up to date, amber while working, red when it cannot say. */}
       <div className="vault-status">
         <span className="vault-status-text">
@@ -368,7 +386,7 @@ export function Home() {
       </Paper>
 
       {/* Notices about what happened and what to do, after the balance so it
-          keeps the first screen: one about a send at a time, then the backup. */}
+          keeps the first screen: one about a send at a time, then the install offer. */}
       {/* How the last send that reached the node ended, until it confirms or is dismissed: a send that
           finished while the app was locked still says so here. */}
       {lastSend && lastSend.accountId === account?.id && !(failure && failure.accountId === account.id && failure.at > lastSend.at) && (
@@ -398,30 +416,8 @@ export function Home() {
           </Text>
         </Alert>
       )}
-      {/* One notice at a time: the backup first, since a lost seed phrase is worse than a missing install. */}
+      {/* One notice at a time: while the backup warning above shows, the install offer waits. */}
       {!showBackupNudge && <InstallNudge />}
-      {showBackupNudge && seedConfirmed && (
-        <Info icon={<IconShieldCheck size={18} stroke={1.8} />} title="Your seed phrase restores this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
-          A backup file also keeps your contacts.
-          <div>
-            <UnstyledButton onClick={() => navigate('/settings#backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-              Export backup file
-            </UnstyledButton>
-          </div>
-        </Info>
-      )}
-      {showBackupNudge && !seedConfirmed && (
-        <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
-          {NATIVE
-            ? 'This wallet lives only on this device. Export a backup file so you can restore it, with its contacts, if the device is lost or its data deleted.'
-            : "This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared."}
-          <div>
-            <UnstyledButton onClick={() => navigate('/settings#backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-              Export backup file
-            </UnstyledButton>
-          </div>
-        </Caution>
-      )}
 
       <Paper>
         <Stack>
