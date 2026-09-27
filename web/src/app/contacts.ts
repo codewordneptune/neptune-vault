@@ -2,6 +2,7 @@
 // are validated for the account's network on entry, and stored in full so a
 // contact can be pasted into Send without any lookup.
 
+import { cleanText } from '../util/text';
 import type { ContactRecord, VaultDb } from '../storage/db';
 import { addressKindLabel } from '../util/address';
 import type { WalletCore } from '../backend/types';
@@ -71,7 +72,8 @@ export class ContactsService {
   }
 
   async add(accountId: string, name: string, address: string): Promise<ContactRecord> {
-    const cleanName = name.trim();
+    // No characters that could reorder the text a name is shown in.
+    const cleanName = cleanText(name);
     const cleanAddress = address.trim().toLowerCase();
     if (!cleanName) throw new Error('Enter a name');
     if (!(await this.core.isValidAddress(cleanAddress, this.networkName()))) throw new Error('Not a valid address for this network');
@@ -95,7 +97,7 @@ export class ContactsService {
   }
 
   async rename(key: string, name: string): Promise<void> {
-    const cleanName = name.trim();
+    const cleanName = cleanText(name);
     if (!cleanName) throw new Error('Enter a name');
     // A contact's key is its wallet's id, a colon, and its own.
     const accountId = key.slice(0, key.indexOf(':'));

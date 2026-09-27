@@ -5,7 +5,7 @@
 
 import { Button, Group, Menu, Modal, Stack, Text } from '@mantine/core';
 import { IconCheck, IconChevronDown, IconLock, IconPlus } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
@@ -20,10 +20,16 @@ export function NetworkMenu() {
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [opened, setOpened] = useState(false);
   const [pending, setPending] = useState<Network | null>(null);
+  // The menu item that opened the dialog is gone when it closes: focus goes back to the pill.
+  const pillRef = useRef<HTMLButtonElement>(null);
+  const cancelSwitch = () => {
+    setPending(null);
+    setTimeout(() => pillRef.current?.focus(), 0);
+  };
   const sending = Boolean(sendJob && !sendJob.done);
   const onThisNetwork = accounts.filter((a) => a.network === network);
   const countOn = (n: Network) => accounts.filter((a) => a.network === n).length;
-  const hint = (n: Network) => (countOn(n) === 0 ? 'no wallet' : countOn(n) === 1 ? 'wallet' : countOn(n) + ' wallets');
+  const hint = (n: Network) => (countOn(n) === 0 ? 'no wallet' : countOn(n) === 1 ? '1 wallet' : countOn(n) + ' wallets');
 
   const choose = (n: Network) => {
     if (n === network) return;
@@ -43,8 +49,12 @@ export function NetworkMenu() {
       <Menu.Target>
         {/* The wallet is what the pill is about, and the network qualifies it:
             the menu behind it switches both, so both are named, always. */}
-        <button type="button" className="vault-network" aria-label={`${account ? walletName(account) + ' on ' : ''}${NETWORK_LABELS[network]}. Change wallet or network`}>
-          {account && <span className="vault-network-wallet">{walletName(account)}</span>}
+        <button ref={pillRef} type="button" className="vault-network" aria-label={`${account ? walletName(account) + ' on ' : ''}${NETWORK_LABELS[network]}. Change wallet or network`}>
+          {account && (
+            <span className="vault-network-wallet">
+              <bdi>{walletName(account)}</bdi>
+            </span>
+          )}
           <span className={account ? 'vault-network-net' : undefined}>{NETWORK_LABELS[network]}</span>
           <IconChevronDown size={12} stroke={2.2} />
         </button>
@@ -62,7 +72,7 @@ export function NetworkMenu() {
                 }}
                 leftSection={a.id === account?.id ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
               >
-                {walletName(a)}
+                <bdi>{walletName(a)}</bdi>
               </Menu.Item>
             ))}
             <Menu.Item disabled={sending} leftSection={<IconPlus size={14} />} onClick={() => navigate('/onboarding?add=1')}>
@@ -92,14 +102,14 @@ export function NetworkMenu() {
           </Menu.Item>
         ))}
       </Menu.Dropdown>
-      <Modal opened={pending !== null} onClose={() => setPending(null)} title={pending ? `Switch to ${NETWORK_LABELS[pending]}?` : ''}>
+      <Modal opened={pending !== null} onClose={cancelSwitch} returnFocus={false} title={pending ? `Switch to ${NETWORK_LABELS[pending]}?` : ''}>
         {pending && (
           <Stack>
             <Text size="sm">
               Your {NETWORK_LABELS[network]} wallet stays on this device, so you can switch back any time. Switching locks the app.
             </Text>
             <Group grow>
-              <Button variant="default" onClick={() => setPending(null)}>
+              <Button variant="default" onClick={cancelSwitch}>
                 Cancel
               </Button>
               <Button

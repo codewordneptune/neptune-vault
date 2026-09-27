@@ -2,11 +2,11 @@ import 'fake-indexeddb/auto';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { NodeClient, RpcBlockHeader, RpcWalletBlock } from '../node/rpc';
+import { NodeError, type NodeClient, type RpcBlockHeader, type RpcWalletBlock } from '../node/rpc';
 import { openVaultDb, type AccountRecord, type VaultDb } from '../storage/db';
 import { CHAIN_PARTS, NOT_LINKED, type LedgerOp, type ScanExpectation, type ScanResult, type StoredUtxo, type WalletCore } from '../backend/types';
 import { chainView, coin, testEngine, type TestEngine } from '../backend/engineForTests';
-import { SyncEngine } from './sync';
+import { forgetBatchSize, STORAGE_FULL, SyncEngine } from './sync';
 
 // A chain the fake node serves and a fake scan that "finds" what we tell it.
 // Everything the wallet then does with what was found is the real engine's,
@@ -133,6 +133,7 @@ let db: VaultDb;
 let vault: TestEngine;
 let view: ReturnType<typeof chainView>;
 afterEach(() => {
+  forgetBatchSize();
   vault?.close();
   db?.close();
   indexedDB.deleteDatabase('neptune-vault');
@@ -250,7 +251,7 @@ describe('sync engine', () => {
     const wrong = new SyncEngine(db, other as unknown as NodeClient, vault.store as unknown as WalletCore, 'acc', { batchSize: 4, keepBlocks: 100 });
     const result = await wrong.syncOnce();
     expect(result.phase).toBe('error');
-    expect(result.message).toMatch(/runs the main network/);
+    expect(result.message).toMatch(/^This node runs Mainnet, and this wallet is on Regtest. /);
     expect(await view.get('utxos', 'acc:u1')).toBeDefined();
     expect((await view.get('accounts', 'acc'))?.birthdayHeight).toBe(3);
   });
@@ -523,6 +524,76 @@ describe('sync engine', () => {
     const result = await engine.syncOnce();
     expect(result.phase).toBe('error');
     expect(result.message).toMatch(/does not support fast restore/);
+  });
+
+  it('starts a wallet made while the node was unreachable at the block of a day before it was made', async () => {
+    const { node, engine } = await setup();
+    await view.put('accounts', { ...(await view.get('accounts', 'acc'))!, birthdayHeight: 0, createdAt: 10 * 86400_000 });
+    node.extendTo(9);
+    let asked = 0;
+    (node as unknown as { heightForDate: (d: number) => Promise<number> }).heightForDate = async (d) => {
+      asked = d;
+      return 5;
+    };
+    await engine.syncOnce();
+    expect(asked).toBe(9 * 86400_000);
+    expect((await view.get('accounts', 'acc'))?.birthdayHeight).toBe(5);
+    expect(node.getBlocksCalls[0]).toEqual([5, 8]);
+  });
+
+  it('releases a send the chain is three days past, which no block can take any more', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(6);
+    core.incoming.set(4, [utxo('u1', 4, '5')]);
+    await engine.syncOnce();
+    const u = (await view.get('utxos', 'acc:u1'))!;
+    await view.put('utxos', { ...u, pendingTxid: 'tx-1' });
+    await view.put('history', { key: 'acc:sent:tx-1', accountId: 'acc', kind: 'sent', status: 'pending', txid: 'tx-1', amountNau: '1', feeNau: '0', timestampMs: 1000, height: null, inputHashes: ['u1'], recipient: 'r', error: null, stampMs: 1000 });
+
+    node.extendTo(7);
+    const day = 86400_000;
+    node.tipHeader = async () => ({ height: node.tip, prevBlockDigest: node.hashAt(node.tip - 1), timestamp: 1000 + 3 * day + 2 * 3600_000, difficulty: '1' });
+    const result = await engine.syncOnce();
+    expect(result.expired).toEqual(['tx-1']);
+    const sent = (await view.get('history', 'acc:sent:tx-1'))!;
+    expect(sent.status).toBe('failed');
+    expect(sent.error).toMatch(/^Not sent: it expired/);
+    expect((await view.get('utxos', 'acc:u1'))?.pendingTxid).toBeNull();
+    expect(result.tipTimestampMs).toBe(1000 + 3 * day + 2 * 3600_000);
+  });
+
+  it('asks for fewer blocks at once when the node is too slow, and pauses when even one is too much', async () => {
+    const { node, engine } = await setup();
+    node.extendTo(10);
+    const fetch = node.getBlocksRaw.bind(node);
+    node.getBlocksRaw = async (from: number, to: number) => {
+      if (to > from) {
+        node.getBlocksCalls.push([from, to]);
+        throw new NodeError('The node did not answer within 120 s.', 'timeout', 'wallet_getBlocks');
+      }
+      return fetch(from, to);
+    };
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('done');
+    expect(node.getBlocksCalls.slice(0, 3)).toEqual([[3, 6], [3, 4], [3, 3]]);
+
+    node.extendTo(12);
+    node.getBlocksRaw = async () => {
+      throw new NodeError('The node did not answer within 120 s.', 'timeout', 'wallet_getBlocks');
+    };
+    const slow = await engine.syncOnce();
+    expect([slow.phase, slow.nodeDown, slow.slow]).toEqual(['error', true, true]);
+    expect(slow.message).toMatch(/too slow to reach from here/);
+  });
+
+  it('says a full storage is a full storage', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(5);
+    core.scanBlocks = async () => {
+      throw new Error('QuotaExceededError: The quota has been exceeded.');
+    };
+    const result = await engine.syncOnce();
+    expect(result.message).toBe(STORAGE_FULL);
   });
 
   it('reports node errors without corrupting state', async () => {

@@ -9,10 +9,12 @@ import { notifications } from '@mantine/notifications';
 export async function copyText(text: string, message = 'Copied', failed = 'Could not copy. Try again.'): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
-    notifications.show({ message, color: 'green', autoClose: 1500 });
+    // Long enough to be read, or heard, before it goes.
+    notifications.show({ message, color: 'green', autoClose: 4000 });
     return true;
   } catch {
-    notifications.show({ message: failed, color: 'red' });
+    // What to do instead needs longer.
+    notifications.show({ message: failed, color: 'red', autoClose: 10_000 });
     return false;
   }
 }

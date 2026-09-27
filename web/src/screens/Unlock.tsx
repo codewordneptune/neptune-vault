@@ -15,7 +15,9 @@ import { WrongPasswordError } from '../storage/envelope';
 import { NETWORK_LABELS } from '../util/network';
 
 export function Unlock() {
-  const { services, account, switchAccount } = useApp();
+  const { services, account, switchAccount, sendJob } = useApp();
+  // During a send the wallet stays as it is: another is not offered.
+  const sending = Boolean(sendJob && !sendJob.done);
   // The other wallets on this network, for "Not this wallet?".
   const [others, setOthers] = useState<AccountRecord[]>([]);
   useEffect(() => {
@@ -35,10 +37,20 @@ export function Unlock() {
     if (!account) return;
     setPasskeyBusy(true);
     setPasskeyError(null);
+    const asked = Date.now();
     try {
       await services.accounts.unlockWithPasskey(account.id);
+      // It works again: the sheet may open by itself again.
+      const quiet = services.settings.passkeyQuiet ?? [];
+      if (quiet.includes(account.id)) void services.updateSettings({ passkeyQuiet: quiet.filter((id) => id !== account.id) });
     } catch (e) {
-      if (!isCancellation(e) && !(e instanceof UnlockCancelledError)) setPasskeyError((e as Error).message);
+      if (isCancellation(e) && Date.now() - asked < 1500) {
+        // Refused before anyone could have answered: the device did not offer
+        // the passkey (it was removed from it), which looks like a cancel.
+        setPasskeyError('This device did not offer the passkey. Unlock with the password, then turn passkey unlock off in Settings, or set it up again.');
+        const quiet = services.settings.passkeyQuiet ?? [];
+        if (!quiet.includes(account.id)) void services.updateSettings({ passkeyQuiet: [...quiet, account.id] });
+      } else if (!isCancellation(e) && !(e instanceof UnlockCancelledError)) setPasskeyError((e as Error).message);
       inputRef.current?.focus();
     } finally {
       setPasskeyBusy(false);
@@ -46,7 +58,7 @@ export function Unlock() {
   };
 
   useEffect(() => {
-    if (hasPasskey && !promptedThisLoad) {
+    if (hasPasskey && !promptedThisLoad && !(services.settings.passkeyQuiet ?? []).includes(account?.id ?? '')) {
       promptedThisLoad = true;
       void unlockWithPasskey();
     }
@@ -90,7 +102,7 @@ export function Unlock() {
               </Text>
               {account && (
                 <Title order={2} ta="center" className="vault-lock-name">
-                  {walletName(account)}
+                  <bdi>{walletName(account)}</bdi>
                 </Title>
               )}
               {account && (
@@ -121,12 +133,15 @@ export function Unlock() {
                 setError(null);
               }}
               error={error}
+              // Said as it appears: after Enter, focus is already in the field, and moving it there again says nothing.
+              errorProps={{ role: 'alert' }}
+              autoComplete="current-password"
               autoFocus={!hasPasskey}
             />
             <Button type="submit" variant={hasPasskey ? 'light' : 'filled'} loading={busy} disabled={!password}>
               Unlock
             </Button>
-            {others.length > 0 && (
+            {others.length > 0 && !sending && (
               <Menu position="bottom" width={240} radius="md" shadow="md">
                 <Menu.Target>
                   <UnstyledButton className="vault-lock-other">Not this wallet?</UnstyledButton>
@@ -135,7 +150,7 @@ export function Unlock() {
                   <Menu.Label>Other wallets on {account ? NETWORK_LABELS[account.network] : ''}</Menu.Label>
                   {others.map((a) => (
                     <Menu.Item key={a.id} onClick={() => void switchAccount(a.id)}>
-                      {walletName(a)}
+                      <bdi>{walletName(a)}</bdi>
                     </Menu.Item>
                   ))}
                 </Menu.Dropdown>

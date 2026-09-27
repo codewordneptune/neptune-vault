@@ -6,6 +6,7 @@ import { IconChevronLeft } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
+import { NATIVE } from '../app/platform';
 import { showInt } from '../util/format';
 import { formatDateTime } from '../util/time';
 
@@ -30,10 +31,27 @@ export function Diagnostics() {
           <Title order={2}>Diagnostics</Title>
         </div>
         <Stack gap="sm">
-          <Fact label="Threads" value={isolated ? 'Available: the page is cross-origin isolated' : 'Not available: the page is not cross-origin isolated, so proving runs on one thread'} state={isolated ? 'ok' : 'warn'} />
+          {/* Each verdict is said in words, not only by the colour of its dot. */}
+          {NATIVE ? (
+            <Fact label="Proving" value={`Native, on all ${cores} cores: the desktop app needs no cross-origin isolation`} state="ok" />
+          ) : (
+            <Fact
+              label="Cross-origin isolation"
+              value={isolated ? 'Yes: the wallet engine can run, and proving uses every core' : 'No: the wallet engine needs it and cannot run on this page'}
+              state={isolated ? 'ok' : 'warn'}
+            />
+          )}
           <Fact label="Cores" value={String(cores)} />
-          <Fact label="Memory, as this device reports it" value={memoryGb === undefined ? 'Not reported' : `${memoryGb} GB or more`} state={memoryGb === undefined ? undefined : memoryGb >= 4 ? 'ok' : 'warn'} />
-          <Fact label="Running as" value={installed ? 'Installed app' : 'Browser tab'} state={installed ? 'ok' : 'warn'} />
+          <Fact
+            label="Memory, as this device reports it"
+            value={memoryGb === undefined ? 'Not reported' : memoryGb >= 4 ? `${memoryGb} GB or more: enough for most sends` : `${memoryGb} GB or more: a send with many coins may run out of memory while proving`}
+            state={memoryGb === undefined ? undefined : memoryGb >= 4 ? 'ok' : 'warn'}
+          />
+          <Fact
+            label="Running as"
+            value={NATIVE ? 'Desktop app' : installed ? 'Installed app' : 'Browser tab: the browser may delete its data when space runs low'}
+            state={NATIVE || installed ? 'ok' : 'warn'}
+          />
           <Fact label="App version" value={`${__APP_VERSION__} (${__APP_COMMIT__}), built ${formatDateTime(Date.parse(__APP_BUILT_AT__))}`} />
           <Fact label="Wallet core" value={services.backendKind === 'native' ? 'Native, in the app' : 'WebAssembly, in a worker'} />
           {accountId && engine.problems(accountId).map((problem) => <Fact key={problem} label="Did not move" value={problem} state="warn" />)}

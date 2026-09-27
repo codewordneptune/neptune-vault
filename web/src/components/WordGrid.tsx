@@ -1,5 +1,6 @@
-// Numbered seed-word cells that never wrap: two columns on phones, three on
-// wider screens. Used to show a phrase and, with `blanks`, to confirm one:
+// Numbered seed-word cells: two columns on phones, three on wider screens. A
+// word too long for its cell with enlarged text wraps rather than being cut
+// short, since a cut word is one that can be copied down wrong. Used to show a phrase and, with `blanks`, to confirm one:
 // blank positions render as slots, and a filled slot can be tapped to empty
 // it again. The slot the next word goes into is marked, so a word never
 // lands somewhere the person did not expect.
@@ -15,7 +16,7 @@ export function WordGrid({ words, blanks = [], next, onClear }: { words: string[
         const empty = blank && !w;
         const cell = (
           <Group gap={6} wrap="nowrap">
-            <Text size="xs" c="dimmed" w={22} ta="right" style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums' }} aria-hidden={empty || undefined}>
+            <Text size="xs" c="dimmed" ta="right" style={{ width: '1.8em', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }} aria-hidden={empty || undefined}>
               {i + 1}
             </Text>
             <Box className={`vault-word${blank ? ' slot' : ''}${empty ? ' empty' : ''}${empty && i === next ? ' next' : ''}`}>
@@ -23,7 +24,7 @@ export function WordGrid({ words, blanks = [], next, onClear }: { words: string[
               {empty ? (
                 <span className="sr-only">{`Word ${i + 1}, empty${i === next ? ', next' : ''}`}</span>
               ) : (
-                <Text size="sm" fw={500} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
                   {w}
                 </Text>
               )}
@@ -32,7 +33,7 @@ export function WordGrid({ words, blanks = [], next, onClear }: { words: string[
           </Group>
         );
         return blank && w && onClear ? (
-          <UnstyledButton key={i} onClick={() => onClear(i)} aria-label={`Word ${i + 1}: ${w}. Remove`} w="100%">
+          <UnstyledButton key={i} className="vault-word-slot" onClick={() => onClear(i)} aria-label={`Word ${i + 1}: ${w}. Remove`} w="100%">
             {cell}
           </UnstyledButton>
         ) : (

@@ -38,7 +38,8 @@ export class WalletWorkerClient implements WalletCore {
       // errors, so every call would hang silently; a ping with a deadline
       // turns that into a visible failure.
       const timer = setTimeout(
-        () => this.fail(new Error('The wallet worker did not start. Reload the page; if that does not help, clear the site data in the browser and try again.')),
+        // Never advice to clear the site's data: that deletes every wallet here.
+        () => this.fail(new Error("The wallet engine did not start. Reload the page, and if that does not help, restart the browser. Do not clear this site's data to fix it: that deletes every wallet on this device, and only their seed phrases or backup files bring them back.")),
         WalletWorkerClient.START_TIMEOUT_MS,
       );
       this.call<boolean>('ping').then(() => clearTimeout(timer), () => clearTimeout(timer));

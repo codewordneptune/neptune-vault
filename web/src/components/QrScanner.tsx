@@ -26,6 +26,7 @@ import { Button, Group, Modal, Stack, Text } from '@mantine/core';
 import { IconBulb, IconBulbOff, IconCameraRotate, IconChevronRight, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { useApp } from '../app/AppContext';
 import { NATIVE } from '../app/platform';
 import { decodeQr } from '../util/qrDecode';
 import type { QrWorkerRequest, QrWorkerResponse } from '../util/qrWorker';
@@ -97,6 +98,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [cameraId, setCameraId] = useState<string | null>(null);
   // The camera picked by hand, which the effect below opens; null lets it choose.
+  const { services } = useApp();
   const [picked, setPicked] = useState<string | null>(null);
   const [zoomRange, setZoomRange] = useState<{ min: number; max: number } | null>(null);
   const [zoomed, setZoomed] = useState(true);
@@ -418,7 +420,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     <Modal opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md" classNames={{ body: 'vault-scan-body' }}>
       <Stack>
         {error ? (
-          <Text c="var(--v-danger-text)" size="sm">
+          <Text c="var(--v-danger-text)" size="sm" role="alert">
             {error}
           </Text>
         ) : (
@@ -461,7 +463,17 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
             if (chosen) void readImage(chosen);
           }}
         />
-        <Button variant="subtle" className="vault-tap" leftSection={<IconPhoto size={16} stroke={1.8} />} loading={reading} onClick={() => imageInput.current?.click()}>
+        <Button
+          variant="subtle"
+          className="vault-tap"
+          leftSection={<IconPhoto size={16} stroke={1.8} />}
+          loading={reading}
+          onClick={() => {
+            // A phone's picker may hide the page: the wallet must not lock under it.
+            services.accounts.holdBackgroundLock();
+            imageInput.current?.click();
+          }}
+        >
           Scan from an image
         </Button>
         <Group grow>

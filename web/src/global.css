@@ -1919,3 +1919,119 @@ html {
 .vault-shortcuts dd {
   margin: 0;
 }
+
+/* UX audit 3: accessibility */
+
+/* Field errors in the app's own danger colour, 7.3:1 on the dark card and
+   5.6:1 on white; the library's red was 3.7:1 and 3.3:1. Placeholders in the
+   muted text colour, for the same reason (3.8:1 and 2:1 before). Doubled so
+   they outrank the variables the library writes at run time. */
+:root:root[data-mantine-color-scheme] {
+  --mantine-color-error: var(--v-danger-text);
+  --mantine-color-placeholder: var(--v-muted);
+}
+.mantine-InputWrapper-error {
+  font-size: var(--v-fs-sm);
+}
+/* A field in error keeps its red edge when it takes focus, so focus shows
+   as an edge inside it, thickening the red. */
+.mantine-Input-wrapper[data-error] .mantine-Input-input:focus,
+.mantine-Input-wrapper[data-error] .mantine-Input-input:focus-within {
+  box-shadow: inset 0 0 0 1px var(--v-danger-text);
+}
+
+/* The grey text on the light strips under the header sits on their tint
+   and, on phones, the page's glow: a darker grey keeps it above 4.5:1. */
+:root[data-mantine-color-scheme='light'] .vault-sendstrip,
+:root[data-mantine-color-scheme='light'] .vault-updatestrip {
+  --mantine-color-dimmed: #4a596b;
+}
+:root[data-mantine-color-scheme='light'] .vault-updatestrip a,
+:root[data-mantine-color-scheme='light'] .vault-updatestrip .mantine-Anchor-root {
+  color: #144c9f;
+}
+
+/* An empty slot of the seed-phrase check is drawn with the controls' edge
+   (3:1 or more), not the faint line of a divider. */
+.vault-word.slot.empty {
+  box-shadow: inset 0 0 0 1px var(--v-control-edge);
+}
+
+/* Keyboard focus is never brought into view under the fixed bars: scrolling
+   to a control leaves room for the header above and the tab bar below. */
+html {
+  scroll-padding-top: calc(70px + env(safe-area-inset-top, 0px));
+  scroll-padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 900px) {
+  html {
+    scroll-padding-bottom: 0;
+  }
+}
+/* So little height (a laptop at 400% zoom) that the two bars would cover
+   most of it: they scroll with the page instead. */
+@media (max-height: 300px) {
+  .vault-topbar.vault-topbar,
+  .vault-tabbar.vault-tabbar {
+    position: static;
+  }
+}
+
+/* With enlarged text a segmented control's labels wrap rather than being
+   cut off, and on a narrow screen (by the text's own measure, so enlarged
+   text counts) the controls stack; the screens ask for that. */
+.mantine-SegmentedControl-label.mantine-SegmentedControl-label {
+  white-space: normal;
+  line-height: 1.2;
+}
+@media (max-width: 22em) {
+  /* The action beside a field's label goes above it, where it cannot cover it. */
+  .vault-field-action.vault-field-action {
+    position: static;
+    margin: 0 0 2px;
+  }
+  .vault-tab {
+    white-space: normal;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* The link to the navigation, first on the page and shown when it has focus. */
+.vault-skip {
+  position: absolute;
+  left: 8px;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  z-index: 1000;
+  padding: 8px 14px;
+  border-radius: var(--v-radius-sm);
+  background: var(--v-surface);
+  color: var(--v-text);
+  font-size: var(--v-fs-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-300%);
+}
+.vault-skip:focus {
+  transform: none;
+  outline: 2px solid var(--v-accent);
+  outline-offset: 2px;
+}
+
+/* The confirmation a send waits for, set apart from the progress around it. */
+.vault-confirm-send {
+  padding: 16px;
+  border-radius: var(--v-radius-sm);
+  background: var(--v-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--v-control-edge);
+}
+
+/* The app's name on the first screen, where a narrow header leaves it out. */
+.vault-welcome-name {
+  display: none;
+}
+@media (max-width: 399.98px) {
+  .vault-welcome-name {
+    display: block;
+  }
+}

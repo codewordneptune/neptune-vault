@@ -21,7 +21,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
   }, [opened, services, account]);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Saved recipients">
+    <Modal opened={opened} onClose={onClose} title="Contacts">
       <Stack gap={0}>
         {contacts && contacts.length === 0 && (
           <Text size="sm" c="dimmed">
@@ -32,7 +32,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
           <UnstyledButton key={c.key} className="vault-row vault-pick" onClick={() => onPick(c)}>
             <div style={{ minWidth: 0 }}>
               <Text size="sm" fw={500}>
-                {c.name}
+                <bdi>{c.name}</bdi>
               </Text>
               <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
                 {abbreviateAddress(c.address)}

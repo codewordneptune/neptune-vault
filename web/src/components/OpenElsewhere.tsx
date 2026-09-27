@@ -23,7 +23,7 @@ export function OpenElsewhere({ owner, onHere }: { owner: WindowOwner; onHere: (
       <Stack align="center" gap="md" maw={420} ta="center">
         <Title order={2}>Neptune Vault is open in another window</Title>
         <Text c="dimmed">
-          Using the wallet here locks it in the other window. Only one window can use it at a time, so they never overwrite each other.
+          Only one window can use it at a time, so they never overwrite each other. Using it here locks any wallet that is open in the other window.
         </Text>
         {refused && (
           <Text c="var(--v-danger-text)" role="alert">

@@ -111,3 +111,41 @@ describe('the real engine, run as the worker runs it', () => {
     }
   });
 });
+
+describe('a wallet log that will not open', () => {
+  it('is set aside whole, and what still opens carries on in a fresh log', async () => {
+    engine = await testEngine();
+    engine.unlock();
+    await engine.store.storeOpen(W);
+    await engine.store.storeCommit(W, [{ op: 'putContact', contact: { key: `${W}:k1`, id: 'k1', accountId: W, name: 'Al', address: 'nolgar1x', kind: 'Short', createdAt: 1, updatedAt: 1 } }]);
+    await engine.store.storeCommit(W, [{ op: 'putPrivate', key: 'note', value: 1 }]);
+
+    // The second entry changes on the disk.
+    const store = await engine.logStore;
+    const log = `wallet:${W}`;
+    const entries = (await store.load(log)).map((bytes) => JSON.parse(new TextDecoder().decode(bytes)) as { seq: number; sealed: { ciphertext: string } });
+    await store.remove(log);
+    for (const entry of entries) {
+      if (entry.seq === 2) entry.sealed.ciphertext = 'AAAAAAAAAAAAAAAAAAAAAA==';
+      await store.append(log, entry.seq, new TextEncoder().encode(JSON.stringify(entry)));
+    }
+    engine.lock();
+    engine.unlock();
+    await expect(engine.store.storeOpen(W)).rejects.toThrow(/does not open/);
+
+    const account = { id: W, network: 'regtest', createdAt: 1, envelope: {}, birthdayHeight: 100, nextKeyIndices: { generation: 1, ec_hybrid: 0, viewing: 0 }, backupConfirmed: true };
+    expect(await engine.store.storeSetAside(W, { accounts: [account] })).toBe(1);
+    expect(await engine.store.storeRead(W, 'contacts')).toHaveLength(1);
+    const [scan] = (await engine.store.storeRead(W, 'scan')) as { restore?: string }[];
+    expect(scan.restore).toBe('rebuild');
+    expect((await store.logs()).filter((name) => name.startsWith(`aside:${W}:`))).toHaveLength(1);
+
+    // It opens again from now on; removing the wallet takes what was set aside too.
+    engine.lock();
+    engine.unlock();
+    await engine.store.storeOpen(W);
+    expect(await engine.store.storeRead(W, 'contacts')).toHaveLength(1);
+    await engine.store.storeRemove(W);
+    expect(await store.logs()).toEqual([]);
+  });
+});

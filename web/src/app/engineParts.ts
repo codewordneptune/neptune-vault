@@ -57,6 +57,16 @@ export class EngineParts {
     this.rebuilt.set(accountId, why);
   }
 
+  /** Why this wallet's log would not open, or null when it opened. */
+  unopenedWhy(accountId: string): string | null {
+    return this.unopened.get(accountId) ?? null;
+  }
+
+  /** The log was set aside and a fresh one opened in its place. */
+  recovered(accountId: string): void {
+    this.unopened.delete(accountId);
+  }
+
   /** The parts of this wallet that the engine holds, as of this unlock. */
   opened(accountId: string, parts: WalletPart[]): void {
     this.moved.set(accountId, new Set(parts));

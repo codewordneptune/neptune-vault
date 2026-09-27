@@ -4,7 +4,7 @@
 // both networks can coexist. The wallet core's own types
 // (StoredUtxo, ScannedBlock, SendSummary) are stored as it produces them.
 
-import type { NextKeyIndices } from '../backend/types';
+import type { KeyKind, NextKeyIndices } from '../backend/types';
 import type { FiatCurrency } from '../util/fiat';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from 'idb';
 
@@ -120,6 +120,14 @@ export interface HistoryRecord {
   /** For pending sends: when the node's mempool was last seen holding it, and when that was last checked. */
   mempoolSeenAt?: number | null;
   mempoolCheckedAt?: number | null;
+  /** For sends built here: the transaction's own timestamp. Absent on rows from before it was kept. */
+  stampMs?: number;
+  /** For a send given up on, or one that expired (no block can take it any more): the engine's marks. */
+  givenUp?: boolean;
+  expired?: boolean;
+  /** For a payment on its way in: which of this wallet's addresses it is paid to. */
+  keyKind?: KeyKind;
+  keyIndex?: number;
 }
 
 export interface HistoryPayment {
@@ -165,6 +173,12 @@ export interface SettingsRecord {
   nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
   /** How the last proof on this device went, for Diagnostics and bug reports. */
   lastProving?: LastProving;
+  /** Each send waits for the password or passkey before it goes out. On unless turned off (absent: on). */
+  confirmSends?: boolean;
+  /** Wallets whose passkey the device did not offer: the lock screen no longer opens the passkey sheet by itself for them. */
+  passkeyQuiet?: string[];
+  /** How long after going to the background the wallet locks: 0 (at once, the default), 30 s or 2 min. */
+  backgroundLockMs?: number;
 }
 
 /**

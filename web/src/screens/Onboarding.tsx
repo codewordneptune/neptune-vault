@@ -10,7 +10,7 @@ import { WALLET_NAME_MAX, WalletNameTakenError } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
-import { Caution } from '../components/Notice';
+import { Caution, Info } from '../components/Notice';
 import { LINKS } from '../app/links';
 import { NATIVE } from '../app/platform';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
@@ -64,7 +64,7 @@ function saveDraft(draft: Draft | null) {
 }
 
 export function Onboarding() {
-  const { services, account, setAccount, switchNetwork, pauseSync, network: currentNetwork } = useApp();
+  const { services, account, setAccount, switchNetwork, adoptNetwork, pauseSync, network: currentNetwork } = useApp();
   const navigate = useNavigate();
   // Adding a wallet next to an existing one: same steps, a way back to it.
   const adding = Boolean(account) && new URLSearchParams(useLocation().search).has('add');
@@ -87,6 +87,12 @@ export function Onboarding() {
   const [fast, setFast] = useState(draft?.fast ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Networks other than this one that have a wallet on this device: after a
+  // switch to an empty network, the way back.
+  const [elsewhere, setElsewhere] = useState<Network[]>([]);
+  useEffect(() => {
+    void services.db.getAll('accounts').then((all) => setElsewhere([...new Set(all.map((a) => a.network))].filter((n) => n !== network)));
+  }, [services, network]);
   // Adding a wallet beside others offers a name; this is the one it gets otherwise.
   const [defaultName, setDefaultName] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -112,8 +118,13 @@ export function Onboarding() {
   // into a shuffled bank; the user taps them back into place (as the desktop
   // wallet does). A wrong placement can be undone by tapping the slot.
   const [checks, setChecks] = useState<number[]>([]);
-  const [slots, setSlots] = useState<Record<number, string>>({});
-  const [bank, setBank] = useState<string[]>([]);
+  const [slots, setSlots] = useState<Record<number, Chip>>({});
+  const [bank, setBank] = useState<Chip[]>([]);
+  // Where focus goes once the chips have changed: a chip by its place in the
+  // phrase, Continue, or the first slot.
+  const focusNext = useRef<number | 'continue' | 'slot' | null>(null);
+  const chipRefs = useRef(new Map<number, HTMLButtonElement>());
+  const continueRef = useRef<HTMLButtonElement>(null);
   // Each placement is said aloud, since a tapped word leaves the bank and
   // appears in a slot elsewhere on the screen.
   const [placed, setPlaced] = useState('');
@@ -142,30 +153,48 @@ export function Onboarding() {
     setChecks(sorted);
     setSlots({});
     setPlaced('');
-    setBank(shuffle(sorted.map((i) => phrase[i])));
+    setBank(shuffle(sorted.map((i) => ({ word: phrase[i], at: i }))));
     setStep('confirm');
   };
 
   const pick = (bankIndex: number) => {
     const target = nextSlot;
     if (target === undefined) return;
-    setSlots({ ...slots, [target]: bank[bankIndex] });
-    setBank(bank.filter((_, i) => i !== bankIndex));
-    setPlaced(`Word ${target + 1}: ${bank[bankIndex]}`);
+    const chip = bank[bankIndex];
+    const nextSlots = { ...slots, [target]: chip };
+    const rest = bank.filter((_, i) => i !== bankIndex);
+    setSlots(nextSlots);
+    setBank(rest);
+    // The chip is gone: focus goes to the one now in its place, or once all
+    // are placed to Continue, or to the first slot when the order is wrong.
+    const done = rest.length === 0;
+    const right = done && checks.every((i) => nextSlots[i]?.word === phrase[i]);
+    focusNext.current = done ? (right ? 'continue' : 'slot') : (rest[Math.min(bankIndex, rest.length - 1)]?.at ?? null);
+    setPlaced(`Word ${target + 1}: ${chip.word}.${done ? (right ? ' All five words are in place. Continue is available.' : ' Some words are in the wrong place. Choose a word in the grid to take it out.') : ''}`);
   };
 
   const unpick = (position: number) => {
-    const word = slots[position];
-    if (word === undefined) return;
+    const chip = slots[position];
+    if (chip === undefined) return;
     const rest = { ...slots };
     delete rest[position];
     setSlots(rest);
-    setBank([...bank, word]);
+    setBank([...bank, chip]);
+    focusNext.current = chip.at;
     setPlaced(`Word ${position + 1} emptied`);
   };
 
+  useEffect(() => {
+    const target = focusNext.current;
+    if (target === null) return;
+    focusNext.current = null;
+    if (target === 'continue') continueRef.current?.focus();
+    else if (target === 'slot') stepsRef.current?.querySelector<HTMLElement>('.vault-word-slot')?.focus();
+    else chipRefs.current.get(target)?.focus();
+  }, [bank, slots]);
+
   const allPlaced = bank.length === 0 && checks.length > 0;
-  const confirmed = allPlaced && checks.every((i) => slots[i] === phrase[i]);
+  const confirmed = allPlaced && checks.every((i) => slots[i]?.word === phrase[i]);
 
   const finish = async (password: string, name: string) => {
     setBusy(true);
@@ -214,20 +243,24 @@ export function Onboarding() {
       saveDraft(null);
       await services.updateSettings({ currentAccountId: record.id, network: record.network });
       setAccount(record);
+      if (record.network !== currentNetwork) {
+        adoptNetwork(record.network);
+        notifications.show({ message: `Restored on ${NETWORK_LABELS[record.network]}. The app is now on ${NETWORK_LABELS[record.network]}.` });
+      }
       // Files from before version 3 carry their contacts and their start
       // block unprotected: anyone who could write to where the file was
       // kept could have changed them. The restore cannot tell, so it says so.
       if (parsed.version < 3) {
         notifications.show({
           color: 'yellow',
-          title: 'Restored from an older backup format',
+          title: 'Restored from an older backup file',
           message: 'Its contacts and start block were not protected against changes. Check a contact\'s address before you pay them, and export a fresh backup file in Settings.',
           autoClose: false,
         });
       }
       navigate('/');
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. Use the password the backup was exported with.' : (e as Error).message);
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Use the password the backup file was exported with.' : (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -239,6 +272,7 @@ export function Onboarding() {
       {step === 'welcome' && (
         <Paper>
           <Stack>
+            {!adding && <span className="vault-eyebrow vault-welcome-name">Neptune Vault</span>}
             <Title order={2} tabIndex={-1} className="vault-step-title">{adding ? 'Add a wallet' : 'Set up your wallet'}</Title>
             <Text size="sm" c="dimmed">
               {adding
@@ -280,8 +314,28 @@ export function Onboarding() {
                 </div>
               </details>
             )}
+            {!adding && elsewhere.length > 0 && (
+              <Info>
+                Your {elsewhere.map((n) => NETWORK_LABELS[n]).join(' and ')} {elsewhere.length === 1 ? 'wallet is' : 'wallets are'} still on this device.
+                <Group gap="sm" mt={4}>
+                  {elsewhere.map((n) => (
+                    <Button key={n} variant="light" size="compact-sm" onClick={() => void switchNetwork(n)}>
+                      Switch to {NETWORK_LABELS[n]}
+                    </Button>
+                  ))}
+                </Group>
+              </Info>
+            )}
             {draft && (
-              <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); }}>
+              <Button
+                variant="subtle"
+                onClick={() => {
+                  saveDraft(null);
+                  setPhrase([]);
+                  // The button goes with the draft: focus moves to the first choice.
+                  setTimeout(() => stepsRef.current?.querySelector<HTMLElement>('.mantine-Paper-root button')?.focus(), 0);
+                }}
+              >
                 Discard the unfinished wallet
               </Button>
             )}
@@ -356,7 +410,7 @@ export function Onboarding() {
                   : `Next: word ${nextSlot + 1}.`}
             </Text>
             <WordGrid
-              words={phrase.map((w, i) => (checks.includes(i) ? (slots[i] ?? '') : w))}
+              words={phrase.map((w, i) => (checks.includes(i) ? (slots[i]?.word ?? '') : w))}
               blanks={checks}
               next={nextSlot}
               onClear={unpick}
@@ -365,9 +419,18 @@ export function Onboarding() {
               {placed}
             </div>
             <Group gap="xs" justify="center" mih={44}>
-              {bank.map((w, i) => (
-                <Button key={`${w}-${i}`} variant="default" className="vault-chip" onClick={() => pick(i)}>
-                  {w}
+              {bank.map((chip, i) => (
+                <Button
+                  key={chip.at}
+                  ref={(el: HTMLButtonElement | null) => {
+                    if (el) chipRefs.current.set(chip.at, el);
+                    else chipRefs.current.delete(chip.at);
+                  }}
+                  variant="default"
+                  className="vault-chip"
+                  onClick={() => pick(i)}
+                >
+                  {chip.word}
                 </Button>
               ))}
             </Group>
@@ -376,7 +439,7 @@ export function Onboarding() {
             )}
             <Group>
               <Button variant="subtle" onClick={() => setStep('show')}>Show the words again</Button>
-              <Button disabled={!confirmed} onClick={() => setStep('password')}>Continue</Button>
+              <Button ref={continueRef} disabled={!confirmed} onClick={() => setStep('password')}>Continue</Button>
             </Group>
           </Stack>
         </Paper>
@@ -420,14 +483,14 @@ export function Onboarding() {
         />
       )}
 
-      {step === 'file' && <FileStep busy={busy} error={error} onFile={importFile} onBack={() => setStep('welcome')} />}
+      {step === 'file' && <FileStep busy={busy} error={error} onFile={importFile} onBack={() => setStep('welcome')} onPicking={() => services.accounts.holdBackgroundLock()} />}
     </Stack>
   );
 }
 
 // Restore from a backup file made by this app: the file carries the seed,
 // the network, the start block and the contacts; its password opens it.
-function FileStep({ busy, error, onFile, onBack }: { busy: boolean; error: string | null; onFile: (file: File, password: string, fast: boolean) => void; onBack: () => void }) {
+function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; error: string | null; onFile: (file: File, password: string, fast: boolean) => void; onBack: () => void; onPicking: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState('');
@@ -457,10 +520,17 @@ function FileStep({ busy, error, onFile, onBack }: { busy: boolean; error: strin
     >
       <Stack>
         <Title order={2} tabIndex={-1} className="vault-step-title">Restore a backup file</Title>
-        <Text size="sm" c="dimmed">Restores the wallet with its network, start block and contacts. It opens with the password it was saved under.</Text>
+        <Text size="sm" c="dimmed">Restores the wallet with its network, start block, contacts and address labels. It opens with the password it was exported with.</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">
-          <Button variant="default" leftSection={<IconFileUpload size={16} stroke={1.8} />} onClick={() => fileInput.current?.click()}>
+          <Button
+            variant="default"
+            leftSection={<IconFileUpload size={16} stroke={1.8} />}
+            onClick={() => {
+              onPicking();
+              fileInput.current?.click();
+            }}
+          >
             Choose backup file
           </Button>
           <Text size="sm" c={file ? undefined : 'dimmed'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -493,7 +563,7 @@ function FileStep({ busy, error, onFile, onBack }: { busy: boolean; error: strin
         />
         <Text size="sm" c="dimmed">
           {fast
-            ? "Takes seconds: only the blocks holding your payments are fetched. The node learns which coins are yours, not the amounts."
+            ? 'Usually takes seconds: only the blocks holding your payments are fetched. The node learns which payments are yours, including later ones to these addresses, but not the amounts.'
             : 'Every block from the start block in the file is downloaded and scanned on this device. The node learns nothing about your coins.'}
         </Text>
         <Button disabled={!file || !password} loading={busy} onClick={() => file && onFile(file, password, fast)}>
@@ -504,6 +574,12 @@ function FileStep({ busy, error, onFile, onBack }: { busy: boolean; error: strin
       </Stack>
     </Paper>
   );
+}
+
+/** A word of the phrase in the confirmation bank, with its place in the phrase: what keeps its chip the same chip. */
+interface Chip {
+  word: string;
+  at: number;
 }
 
 const CHECKS = 5;
@@ -614,6 +690,24 @@ function ImportStep({
   const [phraseError, setPhraseError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const words = text.trim().split(/\s+/).filter(Boolean);
+  // A word is finished once something follows it. The finished ones are
+  // checked against the word list as they come, filled out to a whole
+  // phrase with a word that is on it, so the check says only which word is
+  // not a word; whether the words make a phrase waits for Continue.
+  useEffect(() => {
+    const finished = /\s$/.test(text) ? words : words.slice(0, -1);
+    if (finished.length === 0 || finished.length > 18) return;
+    const t = setTimeout(() => {
+      const padded = [...finished.map((w) => w.toLowerCase()), ...Array<string>(18 - finished.length).fill('abandon')];
+      void checkPhrase(padded).then(
+        (problem) => setPhraseError(problem && problem.startsWith('Word ') ? problem : null),
+        () => undefined,
+      );
+    }, 400);
+    return () => clearTimeout(t);
+    // The words are read from the text.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
 
   // How the month lookup stands: Continue waits for it.
   const [lookup, setLookup] = useState<StartLookup>('idle');
@@ -653,7 +747,7 @@ function ImportStep({
     <Paper>
       <Stack>
         <span className="vault-eyebrow">Step 1 of 2</span>
-        <Title order={2} tabIndex={-1} className="vault-step-title">Import a seed phrase</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">Restore with a seed phrase</Title>
         <Textarea
           label="Seed phrase (18 words)"
           description={words.length === 0 ? undefined : words.length > 18 ? '18 words needed, you have ' + words.length : words.length + ' of 18 words'}
@@ -692,7 +786,7 @@ function ImportStep({
             />
             <Text size="sm" c="dimmed">
               {fast
-                ? "Takes seconds: only the blocks holding your payments are fetched. The node learns which coins are yours, not the amounts."
+                ? 'Usually takes seconds: only the blocks holding your payments are fetched. The node learns which payments are yours, including later ones to these addresses, but not the amounts.'
                 : 'Every block from the first is downloaded and scanned on this device: about 8 to 10 GB on Mainnet. The node learns nothing about your coins.'}
             </Text>
           </>

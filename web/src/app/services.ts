@@ -4,12 +4,12 @@
 import { createBackend, type BackendKind } from '../backend';
 import type { Prover, WalletCore } from '../backend/types';
 import { NodeClient } from '../node/rpc';
-import { loadSettings, openVaultDb, requestPersistentStorage, saveSettings, type Network, type SettingsRecord, type VaultDb } from '../storage/db';
+import { DEFAULT_NODE_URLS, loadSettings, openVaultDb, requestPersistentStorage, saveSettings, type Network, type SettingsRecord, type VaultDb } from '../storage/db';
 import { ContactsService } from './contacts';
 import { WebAuthnPasskeys } from './passkey';
 import { MempoolWatcher } from '../wallet/mempool';
-import { SyncEngine, type SyncProgress } from '../wallet/sync';
-import { AccountService, lockTimeoutOf } from './accounts';
+import { forgetBatchSize, SyncEngine, type SyncProgress } from '../wallet/sync';
+import { AccountService, backgroundLockOf, lockTimeoutOf } from './accounts';
 import { SendService } from './send';
 import type { WindowOwner } from './windowOwner';
 
@@ -40,6 +40,11 @@ export function coreNetworkName(network: Network): string {
   return network === 'main' ? 'main' : network === 'testnet' ? 'testnet' : 'regtest';
 }
 
+/** The node for a network's URL, knowing whether it is the app's own default. */
+export function nodeFor(url: string, network: Network): NodeClient {
+  return new NodeClient(url, { isDefault: url === DEFAULT_NODE_URLS[network] });
+}
+
 export async function createServices(owner: WindowOwner): Promise<Services> {
   const watchers = new Map<string, MempoolWatcher>();
   const db = await openVaultDb();
@@ -47,6 +52,7 @@ export async function createServices(owner: WindowOwner): Promise<Services> {
   let settings = await loadSettings(db);
   const { core, prover, backendKind } = await createBackend().then((b) => ({ core: b.core, prover: b.prover, backendKind: b.kind }));
   const accounts = new AccountService(db, core, lockTimeoutOf(settings.lockTimeoutMs), new WebAuthnPasskeys());
+  accounts.setBackgroundLock(backgroundLockOf(settings.backgroundLockMs));
 
   const services: Services = {
     db,
@@ -58,7 +64,7 @@ export async function createServices(owner: WindowOwner): Promise<Services> {
     persistent,
     window: owner,
     node() {
-      return new NodeClient(settings.nodeUrls[settings.network]);
+      return nodeFor(settings.nodeUrls[settings.network], settings.network);
     },
     async updateSettings(patch) {
       settings = { ...settings, ...patch, id: 'settings' };
@@ -68,7 +74,7 @@ export async function createServices(owner: WindowOwner): Promise<Services> {
     },
     syncEngine(accountId, onProgress) {
       // The node of the account's own network, whatever the settings say at this instant.
-      return new SyncEngine(db, (network) => new NodeClient(settings.nodeUrls[network]), core, accountId, { onProgress });
+      return new SyncEngine(db, (network) => nodeFor(settings.nodeUrls[network], network), core, accountId, { onProgress });
     },
     contacts: new ContactsService(db, core, () => coreNetworkName(services.settings.network), accounts.engine),
     mempoolWatcher(accountId) {
@@ -84,6 +90,7 @@ export async function createServices(owner: WindowOwner): Promise<Services> {
       return new SendService(services.node(), core, prover, accountId, coreNetworkName(settings.network), prover.defaultThreads(), settings.network === 'regtest');
     },
     forgetAccount(accountId) {
+      forgetBatchSize(accountId);
       for (const key of [...watchers.keys()]) if (key.startsWith(`${accountId}:`)) watchers.delete(key);
     },
     networkName() {

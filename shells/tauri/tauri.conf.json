@@ -17,7 +17,8 @@
         "height": 760,
         "minWidth": 360,
         "minHeight": 560,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "zoomHotkeysEnabled": true
       }
     ],
     "security": {
@@ -30,7 +31,7 @@
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "category": "Finance",
     "shortDescription": "A Neptune Cash wallet",
-    "longDescription": "A Neptune Cash wallet that keeps your keys on this device and talks only to the node you choose.",
+    "longDescription": "A Neptune Cash wallet that keeps your keys on this device. Only the node you set learns about your wallet.",
     "publisher": "Neptune Vault",
     "copyright": "Neptune Vault contributors"
   }

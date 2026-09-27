@@ -1,12 +1,13 @@
 // Contacts: saved recipients for this account. Add by paste or scan, rename,
-// delete, and start a send to one.
+// remove, and start a send to one.
 
 import { ActionIcon, Alert, Badge, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { IconChevronLeft, IconCopy, IconDotsVertical, IconPencil, IconScan, IconSend, IconTrash, IconUserPlus } from '@tabler/icons-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
+import { ownAddresses } from '../app/ownAddresses';
 import { QrScanner } from '../components/QrScanner';
 import type { ContactRecord } from '../storage/db';
 import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
@@ -21,6 +22,15 @@ export function Contacts() {
   const [renaming, setRenaming] = useState<ContactRecord | null>(null);
   const [removing, setRemoving] = useState<ContactRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // After a dialog opened from a row's menu closes, the menu is gone: focus
+  // goes back to that row's button by hand, or after a removal to the next
+  // row's, and what happened is said.
+  const moreButtons = useRef(new Map<string, HTMLButtonElement>());
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const [said, setSaid] = useState('');
+  const refocus = (key: string | null) => {
+    setTimeout(() => (key ? moreButtons.current.get(key) : null)?.focus() ?? headingRef.current?.focus(), 0);
+  };
 
   const load = useCallback(async () => {
     if (!account) return;
@@ -33,13 +43,18 @@ export function Contacts() {
 
   const remove = async () => {
     if (!removing) return;
+    const list = contacts ?? [];
+    const at = list.findIndex((c) => c.key === removing.key);
+    const next = list[at + 1] ?? list[at - 1] ?? null;
     try {
       await services.contacts.remove(removing.key);
+      setSaid(`${removing.name} removed.`);
     } catch (e) {
       setError((e as Error).message);
     }
     setRemoving(null);
     await load();
+    refocus(next?.key ?? null);
   };
 
   return (
@@ -51,12 +66,17 @@ export function Contacts() {
               <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Back" onClick={() => navigate(-1)}>
                 <IconChevronLeft size={22} stroke={1.8} />
               </ActionIcon>
-              <Title order={2}>Contacts</Title>
+              <Title order={2} tabIndex={-1} ref={headingRef}>
+                Contacts
+              </Title>
             </Group>
             <Button size="compact-md" variant="light" className="vault-tap" leftSection={<IconUserPlus size={16} stroke={1.8} />} onClick={() => setAdding(true)}>
               Add
             </Button>
           </Group>
+          <div className="sr-only" role="status">
+            {said}
+          </div>
           {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
           {contacts === null ? null : contacts.length === 0 ? (
             <Text size="sm" c="dimmed">
@@ -68,7 +88,7 @@ export function Contacts() {
                 <div className="vault-row" key={c.key}>
                   <div style={{ minWidth: 0 }}>
                     <Text size="sm" fw={500} className="vault-row-title">
-                      {c.name}
+                      <bdi>{c.name}</bdi>
                     </Text>
                     <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
                       {abbreviateAddress(c.address)}
@@ -78,14 +98,24 @@ export function Contacts() {
                     </Badge>
                   </div>
                   <Group gap={4} wrap="nowrap">
-                    <Tooltip label="Send to this contact">
+                    {/* Stays while the pointer moves onto it, so it can be read. */}
+                    <Tooltip label="Send to this contact" interactive>
                       <ActionIcon variant="light" size="lg" className="vault-tap" aria-label={`Send to ${c.name}`} onClick={() => navigate('/send', { state: { recipient: c.address } })}>
                         <IconSend size={18} stroke={1.8} />
                       </ActionIcon>
                     </Tooltip>
                     <Menu position="bottom-end">
                       <Menu.Target>
-                        <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`More for ${c.name}`}>
+                        <ActionIcon
+                          variant="subtle"
+                          size="lg"
+                          className="vault-tap"
+                          aria-label={`More for ${c.name}`}
+                          ref={(el: HTMLButtonElement | null) => {
+                            if (el) moreButtons.current.set(c.key, el);
+                            else moreButtons.current.delete(c.key);
+                          }}
+                        >
                           <IconDotsVertical size={18} stroke={1.8} />
                         </ActionIcon>
                       </Menu.Target>
@@ -98,7 +128,7 @@ export function Contacts() {
                           Rename
                         </Menu.Item>
                         <Menu.Item leftSection={<IconTrash size={14} />} c="var(--v-danger-text)" onClick={() => setRemoving(c)}>
-                          Delete
+                          Remove
                         </Menu.Item>
                       </Menu.Dropdown>
                     </Menu>
@@ -121,13 +151,26 @@ export function Contacts() {
         }}
       />
 
-      <Modal opened={renaming !== null} onClose={() => setRenaming(null)} title="Rename contact">
+      <Modal
+        opened={renaming !== null}
+        onClose={() => {
+          refocus(renaming?.key ?? null);
+          setRenaming(null);
+        }}
+        title="Rename contact"
+        returnFocus={false}
+      >
         {renaming && (
           <RenameForm
             initial={renaming.name}
-            onCancel={() => setRenaming(null)}
+            onCancel={() => {
+              refocus(renaming.key);
+              setRenaming(null);
+            }}
             onSave={async (name) => {
               await services.contacts.rename(renaming.key, name);
+              setSaid('Contact renamed.');
+              refocus(renaming.key);
               setRenaming(null);
               await load();
             }}
@@ -135,17 +178,31 @@ export function Contacts() {
         )}
       </Modal>
 
-      <Modal opened={removing !== null} onClose={() => setRemoving(null)} title="Delete contact">
+      <Modal
+        opened={removing !== null}
+        onClose={() => {
+          refocus(removing?.key ?? null);
+          setRemoving(null);
+        }}
+        title="Remove contact"
+        returnFocus={false}
+      >
         <Stack>
           <Text size="sm">
-            Delete {removing?.name}? Only this saved contact is removed from this device. Past payments are not affected.
+            Remove <bdi>{removing?.name}</bdi>? Only this saved contact is removed from this device. Past payments are not affected.
           </Text>
           <Group grow>
-            <Button variant="default" onClick={() => setRemoving(null)}>
+            <Button
+              variant="default"
+              onClick={() => {
+                refocus(removing?.key ?? null);
+                setRemoving(null);
+              }}
+            >
               Cancel
             </Button>
             <Button color="red" onClick={() => void remove()}>
-              Delete
+              Remove
             </Button>
           </Group>
         </Stack>
@@ -175,7 +232,21 @@ export function ContactForm({
   const [nameError, setNameError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
-  const { services } = useApp();
+  const { services, account } = useApp();
+  // Whether the address is one of this wallet's own: allowed, and said.
+  const [own, setOwn] = useState(false);
+  useEffect(() => {
+    const text = address.trim().toLowerCase();
+    if (!account || !text) {
+      setOwn(false);
+      return;
+    }
+    let live = true;
+    void ownAddresses(services.core, account).then((set) => live && setOwn(set.has(text)), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [services, account, address]);
 
   useEffect(() => {
     if (opened) {
@@ -253,6 +324,7 @@ export function ContactForm({
               }}
               onBlur={() => void checkAddress()}
               error={addressError}
+              description={own && !addressError ? 'This is one of your own addresses.' : undefined}
               rightSectionWidth={44}
               rightSection={
                 <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>

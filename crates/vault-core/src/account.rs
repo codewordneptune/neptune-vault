@@ -213,7 +213,7 @@ pub fn phrase_problem(words: &[String]) -> Option<String> {
         Ok(_) => None,
         Err(_) => Some(
             "Every word is on the list, but together they are not a valid seed phrase. \
-             Check the words and their order against your backup."
+             Check the words and their order against the seed phrase you wrote down."
                 .to_string(),
         ),
     }

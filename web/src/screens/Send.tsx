@@ -3,9 +3,9 @@
 // runs as a job in the app context so it survives this screen being
 // unmounted (backgrounding locks the app).
 
-import { Alert, Badge, Button, Checkbox, Group, Modal, Paper, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
-import { IconAddressBook, IconLink, IconPlus, IconScan } from '@tabler/icons-react';
+import { Alert, Badge, Button, Checkbox, Divider, Group, Loader, Modal, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
+import { IconAddressBook, IconFingerprint, IconLink, IconPlus, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -17,7 +17,10 @@ import { useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
 import { fiatOf, fiatOfTyped, formatFiat } from '../util/fiat';
 import { MAX_PAYMENTS, paymentsTotalNau, RequiresLustrationError, SendBusyError, SendUnconfirmedError } from '../app/send';
+import { isCancellation } from '../app/passkey';
+import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
+import { Amount } from '../components/Amount';
 import { Caution, Done, Info } from '../components/Notice';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
@@ -34,6 +37,11 @@ const FEE_PRESETS: { value: string; label: string; fee: string }[] = [
   { value: 'high', label: 'High', fee: '0.5' },
   { value: 'custom', label: 'Custom', fee: '' },
 ];
+/**
+ * Below this, nodes usually do not finish proving a send (the proof
+ * upgraders' default floor is about 0.017 NPT), so it may never confirm.
+ */
+const LOW_FEE = '0.02';
 const DEFAULT_PRESET = 'medium';
 const DEFAULT_FEE = FEE_PRESETS.find((p) => p.value === DEFAULT_PRESET)!.fee;
 const presetFee = (preset: string, custom: string | undefined) =>
@@ -47,7 +55,17 @@ const UNDER_THE_FIELD: ('label' | 'input' | 'description' | 'error')[] = ['label
 
 
 export function Send() {
-  const { services, account, balance, utxos, history, online, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
+  const { services, account, balance, utxos, history, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, awaitingApproval, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
+  const reducedMotion = useReducedMotion();
+  // Narrow by the text's own measure (enlarged text counts): four fee choices stack.
+  const stacked = useMediaQuery('(max-width: 22em)');
+  // The node did not answer as a node at the last sync: sending would fail the same way.
+  const nodeDown = sync?.phase === 'error' && sync.nodeDown === true;
+  // A mouse or trackpad: a computer, where advice about touching the screen reads as a bug.
+  const finePointer = useMediaQuery('(pointer: fine)');
+  // Sends go out only once the person confirms with a password or passkey,
+  // unless they turned that off in Settings.
+  const confirmEach = services.settings.confirmSends !== false;
   const location = useLocation();
   const navigate = useNavigate();
   const arrival = location.state as { recipient?: string; fresh?: boolean } | null;
@@ -111,7 +129,8 @@ export function Send() {
   const rememberedPreset = services.settings.feePreset && services.settings.feePreset !== 'custom' ? services.settings.feePreset : DEFAULT_PRESET;
   const [feePreset, setFeePreset] = useState(draft?.feePreset ?? rememberedPreset);
   const [fee, setFee] = useState(draft?.fee ?? presetFee(rememberedPreset, undefined));
-  // An unusually high fee must be agreed to on the review sheet, in so many words.
+  // An unusually high fee, or one so low the send may never confirm, must be
+  // agreed to on the review sheet, in so many words.
   const [feeAgreed, setFeeAgreed] = useState(false);
   // "Max" in exact nau: the shown text has eight decimals and the balance has more.
   const [maxExact, setMaxExact] = useState<{ text: string; nau: bigint } | null>(null);
@@ -120,10 +139,15 @@ export function Send() {
   const [recipientError, setRecipientError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [feeError, setFeeError] = useState<string | null>(null);
-  // Focused when Custom is chosen, not whenever the field happens to mount.
+  // Focused when Custom is chosen with a pointer, not whenever the field
+  // happens to mount, and not when arrowing through the choices, which would
+  // throw a keyboard user out of them (the field is next in Tab order).
   const customFeeRef = useRef<HTMLInputElement>(null);
+  const feeByPointer = useRef(false);
+  // The amount fields, by recipient (0 is the first), for where focus goes after a Remove.
+  const amountRefs = useRef(new Map<number, HTMLInputElement>());
   // As reviewed: each payment in nau (the first recipient's first), their sum, and the fee.
-  const [totals, setTotals] = useState<{ amountNau: bigint; feeNau: bigint; feeHigh: boolean; payments: bigint[] } | null>(null);
+  const [totals, setTotals] = useState<{ amountNau: bigint; feeNau: bigint; feeHigh: boolean; feeLow: boolean; payments: bigint[] } | null>(null);
   const [askLustration, setAskLustration] = useState(false);
   // Which recipient Scan and Choose contact fill: 0 for the first, else an added one's id.
   const [scanFor, setScanFor] = useState<number | null>(null);
@@ -239,7 +263,8 @@ export function Send() {
         const one = BigInt(await services.core.parseAmount('1'));
         const topPreset = BigInt(await services.core.parseAmount(FEE_PRESETS.reduce((m, p) => (Number(p.fee) > Number(m) ? p.fee : m), '0')));
         const feeHigh = f.nau > one || (f.nau > total && f.nau > topPreset);
-        setTotals({ amountNau: total, feeNau: f.nau, feeHigh, payments });
+        const feeLow = f.nau < BigInt(await services.core.parseAmount(LOW_FEE));
+        setTotals({ amountNau: total, feeNau: f.nau, feeHigh, feeLow, payments });
         setFeeAgreed(false);
       }
     }
@@ -307,6 +332,7 @@ export function Send() {
           fee_nau: totals.feeNau.toString(),
         },
         linkMeta?.message ?? null,
+        { confirm: confirmEach },
       );
       setLastRecipient(sentTo);
       setRecipient('');
@@ -364,11 +390,13 @@ export function Send() {
     updateExtra(id, { recipient: parsed.address, recipientError: null, ...(parsed.amount ? { amount: parsed.amount, amountError: null } : {}) });
   };
 
+  const [scanSaid, setScanSaid] = useState('');
   const onScanned = (text: string) => {
     const target = scanFor;
     setScanFor(null);
     if (target === null || target === 0) applyText(text);
     else applyExtraText(target, text);
+    setScanSaid(target === null || target === 0 ? 'Address filled from the QR code.' : `Address of recipient ${extras.findIndex((x) => x.id === target) + 2} filled from the QR code.`);
   };
 
   // A finished job's notice belongs to this visit; leaving the screen
@@ -467,16 +495,23 @@ export function Send() {
             Sending
           </Title>
           <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {masked ? '••••' : showNau(paymentsTotalNau(request))} NPT to <span dir="auto" className="vault-bidi">{who}</span> · fee {masked ? '••••' : showNau(BigInt(request.fee_nau ?? '0'))} NPT
+            <Amount nau={paymentsTotalNau(request)} hidden={masked} /> to <span dir="auto" className="vault-bidi">{who}</span> · fee <Amount nau={BigInt(request.fee_nau ?? '0')} hidden={masked} />
           </Text>
+          {awaitingApproval && <ConfirmSendCard />}
           <div aria-live="polite">
+            {/* The steps that wait on the node have no measure of their own: a
+                turning mark says the app is at work, not stuck. */}
+            <Group gap="xs" wrap="nowrap" align="center">
+              {!proving && sendJob.progress.stage !== 'confirming' && <Loader size={14} color="var(--v-muted)" aria-hidden />}
             <Text>
               {sendJob.progress.stage === 'planning' && 'Choosing coins…'}
               {sendJob.progress.stage === 'membership-proofs' && 'Checking your coins with the node…'}
-              {sendJob.progress.stage === 'building' && 'Building the transaction…'}
+              {sendJob.progress.stage === 'building' && 'Building the send…'}
               {proving && (p ? `Proving, step ${Math.min(p.index + 1, p.total)} of ${p.total}` : 'Starting the prover…')}
+              {sendJob.progress.stage === 'confirming' && 'The proof is ready. Confirm above to send it.'}
               {sendJob.progress.stage === 'submitting' && 'Submitting to the node…'}
             </Text>
+            </Group>
             {/* Why the steps started over, when they did: a block arrived. */}
             {sendJob.progress.note && (
               <Text size="sm" c="var(--v-warn-text)" mt={4}>
@@ -484,7 +519,7 @@ export function Send() {
               </Text>
             )}
           </div>
-          {proving && p && <Progress value={100 * (p.work ?? p.index / p.total)} animated aria-label="Share of the proving work done" />}
+          {proving && p && <Progress value={Math.round(100 * (p.work ?? p.index / p.total))} animated={!reducedMotion} aria-label="Share of the proving work done" />}
           {proving && (
             <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {estimate !== null ? `${capitalise(formatAbout(estimate))} on this device · ` : ''}
@@ -495,7 +530,9 @@ export function Send() {
             {screenAwake === 'refused'
               ? NATIVE
                 ? 'This computer would not promise to stay awake. Keep the app running and the computer awake until the send is submitted: sleep pauses the proof.'
-                : 'This device would not keep the screen on. Keep the app open and touch the screen now and then until the send is submitted: a locked phone pauses the proof.'
+                : finePointer
+                  ? 'This browser would not promise to keep the computer awake. Keep this tab open and the computer awake until the send is submitted: sleep pauses the proof.'
+                  : 'This device would not keep the screen on. Keep the app open and touch the screen now and then until the send is submitted: a locked phone pauses the proof.'
               : NATIVE
                 ? 'Keep the app running until the send is submitted.'
                 : 'Keep the app open and in front until the send is submitted. You can move around the app meanwhile.'}
@@ -556,7 +593,7 @@ export function Send() {
     reviewSheet = (
         <Stack>
           <Text size="sm" c="dimmed">
-            Check the details. Once sending starts, the payment cannot be changed.
+            Check the details. Once sending starts, the send cannot be changed.
             {estimate !== null ? ` Proving it takes ${formatAbout(estimate)} on this device.` : NATIVE ? '' : ' Proving it can take a few minutes on a phone.'}
           </Text>
           <div className="vault-review">
@@ -566,7 +603,7 @@ export function Send() {
                   <span className="vault-eyebrow">To</span>
                   {reviewName && (
                     <Text size="lg" fw={600}>
-                      {reviewName}
+                      <bdi>{reviewName}</bdi>
                     </Text>
                   )}
                   <Text ff="monospace" size="sm" c={reviewName ? 'dimmed' : undefined}>
@@ -578,7 +615,9 @@ export function Send() {
                 </div>
                 <div className="vault-review-row">
                   <span>Amount</span>
-                  <b>{showNau(totals.amountNau)} NPT</b>
+                  <b>
+                    <Amount nau={totals.amountNau} />
+                  </b>
                 </div>
               </>
             ) : (
@@ -590,7 +629,7 @@ export function Send() {
                     <div style={{ minWidth: 0 }}>
                       {p.name && (
                         <Text size="sm" fw={600}>
-                          {p.name}
+                          <bdi>{p.name}</bdi>
                         </Text>
                       )}
                       <Text ff="monospace" size="sm" c={p.name ? 'dimmed' : undefined}>
@@ -600,18 +639,24 @@ export function Send() {
                         {addressKindLabel(p.address)}
                       </Badge>
                     </div>
-                    <b>{showNau(p.nau)} NPT</b>
+                    <b>
+                      <Amount nau={p.nau} />
+                    </b>
                   </div>
                 ))}
               </>
             )}
             <div className="vault-review-row">
               <span>Fee</span>
-              <b>{showNau(totals.feeNau)} NPT</b>
+              <b>
+                <Amount nau={totals.feeNau} />
+              </b>
             </div>
             <div className="vault-review-row total">
               <span>Total</span>
-              <b>{showNau(totalNau)} NPT</b>
+              <b>
+                <Amount nau={totalNau} />
+              </b>
             </div>
             {quote && (
               <Text size="xs" c="dimmed" ta="right" mt={-6} style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -652,7 +697,7 @@ export function Send() {
             </div>
           )}
           <Text size="sm" c="dimmed">
-            Spendable while this is pending: {showNau(balance.spendableNau - heldNau)} NPT. After it confirms, usually within a few blocks: {showNau(balance.spendableNau - totalNau)} NPT.
+            Spendable while this is pending: {showNau(balance.spendableNau - heldNau)} NPT. After it confirms, usually within an hour: {showNau(balance.spendableNau - totalNau)} NPT.
           </Text>
           {askLustration && (
             <Caution title="Part of this send will be public">
@@ -666,11 +711,20 @@ export function Send() {
               label={`The fee is ${showNau(totals.feeNau)} NPT, which is unusually high. Pay it anyway.`}
             />
           )}
+          {totals.feeLow && (
+            <Checkbox
+              checked={feeAgreed}
+              onChange={(e) => setFeeAgreed(e.currentTarget.checked)}
+              label={`The fee is ${showNau(totals.feeNau)} NPT. Nodes usually do not finish proving sends that pay less than about ${LOW_FEE} NPT, so this one may never confirm. Send it anyway.`}
+            />
+          )}
           <Group grow>
             <Button variant="default" onClick={() => setStep('form')}>
               Edit
             </Button>
-            <Button onClick={() => void send(askLustration)} loading={starting} disabled={running || (totals.feeHigh && !feeAgreed)}>{askLustration ? 'Send anyway' : 'Send now'}</Button>
+            <Button onClick={() => void send(askLustration)} loading={starting} disabled={running || ((totals.feeHigh || totals.feeLow) && !feeAgreed)}>
+              {askLustration ? 'Send anyway' : confirmEach ? 'Confirm and send' : 'Send now'}
+            </Button>
           </Group>
         </Stack>
     );
@@ -738,6 +792,9 @@ export function Send() {
             )}
           </div>
         )}
+        <div className="sr-only" role="status">
+          {scanSaid}
+        </div>
         <form
           ref={formRef}
           onSubmit={(e) => {
@@ -750,9 +807,14 @@ export function Send() {
                 the field's own label line, ahead of the field in the page's
                 order as on screen, and not inside the label, which would make
                 it part of the field's name. */}
-            {extras.length > 0 && <span className="vault-eyebrow">Recipient 1</span>}
+            <Stack role={extras.length > 0 ? 'group' : undefined} aria-labelledby={extras.length > 0 ? 'payee-first' : undefined}>
+            {extras.length > 0 && (
+              <span className="vault-eyebrow" id="payee-first">
+                Recipient 1
+              </span>
+            )}
             <div className="vault-field-action-wrap">
-              <UnstyledButton type="button" onClick={() => setPickFor(0)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action">
+              <UnstyledButton type="button" onClick={() => setPickFor(0)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={extras.length > 0 ? 'Choose a contact for recipient 1' : undefined}>
                 <IconAddressBook size={16} stroke={1.8} aria-hidden />
                 Choose contact
               </UnstyledButton>
@@ -781,7 +843,7 @@ export function Send() {
                 inputWrapperOrder={['label', 'input', 'description', 'error']}
                 rightSectionWidth={80}
                 rightSection={
-                  <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanFor(0)}>
+                  <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanFor(0)} aria-label={extras.length > 0 ? "Scan recipient 1's address" : undefined}>
                     Scan
                   </Button>
                 }
@@ -815,6 +877,9 @@ export function Send() {
               </div>
             )}
             <TextInput
+              ref={(el) => {
+                if (el) amountRefs.current.set(0, el);
+              }}
               label="Amount (NPT)"
               inputMode="decimal"
               value={amount}
@@ -835,18 +900,31 @@ export function Send() {
                 ) : undefined
               }
             />
+            </Stack>
             {extras.map((x, i) => (
               <div key={x.id} className="vault-payee" role="group" aria-labelledby={`payee-${x.id}`}>
                 <div className="vault-payee-head">
                   <span className="vault-eyebrow" id={`payee-${x.id}`}>
                     Recipient {i + 2}
                   </span>
-                  <UnstyledButton type="button" onClick={() => setExtras((all) => all.filter((y) => y.id !== x.id))} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-label={`Remove recipient ${i + 2}`}>
+                  <UnstyledButton
+                    type="button"
+                    onClick={() => {
+                      // The recipient goes, and its button: focus goes to the amount before it.
+                      const before = i === 0 ? 0 : extras[i - 1].id;
+                      setExtras((all) => all.filter((y) => y.id !== x.id));
+                      setTimeout(() => amountRefs.current.get(before)?.focus(), 0);
+                    }}
+                    c="var(--v-accent-text)"
+                    fz="sm"
+                    className="vault-tap-link"
+                    aria-label={`Remove recipient ${i + 2}`}
+                  >
                     Remove
                   </UnstyledButton>
                 </div>
                 <div className="vault-field-action-wrap">
-                  <UnstyledButton type="button" onClick={() => setPickFor(x.id)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action">
+                  <UnstyledButton type="button" onClick={() => setPickFor(x.id)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={`Choose a contact for recipient ${i + 2}`}>
                     <IconAddressBook size={16} stroke={1.8} aria-hidden />
                     Choose contact
                   </UnstyledButton>
@@ -875,13 +953,17 @@ export function Send() {
                     inputWrapperOrder={['label', 'input', 'description', 'error']}
                     rightSectionWidth={80}
                     rightSection={
-                      <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanFor(x.id)}>
+                      <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanFor(x.id)} aria-label={`Scan recipient ${i + 2}'s address`}>
                         Scan
                       </Button>
                     }
                   />
                 </div>
                 <TextInput
+                  ref={(el) => {
+                    if (el) amountRefs.current.set(x.id, el);
+                    else amountRefs.current.delete(x.id);
+                  }}
                   label="Amount (NPT)"
                   inputMode="decimal"
                   value={x.amount}
@@ -905,6 +987,9 @@ export function Send() {
               </Text>
               <SegmentedControl
                 fullWidth
+                orientation={stacked ? 'vertical' : 'horizontal'}
+                onPointerDown={() => (feeByPointer.current = true)}
+                onKeyDown={() => (feeByPointer.current = false)}
                 aria-label="Fee"
                 value={feePreset}
                 onChange={(v) => {
@@ -913,7 +998,7 @@ export function Send() {
                   if (preset && preset.fee) setFee(preset.fee);
                   else if (v === 'custom') {
                     setFee('');
-                    setTimeout(() => customFeeRef.current?.focus(), 0);
+                    if (feeByPointer.current) setTimeout(() => customFeeRef.current?.focus(), 0);
                   }
                   if (v !== 'custom') void services.updateSettings({ feePreset: v });
                 }}
@@ -951,7 +1036,22 @@ export function Send() {
             {!online && (
               <Caution>You are offline. Sending needs the node; Review comes back when the connection does.</Caution>
             )}
-            <Button type="submit" disabled={!online}>
+            {/* The node not answering is said here too, before a send is
+                composed and reviewed that could not go. */}
+            {online && nodeDown && (
+              <Caution title="Sending is paused">
+                {sync?.message}
+                <Group gap="sm" mt={4}>
+                  <Button variant="light" size="compact-sm" onClick={() => void syncNow()}>
+                    Retry
+                  </Button>
+                  <Button variant="subtle" size="compact-sm" onClick={() => navigate('/settings')}>
+                    Settings
+                  </Button>
+                </Group>
+              </Caution>
+            )}
+            <Button type="submit" disabled={!online || nodeDown}>
               Review
             </Button>
           </Stack>
@@ -986,6 +1086,8 @@ export function Send() {
             setSavedName(c.name);
             loadContacts();
             setSaving(false);
+            // The link that was pressed is now a sentence: the result it is in takes the focus.
+            setTimeout(() => resultRef.current?.focus(), 300);
           }}
         />
       )}
@@ -996,4 +1098,122 @@ export function Send() {
 /** "about 2 min" at the start of a sentence. */
 function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * The person's confirmation of a running send: the passkey where one is set
+ * up (its sheet opens by itself), the password otherwise, and as the
+ * fallback. The proof runs meanwhile; nothing reaches the node until this is
+ * done, and declining stops the proof.
+ */
+function ConfirmSendCard() {
+  const { services, account, approveSend, declineSend } = useApp();
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [supported, setSupported] = useState<boolean | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hasPasskey = Boolean(account?.passkey) && supported === true;
+  useEffect(() => {
+    void services.accounts.passkeySupported().then(setSupported, () => setSupported(false));
+  }, [services]);
+
+  const withPasskey = useCallback(async () => {
+    if (!account) return;
+    setPasskeyBusy(true);
+    setPasskeyError(null);
+    try {
+      await services.accounts.verifyPasskey(account.id);
+      approveSend();
+    } catch (e) {
+      // Closing the system sheet is a choice: the password is there instead.
+      if (!isCancellation(e)) setPasskeyError((e as Error).message);
+      inputRef.current?.focus();
+    } finally {
+      setPasskeyBusy(false);
+    }
+  }, [services, account, approveSend]);
+
+  // The passkey's sheet opens by itself, once: the person has just asked to send.
+  const prompted = useRef(false);
+  useEffect(() => {
+    if (supported === null) return;
+    if (hasPasskey && !prompted.current) {
+      prompted.current = true;
+      void withPasskey();
+    } else if (!hasPasskey) {
+      // After the screen has put focus on its title, so the field keeps it.
+      const t = setTimeout(() => inputRef.current?.focus(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [supported, hasPasskey, withPasskey]);
+
+  const withPassword = async () => {
+    if (!account) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await services.accounts.verifyPassword(account.id, password);
+      setPassword('');
+      approveSend();
+    } catch (e) {
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form
+      className="vault-confirm-send"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void withPassword();
+      }}
+    >
+      <Stack gap="sm">
+        <Title order={3}>Confirm this send</Title>
+        <Text size="sm" c="dimmed">
+          The proof is being made meanwhile. Nothing goes out until you confirm.
+        </Text>
+        {hasPasskey && (
+          <>
+            <Button leftSection={<IconFingerprint size={18} stroke={1.8} />} loading={passkeyBusy} onClick={() => void withPasskey()}>
+              Confirm with passkey
+            </Button>
+            {passkeyError && (
+              <Text size="sm" c="var(--v-danger-text)" role="alert">
+                {passkeyError}
+              </Text>
+            )}
+            <Divider label="or use the password" labelPosition="center" />
+          </>
+        )}
+        <PasswordInput
+          ref={inputRef}
+          label="Password"
+          value={password}
+          onChange={(e) => {
+            setPassword(e.currentTarget.value);
+            setError(null);
+          }}
+          error={error}
+          errorProps={{ role: 'alert' }}
+          autoComplete="current-password"
+        />
+        <Group grow>
+          <Button variant="default" onClick={declineSend}>
+            Don't send
+          </Button>
+          <Button type="submit" variant={hasPasskey ? 'light' : 'filled'} loading={busy} disabled={!password}>
+            Confirm
+          </Button>
+        </Group>
+      </Stack>
+    </form>
+  );
 }

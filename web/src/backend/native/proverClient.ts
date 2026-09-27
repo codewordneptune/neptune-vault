@@ -26,6 +26,14 @@ interface WireOutcome {
 export class NativeProverClient implements Prover {
   /** Rejects the running proof. Null when none is running. */
   private rejectRunning: ((e: Error) => void) | null = null;
+  /** The shell's call for the running proof. */
+  private runningCall: Promise<unknown> | null = null;
+  /**
+   * A stopped proof the shell is still finishing: it ends at the end of the
+   * step it is on, not at once. The next proof waits for it, so two never
+   * share the device's cores or the one flag that stops them.
+   */
+  private stopping: Promise<void> | null = null;
 
   /**
    * Every core the device reports. There is no cross-origin isolation to
@@ -38,6 +46,24 @@ export class NativeProverClient implements Prover {
 
   prove(request: ProveRequest, onProgress: (p: ProveProgress) => void): Promise<ProveOutcome> {
     if (this.rejectRunning) throw new Error('a proof is already running');
+    const before = this.stopping;
+    if (!before) return this.start(request, onProgress);
+    // Cancellable while it waits, like the proof it waits to become.
+    return new Promise<ProveOutcome>((resolve, reject) => {
+      let cancelled = false;
+      this.rejectRunning = (e) => {
+        cancelled = true;
+        reject(e);
+      };
+      void before.then(() => {
+        if (cancelled) return;
+        this.rejectRunning = null;
+        this.start(request, onProgress).then(resolve, reject);
+      });
+    });
+  }
+
+  private start(request: ProveRequest, onProgress: (p: ProveProgress) => void): Promise<ProveOutcome> {
     const started = performance.now();
     let threads = 0;
     let doneWeight = 0;
@@ -75,6 +101,7 @@ export class NativeProverClient implements Prover {
       memoryMb: wire.memoryBytes / 1048576,
       threads: wire.threads,
     }));
+    this.runningCall = running;
 
     // Cancelling settles this promise even though the shell may take a
     // moment to notice, so the send flow's `finally` runs at once and the
@@ -83,6 +110,7 @@ export class NativeProverClient implements Prover {
       this.rejectRunning = reject;
       const finish = () => {
         this.rejectRunning = null;
+        if (this.runningCall === running) this.runningCall = null;
       };
       running.then(
         (outcome) => {
@@ -105,6 +133,18 @@ export class NativeProverClient implements Prover {
     const reject = this.rejectRunning;
     this.rejectRunning = null;
     if (!reject) return;
+    const running = this.runningCall;
+    this.runningCall = null;
+    if (running) {
+      const done: Promise<void> = running.then(
+        () => undefined,
+        () => undefined,
+      );
+      this.stopping = done;
+      void done.then(() => {
+        if (this.stopping === done) this.stopping = null;
+      });
+    }
     void call('prover_cancel').catch(() => {});
     reject(new ProofCancelledError());
   }

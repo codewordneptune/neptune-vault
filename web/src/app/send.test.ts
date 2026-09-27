@@ -7,7 +7,7 @@ import { openVaultDb, type AccountRecord, type UtxoRecord, type VaultDb } from '
 import { CHAIN_PARTS, type InputPlan, type SendPlan, type SendRequest, type StoredUtxo, type WalletCore } from '../backend/types';
 import { chainView, testEngine, type TestEngine } from '../backend/engineForTests';
 import type { Prover } from '../backend/types';
-import { RequiresLustrationError, SendCancelledError, SendService, SendUnconfirmedError } from './send';
+import { RequiresLustrationError, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
 
 function stored(hash: string, amount: string, height: number): StoredUtxo {
   return { hash, amount_nau: amount, amount, key_kind: 'generation', key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
@@ -71,15 +71,22 @@ class FakeNode {
   refusals = 0;
   /** The next submission reaches the node, which takes it, and the answer is lost on the way back. */
   loseAnswer = false;
+  /** The next submission reaches the node, and this comes back instead of its answer. */
+  failWith: Error | null = null;
   /** What the wallet had written down at the moment the node was handed the transaction. */
   heldAtSubmit: (string | null | undefined)[] = [];
   beforeSubmit: (() => Promise<void>) | null = null;
   async restoreMembershipProofRaw(sets: unknown[]) {
     return JSON.stringify({ jsonrpc: '2.0', id: 1, result: { snapshot: { syncedHeight: 10, syncedHash: 'h', syncedMutatorSet: {}, membershipProofs: sets } } });
   }
+  /** The newest block's time; 0 is a node that does not say. */
+  tipTime = 0;
+  async tipHeader() {
+    return { height: this.heights[0], prevBlockDigest: 'p', timestamp: this.tipTime, difficulty: '1' };
+  }
   async tipHeaderRaw() {
     const height = this.heights.length > 1 ? (this.heights.shift() as number) : this.heights[0];
-    return { raw: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { header: { height, prevBlockDigest: 'p', timestamp: 0, difficulty: '1' } } }), height };
+    return { raw: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { header: { height, prevBlockDigest: 'p', timestamp: this.tipTime, difficulty: '1' } } }), height, timestampMs: this.tipTime || null };
   }
   async submitTransaction(tx: unknown) {
     if (this.beforeSubmit) await this.beforeSubmit();
@@ -91,11 +98,17 @@ class FakeNode {
     if (this.submitError) {
       const message = this.submitError;
       this.submitError = null;
-      throw new Error(message);
+      throw new NodeError(message, -32000, 'wallet_submitTransaction');
+    }
+    if (this.failWith) {
+      const e = this.failWith;
+      this.failWith = null;
+      this.submitted.push(tx);
+      throw e;
     }
     if (this.refusals > 0) {
       this.refusals -= 1;
-      throw new Error(NOT_CONFIRMABLE);
+      throw new NodeError(NOT_CONFIRMABLE, -32000, 'wallet_submitTransaction');
     }
     this.submitted.push(tx);
     return this.accept;
@@ -236,11 +249,75 @@ describe('send service', () => {
     expect((await service.spendable()).map((u) => u.hash).sort()).toEqual(['a', 'b']);
   });
 
+  it('treats a server error or an unreadable answer on submission as no answer: the coins stay held', async () => {
+    for (const failure of [
+      new NodeError('The node at x is not answering properly (HTTP 504). Try again in a moment.', 'http', 'wallet_submitTransaction', 504),
+      new NodeError('x answered, but not as a Neptune node.', 'garbled', 'wallet_submitTransaction'),
+      new TypeError('Failed to parse'),
+    ]) {
+      const { node, service } = await setup();
+      node.failWith = failure;
+      const error = (await service.send(request, () => {}).catch((e) => e)) as Error;
+      expect(error).toBeInstanceOf(SendUnconfirmedError);
+      expect(error.message).toMatch(/Do not send it again unless you first give up on it there\.$/);
+      if (failure instanceof NodeError && failure.code === 'http') expect(error.message).toMatch(/^The node's server answered with an error \(HTTP 504\)/);
+      expect((await view.get('history', 'acc:sent:tx-abc'))?.status).toBe('pending');
+      expect(await service.spendable()).toEqual([]);
+      vault.close();
+      db.close();
+      indexedDB.deleteDatabase('neptune-vault');
+    }
+  });
+
+  it('keeps a send whose answer does not say whether the node took it', async () => {
+    const { node, service } = await setup();
+    node.accept = undefined as unknown as boolean;
+    (node as unknown as { submitTransaction: () => Promise<boolean | null> }).submitTransaction = async () => null;
+    await expect(service.send(request, () => {})).rejects.toBeInstanceOf(SendUnconfirmedError);
+    expect((await view.get('history', 'acc:sent:tx-abc'))?.status).toBe('pending');
+  });
+
+  it('says in words what a refusal for the date means, and holds nothing', async () => {
+    const { node, service } = await setup();
+    node.submitError = 'The node answered with an error: "Server error" ({"SubmitTransaction":"FutureDated"})';
+    await expect(service.send(request, () => {})).rejects.toThrow(/dated in the future/);
+    expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
+  });
+
+  it('stops before proving when the device clock is far behind the chain', async () => {
+    const { node, prover, service } = await setup();
+    node.tipTime = Date.now() + 11 * 60 * 60 * 1000;
+    await expect(service.send(request, () => {})).rejects.toThrow(/this device's clock is 11 hours behind the network/);
+    expect(prover.calls).toBe(0);
+  });
+
+  it('waits for the person\'s confirmation before the node hears of the send, and sends nothing without it', async () => {
+    const { node, service } = await setup();
+    await expect(service.send(request, () => {}, { approved: Promise.resolve(false) })).rejects.toBeInstanceOf(SendNotApprovedError);
+    expect(node.submitted).toHaveLength(0);
+    expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
+    expect((await service.spendable()).map((u) => u.hash).sort()).toEqual(['a', 'b']);
+
+    const recorded: string[] = [];
+    let heldWhenRecorded: string | null | undefined;
+    const outcome = await service.send(request, () => {}, {
+      approved: Promise.resolve(true),
+      onRecorded: async (txid) => {
+        recorded.push(txid);
+        heldWhenRecorded = (await view.get('utxos', 'acc:a'))?.pendingTxid;
+        expect(node.submitted).toHaveLength(0);
+      },
+    });
+    expect(outcome.txid).toBe('tx-abc');
+    expect(recorded).toEqual(['tx-abc']);
+    expect(heldWhenRecorded).toBe('tx-abc');
+  });
+
   it('cancel during the proof sends nothing and holds nothing', async () => {
     const { node, prover, service } = await setup();
     const abort = new AbortController();
     prover.during = () => abort.abort();
-    await expect(service.send(request, () => {}, null, abort.signal)).rejects.toBeInstanceOf(SendCancelledError);
+    await expect(service.send(request, () => {}, { signal: abort.signal })).rejects.toBeInstanceOf(SendCancelledError);
     expect(node.submitted).toHaveLength(0);
     expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
     expect((await service.spendable()).map((u) => u.hash).sort()).toEqual(['a', 'b']);
@@ -250,7 +327,7 @@ describe('send service', () => {
     const { node, service } = await setup();
     const abort = new AbortController();
     node.beforeSubmit = async () => abort.abort();
-    const outcome = await service.send(request, () => {}, null, abort.signal);
+    const outcome = await service.send(request, () => {}, { signal: abort.signal });
     expect(outcome.txid).toBe('tx-abc');
     expect((await view.get('history', 'acc:sent:tx-abc'))?.status).toBe('pending');
   });
@@ -374,5 +451,16 @@ describe('send service', () => {
     await service.forget('tx-abc');
     expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
     expect((await view.get('history', 'acc:sent:tx-abc'))?.status).toBe('failed');
+  });
+});
+
+describe('the time a send is stamped with', () => {
+  it('is never later than the newest block, and a clock too far behind for any stamp is caught', () => {
+    expect(sendStamp(1000, null)).toEqual({ stampMs: 1000, clockProblem: null });
+    expect(sendStamp(1000, 900).stampMs).toBe(900);
+    expect(sendStamp(1000, 5000).stampMs).toBe(1000);
+    expect(sendStamp(0, 9 * 3600_000).clockProblem).toBeNull();
+    expect(sendStamp(0, 10 * 3600_000).clockProblem).toMatch(/10 hours behind the network/);
+    expect(sendStamp(0, 3 * 86400_000).clockProblem).toMatch(/3 days behind the network/);
   });
 });

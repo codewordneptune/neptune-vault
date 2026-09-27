@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The window shows the wallet and calls the bridge. It needs nothing else: no filesystem, no shell, no network plugin. Everything the wallet does with the node goes through the page's own fetch, under the CSP in tauri.conf.json.",
+  "description": "The window shows the wallet and calls the bridge. Beyond that it may zoom its page (the zoom keys) and close itself once the person has confirmed closing during a send. It needs nothing else: no filesystem, no shell, no network plugin. Everything the wallet does with the node goes through the page's own fetch, under the CSP in tauri.conf.json.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:webview:allow-set-webview-zoom", "core:window:allow-destroy"]
 }

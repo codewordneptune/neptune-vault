@@ -60,12 +60,17 @@ export const theme = createTheme({
     Button: { defaultProps: { radius: 'sm', size: 'md' } },
     Badge: { defaultProps: { radius: 'xl', variant: 'light', size: 'sm' } },
     TextInput: { defaultProps: { radius: 'sm', size: 'md' } },
-    PasswordInput: { defaultProps: { radius: 'sm', size: 'md', visibilityToggleButtonProps: { size: 'lg', className: 'vault-tap', 'aria-label': 'Show or hide the password' } } },
+    // The show and hide button is reached with Tab like any other: a keyboard
+    // user checks what they typed as anyone else does.
+    PasswordInput: { defaultProps: { radius: 'sm', size: 'md', visibilityToggleFocusable: true, visibilityToggleButtonProps: { size: 'lg', className: 'vault-tap', 'aria-label': 'Show or hide the password' } } },
     NumberInput: { defaultProps: { radius: 'sm', size: 'md' } },
     Textarea: { defaultProps: { radius: 'sm', size: 'md' } },
     Select: { defaultProps: { radius: 'sm', size: 'md' } },
     SegmentedControl: { defaultProps: { radius: 'sm', size: 'md' } },
     Alert: { defaultProps: { radius: 'sm', variant: 'light' } },
+    // Every close button has a name: a banner's or a toast's said only
+    // "button". A dialog's own ("Close") and a notice's still win.
+    CloseButton: { defaultProps: { 'aria-label': 'Dismiss' } },
     Code: { defaultProps: { radius: 'sm' } },
     // Opening a menu focuses its first item, as the ARIA menu pattern has it,
     // not an empty placeholder; that placeholder was also an element a menu

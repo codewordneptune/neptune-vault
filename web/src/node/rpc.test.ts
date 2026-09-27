@@ -62,7 +62,7 @@ describe('what a node may say, and where a node may be', () => {
     expect(said).not.toMatch(/[\u202e\n]/);
     const node = new NodeClient('https://node.example', { fetch: (async () => new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, error: { code: -1, message } }))) as typeof fetch });
     const failure = (await node.tipDigest().catch((e) => e)) as Error;
-    expect(failure.message).toMatch(/^chain_tipDigest failed\. The node said: "/);
+    expect(failure.message).toMatch(/^The node answered with an error: "/);
   });
 
   it('still lets the app recognise the answers it acts on', async () => {
@@ -70,6 +70,22 @@ describe('what a node may say, and where a node may be', () => {
     expect(await answering({ code: -32601, message: 'Method not found' }).network()).toBeNull();
     const refused = (await answering({ code: -32000, message: 'Server error', data: { SubmitTransaction: 'NotConfirmable' } }).submitTransaction({}).catch((e) => e)) as Error;
     expect(refused.message).toMatch(/NotConfirmable/);
+  });
+
+  it('tells a server error, a page that is not a node, and a node that does not say from one another', async () => {
+    const answering = (body: string, status = 200, isDefault = false) =>
+      new NodeClient('https://node.example', { isDefault, fetch: (async () => new Response(body, { status })) as typeof fetch });
+    const gateway = (await answering('<html>504 Gateway Time-out</html>', 504).tipDigest().catch((e) => e)) as NodeError;
+    expect([gateway.code, gateway.status]).toEqual(['http', 504]);
+    expect(gateway.message).toMatch(/The node at node\.example is not answering properly \(HTTP 504\)/);
+    const page = (await answering('<html>Sign in</html>').tipDigest().catch((e) => e)) as NodeError;
+    expect(page.code).toBe('garbled');
+    expect(page.message).toMatch(/node\.example answered, but not as a Neptune node\. Check the node URL in Settings\./);
+    expect(await answering('{"jsonrpc":"2.0","id":1,"result":{}}').submitTransaction({})).toBeNull();
+    expect(await answering('{"jsonrpc":"2.0","id":1,"result":{"success":false}}').submitTransaction({})).toBe(false);
+    // The default node is not the person's to fix.
+    const down = (await answering('', 502, true).tipDigest().catch((e) => e)) as NodeError;
+    expect(down.message).toMatch(/^The default node is not answering properly \(HTTP 502\)\. Try again in a moment\.$/);
   });
 
   it('takes https anywhere, plain http on this device only, a bare path on regtest only, and no credentials', () => {

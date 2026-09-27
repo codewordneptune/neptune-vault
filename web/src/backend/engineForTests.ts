@@ -74,7 +74,9 @@ export type Scans = Partial<{ [K in LedgerOp['op']]: (op: Extract<LedgerOp, { op
 
 export interface TestEngine {
   /** The store and ledger methods of the core, backed by the real engine. */
-  store: Required<Pick<WalletCore, 'storeOpen' | 'storeMigrate' | 'storeRebuild' | 'storeRead' | 'storeCommit' | 'storeRemove' | 'ledger'>>;
+  store: Required<Pick<WalletCore, 'storeOpen' | 'storeMigrate' | 'storeRebuild' | 'storeSetAside' | 'storeRead' | 'storeCommit' | 'storeRemove' | 'ledger'>>;
+  /** The storage underneath, for a test that damages what is on it. */
+  logStore: Promise<LogStore>;
   /** Unlock: hand over a content key, as the worker is handed one. */
   unlock(contentKey?: Uint8Array): void;
   lock(): void;
@@ -103,11 +105,13 @@ export async function testEngine(scans: Scans = {}): Promise<TestEngine> {
       storeOpen: (accountId: string) => host.open(accountId),
       storeMigrate: (accountId: string, parts: WalletPart[], dump: unknown) => host.migrate(accountId, parts, dump),
       storeRebuild: (accountId: string, dump: unknown) => host.rebuild(accountId, dump),
+      storeSetAside: (accountId: string, dump: unknown) => host.setAside(accountId, dump),
       storeRead: (accountId: string, part: WalletPart) => host.read(accountId, part),
       storeCommit: (accountId: string, changes: WalletChange[]) => host.commit(accountId, changes),
       storeRemove: (accountId: string) => host.remove(accountId),
       ledger,
     },
+    logStore,
     unlock(contentKey = new Uint8Array(32).fill(7)) {
       host.keep(contentKey.slice());
     },

@@ -2,6 +2,7 @@
 // worker per proof so a cancelled or failed run frees its memory.
 
 import { showInt } from '../../util/format';
+import { formatDuration } from '../../util/time';
 import type { ProveOutcome, ProveProgress, ProveRequest } from '../types';
 import type { ProveMessage } from './proverWorker';
 import { ProofCancelledError, totalWeight, weightOf } from '../proving';
@@ -76,7 +77,11 @@ export class ProverClient {
         const where = current.name ? ` during ${current.name} (step ${current.index + 1} of ${current.total})` : ' before the first step';
         const memory = lastMemoryMb ? `, memory was ${showInt(lastMemoryMb)} MB after the previous step` : '';
         const seconds = showInt((performance.now() - started) / 1000);
-        reject(new Error(`The prover crashed${where} after ${seconds} s${memory}. This usually means the device ran out of memory; a send with fewer coins as inputs needs less.${e.message ? ` (${e.message}${e.filename ? ` at ${e.filename.split('/').pop()}:${e.lineno}` : ''})` : ''}`));
+        // In words for the screen; the step, the memory and the browser's own
+        // text are for bug reports, and go to Diagnostics.
+        const failure = new Error(`Nothing was sent: the device ran out of memory while proving, after ${formatDuration((performance.now() - started) / 1000)}. Close other apps and tabs, then try again.`) as Error & { detail?: string };
+        failure.detail = `The prover crashed${where} after ${seconds} s${memory}.${e.message ? ` (${e.message}${e.filename ? ` at ${e.filename.split('/').pop()}:${e.lineno}` : ''})` : ''}`;
+        reject(failure);
       };
       worker.postMessage(request, [request.witness.buffer]);
     });

@@ -7,14 +7,17 @@ import { FRESH_KEY_INDICES, walletName, type AccountRecord, type ContactRecord, 
 /** The private note, in a wallet's sealed log, about its last failed send. */
 const LAST_SEND_FAILURE = 'lastSendFailure';
 const LAST_SEND = 'lastSend';
-import { assertEnvelope, changePassword as reWrapSeed, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeedKeepingKey, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
+/** The private note that a send has started and not yet ended: found at an unlock, it is a send the app was closed during. */
+const SEND_IN_PROGRESS = 'sendInProgress';
+import { assertEnvelope, changePassword as reWrapSeed, checkSecret, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeedKeepingKey, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
 import { CHAIN_PARTS, ENGINE_PARTS, type WalletPart } from '../backend/types';
 import { EngineParts } from './engineParts';
 import type { PasskeyProvider } from './passkey';
 import { addressKindLabel } from '../util/address';
 import { distinctNames } from './contacts';
 import type { WalletCore } from '../backend/types';
-import type { LastSend } from './send';
+import type { LastSend, SendStarted } from './send';
+import { labelsFromFile, readLabels, type AddressLabels } from './addressLabels';
 
 export type LockListener = (locked: boolean) => void;
 
@@ -67,6 +70,23 @@ export function lockTimeoutOf(ms: number | undefined): number {
   return ms !== undefined && LOCK_CHOICES_MS.includes(ms) ? ms : DEFAULT_LOCK_MS;
 }
 
+/**
+ * How soon after going to the background the wallet locks: at once (the
+ * default), or after a short grace for copying an address into another app
+ * and coming back. Never longer: an unlocked wallet out of sight is what
+ * the lock is for.
+ */
+export const BACKGROUND_LOCK_CHOICES_MS = [0, 30_000, 120_000];
+export function backgroundLockOf(ms: number | undefined): number {
+  return ms !== undefined && BACKGROUND_LOCK_CHOICES_MS.includes(ms) ? ms : 0;
+}
+
+/** How long before the idle lock the person is warned, and can stay unlocked. */
+export const IDLE_WARNING_MS = 30_000;
+
+/** The longest a file or image picker may keep the page hidden without the wallet locking. */
+const PICKER_HOLD_MS = 2 * 60 * 1000;
+
 export class AccountService {
   private unlockedId: string | null = null;
   private idleTimer: ReturnType<typeof setInterval> | null = null;
@@ -74,6 +94,16 @@ export class AccountService {
   private lastActivityAt = 0;
   private readonly listeners = new Set<LockListener>();
   private visibilityHandler: (() => void) | null = null;
+  /** The grace after going to the background; see BACKGROUND_LOCK_CHOICES_MS. */
+  private backgroundLockMs = 0;
+  /** When the page was hidden, while it is. */
+  private hiddenAt: number | null = null;
+  private backgroundTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Until when a picker the app opened may keep the page hidden. */
+  private pickerUntil = 0;
+  /** Told when the idle lock is near (the time left), and when it no longer is (null). */
+  private readonly warningListeners = new Set<(leftMs: number | null) => void>();
+  private warned = false;
   // While a send is running the seed must stay loaded, so the background
   // and idle locks are deferred and applied once the send finishes.
   private lockDeferred = false;
@@ -138,6 +168,20 @@ export class AccountService {
       }
     }
     this.engine.opened(accountId, await this.core.storeOpen(accountId));
+  }
+
+  /**
+   * When the wallet's log would not open: keep it whole under another name,
+   * carry on in a fresh log with what could still be read of it, and let
+   * the sync rebuild the coins and history from the chain. Answers how many
+   * entries could not be read.
+   */
+  async setAsideStore(accountId: string): Promise<number> {
+    if (!this.core.storeSetAside) throw new Error("This build of the wallet core cannot rebuild a wallet's history.");
+    const passedOver = await this.core.storeSetAside(accountId, { accounts: [await this.db.get('accounts', accountId)] });
+    this.engine.recovered(accountId);
+    await this.openStore(accountId);
+    return passedOver;
   }
 
   /** What the database holds of one part of one wallet, for the engine to take over and check itself against. */
@@ -333,6 +377,36 @@ export class AccountService {
     await this.core.storeCommit!(accountId, [note ? { op: 'putPrivate', key: LAST_SEND, value: note } : { op: 'deletePrivate', key: LAST_SEND }]);
   }
 
+  /** The note that a send is running, or null; kept like the others. Throws while locked. */
+  async sendInProgress(accountId: string): Promise<SendStarted | null> {
+    if (this.engine.where(accountId, 'private') !== 'engine') return null;
+    const notes = (await this.core.storeRead!(accountId, 'private')) as { key: string; value: SendStarted }[];
+    return notes.find((n) => n.key === SEND_IN_PROGRESS)?.value ?? null;
+  }
+
+  /** Keep, or with null clear, the note that a send is running. Throws while locked. */
+  async setSendInProgress(accountId: string, note: SendStarted | null): Promise<void> {
+    if (this.engine.where(accountId, 'private') !== 'engine') return;
+    await this.core.storeCommit!(accountId, [note ? { op: 'putPrivate', key: SEND_IN_PROGRESS, value: note } : { op: 'deletePrivate', key: SEND_IN_PROGRESS }]);
+  }
+
+  /**
+   * Proves the person is the wallet's owner with the passkey: the system's
+   * sheet (fingerprint, face or device PIN), and a check that the secret it
+   * gives opens this wallet's content key. Nothing else is opened.
+   */
+  async verifyPasskey(accountId: string): Promise<void> {
+    if (!this.passkeys) throw new Error('Passkeys are not available here');
+    const record = await this.db.get('accounts', accountId);
+    if (!record?.passkey) throw new Error('No passkey is set up for this wallet');
+    const secret = await this.passkeys.secret(record.passkey.credentialId, record.passkey.prfSalt);
+    try {
+      await checkSecret(record.passkey.wrappedContentKey, secret);
+    } finally {
+      secret.fill(0);
+    }
+  }
+
   /** Proves the password opens this wallet; throws WrongPasswordError otherwise. */
   async verifyPassword(accountId: string, password: string): Promise<void> {
     const record = await this.db.get('accounts', accountId);
@@ -482,6 +556,10 @@ export class AccountService {
     this.unlockedId = null;
     this.lockPending = false;
     this.clearIdleTimer();
+    if (this.warned) {
+      this.warned = false;
+      for (const l of this.warningListeners) l(null);
+    }
     for (const l of this.listeners) l(true);
     this.engine.forgetAll();
     await this.forget();
@@ -492,14 +570,44 @@ export class AccountService {
     if (this.unlockedId === null) return;
     this.lockPending = false;
     this.lastActivityAt = Date.now();
+    if (this.warned) {
+      this.warned = false;
+      for (const l of this.warningListeners) l(null);
+    }
     if (this.idleTimer === null) {
       // A look at the clock every little while, not one long timer. A timer
       // stops while the device sleeps and carries on where it left off, so
       // a laptop closed for the night and opened in the morning would stay
       // unlocked for the rest of its idle time. The clock does not stop.
-      const every = Math.max(5, Math.min(15_000, Math.floor(this.lockTimeoutMs / 4)));
+      // Often enough to warn in time before the lock.
+      const every = Math.max(5, Math.min(5_000, Math.floor(this.lockTimeoutMs / 4)));
       this.idleTimer = setInterval(() => this.lockIfIdle(), every);
     }
+  }
+
+  /**
+   * Told when the idle lock is near, with the time left, and with null when
+   * activity put it off again or the wallet locked. The screen offers to
+   * stay unlocked.
+   */
+  onIdleWarning(listener: (leftMs: number | null) => void): () => void {
+    this.warningListeners.add(listener);
+    return () => this.warningListeners.delete(listener);
+  }
+
+  /** A grace after going to the background, chosen in Settings. */
+  setBackgroundLock(ms: number): void {
+    this.backgroundLockMs = ms;
+  }
+
+  /**
+   * The app is about to open a system picker (a file, an image): on some
+   * phones that hides the page, and locking then would lose what the
+   * person was doing. The background lock waits until the page is back, two
+   * minutes at most.
+   */
+  holdBackgroundLock(): void {
+    this.pickerUntil = Date.now() + PICKER_HOLD_MS;
   }
 
   /**
@@ -515,10 +623,23 @@ export class AccountService {
     this.touch();
   }
 
-  /** Lock when the idle time has passed by the wall clock. Also asked when the app comes back into view. */
+  /**
+   * Lock when the idle time has passed by the wall clock, and warn when it
+   * is about to. Also asked when the app comes back into view.
+   */
   lockIfIdle(): void {
     if (this.unlockedId === null) return;
-    if (Date.now() - this.lastActivityAt >= this.lockTimeoutMs) this.requestLock();
+    const idle = Date.now() - this.lastActivityAt;
+    if (idle >= this.lockTimeoutMs) {
+      this.requestLock();
+      return;
+    }
+    // Not while a send runs: its lock waits for the send anyway.
+    const left = this.lockTimeoutMs - idle;
+    if (left <= IDLE_WARNING_MS && !this.lockDeferred) {
+      this.warned = true;
+      for (const l of this.warningListeners) l(left);
+    }
   }
 
   /**
@@ -538,12 +659,49 @@ export class AccountService {
     else void this.lock();
   }
 
-  /** Lock as soon as the page is hidden (backgrounded or tab switched). */
+  /** Lock now, or once a running send is done with the keys: a keyboard shortcut must not cut a send short. */
+  lockWhenFree(): void {
+    this.requestLock();
+  }
+
+  /** Whether a lock is waiting for a running send to finish. */
+  get lockWaiting(): boolean {
+    return this.lockPending;
+  }
+
+  /**
+   * Lock when the page is hidden (backgrounded or tab switched): at once,
+   * or after the grace chosen in Settings, or once a picker the app opened
+   * is done. Timers stop while a phone sleeps, so coming back checks the
+   * clock too, and a wait longer than allowed locks then.
+   */
   installVisibilityLock(doc: Document = document): () => void {
     this.doc = doc;
+    const clearBackgroundTimer = () => {
+      if (this.backgroundTimer !== null) clearTimeout(this.backgroundTimer);
+      this.backgroundTimer = null;
+    };
     this.visibilityHandler = () => {
-      if (doc.visibilityState === 'hidden') this.requestLock();
+      if (doc.visibilityState === 'hidden') {
+        this.hiddenAt = Date.now();
+        const wait = Math.max(this.backgroundLockMs, this.pickerUntil - Date.now());
+        if (wait <= 0) {
+          this.requestLock();
+          return;
+        }
+        clearBackgroundTimer();
+        this.backgroundTimer = setTimeout(() => {
+          if (doc.visibilityState === 'hidden') this.requestLock();
+        }, wait);
+        return;
+      }
       // Coming back: not every platform hid the page while it was away.
+      clearBackgroundTimer();
+      const away = this.hiddenAt === null ? 0 : Date.now() - this.hiddenAt;
+      const allowed = Math.max(this.backgroundLockMs, this.pickerUntil - (this.hiddenAt ?? 0));
+      this.hiddenAt = null;
+      this.pickerUntil = 0;
+      if (this.unlockedId !== null && away > allowed) this.requestLock();
       else this.lockIfIdle();
     };
     const back = () => this.lockIfIdle();
@@ -574,10 +732,12 @@ export class AccountService {
       this.engine.where(accountId, 'contacts') === 'engine'
         ? ((await this.core.storeRead!(accountId, 'contacts')) as ContactRecord[])
         : await this.db.getAllFromIndex('contacts', 'byAccount', accountId);
+    // Who each address was given to goes with the contacts, encrypted.
+    const labels = await readLabels(this.core, this.engine, accountId).catch(() => ({}));
     return sealBackup(
       { network: record.network, birthdayHeight: record.birthdayHeight, exportedAt: Date.now() },
       record.envelope,
-      { contacts: contacts.map((c) => ({ name: c.name, address: c.address })) },
+      { contacts: contacts.map((c) => ({ name: c.name, address: c.address })), ...(Object.keys(labels).length > 0 ? { labels } : {}) },
       password,
       this.derive,
     );
@@ -634,10 +794,12 @@ export class AccountService {
     // one: the file's own cannot be opened by the unlock path, by design.
     let envelope: SeedEnvelope;
     let fromFile: unknown;
+    let labels: AddressLabels = {};
     if (file.version === 3) {
       const opened = await openBackup(file, password, this.derive);
       envelope = opened.envelope;
       fromFile = opened.secrets.contacts;
+      labels = labelsFromFile(opened.secrets.labels);
     } else {
       envelope = file.envelope;
       fromFile = file.contacts;
@@ -693,6 +855,9 @@ export class AccountService {
       if (this.core.storeCommit && rows.length > 0) {
         if (this.engine.where(record.id, 'contacts') === 'engine') await this.core.storeCommit(record.id, rows.map((contact) => ({ op: 'putContact' as const, contact })));
         else for (const row of rows) await this.db.put('contacts', row);
+      }
+      if (this.core.storeCommit && Object.keys(labels).length > 0 && this.engine.where(record.id, 'private') === 'engine') {
+        await this.core.storeCommit(record.id, [{ op: 'putPrivate', key: 'addressLabels', value: labels }]);
       }
       if (epoch !== this.epoch) throw new UnlockCancelledError();
       this.setUnlocked(record.id);

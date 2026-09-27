@@ -12,7 +12,7 @@ import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OpenElsewhere } from './components/OpenElsewhere';
 import { captureInstallPrompt } from './app/install';
-import { installNativeBehaviour } from './app/platform';
+import { installNativeBehaviour, NATIVE } from './app/platform';
 import { AppProvider } from './app/AppContext';
 import { createServices, type Services } from './app/services';
 import { browserWindowOwner } from './app/windowOwner';
@@ -30,6 +30,13 @@ function Root() {
   }, [owner]);
   useEffect(() => {
     if (where !== 'here') return;
+    // In a browser the wallet engine needs shared memory, which a page has
+    // only when it is cross-origin isolated. Without it the engine cannot
+    // start, and saying so in words beats the engine's own error.
+    if (!NATIVE && (!self.crossOriginIsolated || typeof SharedArrayBuffer === 'undefined')) {
+      setError("this browser does not give this page the shared memory the wallet engine needs (cross-origin isolation). Reload the page; if that does not help, use another browser, or the desktop app. Nothing on this device was changed.");
+      return;
+    }
     createServices(owner).then(
       (s) => {
         owner.beforeRelease = () => s.accounts.lock();
@@ -43,7 +50,8 @@ function Root() {
   }, [where, owner]);
   if (where === 'elsewhere') return <OpenElsewhere owner={owner} onHere={() => setWhere('here')} />;
   if (error) return <Text c="var(--v-danger-text)">Could not start: {error}</Text>;
-  if (!services) return <Loader className="vault-starting" aria-label="Starting" />;
+  // Said by what it is, not as a spinner with a label nothing reads.
+  if (!services) return <Loader className="vault-starting" role="status" aria-label="Starting" />;
   return (
     <AppProvider services={services}>
       <BrowserRouter>

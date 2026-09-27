@@ -1,6 +1,6 @@
-import { Box, Container, Group, Loader } from '@mantine/core';
+import { Box, Button, Container, Group, Loader, Modal, Stack, Text } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import { useApp } from './app/AppContext';
@@ -99,6 +99,30 @@ export function App() {
     heading.focus({ preventScroll: true });
   }, [pathname]);
 
+  // Unlocking keeps the screen's path, and the password field that had the
+  // focus is gone: the screen's heading takes it, as after a change of screen.
+  const wasLocked = useRef(locked);
+  useEffect(() => {
+    const unlocked = wasLocked.current && !locked;
+    wasLocked.current = locked;
+    if (!unlocked) return;
+    const frame = requestAnimationFrame(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const heading = document.querySelector<HTMLElement>('main h2');
+      if (!heading) return;
+      if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [locked]);
+
+  // Whether this device has a wallet on any network: the header's menu is
+  // the way back from a network without one.
+  const [anyWallet, setAnyWallet] = useState(false);
+  useEffect(() => {
+    void services.db.count('accounts').then((n) => setAnyWallet(n > 0), () => undefined);
+  }, [services, account]);
+
   // Keyboard shortcuts, in the desktop app only: in a browser these keys
   // belong to the browser (Ctrl+L is its address bar, Ctrl+1 its first tab).
   // Ctrl or Cmd with L locks; with 1 to 4 opens a tab; with N starts a send.
@@ -113,7 +137,8 @@ export function App() {
       const key = event.key.toLowerCase();
       if (key === 'l' && open) {
         event.preventDefault();
-        void services.accounts.lock();
+        // During a send, once the send is done with the keys: a lock now would end it without a word.
+        services.accounts.lockWhenFree();
       } else if (key === 'n' && open) {
         event.preventDefault();
         // A new send: an empty form, not the half-filled one of before.
@@ -127,9 +152,30 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, services, navigate]);
 
+  // Anything the person does postpones the idle lock: not only a click or a
+  // key, but a touch, scrolling, typing, and focus moving on (a screen
+  // reader reading). At most once a second. While the warning before the
+  // lock is showing, focus moving into it is the app, not the person.
+  const warningOpen = useRef(false);
+  useEffect(() => {
+    let last = 0;
+    const onActivity = (event: Event) => {
+      if (event.type === 'focusin' && warningOpen.current) return;
+      const now = Date.now();
+      if (now - last < 1000) return;
+      last = now;
+      services.accounts.touch();
+    };
+    const kinds = ['pointerdown', 'keydown', 'focusin', 'input', 'wheel', 'scroll', 'touchstart'];
+    for (const kind of kinds) window.addEventListener(kind, onActivity, { capture: true, passive: true });
+    return () => {
+      for (const kind of kinds) window.removeEventListener(kind, onActivity, { capture: true });
+    };
+  }, [services]);
+
   // Do not route until the stored account has been looked up, or a reload
   // would bounce an existing account to onboarding.
-  if (!ready) return <Loader className="vault-starting" aria-label="Starting" />;
+  if (!ready) return <Loader className="vault-starting" role="status" aria-label="Starting" />;
 
   // Any interaction postpones the idle lock, and from the first one on a
   // change of screen moves focus to its heading.
@@ -148,6 +194,21 @@ export function App() {
 
   return (
     <Box onClick={touch} onKeyDown={touch} className={showTabs ? 'vault-shell has-tabs' : 'vault-shell'}>
+      {/* The navigation comes after the screen in the page, so a keyboard
+          reaches it last: this link, first of all and shown when focused,
+          goes straight there. */}
+      {showTabs && (
+        <a
+          href="#main-nav"
+          className="vault-skip"
+          onClick={(e) => {
+            e.preventDefault();
+            document.querySelector<HTMLElement>('#main-nav a')?.focus();
+          }}
+        >
+          Skip to navigation
+        </a>
+      )}
       <header className="vault-topbar">
         <Container size="xs" py="sm" className="vault-topbar-inner">
           <Group justify="space-between" align="center">
@@ -160,8 +221,9 @@ export function App() {
             </h1>
             {/* Until a wallet exists the header is the brand alone: setup keeps
                 the network question out of a newcomer's way, and the header
-                should not ask it either. */}
-            {account && <NetworkMenu />}
+                should not ask it either. Once one does, on any network, the
+                menu stays: it is the way back from a network without one. */}
+            {(account || anyWallet) && <NetworkMenu />}
           </Group>
         </Container>
       </header>
@@ -188,7 +250,7 @@ export function App() {
         </Routes>
       </Container>
       {showTabs && (
-        <nav className="vault-tabbar" aria-label="Main">
+        <nav className="vault-tabbar" aria-label="Main" id="main-nav">
           <Container size="xs" px={0} className="vault-tabbar-inner">
             <Group gap={0} wrap="nowrap" className="vault-tabs">
               {TABS.map(({ to, label, Icon }, i) => (
@@ -201,6 +263,110 @@ export function App() {
           </Container>
         </nav>
       )}
+      {showTabs && <IdleWarning onOpen={(open) => (warningOpen.current = open)} />}
+      <CloseGuard />
     </Box>
+  );
+}
+
+/**
+ * Before the idle lock: a warning that it is coming, and a way to stay
+ * unlocked. Reading, or writing a seed phrase down by hand, looks idle to
+ * the app, and a lock without warning takes the screen away mid-way.
+ */
+function IdleWarning({ onOpen }: { onOpen: (open: boolean) => void }) {
+  const { services } = useApp();
+  const [deadline, setDeadline] = useState<number | null>(null);
+  const [, setTick] = useState(0);
+  useEffect(
+    () =>
+      services.accounts.onIdleWarning((left) => {
+        setDeadline((current) => (left === null ? null : (current ?? Date.now() + left)));
+      }),
+    [services],
+  );
+  useEffect(() => {
+    onOpen(deadline !== null);
+    if (deadline === null) return;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [deadline, onOpen]);
+  const seconds = deadline === null ? 0 : Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+  const stay = () => services.accounts.touch();
+  return (
+    <Modal opened={deadline !== null} onClose={stay} title="The wallet is about to lock" withCloseButton={false}>
+      <Stack>
+        <Text size="sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          Nothing has happened here for a while, so the wallet locks in {seconds} {seconds === 1 ? 'second' : 'seconds'}.
+        </Text>
+        <Button onClick={stay} data-autofocus>
+          Stay unlocked
+        </Button>
+      </Stack>
+    </Modal>
+  );
+}
+
+/**
+ * Closing the app or the tab while a send runs: asked first. Before the
+ * send reaches the node, closing stops it and nothing is sent; while it is
+ * handed over, the next unlock says how it ended.
+ */
+function CloseGuard() {
+  const { sendJob } = useApp();
+  const running = Boolean(sendJob && !sendJob.done);
+  const handing = sendJob?.progress.stage === 'submitting';
+  const [asking, setAsking] = useState(false);
+  useEffect(() => {
+    if (!running) return;
+    if (!NATIVE) {
+      // The browser asks, in its own words; the page cannot choose them.
+      const onLeave = (event: BeforeUnloadEvent) => {
+        event.preventDefault();
+        event.returnValue = '';
+      };
+      window.addEventListener('beforeunload', onLeave);
+      return () => window.removeEventListener('beforeunload', onLeave);
+    }
+    let unlisten: (() => void) | null = null;
+    let done = false;
+    void import('@tauri-apps/api/window')
+      .then(({ getCurrentWindow }) =>
+        getCurrentWindow().onCloseRequested((event) => {
+          event.preventDefault();
+          setAsking(true);
+        }),
+      )
+      .then((stop) => {
+        if (done) stop();
+        else unlisten = stop;
+      }, () => undefined);
+    return () => {
+      done = true;
+      unlisten?.();
+    };
+  }, [running]);
+  const closeAnyway = async () => {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    await getCurrentWindow().destroy();
+  };
+  return (
+    <Modal opened={asking && running} onClose={() => setAsking(false)} title="Close while sending?">
+      <Stack>
+        <Text size="sm">
+          {handing
+            ? 'The send is being handed to the node right now. If you close the app, the next unlock says whether it went out.'
+            : 'A send is being prepared. Closing now stops it, and nothing has been sent yet.'}
+        </Text>
+        <Group grow>
+          <Button variant="default" onClick={() => setAsking(false)} data-autofocus>
+            Keep sending
+          </Button>
+          <Button color="red" onClick={() => void closeAnyway()}>
+            Close anyway
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }

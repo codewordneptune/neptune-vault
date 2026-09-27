@@ -504,6 +504,61 @@ describe('account service', () => {
     expect(service.currentAccountId).toBeNull();
   });
 
+  it('waits the grace chosen before locking in the background, and locks on a return after a longer absence', async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const { service } = await setup(5 * 60 * 1000);
+    await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const doc = { visibilityState: 'visible', listeners: [] as Array<() => void>, addEventListener(_: string, f: () => void) { this.listeners.push(f); }, removeEventListener() {} };
+    service.installVisibilityLock(doc as unknown as Document);
+    const show = (state: 'visible' | 'hidden') => {
+      doc.visibilityState = state;
+      for (const f of doc.listeners) f();
+    };
+    service.setBackgroundLock(150);
+    show('hidden');
+    await sleep(40);
+    expect(service.currentAccountId).not.toBeNull();
+    show('visible');
+    await sleep(200);
+    expect(service.currentAccountId).not.toBeNull();
+    show('hidden');
+    await sleep(220);
+    expect(service.currentAccountId).toBeNull();
+  });
+
+  it('does not lock under a picker the app opened, however it hides the page', async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const { service } = await setup(5 * 60 * 1000);
+    await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const doc = { visibilityState: 'visible', listeners: [] as Array<() => void>, addEventListener(_: string, f: () => void) { this.listeners.push(f); }, removeEventListener() {} };
+    service.installVisibilityLock(doc as unknown as Document);
+    service.holdBackgroundLock();
+    doc.visibilityState = 'hidden';
+    for (const f of doc.listeners) f();
+    await sleep(30);
+    doc.visibilityState = 'visible';
+    for (const f of doc.listeners) f();
+    expect(service.currentAccountId).not.toBeNull();
+    // The hold is for that picker only: the next time in the background locks at once.
+    doc.visibilityState = 'hidden';
+    for (const f of doc.listeners) f();
+    await sleep(10);
+    expect(service.currentAccountId).toBeNull();
+  });
+
+  it('warns before the idle lock, and activity puts the warning away', async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const { service } = await setup(400);
+    await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const warnings: (number | null)[] = [];
+    service.onIdleWarning((left) => warnings.push(left));
+    await sleep(150);
+    expect(warnings.some((w) => typeof w === 'number' && w > 0)).toBe(true);
+    service.touch();
+    expect(warnings.at(-1)).toBeNull();
+    expect(service.currentAccountId).not.toBeNull();
+  });
+
   it('keeps a stored idle time only when it is one of the choices', () => {
     expect(lockTimeoutOf(15 * 60 * 1000)).toBe(15 * 60 * 1000);
     expect(lockTimeoutOf(7 * 60 * 1000)).toBe(DEFAULT_LOCK_MS);

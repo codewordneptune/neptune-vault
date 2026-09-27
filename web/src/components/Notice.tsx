@@ -16,7 +16,7 @@
 
 import { CloseButton } from '@mantine/core';
 import { IconAlertTriangle, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
-import type { HTMLAttributes, ReactNode } from 'react';
+import { useEffect, useRef, type HTMLAttributes, type ReactNode } from 'react';
 
 type NoticeProps = {
   title?: ReactNode;
@@ -26,7 +26,23 @@ type NoticeProps = {
   /** Shows a close button that calls this. */
   onClose?: () => void;
   closeLabel?: string;
+  /**
+   * Take the focus when it appears, so it is read out as focus arrives: for
+   * the result of something just done. A live region created together with
+   * its text is often not announced at all.
+   */
+  focusOnMount?: boolean;
 } & Omit<HTMLAttributes<HTMLDivElement>, 'title'>;
+
+/**
+ * Where focus goes when a notice closes itself: the heading of the card it
+ * was in, or of the screen. The close button is gone with it.
+ */
+function headingNear(from: HTMLElement): HTMLElement | null {
+  const heading = from.closest('.mantine-Paper-root')?.querySelector<HTMLElement>('h2, h3') ?? document.querySelector<HTMLElement>('main h2');
+  if (heading && !heading.hasAttribute('tabindex')) heading.tabIndex = -1;
+  return heading;
+}
 
 const ICONS = {
   caution: <IconAlertTriangle size={18} stroke={1.8} />,
@@ -34,9 +50,16 @@ const ICONS = {
   done: <IconCircleCheck size={18} stroke={1.8} />,
 };
 
-function Notice({ tier, title, children, icon, onClose, closeLabel, className, ...rest }: NoticeProps & { tier: 'caution' | 'info' | 'done' }) {
+function Notice({ tier, title, children, icon, onClose, closeLabel, className, focusOnMount, ...rest }: NoticeProps & { tier: 'caution' | 'info' | 'done' }) {
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!focusOnMount) return;
+    // After a dialog that led here has closed and handed focus back.
+    const t = setTimeout(() => root.current?.focus(), 300);
+    return () => clearTimeout(t);
+  }, [focusOnMount]);
   return (
-    <div className={`vault-notice vault-${tier}${className ? ' ' + className : ''}`} {...rest}>
+    <div ref={root} tabIndex={focusOnMount ? -1 : undefined} className={`vault-notice vault-${tier}${className ? ' ' + className : ''}`} {...rest}>
       <span className="vault-notice-icon" aria-hidden>
         {icon ?? ICONS[tier]}
       </span>
@@ -51,7 +74,9 @@ function Notice({ tier, title, children, icon, onClose, closeLabel, className, .
           aria-label={closeLabel ?? 'Dismiss'}
           onClick={(e) => {
             e.stopPropagation();
+            const heading = headingNear(e.currentTarget);
             onClose();
+            heading?.focus({ preventScroll: true });
           }}
         />
       )}
@@ -69,5 +94,6 @@ export function Info(props: NoticeProps) {
 
 /** The result of an action, announced; see the rules at the top. */
 export function Done(props: NoticeProps) {
-  return <Notice tier="done" role="status" {...props} />;
+  // One that takes the focus is read out as it does; a live region as well would say it twice.
+  return <Notice tier="done" role={props.focusOnMount ? undefined : 'status'} {...props} />;
 }

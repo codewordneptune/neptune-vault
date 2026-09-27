@@ -11,7 +11,8 @@
 // one begins, so that this pass, the mempool watcher and a send cannot
 // undo one another's work.
 
-import type { NodeClient } from '../node/rpc';
+import { NodeError, nodeNetworkLabel, type NodeClient } from '../node/rpc';
+import { networkLabel } from '../util/network';
 import type { Network, VaultDb } from '../storage/db';
 import { NOT_LINKED, type LedgerAnswer, type LedgerOp, type ScanSettings, type WalletCore } from '../backend/types';
 
@@ -20,6 +21,14 @@ export interface SyncProgress {
   syncedHeight: number;
   tipHeight: number;
   message?: string;
+  /** When the node's newest block was made, by the chain's clock. */
+  tipTimestampMs?: number;
+  /** An error because the node did not answer as a node, rather than a problem with the wallet. */
+  nodeDown?: boolean;
+  /** The node answered too slowly to sync; the app waits longer before trying again. */
+  slow?: boolean;
+  /** Sends this pass found no block can take any more: their ids. */
+  expired?: string[];
 }
 
 export interface SyncOptions {
@@ -43,6 +52,38 @@ const NO_INDEX = 'This node does not support fast restore. Rescan from a block o
 /** A fast restore stops asking after this many rounds and says so, rather than reporting a restore it cannot vouch for. */
 const RESTORE_ROUNDS = 40;
 
+/** Where a wallet made while the node could not be reached starts: this long before it was made. */
+const START_MARGIN_MS = 24 * 60 * 60 * 1000;
+
+/** The fast restore's progress, kept in the sealed log so an interrupted one carries on where it was. */
+const RESTORE_PROGRESS = 'fastRestoreProgress';
+
+/** What the full-storage message says, whatever the storage underneath called it. */
+export const STORAGE_FULL = 'This device is out of storage space for the wallet. Your coins are safe on the chain; free some space, then sync again.';
+
+/** Storage refusing a write for want of space: IndexedDB's quota, or a full disk under the desktop app. */
+function isStorageFull(message: string): boolean {
+  return /quota|no space left|not enough space|disk (is )?full|os error (28|112)/i.test(message);
+}
+
+/** A short digest of a text: to tell two sets of coins apart without keeping either. */
+async function digest(text: string): Promise<string> {
+  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+  return Array.from(bytes.slice(0, 16), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Blocks asked for in one batch, per wallet, across passes: halved after a
+ * batch the node was too slow to send, grown back after batches that came.
+ */
+const batchFor = new Map<string, number>();
+
+/** Forget how slow a wallet's node was: the wallet was removed, or the tests start afresh. */
+export function forgetBatchSize(accountId?: string): void {
+  if (accountId === undefined) batchFor.clear();
+  else batchFor.delete(accountId);
+}
+
 export class SyncEngine {
   private node!: NodeClient;
   private readonly batchSize: number;
@@ -53,6 +94,8 @@ export class SyncEngine {
   private running = false;
   private stopRequested = false;
   private current: Promise<SyncProgress> | null = null;
+  /** The node's newest block time, as last seen: for telling a node that has fallen behind. */
+  private tipTimestampMs: number | undefined;
 
   /**
    * `nodeSource` is a node, or how to get the node for a network. The
@@ -143,7 +186,7 @@ export class SyncEngine {
         const theirs = await this.node.network();
         const ours = account.network;
         if (theirs !== null && !(theirs === ours || (ours === 'testnet' && theirs.startsWith('testnet')))) {
-          throw new Error(`This node runs the ${theirs} network and this wallet is on ${ours}. Check the node URL in Settings.`);
+          throw new Error(`This node runs ${nodeNetworkLabel(theirs)}, and this wallet is on ${networkLabel(ours)}. Check the node URL in Settings.`);
         }
         this.networkCheckedFor = this.node.url;
       }
@@ -158,10 +201,12 @@ export class SyncEngine {
         if (outcome === NO_INDEX && restore === 'rebuild') await this.ledger({ op: 'clearRestore' });
         else if (outcome !== 'done') return this.progress('error', 0, tip.height, outcome);
       }
-      // The engine sets a missing or too-high start height to the tip, but
-      // only before the first scan, and refuses a node whose tip is below
-      // what this wallet has already scanned.
-      let position = await this.ledger({ op: 'startPass', tipHeight: tip.height });
+      this.tipTimestampMs = typeof tip.timestamp === 'number' ? tip.timestamp : undefined;
+      // The engine sets a missing start height to the block of the wallet's
+      // creation (less a margin) when that can be found, else to the tip,
+      // and a too-high one to the tip, but only before the first scan; and
+      // refuses a node whose tip is below what this wallet has already scanned.
+      let position = await this.ledger({ op: 'startPass', tipHeight: tip.height, startHint: await this.startHint(account.createdAt) });
 
       this.progress('checking', position.syncedHeight, tip.height);
       const rolledBackTo = await this.rollBackIfForked(position.syncedHeight, position.syncedHash);
@@ -174,10 +219,34 @@ export class SyncEngine {
       // blocks in the wallet.
       let prevHash = position.syncedHash;
       let unlinked = 0;
+      let batch = batchFor.get(this.accountId) ?? this.batchSize;
+      let good = 0;
       while (height <= tip.height && !this.stopRequested) {
-        const to = Math.min(height + this.batchSize - 1, tip.height);
+        const to = Math.min(height + batch - 1, tip.height);
         this.progress('scanning', height - 1, tip.height);
-        const blocksResponse = await this.node.getBlocksRaw(height, to);
+        let blocksResponse: string;
+        try {
+          blocksResponse = await this.node.getBlocksRaw(height, to);
+        } catch (e) {
+          // Too slow to arrive in time: ask for fewer blocks at once, here
+          // and on the passes that follow, rather than fetching the same
+          // megabytes again and again. At one block, the node is too slow
+          // to reach from here, and the app waits longer before retrying.
+          if (!(e instanceof NodeError) || e.code !== 'timeout' || this.stopRequested) throw e;
+          if (batch > 1) {
+            batch = Math.max(1, Math.floor(batch / 2));
+            batchFor.set(this.accountId, batch);
+            continue;
+          }
+          return this.progress('error', height - 1, tip.height, 'The node is too slow to reach from here, so syncing is paused. It tries again in a few minutes, or retry now.', { nodeDown: true, slow: true });
+        }
+        // Batches that arrive earn back their size, a step at a time.
+        if (batch < this.batchSize && ++good >= 4) {
+          batch = Math.min(this.batchSize, batch * 2);
+          good = 0;
+          if (batch >= this.batchSize) batchFor.delete(this.accountId);
+          else batchFor.set(this.accountId, batch);
+        }
         // Asked to stop while the batch was in flight: leave it unwritten,
         // and say nothing, since whoever asked is about to start over.
         if (this.stopRequested) return { phase: 'scanning', syncedHeight: height - 1, tipHeight: tip.height };
@@ -206,14 +275,35 @@ export class SyncEngine {
       }
       const synced = await this.syncedHeight();
       if (this.stopRequested) return { phase: 'scanning', syncedHeight: synced, tipHeight: tip.height };
-      return this.progress('done', synced, tip.height);
+      // Sends of this device no block can take any more, by the chain's
+      // clock: their coins are released and they are marked as expired.
+      const expired = typeof tip.timestamp === 'number' && tip.timestamp > 0 ? await this.ledger({ op: 'expireSends', tipTimestampMs: tip.timestamp }) : [];
+      return this.progress('done', synced, tip.height, undefined, expired.length > 0 ? { expired } : {});
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const raw = e instanceof Error ? e.message : String(e);
       // A lock ends the core's worker under a running pass. That is the lock
       // doing its job, not a sync failure to show on the next unlock; the
       // batch in flight was not written.
-      if (/wallet is locked/i.test(message)) return { phase: 'scanning', syncedHeight: await this.syncedHeight(), tipHeight: 0 };
-      return this.progress('error', await this.syncedHeight(), 0, message);
+      if (/wallet is locked/i.test(raw)) return { phase: 'scanning', syncedHeight: await this.syncedHeight(), tipHeight: 0 };
+      const message = isStorageFull(raw) ? STORAGE_FULL : raw;
+      const nodeDown = e instanceof NodeError && typeof e.code !== 'number';
+      return this.progress('error', await this.syncedHeight(), 0, message, nodeDown ? { nodeDown, slow: e.code === 'timeout' } : {});
+    }
+  }
+
+  /**
+   * Where a wallet made while the node could not be reached starts: the
+   * block of the day before it was made, looked up once, before its first
+   * scan. Null when the start is known, or the node cannot say.
+   */
+  private async startHint(createdAt: number): Promise<number | null> {
+    try {
+      const scan = await this.scanSettings();
+      const [sync] = (await this.core.storeRead!(this.accountId, 'sync')) as unknown[];
+      if (scan.birthdayHeight !== 0 || sync || !(createdAt > START_MARGIN_MS) || typeof this.node.heightForDate !== 'function') return null;
+      return await this.node.heightForDate(createdAt - START_MARGIN_MS);
+    } catch {
+      return null;
     }
   }
 
@@ -231,8 +321,11 @@ export class SyncEngine {
     // can need a second look: it was scanned for a payment before a coin
     // it spends was known, because that coin sits on a key the first round
     // did not ask about. It gets that look once the known coins change.
-    const scanned = new Map<number, string>();
-    const known = async () => (await this.ledger({ op: 'unspentHashes' })).sort().join(',');
+    // Carried over from an earlier attempt that was cut short (a locked
+    // screen, a closed app), so the restore goes on where it was.
+    const scanned = await this.restoreProgress();
+    const known = async () => digest((await this.ledger({ op: 'unspentHashes' })).sort().join(','));
+    let unsaved = 0;
     let lowest = tipHeight;
     let settled = false;
     for (let round = 0; round < RESTORE_ROUNDS; round++) {
@@ -245,7 +338,7 @@ export class SyncEngine {
         throw e;
       }
       const unspent = await this.ledger({ op: 'unspentHashes' });
-      const knownNow = [...unspent].sort().join(',');
+      const knownNow = await digest([...unspent].sort().join(','));
       const spendHeights = unspent.length > 0 ? await this.node.blockHeightsBySpends(await this.ledger({ op: 'absoluteIndexSets' })) : [];
       const again = new Set(spendHeights.filter((h) => scanned.has(h) && scanned.get(h) !== knownNow));
       const todo = [...new Set([...heights, ...spendHeights])]
@@ -257,18 +350,25 @@ export class SyncEngine {
       }
       for (const [i, height] of todo.entries()) {
         if (this.stopRequested) return 'stopped';
-        this.progress('restoring', scanned.size, tipHeight, 'Fast restore: block ' + (i + 1) + ' of ' + todo.length);
+        this.progress('restoring', scanned.size, tipHeight, 'Finding your payments: block ' + (i + 1) + ' of ' + todo.length);
         const blocksResponse = await this.node.getBlocksRaw(height, height);
         if (this.stopRequested) return 'stopped';
         // A single block has no neighbour here to link to; the core still
         // checks it is the height asked for and that it was mined.
         const before = await known();
         const result = await this.ledger({ op: 'scanBlocks', blocksResponse, from: height, to: height, prevHash: null });
+        if (result.blocks.length > 0) {
+          await this.ledger({ op: 'persistScan', result, keepBlocks: this.keepBlocks, now: Date.now() });
+          lowest = Math.min(lowest, height);
+        }
         scanned.set(height, before);
-        if (result.blocks.length === 0) continue;
-        await this.ledger({ op: 'persistScan', result, keepBlocks: this.keepBlocks, now: Date.now() });
-        lowest = Math.min(lowest, height);
+        if (++unsaved >= 10) {
+          await this.keepRestoreProgress(scanned);
+          unsaved = 0;
+        }
       }
+      await this.keepRestoreProgress(scanned);
+      unsaved = 0;
     }
     if (!settled) return 'Fast restore stopped after ' + RESTORE_ROUNDS + ' rounds without finishing, so the balance may be incomplete. Rescan from a block or a date instead.';
     // Hand over a little below the tip: the ordinary scan then walks the
@@ -277,11 +377,27 @@ export class SyncEngine {
     // left nothing to roll back to if that tip was orphaned.
     const handover = Math.max(0, tipHeight - RESTORE_HANDOVER);
     await this.ledger({ op: 'finishFastRestore', handover, lowest, now: Date.now() });
+    await this.core.storeCommit?.(this.accountId, [{ op: 'deletePrivate', key: RESTORE_PROGRESS }]).catch(() => undefined);
     return 'done';
   }
 
-  private progress(phase: SyncProgress['phase'], syncedHeight: number, tipHeight: number, message?: string): SyncProgress {
-    const p: SyncProgress = { phase, syncedHeight, tipHeight, message };
+  /** The heights an interrupted fast restore had scanned, each with the coins known then (as a digest). */
+  private async restoreProgress(): Promise<Map<number, string>> {
+    try {
+      const notes = (await this.core.storeRead!(this.accountId, 'private')) as { key: string; value: { scanned?: [number, string][] } }[];
+      const saved = notes.find((n) => n.key === RESTORE_PROGRESS)?.value.scanned;
+      return new Map(Array.isArray(saved) ? saved.filter((e) => Array.isArray(e) && Number.isSafeInteger(e[0]) && typeof e[1] === 'string') : []);
+    } catch {
+      return new Map();
+    }
+  }
+
+  private async keepRestoreProgress(scanned: Map<number, string>): Promise<void> {
+    await this.core.storeCommit?.(this.accountId, [{ op: 'putPrivate', key: RESTORE_PROGRESS, value: { scanned: [...scanned] } }]).catch(() => undefined);
+  }
+
+  private progress(phase: SyncProgress['phase'], syncedHeight: number, tipHeight: number, message?: string, more: Partial<SyncProgress> = {}): SyncProgress {
+    const p: SyncProgress = { phase, syncedHeight, tipHeight, message, tipTimestampMs: this.tipTimestampMs, ...more };
     this.onProgress(p);
     return p;
   }

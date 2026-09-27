@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { byCreation, type AccountRecord, type HistoryRecord, type Network, type SendFailure, type UtxoRecord } from '../storage/db';
 import type { ScanSettings, SendRequest } from '../backend/types';
 import type { SyncEngine, SyncProgress } from '../wallet/sync';
-import { paymentsTotalNau, RequiresLustrationError, SendBusyError, SendCancelledError, SendUnconfirmedError, type LastSend, type SendOutcome, type SendProgress } from './send';
+import { paymentsTotalNau, RequiresLustrationError, SendBusyError, SendCancelledError, SendNotApprovedError, SendUnconfirmedError, type LastSend, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
 import { useScreenWakeLock, type WakeLockState } from './wakeLock';
 import { clearSendDraft } from './sendDraft';
@@ -58,8 +58,8 @@ export interface AppState {
   refresh: () => Promise<void>;
   /** False until the current account's coins and history have been read once. */
   loaded: boolean;
-  /** Run one sync pass now (also runs on a timer while unlocked). */
-  syncNow: () => Promise<void>;
+  /** Run one sync pass now (also runs on a timer while unlocked, as `auto`, which waits out a slow node). */
+  syncNow: (options?: { auto?: boolean }) => Promise<void>;
   /**
    * Scan again from `height`: the running pass is stopped first, so the
    * local view is rebuilt from the new start and not from where the old
@@ -75,6 +75,8 @@ export interface AppState {
   network: Network;
   /** Lock, select the network, and show its account (or onboarding). */
   switchNetwork: (network: Network) => Promise<void>;
+  /** The app is on this network now, its wallet already open (a backup file restored from another network). */
+  adoptNetwork: (network: Network) => void;
   /** Lock and show another wallet, on whichever network it belongs to. */
   switchAccount: (accountId: string) => Promise<void>;
   /** Remove a wallet from this device and show the next one on its network, or onboarding. */
@@ -86,9 +88,19 @@ export interface AppState {
   /** Whether the screen is being kept on for the running send: 'refused' when the browser would not. */
   screenAwake: WakeLockState;
   /** Run a send as a job: screen kept on, auto-lock deferred, toast at the end. */
-  /** `note` is the payment link's message, kept with the send for the payer's own record. */
-  startSend: (request: SendRequest, note?: string | null) => Promise<SendOutcome>;
+  /**
+   * `note` is the payment link's message, kept with the send for the
+   * payer's own record. With `confirm`, the send waits for `approveSend`
+   * before anything reaches the node; the proof runs meanwhile.
+   */
+  startSend: (request: SendRequest, note?: string | null, options?: { confirm?: boolean }) => Promise<SendOutcome>;
   cancelSend: () => void;
+  /** The running send waits for the person's confirmation (a password or passkey). */
+  awaitingApproval: boolean;
+  /** The person confirmed; the screen has checked the password or passkey. */
+  approveSend: () => void;
+  /** The person declined: the proof stops and nothing is sent. */
+  declineSend: () => void;
   dismissSendJob: () => void;
   /** The current wallet's last failed send, while it is unlocked, until dismissed or a later send goes through. */
   sendFailure: SendFailure | null;
@@ -96,6 +108,8 @@ export interface AppState {
   /** The current wallet's last send that reached the node, until dismissed or confirmed. */
   lastSend: LastSend | null;
   dismissLastSend: () => void;
+  /** Look in the node's mempool for payments on their way in, now (Receive asks while it is open). */
+  checkIncoming: () => Promise<void>;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -196,6 +210,22 @@ export function AppProvider({ services, children }: { services: Services; childr
   useEffect(() => services.accounts.onLockChange(setLocked), [services]);
   useEffect(() => services.accounts.installVisibilityLock(), [services]);
 
+  // One send at a time, decided before anything else happens: a second tap
+  // on "Send now" must not touch the job, the wake lock or the deferred
+  // lock of the send already running.
+  const sending = useRef(false);
+  const sendAbort = useRef<AbortController | null>(null);
+  // The running send's confirmation, while it waits for one.
+  const approval = useRef<((ok: boolean) => void) | null>(null);
+  const declined = useRef(false);
+  const [awaitingApproval, setAwaitingApproval] = useState(false);
+  // A note about a send stopped by a lock cannot be written to the locked
+  // wallet's log; it waits here and is written at the next unlock.
+  const unsavedFailure = useRef<SendFailure | null>(null);
+  // The note on screen about the last send, for refreshes during a send.
+  const lastSendRef = useRef<LastSend | null>(null);
+  lastSendRef.current = lastSend;
+
   // Depends on the account id, not the object: refresh replaces the object,
   // and depending on it would re-trigger refresh forever.
   const accountId = account?.id ?? null;
@@ -253,29 +283,71 @@ export function AppProvider({ services, children }: { services: Services; childr
     } catch {
       // Locked: nothing to show until it is unlocked.
     }
+    // Notes made while the wallet was locked (a send stopped by a lock) are
+    // written now that its log can be.
+    const unsaved = unsavedFailure.current;
+    if (unsaved && unsaved.accountId === accountId) {
+      try {
+        await services.accounts.setLastSendFailure(accountId, unsaved);
+        unsavedFailure.current = null;
+        if (!failure || failure.at < unsaved.at) failure = unsaved;
+      } catch {
+        // Still locked.
+      }
+    }
     // The note about the last send that reached the node. It has done its
-    // work once its row settles: confirmed, given up on, or dropped.
-    let sent: LastSend | null = null;
+    // work once its row settles: confirmed, given up on, or dropped. While a
+    // send of this session runs, the note is that send's own and not news.
+    let sent: LastSend | null = sending.current ? lastSendRef.current : null;
     try {
-      sent = await services.accounts.lastSend(accountId);
+      if (!sending.current) {
+        sent = await services.accounts.lastSend(accountId);
+        // A send the app was closed during: the note it left at the start
+        // says so, and the rows say how far it got.
+        const started = await services.accounts.sendInProgress(accountId);
+        if (started) {
+          const row = rows.find((h) => h.kind === 'sent' && h.status === 'pending' && h.key.includes(':sent:') && h.timestampMs >= started.at);
+          if (row && sent?.txid !== row.txid) {
+            // It reached the point of being handed to the node: it may have gone.
+            sent = { ...started, at: row.timestampMs, txid: row.txid, state: 'unconfirmed' };
+            await services.accounts.setLastSend(accountId, sent);
+          } else if (!row && !(failure && failure.at >= started.at)) {
+            failure = {
+              at: started.at,
+              accountId,
+              amount: showNau(BigInt(started.amountNau)),
+              recipient: started.recipient,
+              others: started.others,
+              message: 'The send stopped before it reached the node, when the app was closed or the wallet locked. Nothing left this wallet.',
+            };
+            await services.accounts.setLastSendFailure(accountId, failure);
+          }
+          await services.accounts.setSendInProgress(accountId, null);
+        }
+      }
       const row = sent ? rows.find((h) => h.kind === 'sent' && h.txid === sent?.txid) : undefined;
-      if (sent && row && row.status !== 'pending') {
+      if (sent && row && row.status !== 'pending' && !sending.current) {
         // Settled. A send that failed without the person giving up on it
-        // was dropped: after "Sent", that is news, so it becomes the note
-        // about a send that did not go through.
-        if (row.status === 'failed' && !/gave up/i.test(row.error ?? '')) {
+        // did not go through: after "Sent", that is news, so it becomes the
+        // note about a send that did not go through, in the engine's words
+        // for why (it expired, or its coins went in another transaction).
+        if (row.status === 'failed' && !row.givenUp && !/gave up/i.test(row.error ?? '')) {
           failure = {
             at: Date.now(),
             accountId,
             amount: showNau(BigInt(sent.amountNau)),
             recipient: sent.recipient,
             others: sent.others,
-            message: 'The node dropped this send, so nothing went out. Its coins are spendable again.',
+            message: row.error ?? 'Not sent. Nothing left this wallet, and its coins are spendable again.',
           };
           await services.accounts.setLastSendFailure(accountId, failure);
         }
         await services.accounts.setLastSend(accountId, null);
         sent = null;
+      } else if (sent && row && sent.state === 'unconfirmed' && row.mempoolSeenAt && !sending.current) {
+        // The node was seen holding a send it never answered about: it went.
+        sent = { ...sent, state: 'submitted' };
+        await services.accounts.setLastSend(accountId, sent);
       }
     } catch {
       // Locked, as above.
@@ -291,20 +363,16 @@ export function AppProvider({ services, children }: { services: Services; childr
     });
   }, [services, accountId]);
 
-  // One send at a time, decided before anything else happens: a second tap
-  // on "Send now" must not touch the job, the wake lock or the deferred
-  // lock of the send already running.
-  const sending = useRef(false);
-  const sendAbort = useRef<AbortController | null>(null);
-
   // The note about a failed send: shown on Home until dismissed, and kept in
   // the wallet's sealed log, so it survives a reload and is never readable
   // while the wallet is locked. A send that fails after the wallet was
-  // locked by hand keeps its note for this session only.
+  // locked keeps its note here until the next unlock, and is written then.
   const noteSendFailure = useCallback(
     (forAccount: string, failure: SendFailure | null) => {
       setSendFailure(failure);
-      void services.accounts.setLastSendFailure(forAccount, failure).catch(() => {});
+      void services.accounts.setLastSendFailure(forAccount, failure).catch(() => {
+        if (failure) unsavedFailure.current = failure;
+      });
     },
     [services],
   );
@@ -320,7 +388,7 @@ export function AppProvider({ services, children }: { services: Services; childr
   );
 
   const startSend = useCallback(
-    async (request: SendRequest, note: string | null = null): Promise<SendOutcome> => {
+    async (request: SendRequest, note: string | null = null, options: { confirm?: boolean } = {}): Promise<SendOutcome> => {
       if (!accountId) throw new Error('no account');
       if (sending.current) throw new SendBusyError();
       sending.current = true;
@@ -340,6 +408,25 @@ export function AppProvider({ services, children }: { services: Services; childr
         others: request.payments.length - 1,
         state,
       });
+      // Written before anything else: should the app be closed during the
+      // send, the next unlock finds it and says how far the send got.
+      const started = Date.now();
+      await services.accounts
+        .setSendInProgress(accountId, { at: started, accountId, amountNau: paymentsTotalNau(request).toString(), feeNau: request.fee_nau ?? '0', recipient: request.payments[0]?.recipient ?? '', others: request.payments.length - 1 })
+        .catch(() => {});
+      // The note about the send before this one, put back should this one
+      // be refused after its own note was written.
+      const earlierNote = lastSendRef.current;
+      let recorded = false;
+      // The person's confirmation, asked for while the proof runs.
+      declined.current = false;
+      let approved: Promise<boolean> | undefined;
+      if (options.confirm) {
+        approved = new Promise<boolean>((resolve) => {
+          approval.current = resolve;
+        });
+        setAwaitingApproval(true);
+      }
       // What Diagnostics shows about the last proof, whichever way it ends.
       let claimVersion = 0;
       let threads = 0;
@@ -359,8 +446,19 @@ export function AppProvider({ services, children }: { services: Services; childr
           }
           setSendJob((job) => (job ? { ...job, progress, provingSince } : job));
           },
-          note,
-          abort.signal,
+          {
+            note,
+            signal: abort.signal,
+            approved,
+            // From the moment the node may hear of it, the sealed note says
+            // the send may have gone, in case the answer never comes back to
+            // this app (closed, or the tab killed). Not shown meanwhile.
+            onRecorded: async (txid) => {
+              recorded = true;
+              await services.accounts.setLastSend(accountId, noteOf(txid, 'unconfirmed')).catch(() => {});
+              await services.accounts.setSendInProgress(accountId, null).catch(() => {});
+            },
+          },
         );
         if (outcome.proving.seconds > 0) {
           void services.updateSettings({
@@ -371,9 +469,10 @@ export function AppProvider({ services, children }: { services: Services; childr
         noteSendFailure(accountId, null);
         clearSendDraft(accountId);
         // Seen as it happened (on Send, or as the toast below), it needs no
-        // note on Home; ended out of sight (backgrounded, or locked as soon
-        // as it finished), it gets one, so it still says how it ended.
-        const seen = document.visibilityState === 'visible' && services.accounts.currentAccountId === accountId;
+        // note on Home; ended out of sight (backgrounded, or about to lock
+        // because a lock waited for the send), it gets one, so it still
+        // says how it ended.
+        const seen = document.visibilityState === 'visible' && services.accounts.currentAccountId === accountId && !services.accounts.lockWaiting;
         noteLastSend(accountId, seen ? null : noteOf(outcome.txid, 'submitted'));
         if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
           notifications.show({ color: 'green', title: 'Sent', message: `${sentText(paymentsTotalNau(request), BigInt(request.fee_nau ?? '0'), services.settings.hideBalance)} It shows as pending until a block confirms it.` });
@@ -381,9 +480,11 @@ export function AppProvider({ services, children }: { services: Services; childr
         await refresh();
         return outcome;
       } catch (e) {
-        // The person cancelled in time: nothing went out, nothing to report.
-        if (e instanceof SendCancelledError) {
-          setSendJob((job) => (job ? { ...job, done: true, error: e.message, ending: 'stopped' } : job));
+        // The person cancelled in time, or did not confirm: nothing went
+        // out, nothing to report beyond saying so.
+        if (e instanceof SendCancelledError || e instanceof SendNotApprovedError) {
+          const said = declined.current ? new SendNotApprovedError().message : e.message;
+          setSendJob((job) => (job ? { ...job, done: true, error: said, ending: 'stopped' } : job));
           throw e;
         }
         // Handed over without an answer: it may have gone through, so it is
@@ -401,17 +502,29 @@ export function AppProvider({ services, children }: { services: Services; childr
           }
           throw e;
         }
-        const message = e instanceof RequiresLustrationError ? null : (e as Error).message;
+        // A lock during a send ends it before the node hears of it: the
+        // failure is the lock, whatever the step that noticed it said.
+        const lockedOut = services.accounts.currentAccountId !== accountId;
+        const message = e instanceof RequiresLustrationError ? null : lockedOut ? 'Nothing was sent: the wallet was locked before the send was finished. Unlock and send again.' : (e as Error).message;
         if (message && provingSince !== null) {
+          // Diagnostics keeps the technical account, where there is one.
+          const detail = (e as Error & { detail?: string }).detail;
           void services.updateSettings({
-            lastProving: { at: Date.now(), claimVersion, threads, peakMb, seconds: (Date.now() - provingSince) / 1000, error: message },
+            lastProving: { at: Date.now(), claimVersion, threads, peakMb, seconds: (Date.now() - provingSince) / 1000, error: detail ?? message },
           });
         }
         setSendJob((job) => (job ? { ...job, done: true, error: message, ending: message ? 'failed' : null } : job));
+        // Refused by the node after its note was written: the note goes back to what it was.
+        if (recorded) noteLastSend(accountId, earlierNote);
         if (message) noteSendFailure(accountId, { at: Date.now(), accountId, amount: showNau(paymentsTotalNau(request)), recipient: request.payments[0]?.recipient ?? '', others: request.payments.length - 1, message });
         if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message });
         throw e;
       } finally {
+        // However it ended, it is no longer running: the note that said so goes.
+        await services.accounts.setSendInProgress(accountId, null).catch(() => {});
+        approval.current?.(false);
+        approval.current = null;
+        setAwaitingApproval(false);
         sending.current = false;
         services.window.busy = false;
         sendAbort.current = null;
@@ -427,6 +540,21 @@ export function AppProvider({ services, children }: { services: Services; childr
     sendAbort.current?.abort();
     services.prover.cancel();
   }, [services]);
+
+  const approveSend = useCallback(() => {
+    approval.current?.(true);
+    approval.current = null;
+    setAwaitingApproval(false);
+  }, []);
+
+  // Declining stops the proof at once: its only use was this send.
+  const declineSend = useCallback(() => {
+    declined.current = true;
+    approval.current?.(false);
+    approval.current = null;
+    setAwaitingApproval(false);
+    cancelSend();
+  }, [cancelSend]);
 
   // Only a finished job is dismissed: a note about an earlier send closed
   // while another proves must not take the running one with it.
@@ -456,8 +584,17 @@ export function AppProvider({ services, children }: { services: Services; childr
     try {
       const r = await services.mempoolWatcher(accountId).poll();
       await refresh();
-      if (r.incoming > 0 && document.visibilityState === 'visible' && window.location.pathname !== '/') {
-        notifications.show({ color: 'green', title: 'Incoming payment', message: `${formatNau(BigInt(r.incomingNau))} NPT is on its way to you, waiting for a block.${BigInt(r.lockedNau) > 0n ? ` ${formatNau(BigInt(r.lockedNau))} NPT of it is time-locked by the payer and cannot be spent before its release date.` : ''}` });
+      // Home and Receive say it where the payment shows; elsewhere a toast
+      // does, without the amount while amounts are hidden.
+      if (r.incoming > 0 && document.visibilityState === 'visible' && window.location.pathname !== '/' && window.location.pathname !== '/receive') {
+        const hide = services.settings.hideBalance;
+        notifications.show({
+          color: 'green',
+          title: 'Incoming payment',
+          message: hide
+            ? 'A payment is on its way to you, waiting for a block.'
+            : `${formatNau(BigInt(r.incomingNau))} NPT is on its way to you, waiting for a block.${BigInt(r.lockedNau) > 0n ? ` ${formatNau(BigInt(r.lockedNau))} NPT of it is time-locked by the sender and cannot be spent before its release date.` : ''}`,
+        });
       }
     } catch (e) {
       console.debug('mempool watch', (e as Error).message);
@@ -466,8 +603,14 @@ export function AppProvider({ services, children }: { services: Services; childr
     }
   }, [services, accountId, locked, refresh]);
 
-  const syncNow = useCallback(async () => {
+  // After a node too slow to sync from, the timer waits longer before the
+  // next try (doubling, up to five minutes), so a phone on a poor connection
+  // does not fetch the same blocks over and over. Sync and Retry do not wait.
+  const pauseUntil = useRef(0);
+  const pauseFor = useRef(0);
+  const syncNow = useCallback(async (options: { auto?: boolean } = {}) => {
     if (!accountId || locked || syncing.current) return;
+    if (options.auto && Date.now() < pauseUntil.current) return;
     if (!navigator.onLine) {
       // No point asking the node; the online event below retries.
       setSync((prev) => ({ phase: 'error', syncedHeight: prev?.syncedHeight ?? 0, tipHeight: prev?.tipHeight ?? 0, message: 'You are offline. The balance shown is from the last sync.' }));
@@ -481,8 +624,25 @@ export function AppProvider({ services, children }: { services: Services; childr
           if (p.phase === 'done') setLastSyncedAt(Date.now());
         });
         engine.current = e;
-        await e.syncOnce();
+        const result = await e.syncOnce();
+        if (result.slow) {
+          pauseFor.current = Math.min(5 * 60_000, Math.max(60_000, pauseFor.current * 2));
+          pauseUntil.current = Date.now() + pauseFor.current;
+        } else if (result.phase === 'done') {
+          pauseFor.current = 0;
+          pauseUntil.current = 0;
+        }
         await refresh();
+        // A send no block can take any more has been released: said once,
+        // here, since the person may have dismissed every other note about it.
+        if (result.expired?.length && document.visibilityState === 'visible') {
+          notifications.show({
+            color: 'yellow',
+            title: result.expired.length === 1 ? 'A send expired' : `${result.expired.length} sends expired`,
+            message: 'No block can take it any more, so nothing went out, and its coins are spendable again. It is marked Not sent in History.',
+            autoClose: 10_000,
+          });
+        }
         await watchMempool();
       } finally {
         engine.current = null;
@@ -541,7 +701,7 @@ export function AppProvider({ services, children }: { services: Services; childr
     if (!accountId || locked) return;
     void syncNow();
     const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') void syncNow();
+      if (document.visibilityState === 'visible') void syncNow({ auto: true });
     }, SYNC_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [accountId, locked, syncNow]);
@@ -567,11 +727,14 @@ export function AppProvider({ services, children }: { services: Services; childr
 
   // The screen stays on for as long as a send runs, whichever screen is showing:
   // a phone that locks mid-proof suspends the page, and with it the proof.
-  const screenAwake = useScreenWakeLock(Boolean(sendJob && !sendJob.done));
+  // And during a long restore or scan: a locked screen locks the wallet and
+  // stops the scan, which then starts again on the next unlock.
+  const longScan = (sync?.phase === 'scanning' && sync.tipHeight - sync.syncedHeight > 100) || sync?.phase === 'restoring';
+  const screenAwake = useScreenWakeLock(Boolean(sendJob && !sendJob.done) || longScan);
 
   const value = useMemo<AppState>(
-    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, sendFailure, dismissSendFailure, lastSend, dismissLastSend }),
-    [services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, sendFailure, dismissSendFailure, lastSend, dismissLastSend],
+    () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, screenAwake, startSend, cancelSend, awaitingApproval, approveSend, declineSend, dismissSendJob, sendFailure, dismissSendFailure, lastSend, dismissLastSend, checkIncoming: watchMempool, adoptNetwork: setNetwork }),
+    [services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, network, switchNetwork, switchAccount, removeAccount, stopSync, sendJob, screenAwake, startSend, cancelSend, awaitingApproval, approveSend, declineSend, dismissSendJob, sendFailure, dismissSendFailure, lastSend, dismissLastSend, watchMempool],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

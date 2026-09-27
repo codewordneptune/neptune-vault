@@ -5,14 +5,17 @@
 // unused" derives the next key of that kind.
 
 import { Button, Group, Loader, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowsMaximize, IconCopy, IconShare } from '@tabler/icons-react';
+import { IconArrowDownLeft, IconArrowsMaximize, IconChevronRight, IconCopy, IconShare } from '@tabler/icons-react';
+import { useMediaQuery } from '@mantine/hooks';
 import QRCode from 'qrcode';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { QrFullScreen } from '../components/QrFullScreen';
-import { Caution, Info } from '../components/Notice';
+import { Caution, Done, Info } from '../components/Notice';
 
-import { formatNau, useApp } from '../app/AppContext';
+import { formatNau, showNau, useApp } from '../app/AppContext';
+import { ADDRESS_LABEL_MAX, addressKey, cleanLabel, coinAddressKey, readLabels, writeLabel, type AddressLabels } from '../app/addressLabels';
+import { coinKeyOfReceipt } from '../util/history';
 import { useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
 import { fiatOfTyped, formatFiat } from '../util/fiat';
@@ -53,7 +56,7 @@ const KIND_NOTES: Record<KeyKind, string> = {
 // words; a caution for View-only, whose exposure cannot be taken back.
 function KindNote({ kind }: { kind: KeyKind }) {
   const text = KIND_NOTES[kind];
-  return kind === 'viewing' ? <Caution>{text}</Caution> : <Info>{text}</Info>;
+  return kind === 'viewing' ? <Caution id="kind-note">{text}</Caution> : <Info id="kind-note">{text}</Info>;
 }
 
 // A code on the card, like a printed one: the white runs on below it into a
@@ -95,7 +98,10 @@ type Tab = 'address' | 'request';
 const QR_OPTIONS = { type: 'image/png' as const, width: 1200, margin: 2, errorCorrectionLevel: 'L' as const };
 
 export function Receive() {
-  const { services, account } = useApp();
+  const { services, account, history, utxos, checkIncoming } = useApp();
+  const hidden = services.settings.hideBalance ?? false;
+  // Narrow by the text's own measure (enlarged text counts): the three kinds stack.
+  const stacked = useMediaQuery('(max-width: 22em)');
   const [tab, setTab] = useState<Tab>('address');
   const [kind, setKind] = useState<KeyKind>('generation');
   const [indices, setIndices] = useState<Record<KeyKind, number>>({ generation: 0, ec_hybrid: 0, viewing: 0 });
@@ -105,6 +111,66 @@ export function Receive() {
   // Which code, if any, is shown as large as the screen allows.
   const [enlarged, setEnlarged] = useState<'address' | 'request' | null>(null);
   const index = indices[kind];
+
+  // Who each address was given to: a name kept on this device, which History
+  // then shows for what arrives through it. The one way to know who paid.
+  const [labels, setLabels] = useState<AddressLabels>({});
+  useEffect(() => {
+    if (!account) return;
+    void readLabels(services.core, services.accounts.engine, account.id).then(setLabels, () => setLabels({}));
+  }, [services, account]);
+  const key = addressKey(kind, index);
+  const [forText, setForText] = useState('');
+  const [forError, setForError] = useState<string | null>(null);
+  useEffect(() => {
+    setForText(labels[key] ?? '');
+    setForError(null);
+  }, [key, labels]);
+  const saveFor = async () => {
+    if (!account) return;
+    const clean = cleanLabel(forText);
+    if (clean === (labels[key] ?? '')) return;
+    try {
+      setLabels(await writeLabel(services.core, services.accounts.engine, account.id, kind, index, clean));
+    } catch (e) {
+      setForError((e as Error).message);
+    }
+  };
+
+  // Payments on their way in are looked for every 10 s while this screen is
+  // open, so both sides of a payment made in person see it arrive.
+  useEffect(() => {
+    void checkIncoming();
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') void checkIncoming();
+    }, 10_000);
+    return () => clearInterval(t);
+  }, [checkIncoming]);
+  const toThis = (h: (typeof history)[number]) =>
+    h.keyKind !== undefined && h.keyIndex !== undefined ? h.keyKind === kind && h.keyIndex === index : coinAddressKey(utxos.find((u) => u.hash === coinKeyOfReceipt(h))?.stored) === key;
+  const arrivingNau = history.filter((h) => h.kind === 'received' && h.status === 'pending' && toThis(h)).reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
+  // What came to this address during this visit, on its way or confirmed:
+  // rows that were not there when the screen opened. A payment already on
+  // its way then is known by its commitment when its block comes.
+  const atOpen = useRef<{ keys: Set<string>; pending: Set<string> } | null>(null);
+  if (atOpen.current === null && account) {
+    atOpen.current = {
+      keys: new Set(history.map((h) => h.key)),
+      pending: new Set(history.filter((h) => h.status === 'pending').flatMap((h) => (h.outputs ?? []).map((o) => o.commitment))),
+    };
+  }
+  const commitmentOf = (h: (typeof history)[number]) => (utxos.find((u) => u.hash === coinKeyOfReceipt(h))?.stored as { commitment?: string } | undefined)?.commitment;
+  const paidNau = history
+    .filter((h) => h.kind === 'received' && h.status !== 'failed' && toThis(h) && !atOpen.current?.keys.has(h.key) && !atOpen.current?.pending.has(commitmentOf(h) ?? ''))
+    .reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
+
+  // What changed on this screen without a click on it, said once.
+  const [said, setSaid] = useState('');
+  const arrivedBefore = useRef(arrivingNau);
+  useEffect(() => {
+    if (arrivingNau > arrivedBefore.current) setSaid(hidden ? 'A payment is on its way to this address.' : `${formatNau(arrivingNau - arrivedBefore.current)} NPT is on its way to this address, waiting for a block.`);
+    arrivedBefore.current = arrivingNau;
+  }, [arrivingNau, hidden]);
 
   // The request: amount, name and note. They belong to this visit of the
   // screen: kept while switching tabs, gone when the screen is left.
@@ -121,6 +187,8 @@ export function Receive() {
   // The requested amount as a conforming NIP-002 decimal (from nau, so
   // "1,5" or ".5" never reach the link), or undefined when none is asked.
   const [linkAmount, setLinkAmount] = useState<string | undefined>(undefined);
+  // The same in nau, for saying how much of it has arrived.
+  const [requestNau, setRequestNau] = useState<bigint | null>(null);
   // The name the sender sees as the link's label, and a note for the sender
   // (the link's message): shown on their review and kept with their send,
   // never reaching this wallet.
@@ -141,6 +209,7 @@ export function Receive() {
     const text = requestAmount.replace(/[\s  ]/g, '');
     if (text === '') {
       setLinkAmount(undefined);
+      setRequestNau(null);
       setAmountError(null);
       return;
     }
@@ -159,9 +228,11 @@ export function Receive() {
         if (nau <= 0n) {
           setAmountError('The amount must be greater than zero');
           setLinkAmount(undefined);
+          setRequestNau(null);
         } else {
           setAmountError(null);
           setLinkAmount(formatNau(nau));
+          setRequestNau(nau);
         }
       } catch {
         if (!cancelled) {
@@ -226,11 +297,11 @@ export function Receive() {
       } catch {
         try {
           await render(paymentQrPayload(address, linkAmount));
-          setRequestQrNote(withText ? 'This code cannot hold the name and note, so a payer scanning it will not see them. Share the link instead.' : null);
+          setRequestQrNote(withText ? 'This code cannot hold the name and note, so a sender scanning it will not see them. Share the link instead.' : null);
         } catch {
           try {
             await render(paymentQrPayload(address));
-            setRequestQrNote(linkAmount || withText ? 'This code cannot hold the amount, name and note, so a payer scanning it will not see them. Share the link instead.' : null);
+            setRequestQrNote(linkAmount || withText ? 'This code cannot hold the amount, name and note, so a sender scanning it will not see them. Share the link instead.' : null);
           } catch {
             setRequestQr('');
           }
@@ -247,7 +318,7 @@ export function Receive() {
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
   // The text on this screen is the shortened address, so a failed copy points
   // to what carries it in full, never to long-pressing the text.
-  const copyFailed = canShare ? 'Could not copy. Use Share instead, or let the payer scan the code.' : 'Could not copy. Try again, or let the payer scan the code.';
+  const copyFailed = canShare ? 'Could not copy. Use Share instead, or let the sender scan the code.' : 'Could not copy. Try again, or let the sender scan the code.';
   const copy = () => void copyText(address, 'Address copied', copyFailed);
   const shareAddress = async () => {
     try {
@@ -275,8 +346,45 @@ export function Receive() {
   // never be looked at, and a payment to it never found, so none is offered.
   const used = account ? nextKeyIndicesOf(account)[kind] : 0;
   const furthest = used + KEY_LOOKAHEAD;
+  const mainRef = useRef<HTMLButtonElement>(null);
+  const newRef = useRef<HTMLButtonElement>(null);
   const nextUnused = () => {
-    setIndices({ ...indices, [kind]: Math.min(furthest, Math.max(used, index + 1)) });
+    const next = Math.min(furthest, Math.max(used, index + 1));
+    setIndices({ ...indices, [kind]: next });
+    setSaid(`${KIND_LABELS[kind]} address ${next} is showing. Payments to it arrive in this wallet like any other.`);
+    // At the last address offered, this button goes: focus moves to the one beside it.
+    if (next >= furthest) setTimeout(() => mainRef.current?.focus(), 0);
+  };
+  const toMain = () => {
+    setIndices({ ...indices, [kind]: 0 });
+    setSaid(`${KIND_LABELS[kind]} main address is showing.`);
+    setTimeout(() => newRef.current?.focus(), 0);
+  };
+  // Every address with a name or a payment, to find one again and see who paid.
+  const payments = new Map<string, number>();
+  for (const u of utxos) {
+    const stored = u.stored as { own_build_height?: number | null } | undefined;
+    // Change and payments to oneself are not payments to the address.
+    if (stored?.own_build_height !== null && stored?.own_build_height !== undefined) continue;
+    const k = coinAddressKey(u.stored);
+    if (k) payments.set(k, (payments.get(k) ?? 0) + 1);
+  }
+  for (const h of history) {
+    if (h.kind === 'received' && h.status === 'pending' && h.keyKind !== undefined && h.keyIndex !== undefined) {
+      const k = addressKey(h.keyKind, h.keyIndex);
+      payments.set(k, (payments.get(k) ?? 0) + 1);
+    }
+  }
+  const known = [...new Set([...Object.keys(labels), ...payments.keys()])]
+    .map((k) => ({ key: k, kind: k.split(':')[0] as KeyKind, index: Number(k.split(':')[1]) }))
+    .filter((a) => a.kind in KIND_LABELS && Number.isSafeInteger(a.index))
+    .sort((a, b) => Object.keys(KIND_LABELS).indexOf(a.kind) - Object.keys(KIND_LABELS).indexOf(b.kind) || a.index - b.index);
+  const showAddress = (k: KeyKind, i: number) => {
+    setKind(k);
+    setIndices((all) => ({ ...all, [k]: i }));
+    setTab('address');
+    setSaid(`${KIND_LABELS[k]} ${i === 0 ? 'main address' : `address ${i}`} is showing.`);
+    window.scrollTo({ top: 0 });
   };
   useEffect(() => {
     if (index > furthest) setIndices((all) => ({ ...all, [kind]: furthest }));
@@ -292,108 +400,154 @@ export function Receive() {
       : `${tab === 'address' ? '' : 'The request is to '}${KIND_LABELS[kind]} address ${index}. ` +
         (index >= furthest ? 'More addresses open up once one of these has received a payment.' : 'Payments to it arrive in this wallet like any other.');
 
+  // The note above the code: a payment on its way to the address showing,
+  // or, for a request, how much of it has arrived.
+  const arrivingNote =
+    arrivingNau > 0n ? (hidden ? 'A payment is on its way to this address, waiting for a block.' : `${showNau(arrivingNau)} NPT on its way to this address, waiting for a block.`) : null;
+  const arrivedNote =
+    requestNau === null || paidNau === 0n
+      ? null
+      : paidNau >= requestNau
+        ? `Paid in full: ${hidden ? '••••' : showNau(paidNau)} NPT arrived${arrivingNau > 0n ? ', waiting for a block' : ''}.`
+        : `${hidden ? '••••' : showNau(paidNau)} of ${showNau(requestNau)} NPT arrived.`;
+
   return (
     <Paper>
       <Stack>
         <Title order={2} className="sr-only">
           Receive
         </Title>
+        <div className="sr-only" role="status">
+          {said}
+        </div>
         {/* What the card is for comes first; the kind of address, which both
-            tabs share and most people leave at Standard, comes under it. */}
+            tabs share and most people leave at Standard, comes under it, and
+            then each tab's own content, as its panel. */}
         <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
-          <Tabs.List grow>
-            <Tabs.Tab value="address">Address</Tabs.Tab>
-            <Tabs.Tab value="request">Request payment</Tabs.Tab>
-          </Tabs.List>
+          <Stack>
+            <Tabs.List grow>
+              <Tabs.Tab value="address">Address</Tabs.Tab>
+              <Tabs.Tab value="request">Request payment</Tabs.Tab>
+            </Tabs.List>
+            <SegmentedControl
+              aria-label="Address kind"
+              aria-describedby="kind-note"
+              fullWidth
+              orientation={stacked ? 'vertical' : 'horizontal'}
+              value={kind}
+              onChange={(v) => setKind(v as KeyKind)}
+              data={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({
+                value: k,
+                label: (
+                  <span className="vault-fee-seg">
+                    <span>{KIND_LABELS[k]}</span>
+                    <small>{KIND_PROTOCOL[k]}</small>
+                  </span>
+                ),
+              }))}
+            />
+            <KindNote kind={kind} />
+
+            <Tabs.Panel value="address">
+              <Stack>
+                {/* Who it is for, on this device only: History names what arrives through it. */}
+                <TextInput
+                  label="Who is this address for? (only on this device)"
+                  placeholder="For example: Alice, or the market stall"
+                  value={forText}
+                  maxLength={ADDRESS_LABEL_MAX}
+                  onChange={(e) => {
+                    setForText(e.currentTarget.value);
+                    setForError(null);
+                  }}
+                  onBlur={() => void saveFor()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void saveFor();
+                  }}
+                  error={forError}
+                  description="Payments to this address show this name in History. Kept on this device and in its backup files, never sent anywhere."
+                />
+                {arrivingNote && (
+                  <Done icon={<IconArrowDownLeft size={18} stroke={1.8} />} role={undefined}>
+                    {arrivingNote}
+                  </Done>
+                )}
+                {qr ? <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => setEnlarged('address')} /> : !addressError && <QrPending />}
+                {/* The address shortened, for recognising it by its start and end.
+                    Copy, Share and the code always carry it in full; a Standard
+                    address runs to some 3,500 characters, which nobody reads. */}
+                <div className="vault-receive-col vault-address-box">
+                  <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
+                </div>
+                {addressError && (
+                  <Text size="sm" c="var(--v-danger-text)">
+                    Could not derive this address: {addressError}
+                  </Text>
+                )}
+                <Group className="vault-receive-col vault-receive-actions">
+                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address} aria-describedby="kind-note">
+                    Copy address
+                  </Button>
+                  {canShare && (
+                    <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby="kind-note">
+                      Share
+                    </Button>
+                  )}
+                </Group>
+              </Stack>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="request">
+              <Stack>
+                <TextInput
+                  label="Amount (NPT, optional)"
+                  inputMode="decimal"
+                  value={requestAmount}
+                  onChange={(e) => setRequestAmount(e.currentTarget.value)}
+                  error={amountError}
+                  description={requestEstimate}
+                  inputWrapperOrder={['label', 'input', 'description', 'error']}
+                />
+                <TextInput
+                  label="Your name (optional)"
+                  description="Shown to the sender as an unverified name."
+                  value={requestLabel}
+                  onChange={(e) => setRequestLabel(e.currentTarget.value)}
+                  error={labelError}
+                  maxLength={255}
+                />
+                <TextInput
+                  label="Note for the sender (optional)"
+                  description="Shown to the sender only; it does not reach you."
+                  value={requestNote}
+                  onChange={(e) => setRequestNote(e.currentTarget.value)}
+                  error={noteError}
+                  maxLength={255}
+                />
+                {arrivedNote && (
+                  <Done icon={<IconArrowDownLeft size={18} stroke={1.8} />} role={undefined}>
+                    {arrivedNote}
+                  </Done>
+                )}
+                {/* The code, then what to do with it: the same order as the Address tab. */}
+                {requestQr && !requestInvalid && <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => setEnlarged('request')} />}
+                {requestQrNote && !requestInvalid && (
+                  <Text size="sm" c="dimmed" className="vault-receive-col">
+                    {requestQrNote}
+                  </Text>
+                )}
+                <Group className="vault-receive-col vault-receive-actions">
+                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed)} disabled={requestInvalid} aria-describedby="kind-note">
+                    Copy link
+                  </Button>
+                  <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid} aria-describedby="kind-note">
+                    Share
+                  </Button>
+                </Group>
+              </Stack>
+            </Tabs.Panel>
+          </Stack>
         </Tabs>
-        <SegmentedControl
-          aria-label="Address kind"
-          fullWidth
-          value={kind}
-          onChange={(v) => setKind(v as KeyKind)}
-          data={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({
-            value: k,
-            label: (
-              <span className="vault-fee-seg">
-                <span>{KIND_LABELS[k]}</span>
-                <small>{KIND_PROTOCOL[k]}</small>
-              </span>
-            ),
-          }))}
-        />
-        <KindNote kind={kind} />
-
-        {tab === 'address' && (
-          <>
-            {qr ? <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => setEnlarged('address')} /> : !addressError && <QrPending />}
-            {/* The address shortened, for recognising it by its start and end.
-                Copy, Share and the code always carry it in full; a Standard
-                address runs to some 3,500 characters, which nobody reads. */}
-            <div className="vault-receive-col vault-address-box">
-              <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
-            </div>
-            {addressError && (
-              <Text size="sm" c="var(--v-danger-text)">
-                Could not derive this address: {addressError}
-              </Text>
-            )}
-            <Group className="vault-receive-col vault-receive-actions">
-              <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address}>
-                Copy address
-              </Button>
-              {canShare && (
-                <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void shareAddress()} disabled={!address}>
-                  Share
-                </Button>
-              )}
-            </Group>
-          </>
-        )}
-
-        {tab === 'request' && (
-          <>
-            <TextInput
-              label="Amount (NPT, optional)"
-              inputMode="decimal"
-              value={requestAmount}
-              onChange={(e) => setRequestAmount(e.currentTarget.value)}
-              error={amountError}
-              description={requestEstimate}
-              inputWrapperOrder={['label', 'input', 'description', 'error']}
-            />
-            <TextInput
-              label="Your name (optional)"
-              description="Shown to the sender as an unverified name."
-              value={requestLabel}
-              onChange={(e) => setRequestLabel(e.currentTarget.value)}
-              error={labelError}
-              maxLength={255}
-            />
-            <TextInput
-              label="Note for the sender (optional)"
-              description="Shown to the sender only; it does not reach you."
-              value={requestNote}
-              onChange={(e) => setRequestNote(e.currentTarget.value)}
-              error={noteError}
-              maxLength={255}
-            />
-            {/* The code, then what to do with it: the same order as the Address tab. */}
-            {requestQr && !requestInvalid && <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => setEnlarged('request')} />}
-            {requestQrNote && !requestInvalid && (
-              <Text size="sm" c="dimmed" className="vault-receive-col">
-                {requestQrNote}
-              </Text>
-            )}
-            <Group className="vault-receive-col vault-receive-actions">
-              <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed)} disabled={requestInvalid}>
-                Copy link
-              </Button>
-              <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid}>
-                Share
-              </Button>
-            </Group>
-          </>
-        )}
 
         {/* The sentence about the address showing, then what can be done about it, on the line beneath. */}
         <Stack gap={4}>
@@ -404,7 +558,7 @@ export function Receive() {
           )}
           <Group gap={6} wrap="nowrap">
             {index > 0 && (
-              <UnstyledButton onClick={() => setIndices({ ...indices, [kind]: 0 })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+              <UnstyledButton ref={mainRef} onClick={toMain} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
                 Main address
               </UnstyledButton>
             )}
@@ -414,12 +568,50 @@ export function Receive() {
               </Text>
             )}
             {index < furthest && (
-              <UnstyledButton onClick={nextUnused} c="var(--v-accent-text)" fz="sm" className={index > 0 ? 'vault-tap-link' : 'vault-tap-link vault-tap-link-start'}>
+              <UnstyledButton ref={newRef} onClick={nextUnused} c="var(--v-accent-text)" fz="sm" className={index > 0 ? 'vault-tap-link' : 'vault-tap-link vault-tap-link-start'}>
                 New address
               </UnstyledButton>
             )}
           </Group>
         </Stack>
+
+        {/* Every address with a name or a payment: who each was for, and how
+            many payments came through it. Choosing one shows it above. */}
+        {known.length > 0 && (
+          <details className="vault-setting">
+            <summary>
+              <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
+              Your addresses
+            </summary>
+            <div className="vault-setting-body">
+              <Stack gap={2}>
+                {known.map((a) => {
+                  const count = payments.get(a.key) ?? 0;
+                  const current = a.kind === kind && a.index === index;
+                  return (
+                    <UnstyledButton key={a.key} className="vault-row vault-row-button" onClick={() => showAddress(a.kind, a.index)} aria-current={current || undefined}>
+                      <div style={{ minWidth: 0 }}>
+                        <Text size="sm" fw={500}>
+                          {KIND_LABELS[a.kind]} {a.index === 0 ? 'main address' : `address ${a.index}`}
+                          {labels[a.key] && (
+                            <>
+                              {' · '}
+                              <bdi>{labels[a.key]}</bdi>
+                            </>
+                          )}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {count === 0 ? 'No payments yet' : count === 1 ? '1 payment' : `${count} payments`}
+                          {current ? ' · showing' : ''}
+                        </Text>
+                      </div>
+                    </UnstyledButton>
+                  );
+                })}
+              </Stack>
+            </div>
+          </details>
+        )}
         <QrFullScreen
           opened={enlarged !== null && Boolean(enlarged === 'request' ? requestQr : qr)}
           onClose={() => setEnlarged(null)}

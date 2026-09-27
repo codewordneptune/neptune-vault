@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
-import { Info } from './Notice';
+import { Caution, Info } from './Notice';
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -21,8 +21,19 @@ export function InstallNudge() {
   const [dismissedAt, setDismissedAt] = useState<number | undefined>(services.settings.installNudgeDismissedAt);
   useEffect(() => onInstallChange(() => setState(installState())), []);
 
+  // On an iPhone or iPad, Safari deletes what a site keeps once it has not
+  // been opened for about a week, unless it was added to the Home Screen:
+  // this is a caution, and it comes back until the app is installed.
+  if (state.kind === 'ios-share') {
+    const device = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'iPad' : 'iPhone';
+    return (
+      <Caution icon={<IconDeviceMobile size={18} stroke={1.8} />} title="Add Neptune Vault to the Home Screen">
+        Safari deletes this wallet from this {device} if you do not open it for about a week. Add it to the Home Screen to keep it: in Safari, tap Share, then "Add to Home Screen". And keep your seed phrase.
+      </Caution>
+    );
+  }
   const recently = dismissedAt !== undefined && Date.now() - dismissedAt < TWO_WEEKS_MS;
-  if (recently || (state.kind !== 'promptable' && state.kind !== 'ios-share')) return null;
+  if (recently || state.kind !== 'promptable') return null;
 
   const dismiss = async () => {
     const now = Date.now();
@@ -33,15 +44,11 @@ export function InstallNudge() {
   return (
     <Info icon={<IconDeviceMobile size={18} stroke={1.8} />} title="Install Neptune Vault on this device" onClose={() => void dismiss()} closeLabel="Dismiss the install offer">
       An installed app keeps its storage, works full screen, and opens from its own icon.
-      {state.kind === 'promptable' ? (
-        <div>
-          <Button variant="light" size="sm" onClick={() => void promptInstall()}>
-            Install
-          </Button>
-        </div>
-      ) : (
-        <div>In Safari: tap Share, then "Add to Home Screen".</div>
-      )}
+      <div>
+        <Button variant="light" size="sm" onClick={() => void promptInstall()}>
+          Install
+        </Button>
+      </div>
     </Info>
   );
 }

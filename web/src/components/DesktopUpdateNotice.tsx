@@ -78,6 +78,7 @@ export function DesktopUpdateNotice() {
   if (!newer || later || sending) return null;
 
   return (
+    <div role="region" aria-label="App update">
     <div className="vault-updatestrip" role="status">
       <div className="vault-updatestrip-inner">
         <div className="vault-updatestrip-body">
@@ -103,6 +104,7 @@ export function DesktopUpdateNotice() {
           </Group>
         </div>
       </div>
+    </div>
     </div>
   );
 }

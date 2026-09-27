@@ -71,6 +71,7 @@ export function UpdateStrip() {
   const words = updateWording({ version: __APP_VERSION__, commit: __APP_COMMIT__ }, waiting);
 
   return (
+    <div role="region" aria-label="App update">
     <div className="vault-updatestrip" role="status">
       <div className="vault-updatestrip-inner">
         <div className="vault-updatestrip-body">
@@ -102,6 +103,7 @@ export function UpdateStrip() {
           </Group>
         </div>
       </div>
+    </div>
     </div>
   );
 }

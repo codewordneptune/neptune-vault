@@ -30,7 +30,7 @@ choose.
 
 - Create a wallet from a new 18-word seed phrase. You confirm it by putting
   words back in order.
-- Import a seed phrase, or restore a backup file. If you mistype a word,
+- Restore with a seed phrase, or from a backup file. If you mistype a word,
   the app tells you which one.
 - Keep several wallets on one device, each with its own seed phrase,
   password and backup, and switch between them from the header menu.
@@ -55,7 +55,7 @@ choose.
 **History and upkeep**
 
 - One row per transaction, grouped by day, with a detail sheet.
-- The detail sheet shows each output's commitment, with a link to it on
+- The detail sheet shows each coin's identifier, with a link to it on
   the explorer (Mainnet only).
 - Rescan the chain fast, or from a block or a date.
 - Diagnostics for support requests.
@@ -108,7 +108,7 @@ browser storage.
     scanning. The node learns nothing about your coins.
 - **Your seed phrase is the only real backup.** Your password protects the
   wallet on this device and cannot be recovered. If you forget the
-  password, import your seed phrase again. If you lose the seed phrase, you
+  password, restore with your seed phrase again. If you lose the seed phrase, you
   lose the funds.
 
 ## Security model
@@ -149,7 +149,7 @@ browser storage.
     been changed. A wrong password gives a different message than a
     changed file.
   - Every version of the app can read backup files from earlier versions.
-- **Password.** Cannot be recovered. Import your seed phrase again and
+- **Password.** Cannot be recovered. Restore with your seed phrase again and
   choose a new password.
 
 ## Getting help

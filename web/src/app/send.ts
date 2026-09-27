@@ -11,9 +11,9 @@
 import { NodeError, type NodeClient } from '../node/rpc';
 import type { LedgerAnswer, LedgerOp, Prover, ProveOutcome, ProveProgress } from '../backend/types';
 import type { HistoryRecord } from '../storage/db';
-import type { SendRequest, StoredUtxo, WalletCore } from '../backend/types';
+import type { SendPlan, SendRequest, StoredUtxo, WalletCore } from '../backend/types';
 
-export type SendStage = 'planning' | 'membership-proofs' | 'building' | 'proving' | 'submitting' | 'done';
+export type SendStage = 'planning' | 'membership-proofs' | 'building' | 'proving' | 'confirming' | 'submitting' | 'done';
 
 export interface SendProgress {
   stage: SendStage;
@@ -26,6 +26,21 @@ export interface SendProgress {
 
 /** How many times a send is rebuilt and proved again after a block arrived during proving. */
 export const MAX_SEND_ATTEMPTS = 3;
+
+/** How the core says a block arrived between the proofs and the tip it read (`TIP_MOVED` in send.rs). */
+const TIP_MOVED = 'a new block arrived while the send was being built';
+
+/** What a send is told besides what to pay. */
+export interface SendOptions {
+  /** The payment link's message, kept with the send for the payer's own record. */
+  note?: string | null;
+  /** The person's Cancel. */
+  signal?: AbortSignal;
+  /** The person's confirmation, asked while the proof runs; see `send`. */
+  approved?: Promise<boolean>;
+  /** Called once the pending row is written, just before the node hears of the send. */
+  onRecorded?: (txid: string) => void | Promise<void>;
+}
 
 /** The most recipients one send pays: the core refuses more (`MAX_PAYMENTS` in send.rs). */
 export const MAX_PAYMENTS = 10;
@@ -74,6 +89,20 @@ export interface LastSend {
   state: 'submitted' | 'unconfirmed';
 }
 
+/**
+ * The note written, in the wallet's sealed log, when a send starts, and
+ * cleared when it ends, however it ends. Found at the next unlock, it is a
+ * send the app was closed during: the wallet can then say how it ended.
+ */
+export interface SendStarted {
+  at: number;
+  accountId: string;
+  amountNau: string;
+  feeNau: string;
+  recipient: string;
+  others: number;
+}
+
 /** The person cancelled before anything was handed to the node. Nothing was sent and nothing is held. */
 export class SendCancelledError extends Error {
   constructor() {
@@ -83,15 +112,72 @@ export class SendCancelledError extends Error {
 }
 
 /**
- * The transaction was handed to the node and no answer came back: it may
- * have been sent. It stays in History as pending, with its coins held, so
- * that nobody pays twice on the strength of a lost answer.
+ * How long a send can wait for a block: a block may not carry a transaction
+ * stamped more than three days before it, plus an hour for a reorganisation
+ * (the engine's SEND_LIFETIME_MS, after which it releases the send's coins).
+ */
+export const SEND_LIFETIME_MS = (3 * 24 + 1) * 60 * 60 * 1000;
+
+/** How long nodes keep a send waiting for a block before dropping it (neptune-core's mempool). */
+export const MEMPOOL_KEEPS_MS = 10 * 60 * 60 * 1000;
+
+/** What to do about a send that may have gone out: said wherever one is. */
+export const MAY_HAVE_GONE =
+  'It may already be on its way. It is pending in History, with its coins held. Do not send it again unless you first give up on it there.';
+
+/**
+ * The transaction was handed to the node and no answer from the node came
+ * back: none at all, or a server's error, or something that is not the
+ * node's. It may have been sent. It stays in History as pending, with its
+ * coins held, so that nobody pays twice on the strength of a lost answer.
  */
 export class SendUnconfirmedError extends Error {
-  constructor(public readonly txid: string) {
-    super('It may already be on its way. It is pending in History, with its coins held. Do not send it again until a block confirms it or you give up on it.');
+  constructor(
+    public readonly txid: string,
+    /** Why it is not known, when there is more to say than silence. */
+    why?: string,
+  ) {
+    super(why ? `${why} ${MAY_HAVE_GONE}` : MAY_HAVE_GONE);
     this.name = 'SendUnconfirmedError';
   }
+}
+
+/** The person did not confirm the send (the password or passkey check was cancelled). Nothing was sent. */
+export class SendNotApprovedError extends Error {
+  constructor() {
+    super('Not confirmed, so nothing was sent.');
+    this.name = 'SendNotApprovedError';
+  }
+}
+
+/**
+ * The newest block's time and this device's clock, as far as a send is
+ * concerned. A transaction is stamped with the time it is built at, and a
+ * node refuses one stamped over a minute ahead of its own clock or more
+ * than ten hours behind it (neptune-core's mempool): after minutes of
+ * proving, and again on every retry. So the stamp is never later than the
+ * newest block, which no node's clock is behind; and a device clock so far
+ * behind that no stamp could pass is caught before proving starts.
+ */
+export function sendStamp(nowMs: number, tipTimestampMs: number | null): { stampMs: number; clockProblem: string | null } {
+  if (tipTimestampMs === null || !Number.isFinite(tipTimestampMs) || tipTimestampMs <= 0) return { stampMs: nowMs, clockProblem: null };
+  const behindMs = tipTimestampMs - nowMs;
+  if (behindMs > 9 * 60 * 60 * 1000) {
+    const hours = Math.round(behindMs / (60 * 60 * 1000));
+    const how = hours >= 48 ? `${Math.round(hours / 24)} days` : `${hours} hours`;
+    return {
+      stampMs: nowMs,
+      clockProblem: `Nothing was sent: this device's clock is ${how} behind the network, and nodes refuse a send stamped that far back. Set the date and time to automatic, then send again.`,
+    };
+  }
+  return { stampMs: Math.min(nowMs, tipTimestampMs), clockProblem: null };
+}
+
+/** What a node's refusal of a send means, in words, for the refusals the app knows. */
+function refusalText(e: Error): string | null {
+  if (/FutureDated/.test(e.message)) return "Nothing was sent: the node says this send is dated in the future. This device's clock may be ahead; set the date and time to automatic, then send again.";
+  if (/TooOld/.test(e.message)) return "Nothing was sent: the node says this send is dated too far in the past. Either this device's clock is behind, or the node is behind the network. Check the date and time, then try again, or choose another node in Settings.";
+  return null;
 }
 
 export class RequiresLustrationError extends Error {
@@ -128,14 +214,23 @@ export class SendService {
    * transaction is handed to the node, and checked right before that
    * moment; after it, the send goes through and says so, because a screen
    * that says "cancelled" over a payment that went out invites a second one.
+   *
+   * `approved`, when given, is the person's confirmation (a password or a
+   * passkey), asked while the proof runs: nothing is handed to the node
+   * until it resolves true, and false ends the send with nothing sent.
    */
-  async send(request: SendRequest, onProgress: (p: SendProgress) => void, note: string | null = null, signal?: AbortSignal): Promise<SendOutcome> {
+  async send(request: SendRequest, onProgress: (p: SendProgress) => void, options: SendOptions = {}): Promise<SendOutcome> {
+    const { note = null, signal, approved, onRecorded } = options;
     const stopIfCancelled = () => {
       if (signal?.aborted) throw new SendCancelledError();
     };
-    const now = Date.now();
     onProgress({ stage: 'planning' });
-    const plan = await this.core.planInputs(await this.spendable(now), request, now);
+    // The stamp and the time-lock check both go by the newest block's time
+    // when the device's clock is ahead of it (see sendStamp).
+    const tip = await this.node.tipHeader();
+    const first = sendStamp(Date.now(), tip.timestamp);
+    if (first.clockProblem) throw new Error(first.clockProblem);
+    const plan = await this.core.planInputs(await this.spendable(first.stampMs), request, first.stampMs);
 
     // The proof commits to the inputs as of one snapshot of the chain, and
     // blocks may be mined during the minutes of proving. Nodes from
@@ -156,10 +251,17 @@ export class SendService {
 
       onProgress({ stage: 'building', note: again });
       let built;
+      const stamp = sendStamp(Date.now(), tipHeader.timestampMs).stampMs;
       try {
-        built = await this.core.buildSend(plan.inputs, snapshotResponse, tipHeader.raw, request, Date.now());
+        built = await this.core.buildSend(plan.inputs, snapshotResponse, tipHeader.raw, request, stamp);
       } catch (e) {
         if (e instanceof Error && e.message.includes('lustration')) throw new RequiresLustrationError();
+        // A block between the two questions above: nothing is proved yet, so
+        // ask again, as a block during proving would. Nothing to tell.
+        if (e instanceof Error && e.message.includes(TIP_MOVED)) {
+          if (attempt >= MAX_SEND_ATTEMPTS) throw new Error('Nothing was sent: new blocks kept arriving while the send was being built. Try again in a moment.');
+          continue;
+        }
         // Locking by hand during a proof is fine as long as the proof can be
         // used. A block that arrives meanwhile means building again, and
         // building needs the keys, which a locked wallet does not have.
@@ -190,6 +292,13 @@ export class SendService {
         if (signal?.aborted) throw new SendCancelledError();
         throw e;
       }
+      // The person's confirmation, asked while the proof ran, is awaited
+      // before anything reaches the node: said as what it is, not as a send
+      // already on its way.
+      if (approved) {
+        onProgress({ stage: 'confirming', note: again });
+        if (!(await approved)) throw new SendNotApprovedError();
+      }
       // The proof is made; what follows is quick and is not a time to offer
       // Cancel as if minutes of work were still ahead.
       onProgress({ stage: 'submitting', note: again });
@@ -204,15 +313,29 @@ export class SendService {
       // there, and a second attempt cannot quietly pick the same coins or,
       // after the first confirms, different ones.
       const txid = built.summary.txid;
-      await this.recordPending(txid, request, built.summary.input_hashes, built.summary.amount_nau, built.summary.fee_nau, built.summary.change_nau, built.summary.output_commitments ?? [], note);
-      let accepted: boolean;
+      await this.recordPending(txid, request, built.summary, note);
+      await onRecorded?.(txid);
+      let accepted: boolean | null;
       try {
         accepted = await this.node.submitTransaction(transaction);
       } catch (e) {
-        // No answer at all: it may have been taken. Everything stays held.
-        if (e instanceof NodeError && (e.code === 'timeout' || e.code === 'network')) throw new SendUnconfirmedError(txid);
+        // Only the node's own answer says what it did. No answer, a server's
+        // error (a gateway in front of a slow node answers 504 whether or not
+        // the node took it), or something that is not the node's: it may
+        // have been taken, and everything stays held.
+        if (!(e instanceof NodeError) || typeof e.code !== 'number') {
+          const why =
+            e instanceof NodeError && e.code === 'http'
+              ? `The node's server answered with an error (HTTP ${e.status}), so it is not known whether this send went out.`
+              : e instanceof NodeError && e.code === 'garbled'
+                ? "The node's answer could not be read, so it is not known whether this send went out."
+                : undefined;
+          throw new SendUnconfirmedError(txid, why);
+        }
         // The node answered, and the answer was no: nothing is out there.
         await this.discardPending(txid);
+        const known = refusalText(e);
+        if (known) throw new Error(known);
         if (!isNotConfirmable(e)) throw e;
         // Refused as unconfirmable. With blocks mined since the snapshot, the
         // proof was built too far behind the tip, or a new block touched its
@@ -223,11 +346,12 @@ export class SendService {
           again = `A new block arrived, so the proof is being made again (attempt ${attempt + 1} of ${MAX_SEND_ATTEMPTS}). Nothing has been sent yet.`;
           continue;
         }
-        throw new Error("Nothing was sent: the node says one of the coins is already spent. Rescan in Settings to refresh your coins, then try again.");
+        throw new Error('Nothing was sent: the node says one of the coins is already spent. Wait for the next block, then try again; if it keeps happening, rescan in Settings to refresh your coins.');
       }
+      if (accepted === null) throw new SendUnconfirmedError(txid, "The node's answer did not say whether it took this send.");
       if (!accepted) {
         await this.discardPending(txid);
-        throw new Error('Nothing was sent: the node did not accept the transaction.');
+        throw new Error('Nothing was sent: the node did not accept it.');
       }
 
       onProgress({ stage: 'done' });
@@ -236,25 +360,29 @@ export class SendService {
   }
 
   /** Mark the inputs reserved and add the pending history entry. */
-  private async recordPending(txid: string, request: SendRequest, inputHashes: string[], amountNau: string, feeNau: string, changeNau: string | null, commitments: string[], note: string | null): Promise<void> {
+  private async recordPending(txid: string, request: SendRequest, summary: SendPlan['summary'], note: string | null): Promise<void> {
+    const commitments = summary.output_commitments ?? [];
     const entry: HistoryRecord = {
       key: `${this.accountId}:sent:${txid}`,
       accountId: this.accountId,
       kind: 'sent',
       status: 'pending',
       txid,
-      amountNau,
-      feeNau,
+      amountNau: summary.amount_nau,
+      feeNau: summary.fee_nau,
       timestampMs: Date.now(),
       height: null,
-      inputHashes,
+      inputHashes: summary.input_hashes,
       recipient: request.payments[0]?.recipient ?? null,
       payments: request.payments.map((p) => ({ recipient: p.recipient, amountNau: p.amount_nau })),
       error: null,
-      changeNau,
+      changeNau: summary.change_nau,
       // Kernel order: one output per payment, in the request's order, then the change.
       outputs: commitments.map((commitment, i) => ({ commitment, role: i < request.payments.length ? 'recipient' : 'change' })),
       note,
+      // The transaction's own timestamp: three days of the chain's time
+      // after it, no block can take the send (see the engine's expire_sends).
+      stampMs: summary.timestamp_ms,
     };
     // The inputs held and the row written, together.
     await this.ledger({ op: 'recordPending', entry });

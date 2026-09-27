@@ -98,15 +98,32 @@ export function nodeUrlProblem(text: string, network: string): string | null {
   return 'A node URL starts with https://';
 }
 
+/**
+ * What went wrong asking the node. `code` says who answered: a number is
+ * the node's own JSON-RPC error, the one kind of answer that says what the
+ * node did; 'http' is a server (the node's, or one in front of it) that
+ * answered with an HTTP error; 'garbled' is an answer that is not the
+ * node's at all; 'network' and 'timeout' are no answer.
+ */
 export class NodeError extends Error {
   constructor(
     message: string,
-    public readonly code: number | 'network' | 'timeout' | 'http',
+    public readonly code: number | 'network' | 'timeout' | 'http' | 'garbled',
     public readonly method: string,
+    /** The HTTP status, for an 'http' error. */
+    public readonly status?: number,
   ) {
     super(message);
     this.name = 'NodeError';
   }
+}
+
+/** A node's own name for its network, as the app names networks. */
+export function nodeNetworkLabel(theirs: string): string {
+  if (theirs === 'main') return 'Mainnet';
+  if (theirs.startsWith('testnet')) return 'Testnet';
+  if (theirs === 'regtest') return 'Regtest';
+  return theirs;
 }
 
 export interface NodeClientOptions {
@@ -115,6 +132,11 @@ export interface NodeClientOptions {
   fetch?: typeof fetch;
   /** The most a single answer may weigh; see MAX_RESPONSE_BYTES. */
   maxResponseBytes?: number;
+  /**
+   * The app's own default node: when it fails, nothing the person set is
+   * wrong, and the messages do not send them to check the node URL.
+   */
+  isDefault?: boolean;
 }
 
 export class NodeClient {
@@ -123,6 +145,7 @@ export class NodeClient {
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly maxResponseBytes: number;
+  readonly isDefault: boolean;
 
   constructor(
     public readonly url: string,
@@ -131,15 +154,26 @@ export class NodeClient {
     this.timeoutMs = options.timeoutMs ?? 30_000;
     this.fetchImpl = options.fetch ?? fetch.bind(globalThis);
     this.maxResponseBytes = options.maxResponseBytes ?? MAX_RESPONSE_BYTES;
+    this.isDefault = options.isDefault ?? false;
   }
 
   /** The node's host for messages; a relative dev-proxy path is shown as is. */
-  private host(): string {
+  host(): string {
     try {
       return new URL(this.url, globalThis.location?.origin ?? 'http://localhost').host;
     } catch {
       return this.url;
     }
+  }
+
+  /** How messages name this node: the default one by that, any other by its host. */
+  private who(): string {
+    return this.isDefault ? 'The default node' : `The node at ${this.host()}`;
+  }
+
+  /** Where to look when this node fails: nowhere, for the default node. */
+  private check(): string {
+    return this.isDefault ? ' Nothing is wrong with your wallet or its settings. Try again later, or choose another node in Settings.' : ' Check the node URL in Settings.';
   }
 
   /**
@@ -194,14 +228,25 @@ export class NodeClient {
       // way, as a fetch failure with no status, so name both possibilities.
       throw new NodeError(
         aborted
-          ? `No answer from the node at ${this.host()} within ${timeoutMs / 1000} s`
-          : `Cannot reach the node at ${this.host()}. It may be offline, or not set up for browser wallets (CORS). Check the node URL in Settings.`,
+          ? `${this.who()} did not answer within ${timeoutMs / 1000} s.`
+          : this.isDefault
+            ? `The default node is not answering.${this.check()}`
+            : `Cannot reach the node at ${this.host()}. It may be offline, or not set up for browser wallets (CORS).${this.check()}`,
         aborted ? 'timeout' : 'network',
         method,
       );
     }
     if (!response.ok) {
-      throw new NodeError(`${method}: HTTP ${response.status}`, 'http', method);
+      // A server answered, perhaps one in front of the node, but not the node.
+      const status = response.status;
+      throw new NodeError(
+        status >= 500
+          ? `${this.who()} is not answering properly (HTTP ${status}). Try again in a moment.${this.isDefault ? '' : ' If it keeps happening, check the node URL in Settings.'}`
+          : `${this.who()} refused the request (HTTP ${status}).${this.check()}`,
+        'http',
+        method,
+        status,
+      );
     }
     let text: string;
     try {
@@ -209,24 +254,37 @@ export class NodeClient {
     } catch (e) {
       if (e instanceof NodeError) throw e;
       const aborted = controller.signal.aborted;
-      throw new NodeError(aborted ? `The node at ${this.host()} stopped answering part way through (${timeoutMs / 1000} s)` : `The connection to the node at ${this.host()} broke part way through its answer`, aborted ? 'timeout' : 'network', method);
+      throw new NodeError(aborted ? `${this.who()} stopped answering part way through (${timeoutMs / 1000} s).` : `The connection to ${this.isDefault ? 'the default node' : `the node at ${this.host()}`} broke part way through its answer.`, aborted ? 'timeout' : 'network', method);
     }
     // An error answer is small; a block batch is megabytes and is parsed by
     // the core, so it is not parsed a second time here just to look for one.
     if (text.length < 65536 || text.slice(0, 256).includes('"error"')) {
-      const body = JSON.parse(text) as { error?: { code: number; message: string; data?: unknown } };
+      const body = this.parse(text, method) as { error?: { code: number; message: string; data?: unknown } };
       if (body.error) {
         const detail = body.error.data === undefined ? '' : ` (${JSON.stringify(body.error.data).slice(0, 300)})`;
-        throw new NodeError(`${method} failed. The node said: "${nodeSaid(body.error.message)}"${nodeSaid(detail) ? ' ' + nodeSaid(detail) : ''}`, body.error.code, method);
+        throw new NodeError(`The node answered with an error: "${nodeSaid(body.error.message)}"${nodeSaid(detail) ? ' ' + nodeSaid(detail) : ''}`, body.error.code, method);
       }
     }
     return text;
   }
 
+  /** The answer as JSON, or the error of an answer that is not a node's: a web page, a login screen. */
+  private parse(text: string, method: string): unknown {
+    try {
+      const body: unknown = JSON.parse(text);
+      if (typeof body === 'object' && body !== null) return body;
+    } catch {
+      // Said below.
+    }
+    throw new NodeError(`${this.isDefault ? 'The default node' : this.host()} answered, but not as a Neptune node.${this.check()}`, 'garbled', method);
+  }
+
   /** The parsed result, for values the app itself reads (heights, flags). */
   async call<T>(method: string, params: unknown[] = [], timeoutMs = this.timeoutMs): Promise<T> {
     const text = await this.callRaw(method, params, timeoutMs);
-    return (JSON.parse(text) as { result: T }).result;
+    const body = this.parse(text, method) as { result?: T };
+    if (!('result' in body)) throw new NodeError(`${this.isDefault ? 'The default node' : this.host()} answered, but not as a Neptune node.${this.check()}`, 'garbled', method);
+    return body.result as T;
   }
 
   /**
@@ -284,17 +342,29 @@ export class NodeClient {
     return (JSON.parse(text) as { result: { blockHeights: number[] } }).result.blockHeights;
   }
 
+  /** Whether the node keeps the coin index a fast restore or rescan asks. Throws when the node does not answer. */
+  async hasCoinIndex(): Promise<boolean> {
+    try {
+      await this.callRaw('utxoindex_blockHeightsByFlags', [], this.timeoutMs, '[]');
+      return true;
+    } catch (e) {
+      if (/method not found|-32601/i.test(e instanceof Error ? e.message : String(e))) return false;
+      throw e;
+    }
+  }
+
   /** Canonical heights of the blocks that spent any of the index sets (the core's text). */
   async blockHeightsBySpends(indexSetsJson: string): Promise<number[]> {
     const text = await this.callRaw('utxoindex_blockHeightsByAbsoluteIndexSets', [], this.timeoutMs, indexSetsJson);
     return (JSON.parse(text) as { result: { blockHeights: number[] } }).result.blockHeights;
   }
 
-  /** The tip header as raw response text, plus its height for the app. */
-  async tipHeaderRaw(): Promise<{ raw: string; height: number }> {
+  /** The tip header as raw response text, plus its height and time for the app. */
+  async tipHeaderRaw(): Promise<{ raw: string; height: number; timestampMs: number | null }> {
     const raw = await this.callRaw('chain_tipHeader');
-    const height = (JSON.parse(raw) as { result: { header: { height: number } } }).result.header.height;
-    return { raw, height };
+    const header = (this.parse(raw, 'chain_tipHeader') as { result?: { header?: { height?: number; timestamp?: number } } }).result?.header;
+    if (typeof header?.height !== 'number') throw new NodeError(`${this.isDefault ? 'The default node' : this.host()} answered, but not as a Neptune node.${this.check()}`, 'garbled', 'chain_tipHeader');
+    return { raw, height: header.height, timestampMs: typeof header.timestamp === 'number' ? header.timestamp : null };
   }
 
   /** One boolean per absolute index set: true when any of its indices is set. */
@@ -336,9 +406,13 @@ export class NodeClient {
     return present;
   }
 
-  async submitTransaction(transaction: unknown): Promise<boolean> {
-    const r = await this.call<{ success: boolean }>('wallet_submitTransaction', [transaction], this.timeoutMs * 4);
-    return r.success;
+  /**
+   * Whether the node took the transaction into its mempool: true, false,
+   * or null when its answer does not say.
+   */
+  async submitTransaction(transaction: unknown): Promise<boolean | null> {
+    const r = await this.call<{ success?: unknown } | null>('wallet_submitTransaction', [transaction], this.timeoutMs * 4);
+    return typeof r?.success === 'boolean' ? r.success : null;
   }
 
   /** Connectivity check for the settings screen: the tip height, or throws. */

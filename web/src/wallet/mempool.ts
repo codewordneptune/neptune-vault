@@ -183,6 +183,9 @@ export class MempoolWatcher {
           error: null,
           outputs: [{ commitment: out.commitment, role: 'recipient' }],
           releaseDateMs: out.release_date_ms ?? null,
+          // Which address it is paid to: for its label, and for Receive to say it is arriving.
+          keyKind: out.key_kind,
+          keyIndex: out.key_index,
         };
         if (!(await this.ledger({ op: 'recordIncoming', row }))) continue;
         incoming += 1;
@@ -258,7 +261,7 @@ export class MempoolWatcher {
 /** The node did not answer at all, as opposed to answering with something unusable. */
 function isUnreachable(e: unknown): boolean {
   const code = (e as { code?: unknown })?.code;
-  return code === 'network' || code === 'timeout' || code === 'http' || /wallet is locked/i.test((e as Error)?.message ?? '');
+  return code === 'network' || code === 'timeout' || code === 'http' || code === 'garbled' || /wallet is locked/i.test((e as Error)?.message ?? '');
 }
 
 function isMethodNotFound(e: unknown): boolean {

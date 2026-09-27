@@ -240,6 +240,20 @@ export async function wrapContentKey(contentRaw: Uint8Array, secret: Uint8Array)
   return aesEncrypt(key, contentRaw);
 }
 
+/**
+ * Check that a secret (a passkey's PRF output) opens the content key wrapped
+ * under it, and open nothing else: for confirming a send, where the seed is
+ * not needed on the page. Throws when it does not.
+ */
+export async function checkSecret(wrapped: { iv: string; ciphertext: string }, secret: Uint8Array): Promise<void> {
+  const key = await importAesKey(secret, ['decrypt']);
+  try {
+    (await aesDecrypt(key, wrapped)).fill(0);
+  } catch {
+    throw new Error('This passkey no longer matches the wallet. Use the password instead, and set the passkey up again in Settings.');
+  }
+}
+
 /** Recover the phrase from a content key wrapped under a secret. */
 export async function openSeedWithSecret(
   envelope: SeedEnvelope,
@@ -374,6 +388,12 @@ export interface SealedExportFile {
 /** What a version 3 file keeps encrypted besides the seed. */
 export interface BackupSecrets {
   contacts: { name: string; address: string }[];
+  /**
+   * Who each receiving address was given to, by kind and number
+   * ("generation:3"). Absent in files from before labels were kept; an
+   * older app reading a newer file passes over it.
+   */
+  labels?: Record<string, string>;
 }
 
 /**
@@ -474,7 +494,7 @@ export async function openBackup(file: SealedExportFile, password: string, deriv
     const parsed = JSON.parse(td.decode(plain)) as Partial<BackupSecrets>;
     const wrappedContentKey = await aesEncrypt(wrapKey, contentRaw);
     return {
-      secrets: { contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [] },
+      secrets: { contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [], labels: typeof parsed.labels === 'object' && parsed.labels !== null ? parsed.labels : undefined },
       envelope: { version: 1, kdf: e.kdf, wrappedContentKey, seed: e.seed },
     };
   } catch {
