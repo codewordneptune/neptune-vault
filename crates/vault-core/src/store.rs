@@ -575,6 +575,63 @@ impl<M: Model> Log<M> {
         Ok(log)
     }
 
+    /// What can still be read of a log that does not open: the newest
+    /// snapshot that opens, then every later batch that opens and applies,
+    /// in turn. Answers that state, the numbers of the entries passed over,
+    /// and the highest number in the log. For setting a damaged log aside,
+    /// never for opening one: a state with batches missing is not the
+    /// wallet's state. A log written by a newer version is refused, as
+    /// `open` refuses it, since what this build cannot read is not damage.
+    pub fn salvage(name: &str, key: Option<LogKey>, entries: &[Vec<u8>]) -> Result<(M, Vec<u64>, u64)> {
+        let log = Log::<M> { name: name.to_string(), key, state: M::default(), seq: 0 };
+        let mut parsed = Vec::with_capacity(entries.len());
+        let mut unreadable = 0u64;
+        for bytes in entries {
+            match serde_json::from_slice::<Header>(bytes) {
+                Ok(header) if header.format > FORMAT => {
+                    bail!("{NEWER_FORMAT} (format {}, this build reads {FORMAT})", header.format)
+                }
+                _ => {}
+            }
+            match serde_json::from_slice::<Entry>(bytes) {
+                Ok(entry) => parsed.push(entry),
+                Err(_) => unreadable += 1,
+            }
+        }
+        parsed.sort_by_key(|e| (e.seq, e.kind == SNAPSHOT));
+        let last = parsed.last().map_or(0, |e| e.seq);
+        let mut passed_over = Vec::new();
+        let mut state = M::default();
+        let mut from = 0;
+        for entry in parsed.iter().rev().filter(|e| e.kind == SNAPSHOT) {
+            match log.read_body(entry) {
+                Ok(Body { state: Some(snapshot), changes: None }) => {
+                    state = snapshot;
+                    from = entry.seq;
+                    break;
+                }
+                _ => passed_over.push(entry.seq),
+            }
+        }
+        for entry in parsed.iter().filter(|e| e.kind != SNAPSHOT && e.seq > from) {
+            match log.read_body(entry) {
+                Ok(Body { changes: Some(changes), state: None }) if entry.kind == CHANGES && state.check(&changes).is_ok() => state.apply(changes),
+                _ => passed_over.push(entry.seq),
+            }
+        }
+        // An entry too broken to have a number still counts as passed over.
+        passed_over.extend(std::iter::repeat_n(0, unreadable as usize));
+        passed_over.sort_unstable();
+        Ok((state, passed_over, last))
+    }
+
+    /// A log whose first entry is `state` itself, as a snapshot numbered
+    /// `seq`: what a damaged log is replaced with. Nothing is written here;
+    /// storage is handed `snapshot()`.
+    pub fn starting_from(name: &str, key: Option<LogKey>, state: M, seq: u64) -> Log<M> {
+        Log { name: name.to_string(), key, state, seq }
+    }
+
     fn read_body(&self, entry: &Entry) -> Result<Body<M>> {
         let seq = entry.seq;
         match (&self.key, &entry.sealed, &entry.body) {
@@ -672,6 +729,21 @@ pub trait Persist {
     fn compact(&mut self, log: &str, seq: u64, snapshot: &[u8]) -> Result<()>;
     /// Forget a log entirely.
     fn remove(&mut self, log: &str) -> Result<()>;
+    /// Keep a copy of every entry of `from`, exactly as it is, as the log
+    /// `to`: a damaged log is set aside this way, and nothing of it deleted.
+    fn copy(&mut self, from: &str, to: &str) -> Result<()>;
+}
+
+/// The name a damaged wallet log is kept under once set aside, at `at_ms`.
+/// Not a `wallet:` name, which start-up would clear away as a log whose
+/// wallet is gone; removing the wallet removes these too.
+pub fn aside_log(wallet_id: &str, at_ms: u64) -> String {
+    format!("aside:{wallet_id}:{at_ms}")
+}
+
+/// Whether `log` is one of this wallet's logs set aside.
+pub fn is_aside_of(log: &str, wallet_id: &str) -> bool {
+    log.strip_prefix("aside:").and_then(|rest| rest.strip_prefix(wallet_id)).is_some_and(|rest| rest.starts_with(':'))
 }
 
 /// Batches kept between snapshots before a log is folded into a new one.
@@ -826,6 +898,12 @@ impl Persist for MemoryPersist {
         self.logs.remove(log);
         Ok(())
     }
+
+    fn copy(&mut self, from: &str, to: &str) -> Result<()> {
+        let held = self.logs.get(from).cloned().unwrap_or_default();
+        self.logs.insert(to.to_string(), held);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -960,6 +1038,43 @@ mod tests {
         assert!(again.backend.logs.contains_key("wallet:b"));
         assert!(again.unlock("b", key(1)).is_err());
         again.unlock("a", key(1)).unwrap();
+    }
+
+    #[test]
+    fn a_damaged_log_gives_up_what_still_opens_and_starts_afresh_past_it() {
+        let mut vault = filled();
+        vault.commit_wallet("a", vec![WalletChange::PutContact { contact: contact("k2") }]).unwrap();
+        vault.commit_wallet("a", vec![WalletChange::PutContact { contact: contact("k3") }]).unwrap();
+        let mut logs = vault.backend.logs.clone();
+        let batches = &mut logs.get_mut("wallet:a").unwrap().0;
+        let mut damaged: Value = serde_json::from_slice(&batches[&2]).unwrap();
+        damaged["sealed"]["ciphertext"] = json!("AAAAAAAAAAAAAAAAAAAAAA==");
+        batches.insert(2, serde_json::to_vec(&damaged).unwrap());
+        let entries: Vec<Vec<u8>> = logs["wallet:a"].0.values().cloned().collect();
+        assert!(Log::<WalletState>::open("wallet:a", Some(key(1)), entries.clone()).is_err());
+
+        let (state, passed_over, last) = Log::<WalletState>::salvage("wallet:a", Some(key(1)), &entries).unwrap();
+        assert_eq!((passed_over, last), (vec![2], 3));
+        assert_eq!(state.contacts.keys().map(String::as_str).collect::<Vec<_>>(), ["k1", "k3"]);
+
+        // Started afresh past every old entry, the old ones are passed over from then on.
+        let fresh = Log::starting_from("wallet:a", Some(key(1)), state.clone(), last + 1);
+        let mut with_fresh = entries.clone();
+        with_fresh.push(fresh.snapshot().unwrap());
+        let opened = Log::<WalletState>::open("wallet:a", Some(key(1)), with_fresh).unwrap();
+        assert_eq!((opened.state(), opened.seq()), (&state, 4));
+
+        // What a newer version wrote is not damage, and is not salvaged over.
+        let mut newer = entries;
+        newer.push(serde_json::to_vec(&json!({ "format": FORMAT + 1, "seq": 9, "kind": "changes" })).unwrap());
+        assert!(Log::<WalletState>::salvage("wallet:a", Some(key(1)), &newer).unwrap_err().to_string().starts_with(NEWER_FORMAT));
+    }
+
+    #[test]
+    fn a_log_set_aside_is_named_for_its_wallet_and_nobody_else_s() {
+        assert!(is_aside_of(&aside_log("a", 5), "a"));
+        assert!(!is_aside_of(&aside_log("ab", 5), "a"));
+        assert!(!is_aside_of(&wallet_log("a"), "a"));
     }
 
     #[test]

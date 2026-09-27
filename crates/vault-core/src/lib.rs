@@ -300,6 +300,9 @@ mod wasm {
         wallet_id: String,
         log: store::Log<store::WalletState>,
         pending: Option<store::Prepared<store::WalletState>>,
+        /// For a log started afresh from a damaged one: how many entries of
+        /// that one could not be read.
+        passed_over: u32,
     }
 
     #[wasm_bindgen]
@@ -312,7 +315,32 @@ mod wasm {
             let key = store::LogKey::derive(content_key, wallet_id).map_err(js_err)?;
             let entries = entries.iter().map(|e| js_sys::Uint8Array::new(&e).to_vec()).collect();
             let log = store::Log::open(&store::wallet_log(wallet_id), Some(key), entries).map_err(js_err)?;
-            Ok(WalletLog { wallet_id: wallet_id.to_string(), log, pending: None })
+            Ok(WalletLog { wallet_id: wallet_id.to_string(), log, pending: None, passed_over: 0 })
+        }
+
+        /// When a wallet's log will not open: a fresh log holding what can
+        /// still be read of it (see `migrate::set_aside_state`), its chain
+        /// to be rebuilt by the sync. `dump_json` is what the app's database
+        /// holds for the wallet. The worker copies the old entries aside,
+        /// then writes `snapshot()` as entry `seq()`, which is numbered past
+        /// every old one, so the old entries are passed over from then on
+        /// and a crash in between leaves the old log as it was.
+        pub fn set_aside(wallet_id: &str, content_key: &[u8], entries: js_sys::Array, dump_json: &str) -> Result<WalletLog, JsError> {
+            console_error_panic_hook::set_once();
+            let dump: migrate::Dump = serde_json::from_str(dump_json)
+                .map_err(|e| JsError::new(&format!("cannot decode the old database: {e}")))?;
+            let entries: Vec<Vec<u8>> = entries.iter().map(|e| js_sys::Uint8Array::new(&e).to_vec()).collect();
+            let name = store::wallet_log(wallet_id);
+            let key = || store::LogKey::derive(content_key, wallet_id).map_err(js_err);
+            let (salvaged, passed_over, last) = store::Log::<store::WalletState>::salvage(&name, Some(key()?), &entries).map_err(js_err)?;
+            let fresh = migrate::set_aside_state(&salvaged, &dump, wallet_id);
+            let log = store::Log::starting_from(&name, Some(key()?), fresh, last + 1);
+            Ok(WalletLog { wallet_id: wallet_id.to_string(), log, pending: None, passed_over: passed_over.len() as u32 })
+        }
+
+        /// How many entries of the damaged log could not be read.
+        pub fn passed_over(&self) -> u32 {
+            self.passed_over
         }
 
         /// The name storage keeps this log under.

@@ -329,6 +329,12 @@ impl Vault {
         self.store()?.rebuild(wallet_id, dump)
     }
 
+    /// When the wallet's log will not open: set it aside and carry on from
+    /// what could still be read. Answers how many entries could not be.
+    pub fn store_set_aside(&self, wallet_id: &str, dump: Value, now: u64) -> Result<u32> {
+        self.store()?.set_aside(wallet_id, dump, now)
+    }
+
     pub fn store_read(&self, wallet_id: &str, part: &str) -> Result<Vec<Value>> {
         self.store()?.read(wallet_id, part)
     }

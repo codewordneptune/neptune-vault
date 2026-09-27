@@ -184,7 +184,7 @@ export type LedgerOp =
   | { op: 'absoluteIndexSets' }
   | { op: 'scanBlocks'; blocksResponse: string; from: number; to: number; prevHash: string | null }
   | { op: 'scanMempoolKernel'; kernelResponse: string }
-  | { op: 'startPass'; tipHeight: number }
+  | { op: 'startPass'; tipHeight: number; startHint?: number | null }
   | { op: 'rollBack'; height: number; hash: string | null; now: number }
   | { op: 'persistScan'; result: ScanResult; keepBlocks?: number; now: number }
   | { op: 'finishFastRestore'; handover: number; lowest: number; now: number }
@@ -193,6 +193,8 @@ export type LedgerOp =
   | { op: 'recordPending'; entry: HistoryRecord }
   | { op: 'discardPending'; txid: string }
   | { op: 'forgetSend'; txid: string }
+  /** Release the sends no block can take any more; answers their ids. */
+  | { op: 'expireSends'; tipTimestampMs: number }
   | { op: 'recordOutgoing'; row: HistoryRecord }
   | { op: 'recordIncoming'; row: HistoryRecord }
   | { op: 'dropRow'; key: string }
@@ -221,6 +223,7 @@ export interface LedgerAnswers {
   recordPending: null;
   discardPending: null;
   forgetSend: null;
+  expireSends: string[];
   /** Whether the row was written; false when it was there already. */
   recordOutgoing: boolean;
   recordIncoming: boolean;
@@ -317,6 +320,13 @@ export interface WalletCore {
    * is as for storeMigrate. Nothing is deleted from the app's database.
    */
   storeRebuild?(accountId: string, dump: unknown): Promise<void>;
+  /**
+   * When the wallet's log will not open: keep it whole under another name,
+   * and carry on in a fresh log holding what could still be read of it (the
+   * wallet's record, contacts, private notes, sends not yet settled), its
+   * chain to be rebuilt by the sync. Answers how many entries could not be read.
+   */
+  storeSetAside?(accountId: string, dump: unknown): Promise<number>;
   /** Forget a wallet's log entirely. Needs no key: works on a locked wallet. */
   storeRemove?(accountId: string): Promise<void>;
   /** One ledger operation on the unlocked wallet's data. */

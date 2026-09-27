@@ -34,6 +34,7 @@ use crate::store::ScanState;
 use crate::store::DeviceChange;
 use crate::store::DeviceState;
 use crate::store::HistoryEntry;
+use crate::store::Model;
 use crate::store::Settings;
 use crate::store::SyncState;
 use crate::store::Utxo;
@@ -281,6 +282,48 @@ pub fn rebuild_changes(dump: &Dump, wallet_id: &str) -> Vec<WalletChange> {
     ];
     changes.extend(CHAIN.iter().map(|part| WalletChange::MarkMigrated { part: part.to_string() }));
     changes
+}
+
+/// When a wallet's own log will not open (an entry changed on the disk, or
+/// sealed under another key): the state a fresh log starts from. What only
+/// a person made and can still be read is kept: the wallet's record, its
+/// contacts, its private notes, and this device's sends that have not
+/// settled. The chain is rebuilt from the chain, as after `rebuild_changes`,
+/// from the lower start and the higher key counters of the two records,
+/// since watching more keys from further back can only find more.
+pub fn set_aside_state(salvaged: &WalletState, dump: &Dump, wallet_id: &str) -> WalletState {
+    let mut state = WalletState {
+        details: salvaged.details.clone(),
+        contacts: salvaged.contacts.clone(),
+        private: salvaged.private.clone(),
+        migrated: salvaged.migrated.clone(),
+        ..Default::default()
+    };
+    state.apply(rebuild_changes(dump, wallet_id));
+    if let (Some(scan), Some(read)) = (state.scan.as_mut(), salvaged.scan.as_ref()) {
+        if read.birthday_height > 0 {
+            scan.birthday_height = scan.birthday_height.min(read.birthday_height);
+        }
+        let (a, b) = (&mut scan.next_key_indices, read.next_key_indices);
+        a.generation = a.generation.max(b.generation);
+        a.ec_hybrid = a.ec_hybrid.max(b.ec_hybrid);
+        a.viewing = a.viewing.max(b.viewing);
+    }
+    for entry in salvaged.history.values().filter(|h| crate::ledger::own_send(h) && (h.status == "pending" || crate::ledger::given_up(h))) {
+        state.history.insert(entry.key.clone(), entry.clone());
+    }
+    // Parts with something in them live here from now on, whatever the
+    // passed-over entries said: the old database has nothing newer.
+    if state.details.is_some() {
+        state.migrated.insert("details".into());
+    }
+    if !state.contacts.is_empty() {
+        state.migrated.insert("contacts".into());
+    }
+    if !state.private.is_empty() {
+        state.migrated.insert("private".into());
+    }
+    state
 }
 
 // ---------------------------------------------------------------------------

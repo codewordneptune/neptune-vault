@@ -41,6 +41,11 @@ use crate::account::KeyKind;
 use crate::amount;
 use crate::scan::StoredUtxo;
 
+/// How a send that met a new block between its two questions to the node
+/// fails: the membership proofs and the tip are from different blocks.
+/// Nothing was proved yet, so the app builds again rather than saying so.
+pub const TIP_MOVED: &str = "a new block arrived while the send was being built";
+
 /// The most recipients one send pays. Each is an output the proof covers
 /// and an announcement the transaction carries; the cost per recipient is
 /// small next to an input's, but a list without end is not a send a phone
@@ -248,7 +253,8 @@ pub fn build_send(
     let synced_hash = snapshot.synced_hash;
     let tip_height: u64 = tip_header.height.into();
     if synced_height != tip_height {
-        bail!("membership proofs are for height {synced_height} but the tip is {tip_height}; retry");
+        // The app recognises this sentence and builds again at once.
+        bail!("{TIP_MOVED} (proofs for block {synced_height}, tip {tip_height})");
     }
     if snapshot.membership_proofs.len() != inputs.len() {
         bail!(
@@ -274,7 +280,7 @@ pub fn build_send(
             )
             .ok_or_else(|| anyhow!("node returned a bad membership proof for {}", input.hash))?;
         if !mutator_set.verify(neptune_wallet::tasm_lib::prelude::Tip5::hash(&recovery.utxo), &membership_proof) {
-            bail!("the node's membership proof for one of the coins does not verify against the node's own state. Nothing was sent. The coin may have been spent already (a rescan in Settings would show that), or the node is faulty.");
+            bail!("Nothing was sent: what the node says about one of your coins does not add up. The coin may have been spent already, or a block may have arrived at the wrong moment. Wait for the next block, then try again; if it keeps happening, try another node.");
         }
         let key = account.key(input.key_kind, input.key_index).clone();
         if key.lock_script_hash() != recovery.utxo.lock_script_hash() {

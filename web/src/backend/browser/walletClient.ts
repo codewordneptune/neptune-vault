@@ -123,6 +123,9 @@ export class WalletWorkerClient implements WalletCore {
   storeRebuild(accountId: string, dump: unknown) {
     return this.call<void>('storeRebuild', [accountId, dump]);
   }
+  storeSetAside(accountId: string, dump: unknown) {
+    return this.call<number>('storeSetAside', [accountId, dump]);
+  }
   storeRead(accountId: string, part: WalletPart) {
     return this.call<unknown[]>('storeRead', [accountId, part]);
   }

@@ -199,23 +199,45 @@ fn a_rollback_forgets_what_was_above_and_puts_own_sends_back_to_pending() {
 fn the_start_height_is_set_once_from_the_tip_and_never_lowered_afterwards() {
     let mut unknown = wallet();
     unknown.scan.as_mut().unwrap().birthday_height = 0;
-    let position = run(&mut unknown, |s| start_pass(s, 500).unwrap());
+    let position = run(&mut unknown, |s| start_pass(s, 500, None).unwrap());
     assert_eq!((unknown.scan.as_ref().unwrap().birthday_height, position.synced_height), (500, 499));
 
     let mut ahead = wallet();
     ahead.scan.as_mut().unwrap().birthday_height = 900;
-    run(&mut ahead, |s| start_pass(s, 500).unwrap());
+    run(&mut ahead, |s| start_pass(s, 500, None).unwrap());
     assert_eq!(ahead.scan.as_ref().unwrap().birthday_height, 500);
 
     let mut scanned = wallet();
     persist(&mut scanned, &[block(450, vec![], &[], &[])]);
     scanned.scan.as_mut().unwrap().birthday_height = 900;
-    let outcome = start_pass(&scanned, 500).unwrap();
+    let outcome = start_pass(&scanned, 500, None).unwrap();
     assert!(outcome.changes.is_empty(), "a wallet with a position keeps its start height");
     assert_eq!(outcome.value, Position { synced_height: 450, synced_hash: Some("h450".into()) });
 
-    let error = start_pass(&scanned, 400).unwrap_err().to_string();
+    let error = start_pass(&scanned, 400, None).unwrap_err().to_string();
     assert!(error.contains("ends at block 400, below block 450"), "{error}");
+}
+
+#[test]
+fn a_wallet_made_offline_starts_at_the_block_of_its_creation_when_the_app_found_it() {
+    let mut unknown = wallet();
+    unknown.scan.as_mut().unwrap().birthday_height = 0;
+    let position = run(&mut unknown, |s| start_pass(s, 500, Some(430)).unwrap());
+    assert_eq!((unknown.scan.as_ref().unwrap().birthday_height, position.synced_height), (430, 429));
+
+    // A hint above the chain, or at nothing, is no hint.
+    for hint in [0, 501] {
+        let mut unknown = wallet();
+        unknown.scan.as_mut().unwrap().birthday_height = 0;
+        run(&mut unknown, |s| start_pass(s, 500, Some(hint)).unwrap());
+        assert_eq!(unknown.scan.as_ref().unwrap().birthday_height, 500);
+    }
+
+    // It is for an unknown start only: one set above the chain goes to the tip.
+    let mut ahead = wallet();
+    ahead.scan.as_mut().unwrap().birthday_height = 900;
+    run(&mut ahead, |s| start_pass(s, 500, Some(430)).unwrap());
+    assert_eq!(ahead.scan.as_ref().unwrap().birthday_height, 500);
 }
 
 #[test]
@@ -242,6 +264,63 @@ fn a_fast_restore_hands_over_below_the_tip_and_a_rescan_starts_from_nothing() {
     assert_eq!(state.contacts.len(), 1, "what a person made stays");
     let scan = state.scan.unwrap();
     assert_eq!((scan.birthday_height, scan.next_key_indices, scan.restore.as_deref()), (250, FRESH_KEY_INDICES, Some("fast")));
+}
+
+#[test]
+fn a_rescan_keeps_this_device_s_unsettled_sends_and_holds_their_coins_again() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 5, 120), coin("b", 3, 120), coin("c", 2, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("tx1", &["a"], &["out1"])));
+    run(&mut state, |s| record_pending(s, pending_send("tx2", &["b"], &["out2"])));
+    run(&mut state, |s| forget_send(s, W, "tx2"));
+    run(&mut state, |s| record_outgoing(s, outgoing("m1", &["c"])));
+    persist(&mut state, &[block(121, vec![], &[], &[])]);
+
+    run(&mut state, |s| reset_for_rescan(s, 100, false).unwrap());
+    assert!(state.utxos.is_empty() && state.sync.is_none());
+    let kept: Vec<&str> = state.history.keys().map(String::as_str).collect();
+    assert_eq!(kept, ["w:sent:tx1", "w:sent:tx2"], "the pending send and the one given up on stay; what the chain or the mempool wrote goes");
+    assert_eq!(row(&state, "sent:tx1")["recipient"], json!("nolgam1payee"));
+
+    // The scan finds the coins again: the pending send's coin comes back held,
+    // the given-up send's coin free.
+    persist(&mut state, &[block(120, vec![coin("a", 5, 120), coin("b", 3, 120)], &[], &[])]);
+    assert_eq!(state.utxos["a"].pending_txid.as_deref(), Some("tx1"));
+    assert_eq!(state.utxos["b"].pending_txid, None);
+
+    // And the send confirms as itself once its block comes.
+    persist(&mut state, &[block(122, vec![], &["a"], &["out1"])]);
+    assert_eq!(row(&state, "sent:tx1")["status"], json!("confirmed"));
+    assert!(!state.history.keys().any(|k| k.contains(":spent:")));
+}
+
+#[test]
+fn a_send_expires_once_the_chain_is_three_days_past_its_stamp() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 5, 120), coin("b", 3, 120)], &[], &[])]);
+    let mut stamped = pending_send("tx1", &["a"], &["out1"]);
+    stamped.extra.insert("stampMs".into(), json!(1_000));
+    stamped.timestamp_ms = 900_000;
+    run(&mut state, |s| record_pending(s, stamped));
+    // Without a stamp, the row's own time is taken, which is later.
+    let mut unstamped = pending_send("tx2", &["b"], &["out2"]);
+    unstamped.timestamp_ms = 900_000;
+    run(&mut state, |s| record_pending(s, unstamped));
+
+    assert!(run(&mut state, |s| expire_sends(s, 1_000 + SEND_LIFETIME_MS)).is_empty(), "not a moment early");
+    assert_eq!(run(&mut state, |s| expire_sends(s, 1_001 + SEND_LIFETIME_MS)), ["tx1"]);
+    let sent = row(&state, "sent:tx1");
+    assert_eq!((sent["status"].clone(), sent["error"].clone(), sent["expired"].clone()), (json!("failed"), json!(EXPIRED), json!(true)));
+    assert_eq!(state.utxos["a"].pending_txid, None, "its coin is spendable again");
+    assert_eq!(state.utxos["b"].pending_txid.as_deref(), Some("tx2"));
+
+    assert_eq!(run(&mut state, |s| expire_sends(s, 900_001 + SEND_LIFETIME_MS)), ["tx2"]);
+    assert!(expire_sends(&state, u64::MAX).value.is_empty(), "each only once");
+
+    // A later spend of its coin in the mempool is another transaction, not this send come back.
+    let written = run(&mut state, |s| record_outgoing(s, outgoing("m", &["a"])));
+    assert!(written);
+    assert_eq!(row(&state, "sent:tx1")["status"], json!("failed"));
 }
 
 // ------------------------------------------------------------------ sends
@@ -375,7 +454,7 @@ fn a_payment_on_its_way_in_is_written_once() {
 #[test]
 fn a_wallet_with_no_scan_state_is_refused_rather_than_guessed_at() {
     let state = WalletState::default();
-    assert!(start_pass(&state, 10).is_err());
+    assert!(start_pass(&state, 10, None).is_err());
     assert!(persist_scan(&state, W, &[block(1, vec![], &[], &[])], FRESH_KEY_INDICES, KEEP_BLOCKS, 0).is_err());
 }
 

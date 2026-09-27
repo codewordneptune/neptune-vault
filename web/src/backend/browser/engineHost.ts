@@ -121,6 +121,33 @@ export class EngineHost {
     });
   }
 
+  /**
+   * When the wallet's log will not open: copy it aside whole, deleting
+   * nothing, and carry on in a fresh log holding what could still be read
+   * of it, its chain to be rebuilt by the sync. The fresh log's first entry
+   * is numbered past every old one, so the old entries are passed over from
+   * then on, and a crash before it lands leaves the log as it was. Answers
+   * how many entries could not be read.
+   */
+  setAside(accountId: string, dump: unknown): Promise<number> {
+    return this.inTurn(accountId, async () => {
+      if (!this.contentKey) throw new Error('wallet is locked');
+      const store = await this.storage();
+      const name = `wallet:${accountId}`;
+      const fresh = this.m.WalletLog.set_aside(accountId, this.contentKey, await store.load(name), JSON.stringify(dump));
+      try {
+        await store.copy(name, `aside:${accountId}:${Date.now()}`);
+        await store.compact(name, fresh.seq(), fresh.snapshot());
+      } catch (e) {
+        fresh.free();
+        throw e;
+      }
+      this.logs.get(accountId)?.log.free();
+      this.logs.set(accountId, { log: fresh, sinceSnapshot: 0 });
+      return fresh.passed_over();
+    });
+  }
+
   read(accountId: string, part: WalletPart): Promise<unknown[]> {
     return this.inTurn(accountId, async () => JSON.parse(this.held(accountId).log.read(part)) as unknown[]);
   }
@@ -150,12 +177,14 @@ export class EngineHost {
     });
   }
 
-  /** Forget a wallet's log entirely. Needs no key. */
+  /** Forget a wallet's log entirely, and any of its logs set aside. Needs no key. */
   remove(accountId: string): Promise<void> {
     return this.inTurn(accountId, async () => {
       this.logs.get(accountId)?.log.free();
       this.logs.delete(accountId);
-      await (await this.storage()).remove(`wallet:${accountId}`);
+      const store = await this.storage();
+      for (const log of await store.logs()) if (log.startsWith(`aside:${accountId}:`)) await store.remove(log);
+      await store.remove(`wallet:${accountId}`);
     });
   }
 }

@@ -99,12 +99,36 @@ fn nau(text: &str) -> i128 {
 /// The note `forget_send` leaves on a send the person gave up on.
 const GAVE_UP: &str = "You gave up on this send.";
 
-/// Whether a row is a send the person gave up on. Rows written before the
-/// mark was kept are told by the note.
-fn given_up(entry: &HistoryEntry) -> bool {
+/// The note `expire_sends` leaves on a send no block can take any more.
+pub const EXPIRED: &str = "Not sent: it expired. No block can include it any more, so its coins are spendable again.";
+
+/// How long a send can wait for a block. A block may not carry a
+/// transaction stamped more than three days before its own timestamp
+/// (consensus rule 2.f, from hardfork gamma on), and every later block is
+/// timestamped later still. The hour on top is for a reorganisation that
+/// swaps the newest block for one timestamped a little earlier.
+pub const SEND_LIFETIME_MS: u64 = (3 * 24 + 1) * 60 * 60 * 1000;
+
+/// Whether a row is a send the person gave up on, or one that expired: its
+/// coins are free again, though the transaction may once have been out
+/// there. Rows written before the mark was kept are told by the note.
+pub(crate) fn given_up(entry: &HistoryEntry) -> bool {
     entry.kind == "sent"
         && entry.status == "failed"
-        && (entry.extra.get("givenUp").and_then(Value::as_bool) == Some(true) || entry.extra.get("error").and_then(Value::as_str) == Some(GAVE_UP))
+        && (entry.extra.get("givenUp").and_then(Value::as_bool) == Some(true)
+            || entry.extra.get("expired").and_then(Value::as_bool) == Some(true)
+            || entry.extra.get("error").and_then(Value::as_str) == Some(GAVE_UP))
+}
+
+/// Whether a row is a send that expired: no block can take it any more.
+fn expired(entry: &HistoryEntry) -> bool {
+    entry.extra.get("expired").and_then(Value::as_bool) == Some(true)
+}
+
+/// A send this device built, as opposed to one the chain or the mempool
+/// watcher wrote for a spend made elsewhere.
+pub(crate) fn own_send(entry: &HistoryEntry) -> bool {
+    entry.kind == "sent" && !entry.txid.is_empty() && entry.key.contains(":sent:")
 }
 
 /// The send given up on whose inputs include this coin, if any.
@@ -194,17 +218,22 @@ pub struct Position {
 
 /// Begin a pass against a node whose tip is at `tip_height`.
 ///
-/// A wallet made while the node was unreachable has no start height yet,
-/// and one set above the chain (a typo at import, or a rescan aimed too far
-/// ahead) would skip every block until the chain caught up: both start at
-/// the tip seen now. Only before the first scan: once the wallet has a
-/// position, a node reporting a low tip must not rewrite where its history
-/// starts, and one reporting a tip below that position is refused.
-pub fn start_pass(state: &WalletState, tip_height: u64) -> Result<Outcome<Position>> {
+/// A wallet made while the node was unreachable has no start height yet:
+/// it starts at `start_hint`, the block of its creation time less a margin,
+/// which the app looks up, or at the tip seen now when there is none. A
+/// start set above the chain (a typo at import, or a rescan aimed too far
+/// ahead) would skip every block until the chain caught up, so it starts at
+/// the tip. Only before the first scan: once the wallet has a position, a
+/// node reporting a low tip must not rewrite where its history starts, and
+/// one reporting a tip below that position is refused.
+pub fn start_pass(state: &WalletState, tip_height: u64, start_hint: Option<u64>) -> Result<Outcome<Position>> {
     let mut scan = scan_of(state)?;
     let mut tx = Tx::new(state);
     if state.sync.is_none() && (scan.birthday_height == 0 || scan.birthday_height > tip_height) {
-        scan.birthday_height = tip_height;
+        scan.birthday_height = match start_hint {
+            Some(hint) if scan.birthday_height == 0 && (1..=tip_height).contains(&hint) => hint,
+            _ => tip_height,
+        };
         tx.push(WalletChange::PutScan { scan: scan.clone() });
     }
     if let Some(sync) = &state.sync {
@@ -493,10 +522,19 @@ pub fn finish_fast_restore(state: &WalletState, wallet_id: &str, handover: i64, 
 /// Start scanning again from `height`: what scanning found goes, what a
 /// person made (contacts, the wallet's own record) stays. Funds are
 /// unaffected; only the local view is rebuilt.
+///
+/// So do this device's sends that have not settled: pending, given up on,
+/// or expired. The chain cannot rebuild them, and a pending one forgotten
+/// would free its coins for a second send that silently cancels the first.
+/// Their coins come back held when the scan finds them again (see
+/// `persist_scan`), and until then they are not there to spend.
 pub fn reset_for_rescan(state: &WalletState, height: u64, fast: bool) -> Result<Outcome> {
     scan_of(state)?;
     let mut tx = Tx::new(state);
     tx.push(WalletChange::Reset);
+    for entry in state.history.values().filter(|h| own_send(h) && (h.status == "pending" || given_up(h))) {
+        tx.push(WalletChange::PutHistory { entry: entry.clone() });
+    }
     tx.push(WalletChange::PutScan {
         scan: ScanState {
             birthday_height: height,
@@ -569,6 +607,33 @@ pub fn forget_send(state: &WalletState, wallet_id: &str, txid: &str) -> Outcome 
     tx.done(())
 }
 
+/// When a pending send was stamped: the transaction's own timestamp, kept
+/// on the row since it was, else the time the row was written, which is
+/// later and so errs on the side of waiting.
+fn stamped_at(entry: &HistoryEntry) -> u64 {
+    entry.extra.get("stampMs").and_then(Value::as_u64).unwrap_or(entry.timestamp_ms)
+}
+
+/// Pending sends of this device that no block can take any more, now that
+/// the chain's newest block is timestamped `tip_timestamp_ms`: their coins
+/// are released and each is marked as expired. Answers their transaction ids.
+pub fn expire_sends(state: &WalletState, tip_timestamp_ms: u64) -> Outcome<Vec<String>> {
+    let mut tx = Tx::new(state);
+    let mut expired = Vec::new();
+    for entry in state.history.values().filter(|h| own_send(h) && h.status == "pending") {
+        if tip_timestamp_ms <= stamped_at(entry).saturating_add(SEND_LIFETIME_MS) {
+            continue;
+        }
+        release_inputs(&mut tx, entry);
+        let mut extra = entry.extra.clone();
+        extra.insert("error".into(), json!(EXPIRED));
+        extra.insert("expired".into(), json!(true));
+        tx.push(WalletChange::PutHistory { entry: HistoryEntry { status: "failed".into(), extra, ..entry.clone() } });
+        expired.push(entry.txid.clone());
+    }
+    tx.done(expired)
+}
+
 // ---------------------------------------------------------------------------
 // The mempool
 // ---------------------------------------------------------------------------
@@ -604,8 +669,9 @@ pub fn record_outgoing(state: &WalletState, row: HistoryEntry) -> Outcome<bool> 
     // The coins of a send given up on, spent after all: that send is going
     // through. Its row comes back as pending, with its recipient and fee,
     // and holds its coins again, instead of a second row for the same
-    // payment without either.
-    if let Some(sent) = row.input_hashes.iter().find_map(|h| given_up_spending(state, h)) {
+    // payment without either. Not one that expired: no block can take it,
+    // so whatever spends its coins now is another transaction.
+    if let Some(sent) = row.input_hashes.iter().find_map(|h| given_up_spending(state, h)).filter(|s| !expired(s)) {
         tx.push(WalletChange::PutHistory { entry: revived(&sent, "pending", None) });
         for hash in &sent.input_hashes {
             set_hold(&mut tx, hash, None, Some(&sent.txid));

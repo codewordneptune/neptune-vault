@@ -97,6 +97,10 @@ export class NativeWalletClient implements WalletCore {
     return call('store_rebuild', { accountId, dump });
   }
 
+  storeSetAside(accountId: string, dump: unknown): Promise<number> {
+    return call('store_set_aside', { accountId, dump, now: Date.now() });
+  }
+
   storeRead(accountId: string, part: WalletPart): Promise<unknown[]> {
     return call('store_read', { accountId, part });
   }

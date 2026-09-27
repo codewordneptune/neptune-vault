@@ -90,6 +90,16 @@ export class LogStore {
     await tx.done;
   }
 
+  /**
+   * Keep a copy of every entry of `from`, exactly as it is, as the log `to`:
+   * a damaged log is set aside this way, and nothing of it deleted.
+   */
+  async copy(from: string, to: string): Promise<void> {
+    const tx = this.db.transaction('entries', 'readwrite', { durability: 'strict' });
+    for (const row of await tx.store.index('byLog').getAll(from)) await tx.store.put({ ...row, log: to });
+    await tx.done;
+  }
+
   /** Forget a log entirely. */
   async remove(log: string): Promise<void> {
     const tx = this.db.transaction('entries', 'readwrite', { durability: 'strict' });

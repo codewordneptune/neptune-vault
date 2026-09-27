@@ -20,6 +20,8 @@ use serde_json::Value;
 use vault_core::account::Account;
 use vault_core::ledger::op;
 use vault_core::migrate;
+use vault_core::store::aside_log;
+use vault_core::store::is_aside_of;
 use vault_core::store::wallet_log;
 use vault_core::store::Log;
 use vault_core::store::LogKey;
@@ -123,6 +125,27 @@ impl WalletStore {
         self.apply(wallet_id, changes)
     }
 
+    /// When the wallet's log will not open: copy it aside whole, deleting
+    /// nothing, and carry on in a fresh log holding what could still be read
+    /// of it, its chain to be rebuilt by the sync. The fresh log's first
+    /// entry is numbered past every old one, so from then on the old entries
+    /// are passed over, and a crash before it lands leaves the log as it
+    /// was. Answers how many entries could not be read.
+    pub fn set_aside(&mut self, wallet_id: &str, dump: Value, now: u64) -> Result<u32> {
+        let dump: migrate::Dump = serde_json::from_value(dump).map_err(|e| BridgeError::plain(format!("cannot decode the old database: {e}")))?;
+        let content = self.content_key.as_ref().ok_or_else(locked)?;
+        let name = wallet_log(wallet_id);
+        let entries = self.persist.load(&name)?;
+        let (salvaged, passed_over, last) = Log::<WalletState>::salvage(&name, Some(LogKey::derive(content, wallet_id)?), &entries)?;
+        let fresh = migrate::set_aside_state(&salvaged, &dump, wallet_id);
+        let log = Log::starting_from(&name, Some(LogKey::derive(content, wallet_id)?), fresh, last + 1);
+        let snapshot = log.snapshot()?;
+        self.persist.copy(&name, &aside_log(wallet_id, now))?;
+        self.persist.compact(&name, log.seq(), &snapshot)?;
+        self.logs.insert(wallet_id.to_string(), Held { log, since_snapshot: 0 });
+        Ok(passed_over.len() as u32)
+    }
+
     /// Start the chain afresh, for the sync to rebuild it from the chain.
     pub fn rebuild(&mut self, wallet_id: &str, dump: Value) -> Result<()> {
         let dump: migrate::Dump = serde_json::from_value(dump).map_err(|e| BridgeError::plain(format!("cannot decode the old database: {e}")))?;
@@ -152,9 +175,12 @@ impl WalletStore {
         Ok(outcome.value)
     }
 
-    /// Forget a wallet's log entirely. Needs no key.
+    /// Forget a wallet's log entirely, and any of its logs set aside. Needs no key.
     pub fn remove(&mut self, wallet_id: &str) -> Result<()> {
         self.logs.remove(wallet_id);
+        for log in self.persist.logs()?.into_iter().filter(|log| is_aside_of(log, wallet_id)) {
+            self.persist.remove(&log)?;
+        }
         Ok(self.persist.remove(&wallet_log(wallet_id))?)
     }
 }
@@ -272,6 +298,23 @@ impl Persist for FilePersist {
         }
         Ok(())
     }
+
+    fn copy(&mut self, from: &str, to: &str) -> anyhow::Result<()> {
+        let source = self.dir(from);
+        let target = self.dir(to);
+        fs::create_dir_all(&target)?;
+        if !source.exists() {
+            return Ok(());
+        }
+        for entry in fs::read_dir(&source)? {
+            let path = entry?.path();
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
+            if name.ends_with(".batch") || name == SNAPSHOT {
+                Self::write_whole(&target.join(name), &fs::read(&path)?)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -347,6 +390,38 @@ mod tests {
         store.rebuild(W, json!({ "accounts": [account()] })).unwrap();
         let scan = &store.read(W, "scan").unwrap()[0];
         assert_eq!((scan["birthdayHeight"].clone(), scan["restore"].clone()), (json!(100), json!("rebuild")));
+    }
+
+    #[test]
+    fn a_log_that_will_not_open_is_set_aside_whole_and_what_still_opens_carries_on() {
+        let root = std::env::temp_dir().join(format!("vault-store-aside-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        {
+            let mut store = opened(Box::new(FilePersist::new(root.clone()).unwrap()));
+            store.migrate(W, chain(), json!({ "accounts": [account()] })).unwrap();
+            store.commit(W, json!([{ "op": "putContact", "contact": { "id": "k1", "name": "Al", "address": "nolgar1x" } }])).unwrap();
+            store.commit(W, json!([{ "op": "putPrivate", "key": "note", "value": 1 }])).unwrap();
+        }
+        // The last entry changed on the disk: it no longer opens, and nor does the log.
+        let path = root.join(hex::encode(wallet_log(W))).join(FilePersist::batch(3));
+        let mut entry: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        entry["sealed"]["ciphertext"] = json!("AAAAAAAAAAAAAAAAAAAAAA==");
+        fs::write(&path, serde_json::to_vec(&entry).unwrap()).unwrap();
+        let mut store = WalletStore::new(Box::new(FilePersist::new(root.clone()).unwrap()));
+        store.keep(Some(Zeroizing::new(vec![7u8; 32])));
+        assert!(store.open(W).is_err());
+
+        assert_eq!(store.set_aside(W, json!({ "accounts": [account()] }), 42).unwrap(), 1);
+        assert_eq!(store.read(W, "contacts").unwrap().len(), 1, "what still opened is kept");
+        assert_eq!(store.read(W, "scan").unwrap()[0]["restore"], json!("rebuild"));
+
+        // It opens again from now on, and the old log is kept aside, every entry of it.
+        let mut again = opened(Box::new(FilePersist::new(root.clone()).unwrap()));
+        assert_eq!(again.read(W, "contacts").unwrap().len(), 1);
+        assert_eq!(fs::read_dir(root.join(hex::encode(aside_log(W, 42)))).unwrap().count(), 3);
+        again.remove(W).unwrap();
+        assert!(fs::read_dir(&root).unwrap().next().is_none(), "removing the wallet takes what was set aside too");
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

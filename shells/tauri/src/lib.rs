@@ -236,6 +236,11 @@ fn store_rebuild(app: State<'_, App>, account_id: String, dump: Value) -> Result
 }
 
 #[tauri::command]
+fn store_set_aside(app: State<'_, App>, account_id: String, dump: Value, now: u64) -> Result<u32> {
+    app.vault.store_set_aside(&account_id, dump, now)
+}
+
+#[tauri::command]
 fn store_read(app: State<'_, App>, account_id: String, part: String) -> Result<Vec<Value>> {
     app.vault.store_read(&account_id, &part)
 }
@@ -416,6 +421,7 @@ pub fn run() {
             store_open,
             store_migrate,
             store_rebuild,
+            store_set_aside,
             store_read,
             store_commit,
             store_remove,

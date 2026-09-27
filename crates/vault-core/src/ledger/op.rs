@@ -48,7 +48,8 @@ pub enum Op {
     ScanMempoolKernel { kernel_response: String },
 
     // The sync.
-    StartPass { tip_height: u64 },
+    /// `start_hint`: where a wallet whose start is unknown begins, when the app could find it.
+    StartPass { tip_height: u64, #[serde(default)] start_hint: Option<u64> },
     RollBack { height: i64, hash: Option<String>, now: u64 },
     PersistScan { result: ScanResult, keep_blocks: Option<u64>, now: u64 },
     FinishFastRestore { handover: i64, lowest: u64, now: u64 },
@@ -59,6 +60,8 @@ pub enum Op {
     RecordPending { entry: Value },
     DiscardPending { txid: String },
     ForgetSend { txid: String },
+    /// Release the sends no block can take any more, given the chain's newest block time.
+    ExpireSends { tip_timestamp_ms: u64 },
 
     // The mempool.
     RecordOutgoing { row: Value },
@@ -136,8 +139,8 @@ pub fn run(state: &WalletState, wallet_id: &str, op: Op, keys: Option<&mut Accou
             read(found)
         }
 
-        Op::StartPass { tip_height } => {
-            let outcome = start_pass(state, tip_height)?;
+        Op::StartPass { tip_height, start_hint } => {
+            let outcome = start_pass(state, tip_height, start_hint)?;
             Ok(Outcome { changes: outcome.changes, value: serde_json::to_value(outcome.value)? })
         }
         Op::RollBack { height, hash, now } => wrote(roll_back(state, wallet_id, height, hash, now)),
@@ -151,6 +154,10 @@ pub fn run(state: &WalletState, wallet_id: &str, op: Op, keys: Option<&mut Accou
         Op::RecordPending { entry } => wrote(record_pending(state, history_entry(entry)?)),
         Op::DiscardPending { txid } => wrote(discard_pending(state, wallet_id, &txid)),
         Op::ForgetSend { txid } => wrote(forget_send(state, wallet_id, &txid)),
+        Op::ExpireSends { tip_timestamp_ms } => {
+            let outcome = expire_sends(state, tip_timestamp_ms);
+            Ok(Outcome { changes: outcome.changes, value: json!(outcome.value) })
+        }
 
         Op::RecordOutgoing { row } => said(record_outgoing(state, history_entry(row)?)),
         Op::RecordIncoming { row } => said(record_incoming(state, history_entry(row)?)),
@@ -191,7 +198,7 @@ mod op_tests {
             ..Default::default()
         };
         assert!(run(&state, "w", Op::Spendable { now: 0 }, None).unwrap().changes.is_empty());
-        let outcome = run(&state, "w", Op::StartPass { tip_height: 77 }, None).unwrap();
+        let outcome = run(&state, "w", Op::StartPass { tip_height: 77, start_hint: None }, None).unwrap();
         assert_eq!(outcome.changes.len(), 1);
         assert_eq!(outcome.value, json!({ "syncedHeight": 76, "syncedHash": null }));
     }
