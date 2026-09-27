@@ -1,7 +1,7 @@
 // Balance, sync status and history.
 
 import { ActionIcon, Alert, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDown, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
+import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDown, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -16,6 +16,7 @@ import type { StoredUtxo } from '../backend/types';
 import type { AccountRecord, ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
 import { Caution, Done } from '../components/Notice';
+import { COINS_SAFE, SENDING_UNTIL_CONFIRMED } from '../app/words';
 import { NATIVE } from '../app/platform';
 import { LINKS } from '../app/links';
 import { abbreviateAddress, shortAddress } from '../util/address';
@@ -182,7 +183,7 @@ export function Home() {
         ? `The balance above counts a pending move to yourself: only its fee${fee !== null ? ` of ${amount(fee)} NPT` : ''} is gone.`
         : `The balance above counts a pending send as already gone: ${amount(BigInt(one.amountNau))} NPT to ${(one.payments?.length ?? 1) > 1 ? 'the recipients' : 'the recipient'}${fee !== null ? ` and a ${amount(fee)} NPT fee` : ''}.`;
     const it = pendingSends.length === 1;
-    return `${gone} Until ${it ? 'it confirms' : 'they confirm'}, usually within an hour, the ${amount(balance.reservedNau)} NPT of coins that pay for ${it ? 'it are' : 'them are'} held, and what comes back as change is spendable after that.`;
+    return `${gone} Until ${it ? 'it confirms' : 'they confirm'}, the ${amount(balance.reservedNau)} NPT of coins that pay for ${it ? 'it are' : 'them are'} held, and what comes back as change is spendable after that.`;
   };
 
   // Whether the node still holds a pending send: it was seen there at the
@@ -252,7 +253,7 @@ export function Home() {
   useEffect(() => {
     if (!loaded) return;
     if (incomingSeen.current !== null && incomingNau > incomingSeen.current) {
-      setSaid(hidden ? 'A payment is on its way to you, waiting for a block.' : `${speakNau(incomingNau - incomingSeen.current)} NPT is on its way to you, waiting for a block.`);
+      setSaid(hidden ? 'A payment to you is pending.' : `${speakNau(incomingNau - incomingSeen.current)} NPT to you is pending.`);
     }
     incomingSeen.current = incomingNau;
   }, [incomingNau, loaded, hidden]);
@@ -368,7 +369,7 @@ export function Home() {
             : `Confirmed ${showBlock(since)} ${since === 1 ? 'block' : 'blocks'} ago (block ${showBlock(h.height)})`
         : 'Confirmed'
       : h.status === 'pending'
-        ? 'Pending, waiting for a block'
+        ? 'Pending'
         : h.kind === 'sent'
           ? 'Not sent. Nothing left this wallet.'
           : 'Failed';
@@ -376,7 +377,7 @@ export function Home() {
   const nodeStatusOf = (h: HistoryRecord) => {
     if (h.kind !== 'sent' || h.status !== 'pending' || !h.mempoolCheckedAt) return null;
     const holds = nodeHolds(h);
-    if (holds === 'has') return `The node has it, waiting for a block (checked ${formatWhen(h.mempoolCheckedAt)}).`;
+    if (holds === 'has') return `The node has it (checked ${formatWhen(h.mempoolCheckedAt)}).`;
     if (holds === 'had') return `The node had it until ${formatWhen(h.mempoolSeenAt as number)}, but not at the last check (${formatWhen(h.mempoolCheckedAt)}). It may have been dropped.`;
     return `The node does not have it (checked ${formatWhen(h.mempoolCheckedAt)}).`;
   };
@@ -423,7 +424,7 @@ export function Home() {
               </UnstyledButton>
             )}
             <UnstyledButton onClick={() => !busy && askSync()} aria-disabled={busy} fz="xs" c={busy ? 'dimmed' : 'var(--v-accent-text)'} className="vault-tap-link">
-              {busy ? 'Syncing…' : sync?.phase === 'error' ? 'Retry' : 'Sync'}
+              {busy ? 'Syncing…' : sync?.phase === 'error' ? 'Try again' : 'Sync'}
             </UnstyledButton>
           </span>
         )}
@@ -471,12 +472,12 @@ export function Home() {
             {incomingNau > 0n && (
               <Group gap={6} wrap="nowrap">
                 <IconArrowDownLeft size={14} stroke={1.8} className="vault-balance-note-in" aria-hidden />
-                <Text size="sm">{amount(incomingNau)} NPT incoming</Text>
+                <Text size="sm">{amount(incomingNau)} NPT pending</Text>
               </Group>
             )}
             {balance.reservedNau > 0n && (
               <Group gap={6} wrap="nowrap" align="flex-start">
-                <IconLock size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
+                <IconHourglass size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
                 <Text size="sm">
                   {amount(balance.spendableNau)} NPT of it spendable now, the rest once your {pendingSends.length === 1 ? 'send confirms' : 'sends confirm'}, usually within an hour
                 </Text>
@@ -486,7 +487,7 @@ export function Home() {
               <Group gap={6} wrap="nowrap">
                 <IconClockPause size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
                 <Text size="sm">
-                  {amount(balance.lockedNau)} NPT time-locked{balance.nextReleaseMs ? `, first release ${showDate(balance.nextReleaseMs)}` : ''}
+                  {amount(balance.lockedNau)} NPT {balance.nextReleaseMs ? `spendable from ${showDate(balance.nextReleaseMs)}` : 'not spendable yet'}
                 </Text>
               </Group>
             )}
@@ -497,8 +498,8 @@ export function Home() {
                 </UnstyledButton>
                 {why && (
                   <Text size="sm" c="dimmed">
-                    {incomingNau > 0n && `${amount(incomingNau)} NPT is on its way to you and becomes spendable once a block confirms it. `}
-                    {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT is yours but time-locked by the sender. It cannot be spent before its release date, so it is not counted as spendable. `}
+                    {incomingNau > 0n && `${amount(incomingNau)} NPT is pending: it becomes spendable once a block confirms it. `}
+                    {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT is yours, but the sender set a date before which it cannot be spent, so it is not counted as spendable. `}
                     {balance.reservedNau > 0n && `${pendingExplained()} `}
                   </Text>
                 )}
@@ -543,8 +544,8 @@ export function Home() {
               {amount(BigInt(lastSend.amountNau))} NPT to {who}, {formatDateTime(lastSend.at)}. {MAY_HAVE_GONE}
             </Caution>
           ) : (
-            <Done title="Sent" onClose={dismiss} closeLabel="Dismiss" role={undefined}>
-              {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee, {formatDateTime(lastSend.at)}. It shows as pending until a block confirms it.
+            <Done title="Sending" onClose={dismiss} closeLabel="Dismiss" role={undefined}>
+              {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee, {formatDateTime(lastSend.at)}. {SENDING_UNTIL_CONFIRMED}
             </Done>
           );
         })()
@@ -564,10 +565,10 @@ export function Home() {
           through, and its coins are held for nothing until it expires. */}
       {stuck && (
         <Caution title="This send is not going through">
-          {amount(BigInt(stuck.amountNau))} NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? shortAddress(stuck.recipient)}</bdi> : 'a recipient'}, {formatDateTime(stuck.timestampMs)}. The node no longer has it, so no block will take it. Give up on it to free {amount(reservedFor(stuck))} NPT now; otherwise the wallet frees them on its own on {formatDateTime(expiresAt(stuck))}, when no block can take it any more.
+          {amount(BigInt(stuck.amountNau))} NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? shortAddress(stuck.recipient)}</bdi> : 'a recipient'}, {formatDateTime(stuck.timestampMs)}. The node no longer has it, so no block will take it. Give up on this send to free {amount(reservedFor(stuck))} NPT now; otherwise the wallet frees them on its own on {formatDateTime(expiresAt(stuck))}, when no block can take it any more.
           <div>
             <UnstyledButton onClick={() => setGivingUp(stuck)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-              Give up on it
+              Give up on this send
             </UnstyledButton>
           </div>
         </Caution>
@@ -731,7 +732,7 @@ export function Home() {
             {detail.kind === 'sent' && !detail.record.recipient && (
               <DetailRow label="Recipient" value="Not recorded. The send was made on another device or before a restore, so the amount above includes the fee." />
             )}
-            {detail.record.note && <DetailRow label="Note from the link" value={detail.record.note} isolate />}
+            {detail.record.note && <DetailRow label="Note in the request" value={detail.record.note} isolate />}
             {detail.record.error && <DetailRow label="What happened" value={detail.record.error} />}
             {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
             {(outputsOf(detail).length > 0 || (detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n)) && (
@@ -788,10 +789,10 @@ export function Home() {
           <Stack>
             <Text size="sm">
               {nodeHolds(givingUp) === 'has'
-                ? 'The node still has this send, so it may still go through. Giving up frees its coins here, but if it confirms anyway, it shows up as sent.'
+                ? 'The node still has this send, so it may still go through. Giving up frees its coins here, but if it confirms anyway, it shows up as Sent.'
                 : nodeHolds(givingUp) === null
-                  ? 'Giving up frees the coins held for it, and the send stays in your list, marked Not sent. If it confirms anyway, it still goes through and shows up as sent.'
-                  : 'The node no longer has this send. Giving up frees the coins held for it, and the send stays in your list, marked Not sent.'}
+                  ? 'Giving up frees the coins held for it, and the send stays in History, marked Not sent. If it confirms anyway, it still goes through and shows up as Sent.'
+                  : 'The node no longer has this send. Giving up frees the coins held for it, and the send stays in History, marked Not sent.'}
             </Text>
             <Text size="sm" c="dimmed">
               This send: {showNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee`}. Held for it: {showNau(reservedFor(givingUp))} NPT, which becomes spendable again.
@@ -869,7 +870,7 @@ function RebuildNotice({ accountId, why }: { accountId: string; why: string }) {
   if (why.includes('written by a newer version')) {
     return (
       <Caution title="Update the app to see this wallet's history">
-        This wallet's history on this device was last written by a newer version of Neptune Vault, which this version cannot read. Your coins are on the chain and safe. Update the app, then open the wallet again.
+        This wallet's history on this device was last written by a newer version of Neptune Vault, which this version cannot read. {COINS_SAFE} Update the app, then open the wallet again.
       </Caution>
     );
   }
@@ -888,7 +889,7 @@ function RebuildNotice({ accountId, why }: { accountId: string; why: string }) {
   };
   return (
     <Caution title="This wallet's history could not be read">
-      Its history on this device could not be read, so the wallet looks empty. Your coins are on the chain and safe. Rebuild the history from the chain: what could not be read is kept aside, and nothing is deleted.
+      Its history on this device could not be read, so the wallet looks empty. {COINS_SAFE} Rebuild the history from the chain: what could not be read is kept aside, and nothing is deleted.
       <Group mt={4}>
         <Button variant="light" size="compact-sm" loading={busy} onClick={() => void rebuild()}>
           Rebuild from the chain

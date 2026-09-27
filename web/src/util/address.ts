@@ -101,7 +101,7 @@ export function parsePaymentText(text: string): PaymentText {
 
   if (scheme === 'npt') {
     // Legacy wallet payload: address only, never a query.
-    if (rest.includes('?')) return { address: '', error: 'Not a payment link: an NPT: payload cannot carry parameters' };
+    if (rest.includes('?')) return { address: '', error: 'Not a payment request: an NPT: payload cannot carry parameters' };
     return checkAddress(rest);
   }
   if (scheme !== null && scheme !== 'neptunecash') return { address: '', error: `Unknown link type "${scheme}"` };

@@ -199,7 +199,7 @@ export function Receive() {
   const [said, setSaid] = useState('');
   const arrivedBefore = useRef(arrivingNau);
   useEffect(() => {
-    if (arrivingNau > arrivedBefore.current) setSaid(hidden ? 'A payment is on its way to this address.' : `${formatNau(arrivingNau - arrivedBefore.current)} NPT is on its way to this address, waiting for a block.`);
+    if (arrivingNau > arrivedBefore.current) setSaid(hidden ? 'A payment to this address is pending.' : `${formatNau(arrivingNau - arrivedBefore.current)} NPT to this address is pending.`);
     arrivedBefore.current = arrivingNau;
   }, [arrivingNau, hidden]);
 
@@ -328,11 +328,11 @@ export function Receive() {
       } catch {
         try {
           await render(paymentQrPayload(address, linkAmount));
-          setRequestQrNote(withText ? 'This code cannot hold the name and note, so a sender scanning it will not see them. Share the link instead.' : null);
+          setRequestQrNote(withText ? 'This code cannot hold the name and note, so a sender scanning it will not see them. Share the request instead.' : null);
         } catch {
           try {
             await render(paymentQrPayload(address));
-            setRequestQrNote(linkAmount || withText ? 'This code cannot hold the amount, name and note, so a sender scanning it will not see them. Share the link instead.' : null);
+            setRequestQrNote(linkAmount || withText ? 'This code cannot hold the amount, name and note, so a sender scanning it will not see them. Share the request instead.' : null);
           } catch {
             setRequestQr('');
           }
@@ -368,7 +368,7 @@ export function Receive() {
         // Cancelled by the user; nothing to report.
       }
     } else {
-      await copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed);
+      await copyText(paymentLink, 'Payment request copied', copyFailed);
     }
   };
 
@@ -434,12 +434,12 @@ export function Receive() {
   // The note above the code: a payment on its way to the address showing,
   // or, for a request, how much of it has arrived.
   const arrivingNote =
-    arrivingNau > 0n ? (hidden ? 'A payment is on its way to this address, waiting for a block.' : `${showNau(arrivingNau)} NPT on its way to this address, waiting for a block.`) : null;
+    arrivingNau > 0n ? (hidden ? 'A payment to this address is pending.' : `${showNau(arrivingNau)} NPT to this address is pending.`) : null;
   const arrivedNote =
     requestNau === null || paidNau === 0n
       ? null
       : paidNau >= requestNau
-        ? `Paid in full: ${hidden ? '••••' : showNau(paidNau)} NPT arrived${arrivingNau > 0n ? ', waiting for a block' : ''}.`
+        ? `Paid in full: ${hidden ? '••••' : showNau(paidNau)} NPT${arrivingNau > 0n ? ', pending' : ''}.`
         : `${hidden ? '••••' : showNau(paidNau)} of ${showNau(requestNau)} NPT arrived.`;
 
   return (
@@ -564,8 +564,8 @@ export function Receive() {
                   </Text>
                 )}
                 <Group className="vault-receive-col vault-receive-actions">
-                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, linkAmount ? 'Payment request copied' : 'Payment link copied', copyFailed)} disabled={requestInvalid} aria-describedby="kind-note">
-                    Copy link
+                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, 'Payment request copied', copyFailed)} disabled={requestInvalid} aria-describedby="kind-note">
+                    Copy request
                   </Button>
                   <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid} aria-describedby="kind-note">
                     Share

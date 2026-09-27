@@ -89,7 +89,7 @@ export function NetworkMenu() {
               Add a wallet
             </Menu.Item>
             {/* Stepping away is the commonest reason to lock, so it is one tap from
-                any screen; Settings keeps its Lock now too. Not during a send,
+                any screen; Settings keeps its Lock wallet too. Not during a send,
                 whose proof a lock would cut short. */}
             {!locked && (
               <Menu.Item disabled={sending} leftSection={<IconLock size={14} />} onClick={() => void services.accounts.lock()}>

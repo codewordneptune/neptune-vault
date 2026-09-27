@@ -20,6 +20,7 @@ import { StartBlockPicker, type StartLookup } from '../components/StartBlockPick
 import { WordGrid } from '../components/WordGrid';
 import { isCancellation } from '../app/passkey';
 import { copyText } from '../util/clipboard';
+import { CLIPBOARD_RISK, FAST_SCAN, INSTALL_BENEFITS, NOT_DURING_SEND } from '../app/words';
 import { FIAT_CURRENCIES, FIAT_LABELS, isFiatCurrency } from '../util/fiat';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import { formatDate, formatDateTime, formatTime } from '../util/time';
@@ -389,7 +390,7 @@ export function Settings() {
                   Copy words
                 </Button>
                 <Text size="sm" c="dimmed">
-                  Other apps can read the clipboard; clear it afterwards.
+                  {CLIPBOARD_RISK}
                 </Text>
               </Stack>
               <Text size="sm" c="dimmed" aria-live="off">
@@ -419,11 +420,11 @@ export function Settings() {
           {/* Not during a send: a lock takes the keys the send is using, and it would end without a word. */}
           <Stack gap={4} align="flex-start">
             <Button variant="light" onClick={() => void services.accounts.lock()} disabled={sending}>
-              Lock now
+              Lock wallet
             </Button>
             {sending && (
               <Text size="sm" c="dimmed">
-                Not while a send is running.
+                {NOT_DURING_SEND}
               </Text>
             )}
           </Stack>
@@ -473,7 +474,7 @@ export function Settings() {
             onChange={(e) => toggleTestNets(e.currentTarget.checked)}
           />
           {testNetsShown && (
-            <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} disabled={sending} description={sending ? 'Not while a send is running.' : undefined} />
+            <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} disabled={sending} description={sending ? NOT_DURING_SEND : undefined} />
           )}
         </Stack>
       </Paper>
@@ -506,7 +507,7 @@ export function Settings() {
             About
           </Title>
           <Text size="sm" c="dimmed">
-            {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Keys never leave this device, and only the node set above learns about your wallet. Early version, not audited: use only amounts you can afford to lose.
+            {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Your keys stay on this device, and only the node set above learns about your wallet.
           </Text>
           <Group gap="md" style={{ rowGap: 24 }}>
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
@@ -825,7 +826,7 @@ function Shortcuts() {
     ['3', 'Receive'],
     ['4', 'Settings'],
     ['N', 'New send'],
-    ['L', 'Lock'],
+    ['L', 'Lock wallet'],
     ['+', 'Larger text'],
     ['-', 'Smaller text'],
     ['0', 'Text size as it was'],
@@ -920,7 +921,7 @@ function InstallCard() {
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          An installed app keeps its storage, works full screen and opens from its own icon.
+          {INSTALL_BENEFITS}
         </Text>
         <Group>
           <Button
@@ -1108,7 +1109,8 @@ function WalletCard() {
           Wallet
         </Title>
         <TextInput
-          label="Name on this device"
+          label="Wallet name"
+          description="Only on this device."
           value={name}
           maxLength={40}
           error={nameError}
@@ -1126,7 +1128,7 @@ function WalletCard() {
             Contacts
           </Button>
           <Button variant="light" disabled={sending} onClick={() => navigate('/onboarding?add=1')}>
-            Add another wallet
+            Add a wallet
           </Button>
         </Group>
       </Stack>
@@ -1305,7 +1307,7 @@ function RescanCard() {
         </Button>
         {sending && (
           <Text size="sm" c="dimmed">
-            Not while a send is running.
+            {NOT_DURING_SEND}
           </Text>
         )}
       </Group>
@@ -1315,8 +1317,8 @@ function RescanCard() {
       <Modal opened={open} onClose={() => setOpen(false)} title="Rescan">
         <Stack>
           <Text size="sm">
-            Sends made from this device that have confirmed lose their recipient and fee, because the chain does not carry them. Your funds are not affected.
-            {waiting > 0 && ` ${waiting === 1 ? '1 send is' : `${waiting} sends are`} still waiting for a block: kept, with the coins held for ${waiting === 1 ? 'it' : 'them'}.`}
+            Sends made from this device that have confirmed lose their recipient and fee, because the chain does not carry them. Your coins are not affected.
+            {waiting > 0 && ` ${waiting === 1 ? '1 send is' : `${waiting} sends are`} still pending: kept, with the coins held for ${waiting === 1 ? 'it' : 'them'}.`}
           </Text>
           <SegmentedControl
             fullWidth
@@ -1330,7 +1332,7 @@ function RescanCard() {
           />
           {fast ? (
             <Text size="sm" c="dimmed">
-              Usually takes seconds: only the blocks holding your payments are fetched. The node learns which payments are yours, including later ones to these addresses, but not the amounts.
+              {FAST_SCAN}
             </Text>
           ) : (
             <>

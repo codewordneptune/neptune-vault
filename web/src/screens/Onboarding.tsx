@@ -16,6 +16,7 @@ import { NATIVE } from '../app/platform';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { copyText } from '../util/clipboard';
+import { CLIPBOARD_RISK, FAST_SCAN } from '../app/words';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import type { NodeClient } from '../node/rpc';
 import type { Network } from '../storage/db';
@@ -396,7 +397,7 @@ export function Onboarding() {
                 Copy words
               </Button>
               <Text size="sm" c="dimmed">
-                Other apps can read the clipboard; paste into a password manager, then clear it.
+                {CLIPBOARD_RISK}
               </Text>
             </Stack>
             <Button onClick={startConfirm}>I have written them down</Button>
@@ -529,7 +530,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
       }}
     >
       <Stack>
-        <Title order={2} tabIndex={-1} className="vault-step-title">Restore a backup file</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">Restore from a backup file</Title>
         <Text size="sm" c="dimmed">It opens with the password it was saved with, and brings back the wallet's contacts and address names too.</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">
@@ -576,7 +577,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
             />
             <Text size="sm" c="dimmed">
               {fast
-                ? 'Usually takes seconds: only the blocks holding your payments are fetched. The node learns which payments are yours, including later ones to these addresses, but not the amounts.'
+                ? FAST_SCAN
                 : 'Every block from the start block in the file is downloaded and scanned on this device. The node learns nothing about your coins.'}
             </Text>
           </>
@@ -591,7 +592,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
           </Stack>
         )}
         <Button disabled={!file || !password} loading={busy} onClick={() => file && onFile(file, password, fast)}>
-          Restore
+          Restore wallet
         </Button>
         {error && <Alert color="red">{error}</Alert>}
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
@@ -835,7 +836,7 @@ function ImportStep({
             />
             <Text size="sm" c="dimmed">
               {fast
-                ? 'Usually takes seconds: only the blocks holding your payments are fetched. The node learns which payments are yours, including later ones to these addresses, but not the amounts.'
+                ? FAST_SCAN
                 : 'Every block from the first is downloaded and scanned on this device: about 8 to 10 GB on Mainnet. The node learns nothing about your coins.'}
             </Text>
           </>

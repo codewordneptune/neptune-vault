@@ -22,6 +22,7 @@ import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
 import { Amount } from '../components/Amount';
 import { Caution, Done, Info } from '../components/Notice';
+import { SENDING_UNTIL_CONFIRMED } from '../app/words';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
 import { abbreviateAddress, addressKindLabel, parsePaymentText, shortAddress } from '../util/address';
@@ -676,7 +677,7 @@ export function Send() {
                 {linkMeta.label && (
                   <div style={{ minWidth: 0 }}>
                     <Text size="xs" c="dimmed">
-                      Name in the link (unverified)
+                      Name in the request (unverified)
                     </Text>
                     <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
                       {linkMeta.label}
@@ -686,7 +687,7 @@ export function Send() {
                 {linkMeta.message && (
                   <div style={{ minWidth: 0 }}>
                     <Text size="xs" c="dimmed">
-                      Note from the link
+                      Note in the request
                     </Text>
                     <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
                       {linkMeta.message}
@@ -753,9 +754,9 @@ export function Send() {
           // arrives; its notice is not a live region as well.
           <div ref={resultRef} tabIndex={-1} className="vault-send-result" data-focus-managed>
             {sendJob.ending === 'sent' && sendJob.outcome && (
-              <Done title="Sent" onClose={dismissResult} closeLabel="Dismiss" role={undefined}>
+              <Done title="Sending" onClose={dismissResult} closeLabel="Dismiss" role={undefined}>
                 <span>
-                  {sentText(paymentsTotalNau(sendJob.request), BigInt(sendJob.request.fee_nau ?? '0'), services.settings.hideBalance)} It shows as pending until a block confirms it.
+                  {sentText(paymentsTotalNau(sendJob.request), BigInt(sendJob.request.fee_nau ?? '0'), services.settings.hideBalance)} {SENDING_UNTIL_CONFIRMED}
                   {sendJob.outcome.proving.seconds > 0 && ` The proof took ${formatDuration(sendJob.outcome.proving.seconds)}.`}
                 </span>
                 {lastRecipient &&
@@ -824,7 +825,7 @@ export function Send() {
                 autoCorrect="off"
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="Address or payment link"
+                placeholder="Address or payment request"
                 value={recipient}
                 onChange={(e) => {
                   const value = e.currentTarget.value;
@@ -856,7 +857,7 @@ export function Send() {
                   {linkMeta.label && (
                     <div style={{ minWidth: 0 }}>
                       <Text size="xs" c="dimmed">
-                        Name in the link (unverified)
+                        Name in the request (unverified)
                       </Text>
                       <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
                         {linkMeta.label}
@@ -866,7 +867,7 @@ export function Send() {
                   {linkMeta.message && (
                     <div style={{ minWidth: 0 }}>
                       <Text size="xs" c="dimmed">
-                        Note from the link
+                        Note in the request
                       </Text>
                       <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
                         {linkMeta.message}
@@ -934,7 +935,7 @@ export function Send() {
                     autoCorrect="off"
                     autoComplete="off"
                     spellCheck={false}
-                    placeholder="Address or payment link"
+                    placeholder="Address or payment request"
                     value={x.recipient}
                     ref={(el) => {
                       if (el && focusExtra.current === x.id) {
@@ -1043,7 +1044,7 @@ export function Send() {
                 {sync?.message}
                 <Group gap="sm" mt={4}>
                   <Button variant="light" size="compact-sm" onClick={() => void syncNow()}>
-                    Retry
+                    Try again
                   </Button>
                   <Button variant="subtle" size="compact-sm" onClick={() => navigate('/settings')}>
                     Settings

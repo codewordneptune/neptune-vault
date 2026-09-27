@@ -13,6 +13,7 @@ import type { Services } from './services';
 import { useScreenWakeLock, type WakeLockState } from './wakeLock';
 import { clearSendDraft } from './sendDraft';
 import { forgetOwnAddresses } from './ownAddresses';
+import { SENDING_UNTIL_CONFIRMED } from './words';
 
 /** A send in flight, or just finished; lives here so it survives the
  * Send screen unmounting when the app locks on backgrounding. */
@@ -475,7 +476,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         const seen = document.visibilityState === 'visible' && services.accounts.currentAccountId === accountId && !services.accounts.lockWaiting;
         noteLastSend(accountId, seen ? null : noteOf(outcome.txid, 'submitted'));
         if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
-          notifications.show({ color: 'green', title: 'Sent', message: `${sentText(paymentsTotalNau(request), BigInt(request.fee_nau ?? '0'), services.settings.hideBalance)} It shows as pending until a block confirms it.` });
+          notifications.show({ color: 'green', title: 'Sending', message: `${sentText(paymentsTotalNau(request), BigInt(request.fee_nau ?? '0'), services.settings.hideBalance)} ${SENDING_UNTIL_CONFIRMED}` });
         }
         await refresh();
         return outcome;
@@ -590,10 +591,10 @@ export function AppProvider({ services, children }: { services: Services; childr
         const hide = services.settings.hideBalance;
         notifications.show({
           color: 'green',
-          title: 'Incoming payment',
+          title: 'Payment pending',
           message: hide
-            ? 'A payment is on its way to you, waiting for a block.'
-            : `${formatNau(BigInt(r.incomingNau))} NPT is on its way to you, waiting for a block.${BigInt(r.lockedNau) > 0n ? ` ${formatNau(BigInt(r.lockedNau))} NPT of it is time-locked by the sender and cannot be spent before its release date.` : ''}`,
+            ? 'A payment to you is pending until a block confirms it.'
+            : `${formatNau(BigInt(r.incomingNau))} NPT to you is pending until a block confirms it.${BigInt(r.lockedNau) > 0n ? ` ${formatNau(BigInt(r.lockedNau))} NPT of it cannot be spent before a date the sender set.` : ''}`,
         });
       }
     } catch (e) {
@@ -765,16 +766,16 @@ export function showNau(nau: bigint): string {
 
 /**
  * A send as its confirmation says it, the fee included, so the figure
- * matches the one History shows for it: "5 NPT is on its way, plus a 0.3
- * NPT fee." Masked when amounts are hidden.
+ * matches the one History shows for it: "5 NPT, plus a 0.3 NPT fee."
+ * Masked when amounts are hidden.
  */
 export function sentText(amountNau: bigint, feeNau: bigint, hidden = false): string {
   const show = (nau: bigint) => (hidden ? '••••' : showNau(nau));
-  return `${show(amountNau)} NPT is on its way, plus a ${show(feeNau)} NPT fee.`;
+  return `${show(amountNau)} NPT, plus a ${show(feeNau)} NPT fee.`;
 }
 
 /** The title of a send the node took without answering: it has ended, and may have gone through. */
-export const UNANSWERED_TITLE = 'Sent, but the node did not answer';
+export const UNANSWERED_TITLE = 'The node did not answer';
 
 /** A block height for people to read, grouped like an amount. */
 export function showBlock(height: number): string {

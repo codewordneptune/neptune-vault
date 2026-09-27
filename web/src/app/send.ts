@@ -123,7 +123,7 @@ export const MEMPOOL_KEEPS_MS = 10 * 60 * 60 * 1000;
 
 /** What to do about a send that may have gone out: said wherever one is. */
 export const MAY_HAVE_GONE =
-  'It may already be on its way. It is pending in History, with its coins held. Do not send it again unless you first give up on it there.';
+  'It may have gone out: it shows as Sending in History, with its coins held. Do not send it again unless you first give up on it there.';
 
 /**
  * The transaction was handed to the node and no answer from the node came

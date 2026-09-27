@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { Caution, Info } from './Notice';
+import { INSTALL_BENEFITS } from '../app/words';
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -43,10 +44,10 @@ export function InstallNudge() {
 
   return (
     <Info icon={<IconDeviceMobile size={18} stroke={1.8} />} title="Install Neptune Vault on this device" onClose={() => void dismiss()} closeLabel="Dismiss the install offer">
-      An installed app keeps its storage, works full screen, and opens from its own icon.
+      {INSTALL_BENEFITS}
       <div>
         <Button variant="light" size="sm" onClick={() => void promptInstall()}>
-          Install
+          Install app
         </Button>
       </div>
     </Info>

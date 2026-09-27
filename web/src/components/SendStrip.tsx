@@ -18,7 +18,7 @@ const STAGE_TEXT: Record<string, string> = {
   proving: 'Proving',
   confirming: 'Ready: confirm it on Send',
   submitting: 'Submitting to the node',
-  done: 'Submitted',
+  done: 'Sending',
 };
 
 export function SendStrip() {
