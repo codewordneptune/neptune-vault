@@ -18,7 +18,6 @@ import { InstallNudge } from '../components/InstallNudge';
 import { Caution, Done } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { LINKS } from '../app/links';
-import { PocNotice } from '../components/PocNotice';
 import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
@@ -374,9 +373,9 @@ export function Home() {
       <Title order={2} className="sr-only">
         Home
       </Title>
-      <PocNotice />
       {/* A wallet with no confirmed seed phrase and no backup file can be lost
-          with this device or browser: a warning, at the top, under the early-version one. */}
+          with this device or browser: a warning, at the top. The early-version
+          warning is the Beta tag in the header (PocNotice.tsx). */}
       {showBackupNudge && (
         <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
           {NATIVE

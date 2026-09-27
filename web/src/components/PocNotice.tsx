@@ -1,13 +1,17 @@
-// The not-yet-audited warning, on the first screens a person sees. Shown
-// in full the first time on a device; after that as one line that expands
-// on tap, so the balance stays on the first screen of a phone.
+// The not-yet-audited warning. At setup it is read in full, on the first
+// screen a person sees (the notice). Everywhere, it is a small Beta tag by
+// the mark in the header, which opens the same text (the tag): a row on
+// Home every day was more than it needs, and dropping it was not honest.
 
+import { Button, Group, Modal, Stack, Text } from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { Caution } from './Notice';
 
 const SEEN_KEY = 'neptune-vault.poc-notice-seen';
+const POC_TITLE = 'Early version, not yet audited';
+const POC_TEXT = 'No security audit yet, and changes every week. Use it only with amounts you can afford to lose, and keep your seed phrase somewhere safe.';
 
 function seen(): boolean {
   try {
@@ -17,6 +21,7 @@ function seen(): boolean {
   }
 }
 
+/** The warning at setup: in full the first time on a device, then one line that expands on tap. */
 export function PocNotice() {
   const [expanded, setExpanded] = useState(() => !seen());
   useEffect(() => {
@@ -31,7 +36,7 @@ export function PocNotice() {
     <Caution
       title={
         <span className="vault-poc-title">
-          Early version, not yet audited
+          {POC_TITLE}
           <Chevron size={16} stroke={1.8} aria-hidden />
         </span>
       }
@@ -47,7 +52,30 @@ export function PocNotice() {
         }
       }}
     >
-      {expanded && 'No security audit yet, and changes every week. Use it only with amounts you can afford to lose, and keep your seed phrase somewhere safe.'}
+      {expanded && POC_TEXT}
     </Caution>
+  );
+}
+
+/** The warning on every screen: a tag by the mark that opens the full text. */
+export function PocTag() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {/* The tag is drawn small; the button around it is a full touch target. */}
+      <button type="button" className="vault-beta" aria-haspopup="dialog" aria-label={`Beta: ${POC_TITLE}`} onClick={() => setOpen(true)}>
+        <span aria-hidden>Beta</span>
+      </button>
+      <Modal opened={open} onClose={() => setOpen(false)} title={POC_TITLE}>
+        <Stack>
+          <Text size="sm">{POC_TEXT}</Text>
+          <Group justify="flex-end">
+            <Button onClick={() => setOpen(false)} data-autofocus>
+              OK
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
   );
 }

@@ -8,6 +8,7 @@ import { NATIVE } from './app/platform';
 import { DesktopUpdateNotice } from './components/DesktopUpdateNotice';
 import { Logo } from './components/Logo';
 import { NetworkMenu } from './components/NetworkMenu';
+import { PocTag } from './components/PocNotice';
 import { SendStrip } from './components/SendStrip';
 import { UpdateStrip } from './components/UpdateStrip';
 import { Contacts } from './screens/Contacts';
@@ -215,11 +216,15 @@ export function App() {
             {/* The desktop app's title bar already names it: the header keeps
                 the mark. On a narrow phone the name gives way too, to leave
                 the wallet pill room (global.css, .vault-wordmark). */}
-            <h1 className="vault-brand">
-              <Logo size={26} />
-              <span className={NATIVE ? 'sr-only' : 'vault-wordmark'}>Neptune Vault</span>
-            </h1>
-            {/* Until a wallet exists the header is the brand alone: setup keeps
+            <Group gap={6} wrap="nowrap">
+              <h1 className="vault-brand">
+                <Logo size={26} />
+                <span className={NATIVE ? 'sr-only' : 'vault-wordmark'}>Neptune Vault</span>
+              </h1>
+              {/* The early-version warning, on every screen: setup also shows it in full. */}
+              <PocTag />
+            </Group>
+            {/* Until a wallet exists the header is the brand and its tag: setup keeps
                 the network question out of a newcomer's way, and the header
                 should not ask it either. Once one does, on any network, the
                 menu stays: it is the way back from a network without one. */}

@@ -917,6 +917,47 @@ main h2[tabindex='-1']:focus {
   justify-content: space-between;
   gap: 8px;
 }
+/* The same warning as a tag by the mark: small and in the caution colour,
+   inside a button that is a full touch target (as .vault-tap-link). */
+.vault-beta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  margin: -8px 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.vault-beta span {
+  padding: 0 8px;
+  border: 1px solid var(--v-warn-text);
+  border-radius: 999px;
+  color: var(--v-warn-text);
+  font-size: var(--v-fs-xs);
+  font-weight: 600;
+  line-height: 20px;
+}
+.vault-beta:hover span {
+  background: var(--v-surface-2);
+}
+.vault-beta:focus-visible {
+  outline: none;
+}
+.vault-beta:focus-visible span {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .vault-beta {
+    min-width: 44px;
+    min-height: 44px;
+    margin-block: -10px;
+  }
+}
 
 /* Address-kind tag beside an address: quiet, but visibly a property of it. */
 .vault-kind {
