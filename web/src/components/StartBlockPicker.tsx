@@ -7,6 +7,7 @@
 // Rescan both ask this way.
 
 import { Group, NumberInput, Select, Stack, Text } from '@mantine/core';
+import { IconChevronRight } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { showBlock } from '../app/AppContext';
@@ -104,8 +105,11 @@ export function StartBlockPicker({
           {lookup.kind === 'failed' && lookup.message}
         </Text>
       )}
-      <details className="vault-more" open={lookup.kind === 'failed' || Boolean(error)}>
-        <summary>Enter a block number instead</summary>
+      <details className="vault-setting" open={lookup.kind === 'failed' || Boolean(error)}>
+        <summary>
+          <IconChevronRight size={16} stroke={1.8} className="vault-setting-chevron" aria-hidden />
+          Enter a block number instead
+        </summary>
         <NumberInput
           mt="xs"
           label="Start block"

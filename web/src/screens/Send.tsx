@@ -3,7 +3,7 @@
 // runs as a job in the app context so it survives this screen being
 // unmounted (backgrounding locks the app).
 
-import { Alert, Badge, Button, Checkbox, Divider, Group, Loader, Modal, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { Badge, Button, Checkbox, Divider, Group, Loader, Modal, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
 import { IconAddressBook, IconFingerprint, IconLink, IconPlus, IconScan } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -21,7 +21,7 @@ import { isCancellation } from '../app/passkey';
 import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
 import { Amount } from '../components/Amount';
-import { Caution, Done, Info } from '../components/Notice';
+import { Caution, Done, ErrorLine, Info } from '../components/Notice';
 import { SENDING_UNTIL_CONFIRMED } from '../app/words';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
@@ -787,9 +787,9 @@ export function Send() {
               </Info>
             )}
             {sendJob.ending === 'failed' && (
-              <Alert color="red" title="Not sent" withCloseButton onClose={dismissResult} role={undefined}>
+              <ErrorLine title="Not sent" onClose={dismissResult} role={undefined}>
                 {sendJob.error}
-              </Alert>
+              </ErrorLine>
             )}
           </div>
         )}
@@ -1042,13 +1042,14 @@ export function Send() {
             {online && nodeDown && (
               <Caution title="Sending is paused">
                 {sync?.message}
+                {/* The same two actions as Home's status line, in the same form. */}
                 <Group gap="sm" mt={4}>
-                  <Button variant="light" size="compact-sm" onClick={() => void syncNow()}>
+                  <UnstyledButton onClick={() => void syncNow()} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
                     Try again
-                  </Button>
-                  <Button variant="subtle" size="compact-sm" onClick={() => navigate('/settings')}>
+                  </UnstyledButton>
+                  <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
                     Settings
-                  </Button>
+                  </UnstyledButton>
                 </Group>
               </Caution>
             )}

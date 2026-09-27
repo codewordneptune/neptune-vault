@@ -1,7 +1,9 @@
-// Three tiers of notice, told apart by form and not only by colour:
+// Three tiers of notice, told apart by form and not only by colour, and
+// one error pattern:
 //
-// - a banner (Mantine's Alert, red) when something went wrong: a send that
-//   failed, an error. At most one on a screen.
+// - an error line (ErrorLine) when something went wrong: red text under the
+//   control that failed, with a title and a close when it outlives the
+//   moment (a send that failed). No red panels.
 // - a caution (this Caution): an amber strip down the left edge, an icon, no
 //   fill. For what deserves care before acting: an unaudited app, a missing
 //   backup, a public announcement, an address that shows every payment.
@@ -66,6 +68,34 @@ function Notice({ tier, title, children, icon, onClose, closeLabel, className, f
       <div className="vault-notice-body">
         {title && <div className="vault-notice-title">{title}</div>}
         {children && <div className="vault-notice-text">{children}</div>}
+      </div>
+      {onClose && (
+        <CloseButton
+          size="sm"
+          className="vault-notice-close"
+          aria-label={closeLabel ?? 'Dismiss'}
+          onClick={(e) => {
+            e.stopPropagation();
+            const heading = headingNear(e.currentTarget);
+            onClose();
+            heading?.focus({ preventScroll: true });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * What went wrong with what was just tried: red text right under the
+ * control, announced as it appears unless the caller says otherwise.
+ */
+export function ErrorLine({ title, children, onClose, closeLabel, className, role = 'alert', ...rest }: Omit<NoticeProps, 'icon' | 'focusOnMount'>) {
+  return (
+    <div role={role} className={`vault-error-line${className ? ' ' + className : ''}`} {...rest}>
+      <div className="vault-notice-body">
+        {title && <div className="vault-error-title">{title}</div>}
+        {children && <div>{children}</div>}
       </div>
       {onClose && (
         <CloseButton

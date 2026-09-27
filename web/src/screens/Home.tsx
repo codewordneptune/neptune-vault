@@ -1,7 +1,7 @@
 // Balance, sync status and history.
 
-import { ActionIcon, Alert, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDown, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
+import { ActionIcon, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,7 +15,7 @@ import { fiatOf, formatFiat } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
 import type { AccountRecord, ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
-import { Caution, Done } from '../components/Notice';
+import { Caution, Done, ErrorLine } from '../components/Notice';
 import { COINS_SAFE, SENDING_UNTIL_CONFIRMED } from '../app/words';
 import { NATIVE } from '../app/platform';
 import { LINKS } from '../app/links';
@@ -391,7 +391,7 @@ export function Home() {
           with this device or browser: a warning, at the top. The early-version
           warning is the Beta tag in the header (PocNotice.tsx). */}
       {showBackupNudge && (
-        <Caution icon={<IconShieldCheck size={18} stroke={1.8} />} title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
+        <Caution title="Back up this wallet" onClose={() => void dismissNudge()} closeLabel="Dismiss the backup reminder">
           {NATIVE
             ? 'This wallet lives only on this device. Export a backup file so you can restore it, with its contacts, if the device is lost or its data deleted.'
             : "This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared."}
@@ -553,24 +553,24 @@ export function Home() {
       {/* A group, not an alert: the toast announced it when it happened, and
           an alert here would be announced again at every visit to Home. */}
       {failure && failure.accountId === account?.id && !(lastSend && lastSend.accountId === account.id && lastSend.at >= failure.at) && (
-        <Alert color="red" title="Not sent" withCloseButton onClose={dismissFailure} role="group">
+        <ErrorLine title="Not sent" onClose={dismissFailure} role="group">
           <Text size="sm">
             {hidden ? '••••' : failure.amount} NPT to {shortAddress(failure.recipient)}
             {failure.others ? ` and ${failure.others} more` : ''}, {formatDateTime(failure.at)}. {/* Under the title "Not sent", a reason that starts by saying so again does not. */}
             {failure.message.replace(/^Not sent: (.)/, (_, first: string) => first.toUpperCase())}
           </Text>
-        </Alert>
+        </ErrorLine>
       )}
       {/* A send nodes no longer keep and no block took: it is not going
           through, and its coins are held for nothing until it expires. */}
       {stuck && (
         <Caution title="This send is not going through">
           {amount(BigInt(stuck.amountNau))} NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? shortAddress(stuck.recipient)}</bdi> : 'a recipient'}, {formatDateTime(stuck.timestampMs)}. The node no longer has it, so no block will take it. Give up on this send to free {amount(reservedFor(stuck))} NPT now; otherwise the wallet frees them on its own on {formatDateTime(expiresAt(stuck))}, when no block can take it any more.
-          <div>
-            <UnstyledButton onClick={() => setGivingUp(stuck)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+          <Group mt={4}>
+            <Button variant="light" color="red" size="compact-sm" className="vault-tap" onClick={() => setGivingUp(stuck)}>
               Give up on this send
-            </UnstyledButton>
-          </div>
+            </Button>
+          </Group>
         </Caution>
       )}
       {/* One notice at a time: while the backup warning above shows, the install offer waits. */}
@@ -741,7 +741,7 @@ export function Home() {
                     link: a line above it, the muted colour, a chevron that turns. */}
                 <UnstyledButton onClick={() => setTech((v) => !v)} className="vault-detail-section" aria-expanded={tech}>
                   <span>Technical details</span>
-                  <IconChevronDown size={16} stroke={1.8} aria-hidden className={tech ? 'vault-chevron open' : 'vault-chevron'} />
+                  <IconChevronRight size={16} stroke={1.8} aria-hidden className={tech ? 'vault-chevron open' : 'vault-chevron'} />
                 </UnstyledButton>
                 {/* The change is the send's own business: what came back to this wallet, not money received. */}
                 {tech && detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n && (
@@ -891,7 +891,7 @@ function RebuildNotice({ accountId, why }: { accountId: string; why: string }) {
     <Caution title="This wallet's history could not be read">
       Its history on this device could not be read, so the wallet looks empty. {COINS_SAFE} Rebuild the history from the chain: what could not be read is kept aside, and nothing is deleted.
       <Group mt={4}>
-        <Button variant="light" size="compact-sm" loading={busy} onClick={() => void rebuild()}>
+        <Button variant="light" size="compact-sm" className="vault-tap" loading={busy} onClick={() => void rebuild()}>
           Rebuild from the chain
         </Button>
       </Group>

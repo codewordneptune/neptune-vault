@@ -67,6 +67,8 @@ export const theme = createTheme({
     Textarea: { defaultProps: { radius: 'sm', size: 'md' } },
     Select: { defaultProps: { radius: 'sm', size: 'md' } },
     SegmentedControl: { defaultProps: { radius: 'sm', size: 'md' } },
+    // Square, so a checkbox never reads as a radio button.
+    Checkbox: { defaultProps: { radius: 'xs' } },
     Alert: { defaultProps: { radius: 'sm', variant: 'light' } },
     // Every close button has a name: a banner's or a toast's said only
     // "button". A dialog's own ("Close") and a notice's still win.

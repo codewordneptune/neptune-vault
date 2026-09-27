@@ -21,7 +21,7 @@
 // and an installed wallet left open for days would not hear of a fix.
 
 import { Anchor, Button, Group, Text } from '@mantine/core';
-import { IconRefresh } from '@tabler/icons-react';
+import { IconCircleArrowUp } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
@@ -75,7 +75,7 @@ export function UpdateStrip() {
     <div className="vault-updatestrip" role="status">
       <div className="vault-updatestrip-inner">
         <div className="vault-updatestrip-body">
-          <IconRefresh size={18} stroke={1.8} />
+          <IconCircleArrowUp size={18} stroke={1.8} />
           <div style={{ minWidth: 0 }}>
             <Text size="sm" fw={600}>
               {words.headline}

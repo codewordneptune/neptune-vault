@@ -9,8 +9,8 @@
 // project's releases, as any visit to the page would. Nothing about the
 // wallet. It never counts a draft: only a release someone has published.
 
-import { Anchor, Button, Group, Text } from '@mantine/core';
-import { IconDownload } from '@tabler/icons-react';
+import { Button, Group, Text } from '@mantine/core';
+import { IconCircleArrowUp } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
@@ -82,7 +82,7 @@ export function DesktopUpdateNotice() {
     <div className="vault-updatestrip" role="status">
       <div className="vault-updatestrip-inner">
         <div className="vault-updatestrip-body">
-          <IconDownload size={18} stroke={1.8} />
+          <IconCircleArrowUp size={18} stroke={1.8} />
           <div style={{ minWidth: 0 }}>
             <Text size="sm" fw={600}>
               Version {newer.version} of the desktop app is out
@@ -98,9 +98,9 @@ export function DesktopUpdateNotice() {
             <Button size="compact-sm" variant="subtle" className="vault-tap" onClick={() => setLater(true)}>
               Later
             </Button>
-            <Anchor href={newer.url} target="_blank" rel="noreferrer" className="vault-tap-link" fw={600} size="sm">
+            <Button component="a" href={newer.url} target="_blank" rel="noreferrer" size="compact-sm" className="vault-tap">
               Download
-            </Anchor>
+            </Button>
           </Group>
         </div>
       </div>

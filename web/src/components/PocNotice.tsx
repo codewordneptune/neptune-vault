@@ -4,7 +4,7 @@
 // Home every day was more than it needs, and dropping it was not honest.
 
 import { Button, Group, Modal, Stack, Text } from '@mantine/core';
-import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import { IconChevronRight } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { Caution } from './Notice';
@@ -31,13 +31,12 @@ export function PocNotice() {
       // No storage: the full notice shows every time, which is the safe side.
     }
   }, []);
-  const Chevron = expanded ? IconChevronUp : IconChevronDown;
   return (
     <Caution
       title={
         <span className="vault-poc-title">
           {POC_TITLE}
-          <Chevron size={16} stroke={1.8} aria-hidden />
+          <IconChevronRight size={16} stroke={1.8} aria-hidden className={expanded ? 'vault-chevron open' : 'vault-chevron'} />
         </span>
       }
       className={expanded ? 'vault-poc' : 'vault-poc collapsed'}

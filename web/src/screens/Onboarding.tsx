@@ -1,7 +1,7 @@
 // Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
+import { Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
 import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { WALLET_NAME_MAX, WalletNameTakenError } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
-import { Caution, Info } from '../components/Notice';
+import { Caution, ErrorLine, Info } from '../components/Notice';
 import { LINKS } from '../app/links';
 import { NATIVE } from '../app/platform';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
@@ -281,7 +281,7 @@ export function Onboarding() {
             {/* Two doors: a new wallet, or one that exists; which way to bring
                 one back is asked behind the second door. */}
             <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
-            {error && <Alert color="red">{error}</Alert>}
+            {error && <ErrorLine>{error}</ErrorLine>}
             <Button variant="light" onClick={() => setStep('existing')}>I already have a wallet</Button>
             {/* Adding a wallet goes to the network that is open. Choosing another
                 here would lock the open wallet at once, with no question asked;
@@ -297,7 +297,7 @@ export function Onboarding() {
                 Your {elsewhere.map((n) => NETWORK_LABELS[n]).join(' and ')} {elsewhere.length === 1 ? 'wallet is' : 'wallets are'} still on this device.
                 <Group gap="sm" mt={4}>
                   {elsewhere.map((n) => (
-                    <Button key={n} variant="light" size="compact-sm" onClick={() => void switchNetwork(n)}>
+                    <Button key={n} variant="light" size="compact-sm" className="vault-tap" onClick={() => void switchNetwork(n)}>
                       Switch to {NETWORK_LABELS[n]}
                     </Button>
                   ))}
@@ -594,7 +594,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
         <Button disabled={!file || !password} loading={busy} onClick={() => file && onFile(file, password, fast)}>
           Restore wallet
         </Button>
-        {error && <Alert color="red">{error}</Alert>}
+        {error && <ErrorLine>{error}</ErrorLine>}
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
     </Paper>
@@ -669,7 +669,7 @@ function PasswordStep({
         )}
         <NewPasswordFields password={password} onPassword={setPassword} again={again} onAgain={setAgain} />
         <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password, name)}>{actionLabel}</Button>
-        {error && <Alert color="red">{error}</Alert>}
+        {error && <ErrorLine>{error}</ErrorLine>}
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
     </Paper>

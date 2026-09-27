@@ -189,17 +189,11 @@ h3.mantine-Title-root.vault-prose-heading {
   box-shadow: var(--v-card-shadow);
 }
 
-/* Buttons: one radius, one weight; primary carries the accent gradient. */
+/* Buttons: one radius, one weight, and one look for the main button: the
+   theme's flat accent, whether or not its variant is named (a gradient
+   reached only the four buttons that named it). */
 .mantine-Button-root {
   font-weight: 600;
-}
-.mantine-Button-root[data-variant='filled'] {
-  background: linear-gradient(135deg, var(--v-accent-2), var(--v-accent-deep));
-  border: 0;
-  box-shadow: var(--v-shadow-accent);
-}
-.mantine-Button-root[data-variant='filled']:hover {
-  background: linear-gradient(135deg, var(--v-accent-deep), #144c9f);
 }
 .mantine-Button-root[data-variant='light'] {
   background: var(--v-accent-soft);
@@ -229,15 +223,6 @@ h3.mantine-Title-root.vault-prose-heading {
 }
 .mantine-Button-root[data-variant='subtle'] {
   color: var(--v-accent-text);
-}
-/* A destructive action is red at rest, not only on hover. */
-.mantine-Button-root[data-variant='subtle'].vault-danger {
-  color: var(--v-danger-text);
-}
-/* Its hover is a faint tint, not the library's solid red, on which the red
-   text fell below 4.5:1 in both themes. */
-.mantine-Button-root[data-variant='subtle'].vault-danger:hover:not(:disabled) {
-  background: var(--v-danger-hover);
 }
 /* Disabled, whatever the variant: one quiet look that stands off the card.
    Mantine 9 keeps data-variant on a disabled button, so this comes after
@@ -355,7 +340,7 @@ h3.mantine-Title-root.vault-prose-heading {
 }
 .mantine-Menu-label {
   font-size: var(--v-fs-xs);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--v-muted);
 }
@@ -1103,17 +1088,6 @@ html {
   line-height: 1.3;
 }
 
-/* Settings section headings carry a small muted icon as a landmark on a
-   long page; other screens have too few sections to need one. */
-.vault-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.vault-section-title svg {
-  color: var(--v-muted);
-  flex-shrink: 0;
-}
 
 /* Text a payment link supplied is isolated for bidirectional text
    (NIP-002, Security considerations). */
@@ -1254,7 +1228,7 @@ html {
   transition: rotate 150ms ease;
 }
 .vault-chevron.open {
-  rotate: 180deg;
+  rotate: 90deg;
 }
 @media (prefers-reduced-motion: reduce) {
   .vault-chevron {
@@ -1404,20 +1378,6 @@ html {
   color: #5a6a7e;
 }
 
-/* A disclosure for the mechanism behind a one-sentence explanation. */
-.vault-more summary {
-  width: fit-content;
-  padding-block: 10px;
-  margin-block: -10px;
-  cursor: pointer;
-  font-weight: 500;
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.vault-more p {
-  margin: 6px 0 0;
-}
 
 /* The line under a history row's title: one line, whatever it holds. Its
    last part (who a send went to) is what an ellipsis takes first. */
@@ -1488,16 +1448,16 @@ html {
 .vault-lock-name {
   overflow-wrap: anywhere;
 }
+/* A link like every other: the accent, underlined under the pointer. */
 .vault-lock-other {
   align-self: center;
   font-size: var(--v-fs-sm);
-  color: var(--v-muted);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--v-accent-text);
   padding: 6px 8px;
 }
 .vault-lock-other:hover {
-  color: var(--v-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* Advanced settings tucked under a choice most people make without them. */
@@ -2031,6 +1991,27 @@ html {
 :root:root[data-mantine-color-scheme] {
   --mantine-color-error: var(--v-danger-text);
   --mantine-color-placeholder: var(--v-muted);
+  /* A filled red button (the confirm of a removal) in the app's red, the
+     same in both themes: white on it is 5.6:1. */
+  --mantine-color-red-filled: #c62828;
+  --mantine-color-red-filled-hover: #a51d1d;
+}
+/* The one error pattern (Notice.tsx, ErrorLine): red text under the
+   control that failed, with a close when it stays. */
+.vault-error-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--v-danger-text);
+  font-size: var(--v-fs-sm);
+  line-height: 1.5;
+}
+.vault-error-line .vault-notice-body {
+  flex: 1;
+  min-width: 0;
+}
+.vault-error-title {
+  font-weight: 600;
 }
 .mantine-InputWrapper-error {
   font-size: var(--v-fs-sm);

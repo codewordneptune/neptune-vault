@@ -50,7 +50,7 @@ export function NetworkMenu() {
   }, [opened, services, account]);
 
   return (
-    <Menu opened={opened} onChange={setOpened} position="bottom-end" width={220} radius="md" shadow="md">
+    <Menu opened={opened} onChange={setOpened} position="bottom-end" width={220}>
       <Menu.Target>
         {/* The wallet is what the pill is about; the network qualifies it,
             and is named when it is a test network (or there is no wallet). */}

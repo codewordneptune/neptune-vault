@@ -143,7 +143,7 @@ export function Unlock() {
               Unlock
             </Button>
             {others.length > 0 && !sending && (
-              <Menu position="bottom" width={240} radius="md" shadow="md">
+              <Menu position="bottom" width={240}>
                 <Menu.Target>
                   <UnstyledButton className="vault-lock-other">Not this wallet?</UnstyledButton>
                 </Menu.Target>

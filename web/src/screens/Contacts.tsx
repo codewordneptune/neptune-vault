@@ -1,13 +1,14 @@
 // Contacts: saved recipients for this account. Add by paste or scan, rename,
 // remove, and start a send to one.
 
-import { ActionIcon, Alert, Badge, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
-import { IconChevronLeft, IconCopy, IconDotsVertical, IconPencil, IconScan, IconSend, IconTrash, IconUserPlus } from '@tabler/icons-react';
+import { ActionIcon, Badge, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
+import { IconArrowUpRight, IconChevronLeft, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconScan, IconTrash } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 import { ownAddresses } from '../app/ownAddresses';
+import { ErrorLine } from '../components/Notice';
 import { QrScanner } from '../components/QrScanner';
 import type { ContactRecord } from '../storage/db';
 import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
@@ -70,14 +71,14 @@ export function Contacts() {
                 Contacts
               </Title>
             </Group>
-            <Button size="compact-md" variant="light" className="vault-tap" leftSection={<IconUserPlus size={16} stroke={1.8} />} onClick={() => setAdding(true)}>
+            <Button size="compact-md" variant="light" className="vault-tap" leftSection={<IconPlus size={16} stroke={1.8} />} onClick={() => setAdding(true)}>
               Add
             </Button>
           </Group>
           <div className="sr-only" role="status">
             {said}
           </div>
-          {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
+          {error && <ErrorLine onClose={() => setError(null)}>{error}</ErrorLine>}
           {contacts === null ? null : contacts.length === 0 ? (
             <Text size="sm" c="dimmed">
               No contacts yet. Add one here, or save a recipient after you send.
@@ -101,7 +102,7 @@ export function Contacts() {
                     {/* Stays while the pointer moves onto it, so it can be read. */}
                     <Tooltip label="Send to this contact" interactive>
                       <ActionIcon variant="light" size="lg" className="vault-tap" aria-label={`Send to ${c.name}`} onClick={() => navigate('/send', { state: { recipient: c.address } })}>
-                        <IconSend size={18} stroke={1.8} />
+                        <IconArrowUpRight size={18} stroke={1.8} />
                       </ActionIcon>
                     </Tooltip>
                     <Menu position="bottom-end">
@@ -279,7 +280,9 @@ export function ContactForm({
       await onSave(name, address);
     } catch (e) {
       const message = (e as Error).message;
+      // Said at the field it is about; anything else under the buttons.
       if (/already have a contact called/.test(message)) setNameError(message);
+      else if (/already saved/.test(message) && !fixedAddress) setAddressError(message);
       else setError(message);
     } finally {
       setBusy(false);
@@ -295,7 +298,6 @@ export function ContactForm({
         }}
       >
         <Stack>
-          {error && <Alert color="red">{error}</Alert>}
           <TextInput
             label="Name"
             value={name}
@@ -341,6 +343,7 @@ export function ContactForm({
               Save
             </Button>
           </Group>
+          {error && <ErrorLine>{error}</ErrorLine>}
         </Stack>
       </form>
       <QrScanner
@@ -373,7 +376,6 @@ function RenameForm({ initial, onSave, onCancel }: { initial: string; onSave: (n
       }}
     >
       <Stack>
-        {error && <Alert color="red">{error}</Alert>}
         <TextInput
           label="Name"
           value={name}
@@ -392,6 +394,7 @@ function RenameForm({ initial, onSave, onCancel }: { initial: string; onSave: (n
             Save
           </Button>
         </Group>
+        {error && <ErrorLine>{error}</ErrorLine>}
       </Stack>
     </form>
   );

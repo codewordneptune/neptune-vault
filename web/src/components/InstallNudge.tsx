@@ -6,7 +6,6 @@
 // nothing. Dismissed for two weeks at a time, on this device.
 
 import { Button } from '@mantine/core';
-import { IconDeviceMobile } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
@@ -28,7 +27,7 @@ export function InstallNudge() {
   if (state.kind === 'ios-share') {
     const device = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'iPad' : 'iPhone';
     return (
-      <Caution icon={<IconDeviceMobile size={18} stroke={1.8} />} title="Add Neptune Vault to the Home Screen">
+      <Caution title="Add Neptune Vault to the Home Screen">
         Safari deletes this wallet from this {device} if you do not open it for about a week. Add it to the Home Screen to keep it: in Safari, tap Share, then "Add to Home Screen". And keep your seed phrase.
       </Caution>
     );
@@ -43,10 +42,10 @@ export function InstallNudge() {
   };
 
   return (
-    <Info icon={<IconDeviceMobile size={18} stroke={1.8} />} title="Install Neptune Vault on this device" onClose={() => void dismiss()} closeLabel="Dismiss the install offer">
+    <Info title="Install Neptune Vault on this device" onClose={() => void dismiss()} closeLabel="Dismiss the install offer">
       {INSTALL_BENEFITS}
       <div>
-        <Button variant="light" size="sm" onClick={() => void promptInstall()}>
+        <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => void promptInstall()}>
           Install app
         </Button>
       </div>

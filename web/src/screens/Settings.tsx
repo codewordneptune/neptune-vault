@@ -1,16 +1,16 @@
 // Network, node URL with connectivity check, backup actions, lock.
 
-import { Alert, Anchor, Button, Checkbox, Divider, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
-import { IconCopy, IconDeviceMobile, IconDownload, IconFingerprint, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconTrash, IconWallet } from '@tabler/icons-react';
+import { Anchor, Button, Checkbox, Divider, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
+import { IconCopy, IconDownload, IconFingerprint } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { BACKGROUND_LOCK_CHOICES_MS, backgroundLockOf, LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, showNau, useApp } from '../app/AppContext';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
-import { Caution, Done, Info } from '../components/Notice';
+import { Caution, Done, ErrorLine, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
@@ -25,6 +25,17 @@ import { FIAT_CURRENCIES, FIAT_LABELS, isFiatCurrency } from '../util/fiat';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import { formatDate, formatDateTime, formatTime } from '../util/time';
 import type { Network } from '../storage/db';
+
+// One inline form open at a time: opening one (a new password, a passkey,
+// turning send confirmation off) closes any other, so the page shows one
+// main button at a time, as every step elsewhere does.
+type FormKey = 'password' | 'passkey' | 'confirm-sends';
+const OpenFormContext = createContext<{ open: FormKey | null; setOpen: Dispatch<SetStateAction<FormKey | null>> }>({ open: null, setOpen: () => undefined });
+function useOpenForm(key: FormKey): [boolean, (on: boolean) => void] {
+  const { open, setOpen } = useContext(OpenFormContext);
+  const set = useCallback((on: boolean) => setOpen((current) => (on ? key : current === key ? null : current)), [key, setOpen]);
+  return [open === key, set];
+}
 
 export function Settings() {
   const { services, account, network, switchNetwork, refresh, sendJob, sync, lastSyncedAt } = useApp();
@@ -273,6 +284,8 @@ export function Settings() {
   // person's, which browsers weigh more.
   const [persistent, setPersistent] = useState(services.persistent);
   const [persistAsked, setPersistAsked] = useState(false);
+  const [openForm, setOpenForm] = useState<FormKey | null>(null);
+  const openFormValue = useMemo(() => ({ open: openForm, setOpen: setOpenForm }), [openForm]);
   const requestPersistent = async () => {
     const granted = await requestPersistentStorage();
     services.persistent = granted;
@@ -281,259 +294,256 @@ export function Settings() {
   };
 
   return (
-    <Stack gap="md">
-      <Title order={2} className="sr-only">
-        Settings
-      </Title>
-      <WalletCard />
-      <Paper id="backup" className="vault-anchored">
-        <Stack>
-          <Title order={3} className="vault-section-title vault-step-title" tabIndex={-1} ref={backupTitle}>
-            <IconShieldCheck size={18} stroke={1.8} aria-hidden />
-            Backup
-          </Title>
-          <Text size="sm">
-            The backup file and the seed phrase below are for {account ? walletName(account) : 'this wallet'} only. Each wallet on this device has its own.
-          </Text>
-          {NATIVE ? null : persistent ? (
-            <Text size="sm" c="dimmed">
-              The browser will not delete this wallet's data on its own. Clearing site data still does, so keep your seed phrase or a backup file.
+    <OpenFormContext.Provider value={openFormValue}>
+      <Stack gap="md">
+        <Title order={2} className="sr-only">
+          Settings
+        </Title>
+        <WalletCard />
+        <Paper id="backup" className="vault-anchored">
+          <Stack>
+            <Title order={3} className="vault-section-title vault-step-title" tabIndex={-1} ref={backupTitle}>
+              Backup
+            </Title>
+            <Text size="sm">
+              The backup file and the seed phrase below are for {account ? walletName(account) : 'this wallet'} only. Each wallet on this device has its own.
             </Text>
-          ) : (
-            <Caution title="The browser may delete this wallet">
-              When space runs low, the browser may delete this wallet's data. Installing the app usually prevents that. Your seed phrase brings back your funds; a backup file also brings back your contacts and address labels.
-              <Group mt={4} gap="sm" align="center">
-                {installState().kind === 'promptable' && (
-                  <Button variant="light" onClick={() => void promptInstall()}>
-                    Install app
-                  </Button>
-                )}
-                <Button variant="light" onClick={() => void requestPersistent()}>
-                  Request again
-                </Button>
-                {persistAsked && (
-                  <Text size="sm" c="dimmed">
-                    Still not granted.
-                  </Text>
-                )}
-              </Group>
-            </Caution>
-          )}
-          <Text size="sm" c="dimmed">
-            {lastBackup ? `Last backup file of ${account ? walletName(account) : 'this wallet'}: ${lastBackup}` : `No backup file of ${account ? walletName(account) : 'this wallet'} saved yet.`}
-          </Text>
-          <Group>
-            <Button variant="light" leftSection={<IconDownload size={16} stroke={1.8} />} onClick={askExport} disabled={!account}>Export backup file</Button>
-            <Button variant="light" onClick={togglePhrase} disabled={!account}>
-              {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
-            </Button>
-          </Group>
-          {message &&
-            (message.done ? (
-              <Done onClose={() => setMessage(null)} focusOnMount>
-                {message.text}
-              </Done>
-            ) : (
-              <Info onClose={() => setMessage(null)} focusOnMount>
-                {message.text}
-              </Info>
-            ))}
-          {exportError && <Alert color="red" onClose={() => setExportError(null)} withCloseButton>Could not make the backup file: {exportError}</Alert>}
-          <Modal opened={exportAsking} onClose={() => setExportAsking(false)} title="Export backup file">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void exportBackup();
-              }}
-            >
-              <Stack>
-                <Text size="sm">The file restores this wallet, its contacts and its address labels. It is encrypted with this password, which you will need to open it, and any change to it is detected. Keep it somewhere safe.</Text>
-                <PasswordInput label="Password" value={exportPassword} onChange={(e) => setExportPassword(e.currentTarget.value)} error={exportPasswordError} errorProps={{ role: 'alert' }} autoComplete="current-password" data-autofocus />
-                <Group grow>
-                  <Button variant="default" onClick={() => setExportAsking(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" loading={exporting} disabled={exportPassword === ''}>
-                    Export
-                  </Button>
-                </Group>
-              </Stack>
-            </form>
-          </Modal>
-          <Modal opened={asking} onClose={() => setAsking(false)} title="Show the seed phrase">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void reveal();
-              }}
-            >
-              <Stack>
-                <Text size="sm">Anyone who sees these words can take everything in this wallet, from anywhere, for good. Make sure nobody is watching the screen.</Text>
-                <PasswordInput label="Password" value={revealPassword} onChange={(e) => setRevealPassword(e.currentTarget.value)} error={revealError} errorProps={{ role: 'alert' }} autoComplete="current-password" data-autofocus />
-                <Group grow>
-                  <Button variant="default" onClick={() => setAsking(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" loading={revealing} disabled={revealPassword === ''}>
-                    Show
-                  </Button>
-                </Group>
-              </Stack>
-            </form>
-          </Modal>
-          {phrase && (
-            <Stack gap="xs">
-              <WordGrid words={phrase} />
-              {/* The button, then what copying means, beneath it, as on the setup step. */}
-              <Stack gap={4} align="flex-start">
-                <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
-                  Copy words
-                </Button>
-                <Text size="sm" c="dimmed">
-                  {CLIPBOARD_RISK}
-                </Text>
-              </Stack>
-              <Text size="sm" c="dimmed" aria-live="off">
-                Hidden again in {Math.max(0, phraseLeft)} s, or when you leave this screen.
-              </Text>
-              <Button variant="subtle" size="compact-sm" className="vault-button-start" onClick={() => setPhraseLeft((n) => n + PHRASE_SECONDS)}>
-                Keep showing
-              </Button>
-              <div className="sr-only" role="status">
-                {phraseLeft <= 20 && phraseLeft > 0 ? 'The seed phrase hides in 20 seconds. Keep showing adds a minute.' : ''}
-              </div>
-            </Stack>
-          )}
-        </Stack>
-      </Paper>
-
-      <Paper>
-        <Stack>
-          <Title order={3} className="vault-section-title">
-            <IconLock size={18} stroke={1.8} aria-hidden />
-            Security
-          </Title>
-          <AutoLockSetting />
-          <ConfirmSendsSetting />
-          <ChangePassword />
-          <PasskeyCard />
-          {/* Not during a send: a lock takes the keys the send is using, and it would end without a word. */}
-          <Stack gap={4} align="flex-start">
-            <Button variant="light" onClick={() => void services.accounts.lock()} disabled={sending}>
-              Lock wallet
-            </Button>
-            {sending && (
+            {NATIVE ? null : persistent ? (
               <Text size="sm" c="dimmed">
-                {NOT_DURING_SEND}
+                The browser will not delete this wallet's data on its own. Clearing site data still does, so keep your seed phrase or a backup file.
               </Text>
+            ) : (
+              <Caution title="The browser may delete this wallet">
+                When space runs low, the browser may delete this wallet's data. Installing the app usually prevents that. Your seed phrase brings back your funds; a backup file also brings back your contacts and address labels.
+                <Group mt={4} gap="sm" align="center">
+                  {installState().kind === 'promptable' && (
+                    <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => void promptInstall()}>
+                      Install app
+                    </Button>
+                  )}
+                  <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => void requestPersistent()}>
+                    Request again
+                  </Button>
+                  {persistAsked && (
+                    <Text size="sm" c="dimmed">
+                      Still not granted.
+                    </Text>
+                  )}
+                </Group>
+              </Caution>
+            )}
+            <Text size="sm" c="dimmed">
+              {lastBackup ? `Last backup file of ${account ? walletName(account) : 'this wallet'}: ${lastBackup}` : `No backup file of ${account ? walletName(account) : 'this wallet'} saved yet.`}
+            </Text>
+            <Group>
+              <Button variant="light" leftSection={<IconDownload size={16} stroke={1.8} />} onClick={askExport} disabled={!account}>Export backup file</Button>
+              <Button variant="light" onClick={togglePhrase} disabled={!account}>
+                {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
+              </Button>
+            </Group>
+            {message &&
+              (message.done ? (
+                <Done onClose={() => setMessage(null)} focusOnMount>
+                  {message.text}
+                </Done>
+              ) : (
+                <Info onClose={() => setMessage(null)} focusOnMount>
+                  {message.text}
+                </Info>
+              ))}
+            {exportError && <ErrorLine onClose={() => setExportError(null)}>Could not make the backup file: {exportError}</ErrorLine>}
+            <Modal opened={exportAsking} onClose={() => setExportAsking(false)} title="Export backup file">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void exportBackup();
+                }}
+              >
+                <Stack>
+                  <Text size="sm">The file restores this wallet, its contacts and its address labels. It is encrypted with this password, which you will need to open it, and any change to it is detected. Keep it somewhere safe.</Text>
+                  <PasswordInput label="Password" value={exportPassword} onChange={(e) => setExportPassword(e.currentTarget.value)} error={exportPasswordError} errorProps={{ role: 'alert' }} autoComplete="current-password" data-autofocus />
+                  <Group grow>
+                    <Button variant="default" onClick={() => setExportAsking(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" loading={exporting} disabled={exportPassword === ''}>
+                      Export
+                    </Button>
+                  </Group>
+                </Stack>
+              </form>
+            </Modal>
+            <Modal opened={asking} onClose={() => setAsking(false)} title="Show the seed phrase">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void reveal();
+                }}
+              >
+                <Stack>
+                  <Text size="sm">Anyone who sees these words can take everything in this wallet, from anywhere, for good. Make sure nobody is watching the screen.</Text>
+                  <PasswordInput label="Password" value={revealPassword} onChange={(e) => setRevealPassword(e.currentTarget.value)} error={revealError} errorProps={{ role: 'alert' }} autoComplete="current-password" data-autofocus />
+                  <Group grow>
+                    <Button variant="default" onClick={() => setAsking(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" loading={revealing} disabled={revealPassword === ''}>
+                      Show
+                    </Button>
+                  </Group>
+                </Stack>
+              </form>
+            </Modal>
+            {phrase && (
+              <Stack gap="xs">
+                <WordGrid words={phrase} />
+                {/* The button, then what copying means, beneath it, as on the setup step. */}
+                <Stack gap={4} align="flex-start">
+                  <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+                    Copy words
+                  </Button>
+                  <Text size="sm" c="dimmed">
+                    {CLIPBOARD_RISK}
+                  </Text>
+                </Stack>
+                <Text size="sm" c="dimmed" aria-live="off">
+                  Hidden again in {Math.max(0, phraseLeft)} s, or when you leave this screen.
+                </Text>
+                <Button variant="subtle" size="compact-sm" className="vault-button-start" onClick={() => setPhraseLeft((n) => n + PHRASE_SECONDS)}>
+                  Keep showing
+                </Button>
+                <div className="sr-only" role="status">
+                  {phraseLeft <= 20 && phraseLeft > 0 ? 'The seed phrase hides in 20 seconds. Keep showing adds a minute.' : ''}
+                </div>
+              </Stack>
             )}
           </Stack>
-        </Stack>
-      </Paper>
+        </Paper>
 
-      <Paper>
-        <Stack>
-          <Title order={3} className="vault-section-title">
-            <IconPlugConnected size={18} stroke={1.8} aria-hidden />
-            Network and node
-          </Title>
-          <Modal opened={pendingNetwork !== null} onClose={() => setPendingNetwork(null)} title={pendingNetwork ? `Switch to ${NETWORK_LABELS[pendingNetwork]}?` : ''}>
-            <Stack>
-              <Text size="sm">Your {NETWORK_LABELS[network]} wallet stays on this device, so you can switch back any time. Switching locks the app.</Text>
-              <Group grow>
-                <Button variant="default" onClick={() => setPendingNetwork(null)}>
-                  Cancel
-                </Button>
-                <Button onClick={() => void confirmNetwork()}>Switch</Button>
-              </Group>
+        <Paper>
+          <Stack>
+            <Title order={3} className="vault-section-title">
+              Security
+            </Title>
+            <AutoLockSetting />
+            <ConfirmSendsSetting />
+            <ChangePassword />
+            <PasskeyCard />
+            {/* Not during a send: a lock takes the keys the send is using, and it would end without a word. */}
+            <Stack gap={4} align="flex-start">
+              <Button variant="light" onClick={() => void services.accounts.lock()} disabled={sending}>
+                Lock wallet
+              </Button>
+              {sending && (
+                <Text size="sm" c="dimmed">
+                  {NOT_DURING_SEND}
+                </Text>
+              )}
             </Stack>
-          </Modal>
-          <TextInput label="Node URL" description={testNetsShown ? `Used on ${NETWORK_LABELS[network]}; each network has its own.` : undefined} value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
-          {/* Always there, so what the test says as it runs and ends is announced. */}
-          <Text size="sm" c={shown && !shown.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status" className={shown?.text ? undefined : 'sr-only'}>
-            {shown?.text}
-            {shown?.at && shown.text !== 'Testing…' ? ` · checked ${formatTime(shown.at)}` : ''}
-          </Text>
-          {/* One button: a URL that differs from the saved one is tested, then saved. */}
-          <Group>
-            <Button variant={dirty ? 'filled' : 'light'} onClick={() => void (dirty ? saveAndTestNode() : testNode())} loading={testing}>
-              {dirty ? 'Test and save' : 'Test'}
-            </Button>
-            {defaultUrl && savedUrl !== defaultUrl && nodeUrl.trim() !== defaultUrl && (
-              <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => setNodeUrl(defaultUrl)}>
-                Use the default node
-              </Anchor>
+          </Stack>
+        </Paper>
+
+        <Paper>
+          <Stack>
+            <Title order={3} className="vault-section-title">
+              Network and node
+            </Title>
+            <Modal opened={pendingNetwork !== null} onClose={() => setPendingNetwork(null)} title={pendingNetwork ? `Switch to ${NETWORK_LABELS[pendingNetwork]}?` : ''}>
+              <Stack>
+                <Text size="sm">Your {NETWORK_LABELS[network]} wallet stays on this device, so you can switch back any time. Switching locks the app.</Text>
+                <Group grow>
+                  <Button variant="default" onClick={() => setPendingNetwork(null)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => void confirmNetwork()}>Switch</Button>
+                </Group>
+              </Stack>
+            </Modal>
+            <TextInput label="Node URL" description={testNetsShown ? `Used on ${NETWORK_LABELS[network]}; each network has its own.` : undefined} value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
+            {/* Always there, so what the test says as it runs and ends is announced. */}
+            <Text size="sm" c={shown && !shown.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status" className={shown?.text ? undefined : 'sr-only'}>
+              {shown?.text}
+              {shown?.at && shown.text !== 'Testing…' ? ` · checked ${formatTime(shown.at)}` : ''}
+            </Text>
+            {/* One button: a URL that differs from the saved one is tested, then saved. */}
+            <Group>
+              <Button variant={dirty ? 'filled' : 'light'} onClick={() => void (dirty ? saveAndTestNode() : testNode())} loading={testing}>
+                {dirty ? 'Test and save' : 'Test'}
+              </Button>
+              {defaultUrl && savedUrl !== defaultUrl && nodeUrl.trim() !== defaultUrl && (
+                <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => setNodeUrl(defaultUrl)}>
+                  Use the default node
+                </Anchor>
+              )}
+            </Group>
+            <RescanCard />
+            {/* For developers and testers, last: the network choice appears under it. */}
+            <Checkbox
+              label="Developer networks"
+              description={`Offers Testnet and Regtest, for developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
+              checked={testNets}
+              onChange={(e) => toggleTestNets(e.currentTarget.checked)}
+            />
+            {testNetsShown && (
+              <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} disabled={sending} description={sending ? NOT_DURING_SEND : undefined} />
             )}
-          </Group>
-          <RescanCard />
-          {/* For developers and testers, last: the network choice appears under it. */}
-          <Checkbox
-            label="Developer networks"
-            description={`Offers Testnet and Regtest, for developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
-            checked={testNets}
-            onChange={(e) => toggleTestNets(e.currentTarget.checked)}
-          />
-          {testNetsShown && (
-            <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} disabled={sending} description={sending ? NOT_DURING_SEND : undefined} />
-          )}
-        </Stack>
-      </Paper>
+          </Stack>
+        </Paper>
 
-      <Paper>
-        <Stack>
-          <Title order={3} className="vault-section-title">
-            <IconDeviceMobile size={18} stroke={1.8} aria-hidden />
-            App
-          </Title>
-          <AppearanceCard />
-          <FiatCard />
-          {!NATIVE && <InstallCard />}
-          {NATIVE && <Shortcuts />}
-          <Text size="sm" c="dimmed">
-            Device and app details to include when you report a problem.
-          </Text>
-          <Group>
-            <Button variant="light" onClick={() => navigate('/diagnostics')}>
-              Diagnostics
-            </Button>
-          </Group>
-        </Stack>
-      </Paper>
+        <Paper>
+          <Stack>
+            <Title order={3} className="vault-section-title">
+              App
+            </Title>
+            <AppearanceCard />
+            <FiatCard />
+            {!NATIVE && <InstallCard />}
+            {NATIVE && <Shortcuts />}
+            <Text size="sm" c="dimmed">
+              Device and app details to include when you report a problem.
+            </Text>
+            <Group>
+              <Button variant="light" onClick={() => navigate('/diagnostics')}>
+                Diagnostics
+              </Button>
+            </Group>
+          </Stack>
+        </Paper>
 
-      <Paper>
-        <Stack>
-          <Title order={3} className="vault-section-title">
-            <IconInfoCircle size={18} stroke={1.8} aria-hidden />
-            About
-          </Title>
-          <Text size="sm" c="dimmed">
-            {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Your keys stay on this device, and only the node set above learns about your wallet.
-          </Text>
-          <Group gap="md" style={{ rowGap: 24 }}>
-            <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-              Report a problem
-            </Anchor>
-            <Anchor href={LINKS.telegram} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-              Ask in Telegram
-            </Anchor>
-            <Anchor href={LINKS.forum} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-              Forum
-            </Anchor>
-            <Anchor href={LINKS.neptune} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-              About Neptune Cash
-            </Anchor>
-            <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => navigate('/privacy')}>
-              Privacy
-            </Anchor>
-          </Group>
-          <Text size="xs" c="dimmed">
-            Version {__APP_VERSION__} ({__APP_COMMIT__}), built {formatDate(Date.parse(__APP_BUILT_AT__))}.
-          </Text>
-        </Stack>
-      </Paper>
+        <Paper>
+          <Stack>
+            <Title order={3} className="vault-section-title">
+              About
+            </Title>
+            <Text size="sm" c="dimmed">
+              {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Your keys stay on this device, and only the node set above learns about your wallet.
+            </Text>
+            <Group gap="md" style={{ rowGap: 24 }}>
+              <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
+                Report a problem
+              </Anchor>
+              <Anchor href={LINKS.telegram} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
+                Ask in Telegram
+              </Anchor>
+              <Anchor href={LINKS.forum} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
+                Forum
+              </Anchor>
+              <Anchor href={LINKS.neptune} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
+                About Neptune Cash
+              </Anchor>
+              <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => navigate('/privacy')}>
+                Privacy
+              </Anchor>
+            </Group>
+            <Text size="xs" c="dimmed">
+              Version {__APP_VERSION__} ({__APP_COMMIT__}), built {formatDate(Date.parse(__APP_BUILT_AT__))}.
+            </Text>
+          </Stack>
+        </Paper>
 
-      <RemoveWalletCard />
-    </Stack>
+        <RemoveWalletCard />
+      </Stack>
+    </OpenFormContext.Provider>
   );
 }
 
@@ -589,13 +599,13 @@ function AutoLockSetting() {
 function ConfirmSendsSetting() {
   const { services, account, refresh } = useApp();
   const on = confirmsSends(account);
-  const [asking, setAsking] = useState(false);
+  const [asking, setAsking] = useOpenForm('confirm-sends');
   const boxRef = useRef<HTMLInputElement>(null);
   // Proven or not, focus goes back to the box, which says which it was.
   const close = useCallback(() => {
     setAsking(false);
     boxRef.current?.focus();
-  }, []);
+  }, [setAsking]);
   return (
     <Stack gap={4}>
       <Checkbox
@@ -737,12 +747,15 @@ function ChangePassword() {
   const [currentError, setCurrentError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(false);
-  // The button goes while the form is open: focus goes into the form, and back to the button after.
+  const [open, setOpen] = useOpenForm('password');
+  // The button goes while the form is open: focus goes into the form, and
+  // back to the button after; not when another form opening closed this
+  // one, since focus is in that form by then.
   const buttonRef = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
   useEffect(() => {
-    if (wasOpen.current && !open) buttonRef.current?.focus();
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (wasOpen.current && !open && lost) buttonRef.current?.focus();
     wasOpen.current = open;
   }, [open]);
 
@@ -809,7 +822,7 @@ function ChangePassword() {
             Save new password
           </Button>
         </Group>
-        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
+        {error && <ErrorLine onClose={() => setError(null)}>{error}</ErrorLine>}
       </Stack>
     </form>
   );
@@ -957,7 +970,7 @@ function InstallCard() {
 function PasskeyCard() {
   const { services, account, refresh } = useApp();
   const [supported, setSupported] = useState<boolean | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useOpenForm('passkey');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -1072,7 +1085,7 @@ function PasskeyCard() {
             Create passkey
           </Button>
         </Group>
-        {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
+        {error && <ErrorLine onClose={() => setError(null)}>{error}</ErrorLine>}
       </Stack>
     </form>
   );
@@ -1105,7 +1118,6 @@ function WalletCard() {
     <Paper>
       <Stack>
         <Title order={3} className="vault-section-title">
-          <IconWallet size={18} stroke={1.8} aria-hidden />
           Wallet
         </Title>
         <TextInput
@@ -1176,14 +1188,13 @@ function RemoveWalletCard() {
     <Paper>
       <Stack>
         <Title order={3} className="vault-section-title">
-          <IconTrash size={18} stroke={1.8} aria-hidden />
           Remove wallet
         </Title>
         <Text size="sm" c="dimmed">
           Removes {name} from this device only. Its coins stay on the chain, and its seed phrase or a backup file brings it back.
         </Text>
         <Group>
-          <Button variant="subtle" color="red" className="vault-danger" disabled={sending} onClick={() => setRemoving(true)}>
+          <Button variant="light" color="red" disabled={sending} onClick={() => setRemoving(true)}>
             Remove from this device
           </Button>
         </Group>
@@ -1360,7 +1371,7 @@ function RescanCard() {
               Rescan
             </Button>
           </Group>
-          {rescanError && <Alert color="red">Could not start the rescan: {rescanError}</Alert>}
+          {rescanError && <ErrorLine>Could not start the rescan: {rescanError}</ErrorLine>}
         </Stack>
       </Modal>
     </Stack>

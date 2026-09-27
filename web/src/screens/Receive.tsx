@@ -5,7 +5,7 @@
 // unused" derives the next key of that kind.
 
 import { ActionIcon, Button, Group, Loader, Menu, Modal, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowsMaximize, IconChevronRight, IconCopy, IconDotsVertical, IconEraser, IconPencil, IconShare } from '@tabler/icons-react';
+import { IconArrowsMaximize, IconChevronRight, IconCopy, IconDotsVertical, IconPencil, IconShare, IconTrash } from '@tabler/icons-react';
 import { useMediaQuery } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
@@ -495,7 +495,7 @@ export function Receive() {
                   />
                 )}
                 {arrivingNote && (
-                  <Done icon={<IconArrowDownLeft size={18} stroke={1.8} />} role={undefined}>
+                  <Done role={undefined}>
                     {arrivingNote}
                   </Done>
                 )}
@@ -552,7 +552,7 @@ export function Receive() {
                   maxLength={255}
                 />
                 {arrivedNote && (
-                  <Done icon={<IconArrowDownLeft size={18} stroke={1.8} />} role={undefined}>
+                  <Done role={undefined}>
                     {arrivedNote}
                   </Done>
                 )}
@@ -659,7 +659,7 @@ export function Receive() {
                               </Menu.Item>
                             )}
                             {named && (
-                              <Menu.Item leftSection={<IconEraser size={14} />} onClick={() => void removeName(a.kind, a.index)}>
+                              <Menu.Item leftSection={<IconTrash size={14} />} onClick={() => void removeName(a.kind, a.index)}>
                                 Remove name
                               </Menu.Item>
                             )}
