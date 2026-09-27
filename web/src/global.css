@@ -708,6 +708,33 @@ main h2[tabindex='-1']:focus {
 .vault-row-button:hover {
   background: var(--v-surface-2);
 }
+/* "Your addresses" rows: a button showing the address, widened on its
+   start side for the hover fill like a picker row, and the row's menu
+   button beside it, so the menu is not a button inside a button. */
+.vault-address-row {
+  padding: 0;
+}
+.vault-address-row:first-child {
+  margin-top: -12px;
+}
+.vault-address-row + .vault-address-row::before {
+  left: 0;
+  right: 0;
+}
+.vault-address-show {
+  flex: 1;
+  margin-left: -12px;
+  padding: 12px;
+  text-align: left;
+  border-radius: var(--v-radius-xs);
+}
+.vault-address-show:hover {
+  background: var(--v-surface-2);
+}
+.vault-address-show:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 2px;
+}
 
 /* Dialogs share the card treatment: surface colour, card radius, one
    title row aligned with the close button, body padding like a card. */

@@ -4,9 +4,10 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { Button, Group, Loader, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowsMaximize, IconChevronRight, IconCopy, IconShare } from '@tabler/icons-react';
+import { ActionIcon, Button, Group, Loader, Menu, Modal, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconArrowDownLeft, IconArrowsMaximize, IconChevronRight, IconCopy, IconDotsVertical, IconEraser, IconPencil, IconShare } from '@tabler/icons-react';
 import { useMediaQuery } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
 import { useEffect, useRef, useState } from 'react';
 
@@ -38,17 +39,25 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
 };
 
 // What the chosen kind is for, said the same way for each so they can be
-// compared: who it is for first, then its one trade-off. The same guidance
-// as the desktop wallet's addresses page. Shown right under the choice, on
-// both tabs (a request carries the same address), and before the code and
-// its Copy and Share, so the View-only caution is read before sharing.
+// compared: who it is for first, then its one trade-off. The guidance of
+// the desktop wallet's addresses page, but for reuse: every payment carries
+// its address's receiver identifier in the clear, so payments to one address
+// can be linked (neptune-wallet's own note on into_announcement), though
+// never their amounts. Shown right under the choice, on both tabs (a request
+// carries the same address), and before the code and its Copy and Share, so
+// the View-only caution is read before sharing.
 const KIND_NOTES: Record<KeyKind, string> = {
-  generation: `The one to use by default. Safe to reuse and the most private, but long: about ${showInt(3500)} characters.`,
+  generation: `The one to use by default, but long: about ${showInt(3500)} characters. Reusing it is safe, but payments to the same address can be linked on the chain (not their amounts), so give each payer a new address when that matters.`,
   ec_hybrid:
     'Short enough to paste into a chat. Give each one to a single sender: if one is reused widely, a future quantum computer could reveal the payments sent to it, though never spend them.',
   viewing:
     'Lets someone watch payments, such as an accountant. Whoever holds it sees every payment it receives, but can never spend them. Share it only with someone you trust with that.',
 };
+
+/** "Standard main address", "Short address 3". */
+function addressTitle(kind: KeyKind, index: number): string {
+  return `${KIND_LABELS[kind]} ${index === 0 ? 'main address' : `address ${index}`}`;
+}
 
 // The note's shape says how much care the kind needs: information for
 // Standard and Short, which are both ordinary choices (the words carry
@@ -135,6 +144,29 @@ export function Receive() {
     } catch (e) {
       setForError((e as Error).message);
     }
+  };
+
+  // Names are also given, changed and removed from "Your addresses". After
+  // the dialog or menu closes, focus goes back to that row's button, or to
+  // the list's summary when the row has gone, and what happened is said.
+  const [naming, setNaming] = useState<{ kind: KeyKind; index: number } | null>(null);
+  const moreButtons = useRef(new Map<string, HTMLButtonElement>());
+  const summaryRef = useRef<HTMLElement>(null);
+  const refocus = (k: string) => {
+    setTimeout(() => (moreButtons.current.get(k) ?? summaryRef.current)?.focus(), 0);
+  };
+  const nameAddress = async (k: KeyKind, i: number, text: string) => {
+    if (!account) return;
+    setLabels(await writeLabel(services.core, services.accounts.engine, account.id, k, i, text));
+  };
+  const removeName = async (k: KeyKind, i: number) => {
+    try {
+      await nameAddress(k, i, '');
+      setSaid(`Name removed from ${addressTitle(k, i)}. Payments to it still arrive.`);
+    } catch (e) {
+      notifications.show({ color: 'red', message: (e as Error).message });
+    }
+    refocus(addressKey(k, i));
   };
 
   // Payments on their way in are looked for every 10 s while this screen is
@@ -450,23 +482,27 @@ export function Receive() {
 
             <Tabs.Panel value="address">
               <Stack>
-                {/* Who it is for, on this device only: History names what arrives through it. */}
-                <TextInput
-                  label="Who is this address for? (only on this device)"
-                  placeholder="For example: Alice, or the market stall"
-                  value={forText}
-                  maxLength={ADDRESS_LABEL_MAX}
-                  onChange={(e) => {
-                    setForText(e.currentTarget.value);
-                    setForError(null);
-                  }}
-                  onBlur={() => void saveFor()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void saveFor();
-                  }}
-                  error={forError}
-                  description="Payments to this address show this name in History. Kept on this device and in its backup files, never sent anywhere."
-                />
+                {/* Who it is for, on this device only: History names what arrives
+                    through it. Asked for a new address, the one made for one
+                    payer; the main address is everyone's, so it has no field. */}
+                {index > 0 && (
+                  <TextInput
+                    label="Who is this address for? (optional, only on this device)"
+                    placeholder="For example: Alice, or the market stall"
+                    value={forText}
+                    maxLength={ADDRESS_LABEL_MAX}
+                    onChange={(e) => {
+                      setForText(e.currentTarget.value);
+                      setForError(null);
+                    }}
+                    onBlur={() => void saveFor()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void saveFor();
+                    }}
+                    error={forError}
+                    description="Payments to this address show this name in History. Kept on this device and in its backup files, never sent anywhere."
+                  />
+                )}
                 {arrivingNote && (
                   <Done icon={<IconArrowDownLeft size={18} stroke={1.8} />} role={undefined}>
                     {arrivingNote}
@@ -579,7 +615,7 @@ export function Receive() {
             many payments came through it. Choosing one shows it above. */}
         {known.length > 0 && (
           <details className="vault-setting">
-            <summary>
+            <summary ref={summaryRef}>
               <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
               Your addresses
             </summary>
@@ -588,12 +624,16 @@ export function Receive() {
                 {known.map((a) => {
                   const count = payments.get(a.key) ?? 0;
                   const current = a.kind === kind && a.index === index;
+                  const title = addressTitle(a.kind, a.index);
+                  const named = Boolean(labels[a.key]);
+                  // Only a new address is named; a main address named before can still lose its name.
+                  const nameable = a.index > 0;
                   return (
-                    <UnstyledButton key={a.key} className="vault-row vault-row-button" onClick={() => showAddress(a.kind, a.index)} aria-current={current || undefined}>
-                      <div style={{ minWidth: 0 }}>
+                    <div key={a.key} className="vault-row vault-address-row">
+                      <UnstyledButton className="vault-address-show" onClick={() => showAddress(a.kind, a.index)} aria-current={current || undefined}>
                         <Text size="sm" fw={500}>
-                          {KIND_LABELS[a.kind]} {a.index === 0 ? 'main address' : `address ${a.index}`}
-                          {labels[a.key] && (
+                          {title}
+                          {named && (
                             <>
                               {' · '}
                               <bdi>{labels[a.key]}</bdi>
@@ -604,14 +644,70 @@ export function Receive() {
                           {count === 0 ? 'No payments yet' : count === 1 ? '1 payment' : `${count} payments`}
                           {current ? ' · showing' : ''}
                         </Text>
-                      </div>
-                    </UnstyledButton>
+                      </UnstyledButton>
+                      {(nameable || named) && (
+                        <Menu position="bottom-end">
+                          <Menu.Target>
+                            <ActionIcon
+                              variant="subtle"
+                              size="lg"
+                              className="vault-tap"
+                              aria-label={`More for ${title}`}
+                              ref={(el: HTMLButtonElement | null) => {
+                                if (el) moreButtons.current.set(a.key, el);
+                                else moreButtons.current.delete(a.key);
+                              }}
+                            >
+                              <IconDotsVertical size={18} stroke={1.8} />
+                            </ActionIcon>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            {nameable && (
+                              <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => setNaming({ kind: a.kind, index: a.index })}>
+                                {named ? 'Rename' : 'Name it'}
+                              </Menu.Item>
+                            )}
+                            {named && (
+                              <Menu.Item leftSection={<IconEraser size={14} />} onClick={() => void removeName(a.kind, a.index)}>
+                                Remove name
+                              </Menu.Item>
+                            )}
+                          </Menu.Dropdown>
+                        </Menu>
+                      )}
+                    </div>
                   );
                 })}
               </Stack>
             </div>
           </details>
         )}
+        <Modal
+          opened={naming !== null}
+          onClose={() => {
+            if (naming) refocus(addressKey(naming.kind, naming.index));
+            setNaming(null);
+          }}
+          title={naming && labels[addressKey(naming.kind, naming.index)] ? 'Rename address' : 'Name address'}
+          returnFocus={false}
+        >
+          {naming && (
+            <AddressNameForm
+              title={addressTitle(naming.kind, naming.index)}
+              initial={labels[addressKey(naming.kind, naming.index)] ?? ''}
+              onCancel={() => {
+                refocus(addressKey(naming.kind, naming.index));
+                setNaming(null);
+              }}
+              onSave={async (text) => {
+                await nameAddress(naming.kind, naming.index, text);
+                setSaid(`${addressTitle(naming.kind, naming.index)} is now named ${cleanLabel(text)}.`);
+                refocus(addressKey(naming.kind, naming.index));
+                setNaming(null);
+              }}
+            />
+          )}
+        </Modal>
         <QrFullScreen
           opened={enlarged !== null && Boolean(enlarged === 'request' ? requestQr : qr)}
           onClose={() => setEnlarged(null)}
@@ -627,5 +723,43 @@ export function Receive() {
         />
       </Stack>
     </Paper>
+  );
+}
+
+/** Who one address was given to, from "Your addresses". Removing a name is the row menu's other item. */
+function AddressNameForm({ title, initial, onSave, onCancel }: { title: string; initial: string; onSave: (text: string) => Promise<void>; onCancel: () => void }) {
+  const [text, setText] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave(text).catch((err: Error) => setError(err.message));
+      }}
+    >
+      <Stack>
+        <TextInput
+          label={`Who is ${title} for?`}
+          description="Payments to this address show this name in History. Kept on this device and in its backup files, never sent anywhere."
+          value={text}
+          maxLength={ADDRESS_LABEL_MAX}
+          onChange={(e) => {
+            setText(e.currentTarget.value);
+            setError(null);
+          }}
+          error={error}
+          errorProps={{ role: 'alert' }}
+          data-autofocus
+        />
+        <Group grow>
+          <Button variant="default" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!cleanLabel(text)}>
+            Save
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }
