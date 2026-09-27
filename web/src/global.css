@@ -201,15 +201,6 @@ h3.mantine-Title-root.vault-prose-heading {
 .mantine-Button-root[data-variant='filled']:hover {
   background: linear-gradient(135deg, var(--v-accent-deep), #144c9f);
 }
-/* Mantine drops data-variant on disabled buttons, so one quiet look serves
-   every variant; it has to stand off the card, which the plain surface did not. */
-.mantine-Button-root:disabled,
-.mantine-Button-root[data-disabled] {
-  background: var(--v-disabled-bg);
-  border: 1px solid var(--v-disabled-border);
-  box-shadow: none;
-  color: var(--v-faint);
-}
 .mantine-Button-root[data-variant='light'] {
   background: var(--v-accent-soft);
   color: var(--v-accent-text);
@@ -248,11 +239,34 @@ h3.mantine-Title-root.vault-prose-heading {
 .mantine-Button-root[data-variant='subtle'].vault-danger:hover:not(:disabled) {
   background: var(--v-danger-hover);
 }
+/* Disabled, whatever the variant: one quiet look that stands off the card.
+   Mantine 9 keeps data-variant on a disabled button, so this comes after
+   the variants and names the attribute, to win over each of them; a
+   disabled light or default button looked exactly like an enabled one.
+   A loading button is disabled too, and keeps its look beside the spinner. */
+.mantine-Button-root:disabled:not([data-loading]),
+.mantine-Button-root[data-disabled]:not([data-loading]),
+.mantine-Button-root[data-variant]:disabled:not([data-loading]),
+.mantine-Button-root[data-variant][data-disabled]:not([data-loading]) {
+  background: var(--v-disabled-bg);
+  border: 1px solid var(--v-disabled-border);
+  box-shadow: none;
+  color: var(--v-faint);
+  cursor: not-allowed;
+}
+/* A subtle button reads as a link: disabled, it stays plain text, faded. */
+.mantine-Button-root[data-variant='subtle']:disabled:not([data-loading]),
+.mantine-Button-root[data-variant='subtle'][data-disabled]:not([data-loading]) {
+  background: transparent;
+  border-color: transparent;
+}
 /* A control inside a field (Max, Scan) is plain text at rest, and stays
    plain when disabled: faded, no box, so it never becomes the one boxed
    thing on the screen and the field does not change shape. */
 .mantine-Input-section .mantine-Button-root:disabled,
-.mantine-Input-section .mantine-Button-root[data-disabled] {
+.mantine-Input-section .mantine-Button-root[data-disabled],
+.mantine-Input-section .mantine-Button-root[data-variant]:disabled:not([data-loading]),
+.mantine-Input-section .mantine-Button-root[data-variant][data-disabled]:not([data-loading]) {
   background: transparent;
   border: 0;
   color: var(--v-faint);
