@@ -26,7 +26,7 @@ import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
 import { abbreviateAddress, addressKindLabel, parsePaymentText, shortAddress } from '../util/address';
 import { networkLabel } from '../util/network';
-import type { ContactRecord } from '../storage/db';
+import { confirmsSends, type ContactRecord } from '../storage/db';
 
 // Fee presets. Every level clears the default proof-upgrader floor of
 // about 0.017 NPT; the spread is for when upgraders or composers have
@@ -64,8 +64,8 @@ export function Send() {
   // A mouse or trackpad: a computer, where advice about touching the screen reads as a bug.
   const finePointer = useMediaQuery('(pointer: fine)');
   // Sends go out only once the person confirms with a password or passkey,
-  // unless they turned that off in Settings.
-  const confirmEach = services.settings.confirmSends !== false;
+  // unless they turned that off for this wallet in Settings.
+  const confirmEach = confirmsSends(account);
   const location = useLocation();
   const navigate = useNavigate();
   const arrival = location.state as { recipient?: string; fresh?: boolean } | null;

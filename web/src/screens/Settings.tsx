@@ -1,10 +1,10 @@
 // Network, node URL with connectivity check, backup actions, lock.
 
-import { Alert, Anchor, Button, Checkbox, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
-import { IconCopy, IconDeviceMobile, IconDownload, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconTrash, IconWallet } from '@tabler/icons-react';
+import { Alert, Anchor, Button, Checkbox, Divider, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
+import { IconCopy, IconDeviceMobile, IconDownload, IconFingerprint, IconInfoCircle, IconLock, IconPlugConnected, IconShieldCheck, IconTrash, IconWallet } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { BACKGROUND_LOCK_CHOICES_MS, backgroundLockOf, LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
@@ -14,7 +14,7 @@ import { Caution, Done, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
-import { DEFAULT_NODE_URLS, requestPersistentStorage, walletName } from '../storage/db';
+import { confirmsSends, DEFAULT_NODE_URLS, requestPersistentStorage, walletName } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
@@ -558,25 +558,148 @@ function AutoLockSetting() {
 }
 
 // Each send asks for the password or passkey before it goes out, so an
-// unlocked device left alone cannot be emptied. On unless turned off.
+// unlocked device left alone cannot be emptied. On unless turned off, for
+// each wallet. Turning it off is proven the same way, or whoever holds the
+// unlocked device could turn it off and then send: the box stays ticked
+// until then, as in a phone's settings. Turning it on needs nothing.
 function ConfirmSendsSetting() {
-  const { services } = useApp();
-  const [on, setOn] = useState(services.settings.confirmSends !== false);
+  const { services, account, refresh } = useApp();
+  const on = confirmsSends(account);
+  const [asking, setAsking] = useState(false);
+  const boxRef = useRef<HTMLInputElement>(null);
+  // Proven or not, focus goes back to the box, which says which it was.
+  const close = useCallback(() => {
+    setAsking(false);
+    boxRef.current?.focus();
+  }, []);
   return (
     <Stack gap={4}>
       <Checkbox
+        ref={boxRef}
         label="Confirm each send with the password or passkey"
         checked={on}
         onChange={(e) => {
-          const next = e.currentTarget.checked;
-          setOn(next);
-          void services.updateSettings({ confirmSends: next });
+          if (!account) return;
+          if (!e.currentTarget.checked) setAsking(true);
+          else void services.accounts.enableSendConfirmation(account.id).then(() => refresh());
         }}
       />
       <Text size="sm" c="dimmed" pl={32}>
-        {on ? 'Asked while the proof is made, so it adds no waiting. Nothing goes out until you confirm.' : 'Sends go out as soon as the proof is ready. Anyone with the unlocked device can send.'}
+        {on ? 'Asked while the proof is made, so it adds no waiting. Nothing leaves this wallet until you confirm, and turning this off takes the password or passkey.' : 'Sends from this wallet go out as soon as the proof is ready. Anyone with the unlocked device can send.'}
       </Text>
+      {asking && <ConfirmSendsOff onClose={close} />}
     </Stack>
+  );
+}
+
+/**
+ * The proof for turning send confirmation off: the passkey where one is set
+ * up (its sheet opens by itself, as for a send), the password otherwise and
+ * as the fallback.
+ */
+function ConfirmSendsOff({ onClose }: { onClose: () => void }) {
+  const { services, account, refresh } = useApp();
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [supported, setSupported] = useState<boolean | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hasPasskey = Boolean(account?.passkey) && supported === true;
+  useEffect(() => {
+    void services.accounts.passkeySupported().then(setSupported, () => setSupported(false));
+  }, [services]);
+
+  const withPasskey = useCallback(async () => {
+    if (!account) return;
+    setPasskeyBusy(true);
+    setPasskeyError(null);
+    try {
+      await services.accounts.disableSendConfirmationWithPasskey(account.id);
+      await refresh();
+      onClose();
+    } catch (e) {
+      // Closing the system sheet is a choice: the password is there instead.
+      if (!isCancellation(e)) setPasskeyError((e as Error).message);
+      inputRef.current?.focus();
+    } finally {
+      setPasskeyBusy(false);
+    }
+  }, [services, account, refresh, onClose]);
+
+  // Once it is known whether a passkey can answer: its sheet opens by
+  // itself, the person having just asked; otherwise the field takes focus.
+  const started = useRef(false);
+  useEffect(() => {
+    if (supported === null || started.current) return;
+    started.current = true;
+    if (hasPasskey) void withPasskey();
+    else inputRef.current?.focus();
+  }, [supported, hasPasskey, withPasskey]);
+
+  const withPassword = async () => {
+    if (!account) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await services.accounts.disableSendConfirmation(account.id, password);
+      setPassword('');
+      await refresh();
+      onClose();
+    } catch (e) {
+      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form
+      aria-label="Turn off send confirmation"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void withPassword();
+      }}
+    >
+      <Stack gap="sm" pl={32} pt="xs">
+        {hasPasskey && (
+          <>
+            <Button leftSection={<IconFingerprint size={18} stroke={1.8} />} loading={passkeyBusy} onClick={() => void withPasskey()}>
+              Turn off with passkey
+            </Button>
+            {passkeyError && (
+              <Text size="sm" c="var(--v-danger-text)" role="alert">
+                {passkeyError}
+              </Text>
+            )}
+            <Divider label="or use the password" labelPosition="center" />
+          </>
+        )}
+        <PasswordInput
+          ref={inputRef}
+          label="Password"
+          value={password}
+          onChange={(e) => {
+            setPassword(e.currentTarget.value);
+            setError(null);
+          }}
+          error={error}
+          errorProps={{ role: 'alert' }}
+          autoComplete="current-password"
+        />
+        <Group grow>
+          <Button variant="default" onClick={onClose}>
+            Keep it on
+          </Button>
+          <Button type="submit" variant={hasPasskey ? 'light' : 'filled'} loading={busy} disabled={!password}>
+            Turn off
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }
 

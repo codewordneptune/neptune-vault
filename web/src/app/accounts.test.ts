@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { openVaultDb, type VaultDb } from '../storage/db';
+import { confirmsSends, openVaultDb, type VaultDb } from '../storage/db';
 import type { SeedEnvelope } from '../storage/db';
 import { openSeed, WrongPasswordError } from '../storage/envelope';
 import type { WalletCore } from '../backend/types';
@@ -602,6 +602,35 @@ describe('account service', () => {
     await service.disablePasskey(record.id);
     expect((await db.get('accounts', record.id))?.passkey).toBeUndefined();
     await expect(service.unlockWithPasskey(record.id)).rejects.toThrow('No passkey');
+  });
+
+  it('turns send confirmation off for one wallet only with its password or passkey, and on with nothing', async () => {
+    db = await openVaultDb();
+    const passkeys = new FakePasskeys();
+    const service = new AccountService(db, new FakeCore() as unknown as WalletCore, 5 * 60 * 1000, passkeys);
+    const record = await service.createAccount(await service.generatePhrase(), 'pw-one', 'regtest', 1);
+    const other = await service.createAccount(['x0', ...Array.from({ length: 17 }, (_, i) => 'x' + (i + 1))], 'pw-other', 'regtest', 1);
+    const confirming = async (id: string) => confirmsSends(await db.get('accounts', id));
+    expect(await confirming(record.id)).toBe(true);
+
+    await expect(service.disableSendConfirmation(record.id, 'wrong')).rejects.toThrow(WrongPasswordError);
+    await expect(service.disableSendConfirmation(record.id, 'pw-other')).rejects.toThrow(WrongPasswordError);
+    expect(await confirming(record.id)).toBe(true);
+    await service.disableSendConfirmation(record.id, 'pw-one');
+    expect(await confirming(record.id)).toBe(false);
+    expect(await confirming(other.id)).toBe(true);
+    await service.enableSendConfirmation(record.id);
+    expect(await confirming(record.id)).toBe(true);
+
+    // The passkey proves it as well; one whose secret does not open the wallet does not.
+    await expect(service.disableSendConfirmationWithPasskey(record.id)).rejects.toThrow('No passkey');
+    await service.enablePasskey(record.id, 'pw-one');
+    passkeys.secretBytes = new Uint8Array(32).fill(7);
+    await expect(service.disableSendConfirmationWithPasskey(record.id)).rejects.toThrow();
+    expect(await confirming(record.id)).toBe(true);
+    passkeys.secretBytes = new Uint8Array(32).fill(42);
+    await service.disableSendConfirmationWithPasskey(record.id);
+    expect(await confirming(record.id)).toBe(false);
   });
 
   it('changes the password and keeps the seed', async () => {

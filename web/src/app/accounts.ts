@@ -415,6 +415,27 @@ export class AccountService {
     else await openSeed(record.envelope, password, this.derive);
   }
 
+  /** Each send of this wallet waits for the password or passkey again, the default. Nothing to prove: it only asks for more. */
+  async enableSendConfirmation(accountId: string): Promise<void> {
+    await this.patch(accountId, ({ confirmSends: _dropped, ...rest }) => rest);
+  }
+
+  /**
+   * Sends of this wallet go out without asking. Proven with the password,
+   * as a send would be: otherwise whoever holds the unlocked device could
+   * turn the question off and then send. Throws WrongPasswordError.
+   */
+  async disableSendConfirmation(accountId: string, password: string): Promise<void> {
+    await this.verifyPassword(accountId, password);
+    await this.patch(accountId, (current) => ({ ...current, confirmSends: false }));
+  }
+
+  /** As disableSendConfirmation, proven with the passkey. */
+  async disableSendConfirmationWithPasskey(accountId: string): Promise<void> {
+    await this.verifyPasskey(accountId);
+    await this.patch(accountId, (current) => ({ ...current, confirmSends: false }));
+  }
+
   /**
    * The seed phrase, for showing. It is opened from the stored envelope
    * with the password, every time: being unlocked is not enough, since an

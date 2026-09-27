@@ -55,6 +55,12 @@ export interface AccountRecord {
   backupNudgeDismissedAt?: number;
   /** Passkey unlock: the content key wrapped under the passkey's PRF secret. */
   passkey?: { credentialId: string; prfSalt: string; wrappedContentKey: { iv: string; ciphertext: string } };
+  /**
+   * Each send waits for the password or passkey before it goes out. On
+   * unless turned off (absent: on), and turning it off takes the password
+   * or passkey: see confirmsSends.
+   */
+  confirmSends?: boolean;
 }
 
 export interface UtxoRecord {
@@ -173,8 +179,6 @@ export interface SettingsRecord {
   nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
   /** How the last proof on this device went, for Diagnostics and bug reports. */
   lastProving?: LastProving;
-  /** Each send waits for the password or passkey before it goes out. On unless turned off (absent: on). */
-  confirmSends?: boolean;
   /** Wallets whose passkey the device did not offer: the lock screen no longer opens the passkey sheet by itself for them. */
   passkeyQuiet?: string[];
   /** How long after going to the background the wallet locks: 0 (at once, the default), 30 s or 2 min. */
@@ -368,6 +372,11 @@ export function byCreation<T extends Pick<AccountRecord, 'createdAt'>>(accounts:
 /** The name a wallet is shown under; the first wallets ever made have none. */
 export function walletName(account: Pick<AccountRecord, 'name'>): string {
   return account.name?.trim() || 'Wallet 1';
+}
+
+/** Whether a wallet's sends wait for the password or passkey: yes unless it was turned off. */
+export function confirmsSends(account: Pick<AccountRecord, 'confirmSends'> | null | undefined): boolean {
+  return account?.confirmSends !== false;
 }
 
 export function nextKeyIndicesOf(account: AccountRecord): NextKeyIndices {
