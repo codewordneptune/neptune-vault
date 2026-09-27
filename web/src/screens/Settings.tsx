@@ -314,7 +314,7 @@ export function Settings() {
               </Text>
             ) : (
               <Caution title="The browser may delete this wallet">
-                When space runs low, the browser may delete this wallet's data. Installing the app usually prevents that. Your seed phrase brings back your funds; a backup file also brings back your contacts and address labels.
+                When space runs low, the browser may delete this wallet's data. Installing the app usually prevents that. Your seed phrase brings back your coins; a backup file also brings back your contacts and address labels.
                 <Group mt={4} gap="sm" align="center">
                   {installState().kind === 'promptable' && (
                     <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => void promptInstall()}>

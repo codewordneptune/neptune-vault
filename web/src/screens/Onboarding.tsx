@@ -388,7 +388,7 @@ export function Onboarding() {
           <Stack>
             <span className="vault-eyebrow">Step 1 of 3</span>
             <Title order={2} tabIndex={-1} className="vault-step-title">Write down these 18 words</Title>
-            <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your funds. {NATIVE ? 'If this device is lost, only what you write down brings the wallet back.' : 'Clearing the browser deletes everything except what you write down.'}</Text>
+            <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your coins. {NATIVE ? 'If this device is lost, only what you write down brings the wallet back.' : 'Clearing the browser deletes everything except what you write down.'}</Text>
             <WordGrid words={phrase} />
             {/* The button, then what copying means, beneath it at every width
                 (as a phone wraps it), not squeezed in beside it. */}
