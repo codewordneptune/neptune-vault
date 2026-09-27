@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_SETTINGS, loadSettings, openVaultDb, saveSettings, type AccountRecord, type VaultDb } from './db';
+import { DEFAULT_SETTINGS, loadSettings, openVaultDb, saveSettings, showsTestNetworks, type AccountRecord, type VaultDb } from './db';
 
 let db: VaultDb | null = null;
 afterEach(() => {
@@ -115,5 +115,19 @@ describe('schema upgrade', () => {
     expect(upgraded.objectStoreNames.contains('contacts')).toBe(true);
     expect((await upgraded.get('accounts', 'old'))?.network).toBe('regtest');
     upgraded.close();
+  });
+});
+
+describe('developer networks', () => {
+  it('offers Testnet and Regtest only when asked for, or when one is in use', () => {
+    const main = { network: 'main' as const };
+    // A Mainnet-only device, not asked: Mainnet alone.
+    expect(showsTestNetworks({ network: 'main' }, [main, main])).toBe(false);
+    expect(showsTestNetworks({ network: 'main', developerNetworks: false }, [main])).toBe(false);
+    // Asked for in Settings.
+    expect(showsTestNetworks({ network: 'main', developerNetworks: true }, [main])).toBe(true);
+    // A wallet on a test network stays reachable, and so does the network the app is on.
+    expect(showsTestNetworks({ network: 'main' }, [main, { network: 'testnet' }])).toBe(true);
+    expect(showsTestNetworks({ network: 'regtest' }, [])).toBe(true);
   });
 });

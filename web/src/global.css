@@ -1444,6 +1444,18 @@ html {
   content: "\00B7";
   margin-right: 6px;
 }
+/* A test network's name, wherever it shows, in the caution colour: a test
+   wallet must never pass for a real one. Mainnet is not named at all. */
+.vault-network-net.vault-test-network,
+.vault-test-network {
+  color: var(--v-warn-text);
+  font-weight: 600;
+}
+.vault-tag.vault-test-tag {
+  color: var(--v-warn-text);
+  background: transparent;
+  border: 1px solid var(--v-warn-text);
+}
 /* Mark, name, a long wallet name, network and chevron need about 379 px:
    below 400 px the name is left to the mark, as in the desktop app, and
    stays for screen readers, so the header keeps to one row. */

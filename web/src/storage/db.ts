@@ -179,6 +179,12 @@ export interface SettingsRecord {
   nodeProbe?: Partial<Record<Network, { ok: boolean; text: string; at: number }>>;
   /** How the last proof on this device went, for Diagnostics and bug reports. */
   lastProving?: LastProving;
+  /**
+   * Testnet and Regtest are offered in the menus: for developers and
+   * testers. Off by default; a device that already has a wallet on one of
+   * them shows them anyway (see showsTestNetworks).
+   */
+  developerNetworks?: boolean;
   /** Wallets whose passkey the device did not offer: the lock screen no longer opens the passkey sheet by itself for them. */
   passkeyQuiet?: string[];
   /** How long after going to the background the wallet locks: 0 (at once, the default), 30 s or 2 min. */
@@ -372,6 +378,15 @@ export function byCreation<T extends Pick<AccountRecord, 'createdAt'>>(accounts:
 /** The name a wallet is shown under; the first wallets ever made have none. */
 export function walletName(account: Pick<AccountRecord, 'name'>): string {
   return account.name?.trim() || 'Wallet 1';
+}
+
+/**
+ * Whether Testnet and Regtest are offered: when asked for in Settings, when
+ * the app is on one of them, or when a wallet on one of them is on this
+ * device (it must stay reachable). Mainnet alone otherwise.
+ */
+export function showsTestNetworks(settings: Pick<SettingsRecord, 'developerNetworks' | 'network'>, accounts: Pick<AccountRecord, 'network'>[]): boolean {
+  return settings.developerNetworks === true || settings.network !== 'main' || accounts.some((a) => a.network !== 'main');
 }
 
 /** Whether a wallet's sends wait for the password or passkey: yes unless it was turned off. */

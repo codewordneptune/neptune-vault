@@ -14,7 +14,7 @@ import { Caution, Done, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
-import { confirmsSends, DEFAULT_NODE_URLS, requestPersistentStorage, walletName } from '../storage/db';
+import { confirmsSends, DEFAULT_NODE_URLS, requestPersistentStorage, showsTestNetworks, walletName, type AccountRecord } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
@@ -30,6 +30,20 @@ export function Settings() {
   const sending = Boolean(sendJob && !sendJob.done);
   // The same confirmation the header menu gives: switching locks and hides this wallet.
   const [pendingNetwork, setPendingNetwork] = useState<Network | null>(null);
+  // Testnet and Regtest are for developers and testers: offered once asked
+  // for here, or while the app is on one of them or this device has a
+  // wallet on one (showsTestNetworks), so that wallet stays reachable.
+  const [testNets, setTestNets] = useState(services.settings.developerNetworks === true);
+  const [allAccounts, setAllAccounts] = useState<AccountRecord[]>([]);
+  useEffect(() => {
+    void services.db.getAll('accounts').then(setAllAccounts, () => undefined);
+  }, [services, account]);
+  const testNetsShown = showsTestNetworks({ developerNetworks: testNets, network }, allAccounts);
+  const testNetsWhy = testNets || !testNetsShown ? null : network !== 'main' ? `Shown while the app is on ${NETWORK_LABELS[network]}.` : 'Shown while this device has a wallet on one of them.';
+  const toggleTestNets = (on: boolean) => {
+    setTestNets(on);
+    void services.updateSettings({ developerNetworks: on });
+  };
   const navigate = useNavigate();
   const lastBackup = account?.lastBackupAt ? formatDateTime(account.lastBackupAt) : null;
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
@@ -422,7 +436,6 @@ export function Settings() {
             <IconPlugConnected size={18} stroke={1.8} aria-hidden />
             Network and node
           </Title>
-          <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} disabled={sending} description={sending ? 'Not while a send is running.' : undefined} />
           <Modal opened={pendingNetwork !== null} onClose={() => setPendingNetwork(null)} title={pendingNetwork ? `Switch to ${NETWORK_LABELS[pendingNetwork]}?` : ''}>
             <Stack>
               <Text size="sm">Your {NETWORK_LABELS[network]} wallet stays on this device, so you can switch back any time. Switching locks the app.</Text>
@@ -434,7 +447,7 @@ export function Settings() {
               </Group>
             </Stack>
           </Modal>
-          <TextInput label="Node URL" description={`Used on ${NETWORK_LABELS[network]}; each network has its own.`} value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
+          <TextInput label="Node URL" description={testNetsShown ? `Used on ${NETWORK_LABELS[network]}; each network has its own.` : undefined} value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
           {/* Always there, so what the test says as it runs and ends is announced. */}
           <Text size="sm" c={shown && !shown.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status" className={shown?.text ? undefined : 'sr-only'}>
             {shown?.text}
@@ -452,6 +465,16 @@ export function Settings() {
             )}
           </Group>
           <RescanCard />
+          {/* For developers and testers, last: the network choice appears under it. */}
+          <Checkbox
+            label="Developer networks"
+            description={`Offers Testnet and Regtest, for developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
+            checked={testNets}
+            onChange={(e) => toggleTestNets(e.currentTarget.checked)}
+          />
+          {testNetsShown && (
+            <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} disabled={sending} description={sending ? 'Not while a send is running.' : undefined} />
+          )}
         </Stack>
       </Paper>
 

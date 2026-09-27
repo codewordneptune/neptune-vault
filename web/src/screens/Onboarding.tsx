@@ -285,7 +285,8 @@ export function Onboarding() {
             {/* Adding a wallet goes to the network that is open. Choosing another
                 here would lock the open wallet at once, with no question asked;
                 the header menu asks first, so that is where to switch. */}
-            {adding && (
+            {/* Said only where test networks are offered: on Mainnet alone it is noise. */}
+            {adding && (network !== 'main' || elsewhere.length > 0 || services.settings.developerNetworks === true) && (
               <Text size="sm" c="dimmed">
                 Adds to {NETWORK_LABELS[network]}. To add on another network, switch network from the header first.
               </Text>

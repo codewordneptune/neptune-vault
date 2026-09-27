@@ -1,6 +1,7 @@
-// The wallet pill in the header: names the open wallet and its network, and
-// opens a menu of the wallets on this network, a way to add one, a way to
-// lock, and the three networks. Choosing a network applies the same
+// The wallet pill in the header: names the open wallet, and its network
+// when that is not Mainnet, and opens a menu of the wallets on this network,
+// a way to add one, a way to lock, and, for developers and testers, the
+// three networks (showsTestNetworks). Choosing a network applies the same
 // lock-and-switch as Settings; choosing a wallet locks and opens that wallet.
 
 import { Button, Group, Menu, Modal, Stack, Text } from '@mantine/core';
@@ -9,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
-import { byCreation, walletName, type AccountRecord, type Network } from '../storage/db';
+import { byCreation, showsTestNetworks, walletName, type AccountRecord, type Network } from '../storage/db';
 import { NETWORK_LABELS } from '../util/network';
 
 const NETWORKS: Network[] = ['main', 'testnet', 'regtest'];
@@ -29,6 +30,10 @@ export function NetworkMenu() {
   const sending = Boolean(sendJob && !sendJob.done);
   const onThisNetwork = accounts.filter((a) => a.network === network);
   const countOn = (n: Network) => accounts.filter((a) => a.network === n).length;
+  // Testnet and Regtest only once asked for in Settings, or while a wallet is on one.
+  const testNets = showsTestNetworks({ developerNetworks: services.settings.developerNetworks, network }, accounts);
+  // Mainnet goes without saying; a test network is always named, in its own colour.
+  const named = network !== 'main' || !account;
   const hint = (n: Network) => (countOn(n) === 0 ? 'no wallet' : countOn(n) === 1 ? '1 wallet' : countOn(n) + ' wallets');
 
   const choose = (n: Network) => {
@@ -47,22 +52,27 @@ export function NetworkMenu() {
   return (
     <Menu opened={opened} onChange={setOpened} position="bottom-end" width={220} radius="md" shadow="md">
       <Menu.Target>
-        {/* The wallet is what the pill is about, and the network qualifies it:
-            the menu behind it switches both, so both are named, always. */}
-        <button ref={pillRef} type="button" className="vault-network" aria-label={`${account ? walletName(account) + ' on ' : ''}${NETWORK_LABELS[network]}. Change wallet or network`}>
+        {/* The wallet is what the pill is about; the network qualifies it,
+            and is named when it is a test network (or there is no wallet). */}
+        <button
+          ref={pillRef}
+          type="button"
+          className="vault-network"
+          aria-label={`${account ? walletName(account) : ''}${account && named ? ' on ' : ''}${named ? NETWORK_LABELS[network] : ''}. ${testNets ? 'Change wallet or network' : 'Change wallet'}`}
+        >
           {account && (
             <span className="vault-network-wallet">
               <bdi>{walletName(account)}</bdi>
             </span>
           )}
-          <span className={account ? 'vault-network-net' : undefined}>{NETWORK_LABELS[network]}</span>
+          {named && <span className={[account ? 'vault-network-net' : '', network !== 'main' ? 'vault-test-network' : ''].join(' ').trim() || undefined}>{NETWORK_LABELS[network]}</span>}
           <IconChevronDown size={12} stroke={2.2} />
         </button>
       </Menu.Target>
       <Menu.Dropdown>
         {account && (
           <>
-            <Menu.Label>Wallets on {NETWORK_LABELS[network]}</Menu.Label>
+            <Menu.Label>{testNets ? `Wallets on ${NETWORK_LABELS[network]}` : 'Wallets'}</Menu.Label>
             {onThisNetwork.map((a) => (
               <Menu.Item
                 key={a.id}
@@ -86,21 +96,22 @@ export function NetworkMenu() {
                 Lock wallet
               </Menu.Item>
             )}
-            <Menu.Divider />
+            {testNets && <Menu.Divider />}
           </>
         )}
-        <Menu.Label>Network</Menu.Label>
-        {NETWORKS.map((n) => (
-          <Menu.Item
-            key={n}
-            onClick={() => choose(n)}
-            disabled={sending}
-            leftSection={n === network ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
-            rightSection={<span className="vault-network-hint">{hint(n)}</span>}
-          >
-            {NETWORK_LABELS[n]}
-          </Menu.Item>
-        ))}
+        {testNets && <Menu.Label>Network</Menu.Label>}
+        {testNets &&
+          NETWORKS.map((n) => (
+            <Menu.Item
+              key={n}
+              onClick={() => choose(n)}
+              disabled={sending}
+              leftSection={n === network ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
+              rightSection={<span className="vault-network-hint">{hint(n)}</span>}
+            >
+              {NETWORK_LABELS[n]}
+            </Menu.Item>
+          ))}
       </Menu.Dropdown>
       <Modal opened={pending !== null} onClose={cancelSwitch} returnFocus={false} title={pending ? `Switch to ${NETWORK_LABELS[pending]}?` : ''}>
         {pending && (

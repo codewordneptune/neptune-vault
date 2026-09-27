@@ -105,8 +105,9 @@ export function Unlock() {
                   <bdi>{walletName(account)}</bdi>
                 </Title>
               )}
-              {account && (
-                <Badge variant="light" color="gray" radius="sm" className="vault-tag">
+              {/* Mainnet goes without saying; a test network is named, in its own colour. */}
+              {account && account.network !== 'main' && (
+                <Badge variant="light" color="yellow" radius="sm" className="vault-tag vault-test-tag">
                   {NETWORK_LABELS[account.network]}
                 </Badge>
               )}
@@ -147,7 +148,7 @@ export function Unlock() {
                   <UnstyledButton className="vault-lock-other">Not this wallet?</UnstyledButton>
                 </Menu.Target>
                 <Menu.Dropdown>
-                  <Menu.Label>Other wallets on {account ? NETWORK_LABELS[account.network] : ''}</Menu.Label>
+                  <Menu.Label>{account && account.network !== 'main' ? `Other wallets on ${NETWORK_LABELS[account.network]}` : 'Other wallets'}</Menu.Label>
                   {others.map((a) => (
                     <Menu.Item key={a.id} onClick={() => void switchAccount(a.id)}>
                       <bdi>{walletName(a)}</bdi>
