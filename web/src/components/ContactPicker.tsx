@@ -31,7 +31,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
         {(contacts ?? []).map((c) => (
           <UnstyledButton key={c.key} className="vault-row vault-pick" onClick={() => onPick(c)}>
             <div style={{ minWidth: 0 }}>
-              <Text size="sm" fw={500}>
+              <Text size="sm" fw={600}>
                 <bdi>{c.name}</bdi>
               </Text>
               <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">

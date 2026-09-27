@@ -701,7 +701,7 @@ function ConfirmSendsOff({ onClose }: { onClose: () => void }) {
       <Stack gap="sm" pl={32} pt="xs">
         {hasPasskey && (
           <>
-            <Button leftSection={<IconFingerprint size={18} stroke={1.8} />} loading={passkeyBusy} onClick={() => void withPasskey()}>
+            <Button leftSection={<IconFingerprint size={16} stroke={1.8} />} loading={passkeyBusy} onClick={() => void withPasskey()}>
               Turn off with passkey
             </Button>
             {passkeyError && (

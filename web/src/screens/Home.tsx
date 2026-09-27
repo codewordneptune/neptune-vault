@@ -295,7 +295,7 @@ export function Home() {
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
   const focusRow = (key: string) => setTimeout(() => rowRefs.current.get(key)?.focus(), 0);
   const rowIconOf = (e: HistoryEntry) =>
-    e.kind === 'received' ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />;
+    e.kind === 'received' ? <IconArrowDownLeft size={20} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={20} stroke={1.8} /> : <IconArrowUpRight size={20} stroke={1.8} />;
   /** What a screen reader says for a row, list or table alike. */
   const rowLabelOf = (e: HistoryEntry) => {
     const who = whoOf(e);
@@ -410,8 +410,8 @@ export function Home() {
       <div className="vault-status">
         <span className="vault-status-text">
           <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' && !behind ? 'ok' : 'busy'}`} aria-hidden />
-          {!online && <IconWifiOff size={14} stroke={1.8} />}
-          {busy && <IconRefresh size={14} stroke={1.8} className="vault-spin" />}
+          {!online && <IconWifiOff size={16} stroke={1.8} />}
+          {busy && <IconRefresh size={16} stroke={1.8} className="vault-spin" />}
           {syncText}
         </span>
         {/* The actions stay where they are while a sync runs, unavailable
@@ -471,13 +471,13 @@ export function Home() {
             {/* Money on the way and money held, as two readings; the sentence behind them is one tap away. */}
             {incomingNau > 0n && (
               <Group gap={6} wrap="nowrap">
-                <IconArrowDownLeft size={14} stroke={1.8} className="vault-balance-note-in" aria-hidden />
+                <IconArrowDownLeft size={16} stroke={1.8} className="vault-balance-note-in" aria-hidden />
                 <Text size="sm">{amount(incomingNau)} NPT pending</Text>
               </Group>
             )}
             {balance.reservedNau > 0n && (
               <Group gap={6} wrap="nowrap" align="flex-start">
-                <IconHourglass size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
+                <IconHourglass size={16} stroke={1.8} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
                 <Text size="sm">
                   {amount(balance.spendableNau)} NPT of it spendable now, the rest once your {pendingSends.length === 1 ? 'send confirms' : 'sends confirm'}, usually within an hour
                 </Text>
@@ -485,7 +485,7 @@ export function Home() {
             )}
             {balance.lockedNau > 0n && (
               <Group gap={6} wrap="nowrap">
-                <IconClockPause size={14} stroke={1.8} className="vault-balance-note-held" aria-hidden />
+                <IconClockPause size={16} stroke={1.8} className="vault-balance-note-held" aria-hidden />
                 <Text size="sm">
                   {amount(balance.lockedNau)} NPT {balance.nextReleaseMs ? `spendable from ${showDate(balance.nextReleaseMs)}` : 'not spendable yet'}
                 </Text>
@@ -630,7 +630,7 @@ export function Home() {
                         <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
                           <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
                           <div style={{ minWidth: 0 }}>
-                            <Text size="sm" fw={500} className="vault-row-title">
+                            <Text size="sm" fw={600} className="vault-row-title">
                               {whoOf(e) ? <bdi>{whoOf(e)}</bdi> : stateTitleOf(e)}
                             </Text>
                             <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -834,12 +834,12 @@ function DetailRow({ label, value, mono, copy, href, abbreviate, isolate }: { la
           <Group gap={2} wrap="nowrap">
             {copy && (
               <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copyText(value, copy)}>
-                <IconCopy size={16} stroke={1.8} />
+                <IconCopy size={20} stroke={1.8} />
               </ActionIcon>
             )}
             {href && (
               <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="lg" className="vault-tap" aria-label={`Open ${label.toLowerCase()} in the explorer`}>
-                <IconExternalLink size={16} stroke={1.8} />
+                <IconExternalLink size={20} stroke={1.8} />
               </ActionIcon>
             )}
           </Group>

@@ -500,7 +500,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
         {!error && readout && (
           <details className="vault-setting vault-scan-details">
             <summary>
-              <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
+              <IconChevronRight size={16} stroke={1.8} className="vault-setting-chevron" aria-hidden />
               Camera details
             </summary>
             <Text size="xs" c="dimmed" className="vault-scan-status" aria-live="off" mt={8}>

@@ -66,7 +66,7 @@ export function NetworkMenu() {
             </span>
           )}
           {named && <span className={[account ? 'vault-network-net' : '', network !== 'main' ? 'vault-test-network' : ''].join(' ').trim() || undefined}>{NETWORK_LABELS[network]}</span>}
-          <IconChevronDown size={12} stroke={2.2} />
+          <IconChevronDown size={16} stroke={1.8} />
         </button>
       </Menu.Target>
       <Menu.Dropdown>
@@ -80,19 +80,19 @@ export function NetworkMenu() {
                 onClick={() => {
                   if (a.id !== account?.id) void switchAccount(a.id);
                 }}
-                leftSection={a.id === account?.id ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
+                leftSection={a.id === account?.id ? <IconCheck size={16} stroke={1.8} /> : <span style={{ width: 14 }} />}
               >
                 <bdi>{walletName(a)}</bdi>
               </Menu.Item>
             ))}
-            <Menu.Item disabled={sending} leftSection={<IconPlus size={14} />} onClick={() => navigate('/onboarding?add=1')}>
+            <Menu.Item disabled={sending} leftSection={<IconPlus size={16} stroke={1.8} />} onClick={() => navigate('/onboarding?add=1')}>
               Add a wallet
             </Menu.Item>
             {/* Stepping away is the commonest reason to lock, so it is one tap from
                 any screen; Settings keeps its Lock wallet too. Not during a send,
                 whose proof a lock would cut short. */}
             {!locked && (
-              <Menu.Item disabled={sending} leftSection={<IconLock size={14} />} onClick={() => void services.accounts.lock()}>
+              <Menu.Item disabled={sending} leftSection={<IconLock size={16} stroke={1.8} />} onClick={() => void services.accounts.lock()}>
                 Lock wallet
               </Menu.Item>
             )}
@@ -106,7 +106,7 @@ export function NetworkMenu() {
               key={n}
               onClick={() => choose(n)}
               disabled={sending}
-              leftSection={n === network ? <IconCheck size={14} /> : <span style={{ width: 14 }} />}
+              leftSection={n === network ? <IconCheck size={16} stroke={1.8} /> : <span style={{ width: 14 }} />}
               rightSection={<span className="vault-network-hint">{hint(n)}</span>}
             >
               {NETWORK_LABELS[n]}

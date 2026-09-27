@@ -69,13 +69,12 @@
   --v-radius-md: 16px;
   --v-fs-xs: 0.75rem;
   --v-fs-sm: 0.875rem;
-  --v-fs-md: 0.9375rem;
+  --v-fs-md: 1rem;
   /* Addresses and IDs, wherever they are shown for reading or checking: one
      size, since a monospace face already reads smaller than its size. The
      face itself is the theme's monospace stack (theme.ts), read here through
      the library's --mantine-font-family-monospace. */
   --v-fs-mono: var(--v-fs-sm);
-  --v-shadow-accent: 0 8px 20px rgba(31, 111, 224, 0.25);
   /* The content column's width, padding included: Mantine's xs container
      (540 px) on a phone or a narrow window, 720 px from 900 px up (below).
      The send and update strips under the header line up with it. */
@@ -144,7 +143,6 @@
   --v-segment-track: #e3e9f1;
   --v-segment-active: #ffffff;
   --v-segment-shadow: 0 1px 2px rgba(21, 32, 46, 0.14), 0 0 0 1px rgba(21, 32, 46, 0.06);
-  --v-shadow-accent: 0 8px 20px rgba(31, 111, 224, 0.18);
 }
 
 body {
@@ -278,7 +276,7 @@ h3.mantine-Title-root.vault-prose-heading {
 }
 .mantine-InputWrapper-label {
   font-size: var(--v-fs-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--v-text-2);
 }
 .mantine-InputWrapper-description {
@@ -311,7 +309,7 @@ h3.mantine-Title-root.vault-prose-heading {
 }
 .mantine-SegmentedControl-label {
   color: var(--v-muted);
-  font-weight: 500;
+  font-weight: 600;
 }
 /* The chosen pill stands only 1.2:1 off its track, and a colour change of
    the label alone is a cue by colour only: the label is semibold as well,
@@ -420,7 +418,7 @@ button.vault-network {
   color: var(--v-muted);
   font: inherit;
   font-size: var(--v-fs-sm);
-  font-weight: 500;
+  font-weight: 400;
   padding: 6px 8px;
   border-radius: var(--v-radius-xs);
   transition: background 160ms ease, color 160ms ease;
@@ -458,11 +456,11 @@ button.vault-network::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   flex: 1;
   padding: 10px 4px 8px;
   font-size: var(--v-fs-xs);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--v-muted);
   text-decoration: none;
   transition: color 160ms ease;
@@ -478,7 +476,7 @@ button.vault-network::before {
   left: 16px;
   right: 16px;
   height: 3px;
-  border-radius: 0 0 3px 3px;
+  border-radius: 0 0 999px 999px;
   background: transparent;
   transition: background-color 160ms ease;
 }
@@ -540,7 +538,7 @@ button.vault-network::before {
 }
 .vault-balance small {
   font-size: var(--v-fs-md);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--v-muted);
   margin-left: 6px;
 }
@@ -681,7 +679,7 @@ main h2[tabindex='-1']:focus {
   font-weight: 600;
 }
 .vault-review-row.total b {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Picker rows are buttons spanning the row. The hover fill needs room
@@ -771,7 +769,7 @@ main h2[tabindex='-1']:focus {
   align-items: center;
 }
 .mantine-Modal-title {
-  font-size: 1.125rem;
+  font-size: var(--v-fs-md);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.3;
@@ -879,13 +877,13 @@ main h2[tabindex='-1']:focus {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   line-height: 1.2;
-  padding: 3px 0;
+  padding: 2px 0;
 }
 .vault-fee-seg small {
   font-size: var(--v-fs-xs);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* The not-yet-audited notice collapses to its title after the first visit. */
@@ -958,7 +956,7 @@ main h2[tabindex='-1']:focus {
   color: var(--v-muted);
   text-transform: none;
   letter-spacing: 0;
-  font-weight: 500;
+  font-weight: 600;
   font-size: var(--v-fs-xs);
   height: 22px;
   padding: 0 8px;
@@ -1117,7 +1115,7 @@ html {
 }
 .vault-tabs .mantine-Tabs-tab {
   color: var(--v-muted);
-  font-weight: 500;
+  font-weight: 600;
   font-size: var(--v-fs-sm);
   min-height: 40px;
   padding: 10px 8px;
@@ -1222,7 +1220,7 @@ html {
   border-top: 1px solid var(--v-line);
   color: var(--v-muted);
   font-size: var(--mantine-font-size-sm);
-  font-weight: 500;
+  font-weight: 600;
 }
 .vault-chevron {
   transition: rotate 150ms ease;
@@ -1411,15 +1409,23 @@ html {
   color: var(--v-warn-text);
   font-weight: 600;
 }
+/* On a narrow phone a test network's name takes room beside the Beta tag:
+   the wallet's name gives way first, so the header stays one row. */
+@media (max-width: 399.98px) {
+  button.vault-network:has(.vault-test-network) .vault-network-wallet {
+    max-width: 5.5em;
+  }
+}
 .vault-tag.vault-test-tag {
   color: var(--v-warn-text);
   background: transparent;
   border: 1px solid var(--v-warn-text);
 }
-/* Mark, name, a long wallet name, network and chevron need about 379 px:
-   below 400 px the name is left to the mark, as in the desktop app, and
-   stays for screen readers, so the header keeps to one row. */
-@media (max-width: 399.98px) {
+/* Mark, name, Beta tag, a long wallet name, a test network and chevron
+   need about 478 px (measured): below 480 px the name is left to the mark,
+   as in the desktop app, and stays for screen readers, so the header keeps
+   to one row. */
+@media (max-width: 479.98px) {
   .vault-wordmark {
     position: absolute;
     width: 1px;
@@ -1480,7 +1486,7 @@ html {
   cursor: pointer;
   list-style: none;
   font-size: var(--v-fs-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--v-muted);
 }
 .vault-setting summary::-webkit-details-marker {
@@ -1531,7 +1537,7 @@ html {
 .vault-balance-layout {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--mantine-spacing-xs) + var(--mantine-spacing-sm));
+  gap: 24px;
 }
 .vault-balance-head {
   display: flex;
@@ -1609,7 +1615,7 @@ html {
      the page, and the label's blue differs from the others' grey by hue
      alone, so the current tab's label is bold: a cue that is not colour. */
   .vault-tab.active {
-    font-weight: 700;
+    font-weight: 600;
   }
   /* Under the pointer, a fainter tile says where a click would go. */
   @media (hover: hover) and (pointer: fine) {
@@ -1775,6 +1781,16 @@ html {
 /* An input's description is a sentence, so it keeps the 14 px floor; the
    library draws it at 13. It stays quieter than the label by colour and
    weight. */
+/* The library's toasts and keys in the app's text colours and weights. */
+.mantine-Notification-title {
+  color: var(--v-text);
+}
+.mantine-Notification-description {
+  color: var(--v-text-2);
+}
+.mantine-Kbd-root {
+  font-weight: 600;
+}
 .mantine-InputWrapper-description.mantine-InputWrapper-description {
   font-size: var(--v-fs-sm);
 }
@@ -1924,7 +1940,7 @@ html {
   font-variant-numeric: tabular-nums;
 }
 .vault-balance-fiat-value {
-  font-size: 1.0625rem;
+  font-size: var(--v-fs-md);
   font-weight: 600;
   color: var(--v-text-2);
 }
@@ -2086,7 +2102,7 @@ html {
   left: 8px;
   top: calc(8px + env(safe-area-inset-top, 0px));
   z-index: 1000;
-  padding: 8px 14px;
+  padding: 8px 12px;
   border-radius: var(--v-radius-sm);
   background: var(--v-surface);
   color: var(--v-text);

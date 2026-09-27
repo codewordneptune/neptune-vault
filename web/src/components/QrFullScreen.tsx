@@ -52,7 +52,7 @@ export function QrFullScreen({
           <img src={src} alt={subtitle ? `${title}, ${subtitle}` : title} />
         </button>
         {/* 16 px: read at arm's length and compared character by character, and a monospace face looks smaller than its size. */}
-        <Text fz="1rem" ta="center" className="vault-qr-full-caption">
+        <Text fz="md" ta="center" className="vault-qr-full-caption">
           {caption}
         </Text>
         <Text size="sm" ta="center" className="vault-qr-full-hint">

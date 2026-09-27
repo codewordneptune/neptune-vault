@@ -65,7 +65,7 @@ export function Contacts() {
           <Group justify="space-between" align="center">
             <Group gap="xs" align="center" wrap="nowrap">
               <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Back" onClick={() => navigate(-1)}>
-                <IconChevronLeft size={22} stroke={1.8} />
+                <IconChevronLeft size={20} stroke={1.8} />
               </ActionIcon>
               <Title order={2} tabIndex={-1} ref={headingRef}>
                 Contacts
@@ -88,7 +88,7 @@ export function Contacts() {
               {contacts.map((c) => (
                 <div className="vault-row" key={c.key}>
                   <div style={{ minWidth: 0 }}>
-                    <Text size="sm" fw={500} className="vault-row-title">
+                    <Text size="sm" fw={600} className="vault-row-title">
                       <bdi>{c.name}</bdi>
                     </Text>
                     <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
@@ -102,7 +102,7 @@ export function Contacts() {
                     {/* Stays while the pointer moves onto it, so it can be read. */}
                     <Tooltip label="Send to this contact" interactive>
                       <ActionIcon variant="light" size="lg" className="vault-tap" aria-label={`Send to ${c.name}`} onClick={() => navigate('/send', { state: { recipient: c.address } })}>
-                        <IconArrowUpRight size={18} stroke={1.8} />
+                        <IconArrowUpRight size={20} stroke={1.8} />
                       </ActionIcon>
                     </Tooltip>
                     <Menu position="bottom-end">
@@ -117,18 +117,18 @@ export function Contacts() {
                             else moreButtons.current.delete(c.key);
                           }}
                         >
-                          <IconDotsVertical size={18} stroke={1.8} />
+                          <IconDotsVertical size={20} stroke={1.8} />
                         </ActionIcon>
                       </Menu.Target>
                       <Menu.Dropdown>
                         {/* The row shows the address shortened; this copies it whole, to hand on or paste into another wallet. */}
-                        <Menu.Item leftSection={<IconCopy size={14} />} onClick={() => void copyText(c.address, 'Address copied')}>
+                        <Menu.Item leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(c.address, 'Address copied')}>
                           Copy address
                         </Menu.Item>
-                        <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => setRenaming(c)}>
+                        <Menu.Item leftSection={<IconPencil size={16} stroke={1.8} />} onClick={() => setRenaming(c)}>
                           Rename
                         </Menu.Item>
-                        <Menu.Item leftSection={<IconTrash size={14} />} c="var(--v-danger-text)" onClick={() => setRemoving(c)}>
+                        <Menu.Item leftSection={<IconTrash size={16} stroke={1.8} />} c="var(--v-danger-text)" onClick={() => setRemoving(c)}>
                           Remove
                         </Menu.Item>
                       </Menu.Dropdown>
@@ -330,7 +330,7 @@ export function ContactForm({
               rightSectionWidth={44}
               rightSection={
                 <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
-                  <IconScan size={18} stroke={1.8} />
+                  <IconScan size={20} stroke={1.8} />
                 </ActionIcon>
               }
             />

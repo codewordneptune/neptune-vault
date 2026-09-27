@@ -24,11 +24,11 @@ export function WordGrid({ words, blanks = [], next, onClear }: { words: string[
               {empty ? (
                 <span className="sr-only">{`Word ${i + 1}, empty${i === next ? ', next' : ''}`}</span>
               ) : (
-                <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                <Text size="sm" fw={600} style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
                   {w}
                 </Text>
               )}
-              {blank && w && <IconX size={14} style={{ flexShrink: 0, opacity: 0.7 }} aria-hidden />}
+              {blank && w && <IconX size={16} stroke={1.8} style={{ flexShrink: 0, opacity: 0.7 }} aria-hidden />}
             </Box>
           </Group>
         );

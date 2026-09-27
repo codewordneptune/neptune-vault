@@ -75,7 +75,7 @@ export function UpdateStrip() {
     <div className="vault-updatestrip" role="status">
       <div className="vault-updatestrip-inner">
         <div className="vault-updatestrip-body">
-          <IconCircleArrowUp size={18} stroke={1.8} />
+          <IconCircleArrowUp size={20} stroke={1.8} />
           <div style={{ minWidth: 0 }}>
             <Text size="sm" fw={600}>
               {words.headline}

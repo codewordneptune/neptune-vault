@@ -47,7 +47,7 @@ export function SendStrip() {
     <div role="region" aria-label="Send in progress">
     <UnstyledButton className="vault-sendstrip" onClick={() => !locked && navigate('/send')} disabled={locked}>
       <div className="vault-sendstrip-row">
-        <Text size="sm" fw={500} truncate style={{ minWidth: 0 }} aria-live="polite">
+        <Text size="sm" fw={600} truncate style={{ minWidth: 0 }} aria-live="polite">
           Sending <Amount nau={paymentsTotalNau(sendJob.request)} hidden={locked || services.settings.hideBalance} /> · {detail}
         </Text>
         {elapsed !== null && (

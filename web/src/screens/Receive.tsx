@@ -76,7 +76,7 @@ function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => 
     <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-receive-col vault-qr-code">
       <img src={src} alt={alt} />
       <span className="vault-qr-foot" aria-hidden>
-        <IconArrowsMaximize size={14} stroke={2} />
+        <IconArrowsMaximize size={16} stroke={1.8} />
         {/* The word for how this device is used: a tap on a phone, a click with a mouse. */}
         <span className="vault-qr-foot-touch">Tap to enlarge</span>
         <span className="vault-qr-foot-mouse">Click to enlarge</span>
@@ -607,7 +607,7 @@ export function Receive() {
         {known.length > 0 && (
           <details className="vault-setting">
             <summary ref={summaryRef}>
-              <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
+              <IconChevronRight size={16} stroke={1.8} className="vault-setting-chevron" aria-hidden />
               Your addresses
             </summary>
             <div className="vault-setting-body">
@@ -622,7 +622,7 @@ export function Receive() {
                   return (
                     <div key={a.key} className="vault-row vault-address-row">
                       <UnstyledButton className="vault-address-show" onClick={() => showAddress(a.kind, a.index)} aria-current={current || undefined}>
-                        <Text size="sm" fw={500}>
+                        <Text size="sm" fw={600}>
                           {title}
                           {named && (
                             <>
@@ -649,17 +649,17 @@ export function Receive() {
                                 else moreButtons.current.delete(a.key);
                               }}
                             >
-                              <IconDotsVertical size={18} stroke={1.8} />
+                              <IconDotsVertical size={20} stroke={1.8} />
                             </ActionIcon>
                           </Menu.Target>
                           <Menu.Dropdown>
                             {nameable && (
-                              <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => setNaming({ kind: a.kind, index: a.index })}>
+                              <Menu.Item leftSection={<IconPencil size={16} stroke={1.8} />} onClick={() => setNaming({ kind: a.kind, index: a.index })}>
                                 {named ? 'Rename' : 'Name it'}
                               </Menu.Item>
                             )}
                             {named && (
-                              <Menu.Item leftSection={<IconTrash size={14} />} onClick={() => void removeName(a.kind, a.index)}>
+                              <Menu.Item leftSection={<IconTrash size={16} stroke={1.8} />} onClick={() => void removeName(a.kind, a.index)}>
                                 Remove name
                               </Menu.Item>
                             )}

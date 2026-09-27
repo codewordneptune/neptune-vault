@@ -110,7 +110,7 @@ export function Send() {
     const name = wanted ? contacts.find((c) => c.address === wanted)?.name : undefined;
     return name ? (
       <span className="vault-contact-match">
-        <IconAddressBook size={14} stroke={1.8} aria-hidden />
+        <IconAddressBook size={16} stroke={1.8} aria-hidden />
         <span>
           Saved contact: <b dir="auto" className="vault-bidi">{name}</b>
         </span>
@@ -603,7 +603,7 @@ export function Send() {
                 <div>
                   <span className="vault-eyebrow">To</span>
                   {reviewName && (
-                    <Text size="lg" fw={600}>
+                    <Text size="md" fw={600}>
                       <bdi>{reviewName}</bdi>
                     </Text>
                   )}
@@ -629,7 +629,7 @@ export function Send() {
                   <div className="vault-review-row vault-review-payee" key={i}>
                     <div style={{ minWidth: 0 }}>
                       {p.name && (
-                        <Text size="sm" fw={600}>
+                        <Text size="md" fw={600}>
                           <bdi>{p.name}</bdi>
                         </Text>
                       )}
@@ -983,7 +983,7 @@ export function Send() {
               </UnstyledButton>
             )}
             <div>
-              <Text size="sm" fw={500} mb={6}>
+              <Text size="sm" fw={600} mb={6}>
                 Fee (NPT)
               </Text>
               <SegmentedControl
@@ -1184,7 +1184,7 @@ function ConfirmSendCard() {
         </Text>
         {hasPasskey && (
           <>
-            <Button leftSection={<IconFingerprint size={18} stroke={1.8} />} loading={passkeyBusy} onClick={() => void withPasskey()}>
+            <Button leftSection={<IconFingerprint size={16} stroke={1.8} />} loading={passkeyBusy} onClick={() => void withPasskey()}>
               Confirm with passkey
             </Button>
             {passkeyError && (

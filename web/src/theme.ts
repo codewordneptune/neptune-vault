@@ -2,7 +2,10 @@
 // dark) mapped onto Mantine's colour slots. Mantine reads text from dark[0],
 // dimmed text from dark[2], borders from dark[4], panels and inputs from
 // dark[6] and the page from dark[7]. Sizes and radii form one scale, shared
-// with global.css through CSS variables.
+// with global.css through CSS variables: four text sizes (12, 14, 16 and
+// 20 px, plus the balance), two weights (400 and 600), three radii (8, 12
+// and 16 px, plus pills), spacing on the steps global.css lists, and one
+// black for text in the light palette.
 
 import { createTheme, type MantineColorsTuple } from '@mantine/core';
 
@@ -42,17 +45,21 @@ export const theme = createTheme({
   fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   // The one monospace stack; global.css reads it as --mantine-font-family-monospace.
   fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-  fontSizes: { xs: '0.75rem', sm: '0.875rem', md: '0.9375rem', lg: '1.0625rem', xl: '1.25rem' },
+  fontSizes: { xs: '0.75rem', sm: '0.875rem', md: '1rem', lg: '1.25rem', xl: '1.25rem' },
+  // Spacing on the declared steps (global.css): the library's xl was 32 px.
+  spacing: { xs: '0.625rem', sm: '0.75rem', md: '1rem', lg: '1.25rem', xl: '1.5rem' },
+  // The light palette's text, the tokens' own, not pure black.
+  black: '#15202e',
   // One radius scale: xs chips, sm controls, md cards, xl pills (badges only).
   defaultRadius: 'sm',
-  radius: { xs: '8px', sm: '12px', md: '16px', lg: '20px', xl: '999px' },
+  radius: { xs: '8px', sm: '12px', md: '16px', lg: '16px', xl: '999px' },
   headings: {
     fontWeight: '600',
     sizes: {
       // h1 is the brand in the header; h2 a screen title. An h3 is sized in
       // global.css: a section label in a card, or a prose heading on Privacy.
-      h1: { fontSize: '0.9375rem', lineHeight: '1.2' },
-      h2: { fontSize: '1.125rem' },
+      h1: { fontSize: '1rem', lineHeight: '1.2' },
+      h2: { fontSize: '1.25rem' },
     },
   },
   components: {

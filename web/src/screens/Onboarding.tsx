@@ -344,7 +344,7 @@ export function Onboarding() {
       {step === 'welcome' && !adding && (
         <details className="vault-setting vault-setup-network" open={network !== 'main'}>
           <summary>
-            <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
+            <IconChevronRight size={16} stroke={1.8} className="vault-setting-chevron" aria-hidden />
             Network: {NETWORK_LABELS[network]}
           </summary>
           <div className="vault-setting-body">

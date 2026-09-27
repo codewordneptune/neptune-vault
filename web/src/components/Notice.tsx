@@ -47,9 +47,9 @@ function headingNear(from: HTMLElement): HTMLElement | null {
 }
 
 const ICONS = {
-  caution: <IconAlertTriangle size={18} stroke={1.8} />,
-  info: <IconInfoCircle size={18} stroke={1.8} />,
-  done: <IconCircleCheck size={18} stroke={1.8} />,
+  caution: <IconAlertTriangle size={20} stroke={1.8} />,
+  info: <IconInfoCircle size={20} stroke={1.8} />,
+  done: <IconCircleCheck size={20} stroke={1.8} />,
 };
 
 function Notice({ tier, title, children, icon, onClose, closeLabel, className, focusOnMount, ...rest }: NoticeProps & { tier: 'caution' | 'info' | 'done' }) {
