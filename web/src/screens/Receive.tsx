@@ -26,7 +26,8 @@ import { copyText } from '../util/clipboard';
 import { groupDigits, showInt } from '../util/format';
 import { KEY_LOOKAHEAD, type KeyKind } from '../backend/types';
 
-// Labelled by what the address is for; the protocol name is the caption.
+// Labelled by what the address is for; the protocol's name for the kind is
+// said once, at the end of its note under the choice, not on the choice.
 const KIND_LABELS: Record<KeyKind, string> = {
   generation: 'Standard',
   ec_hybrid: 'Short',
@@ -47,11 +48,9 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
 // carries the same address), and before the code and its Copy and Share, so
 // the View-only caution is read before sharing.
 const KIND_NOTES: Record<KeyKind, string> = {
-  generation: `The one to use by default, but long: about ${showInt(3500)} characters. Reusing it is safe, but payments to the same address can be linked on the chain (not their amounts), so give each payer a new address when that matters.`,
-  ec_hybrid:
-    'Short enough to paste into a chat. Give each one to a single sender: if one is reused widely, a future quantum computer could reveal the payments sent to it, though never spend them.',
-  viewing:
-    'Lets someone watch payments, such as an accountant. Whoever holds it sees every payment it receives, but can never spend them. Share it only with someone you trust with that.',
+  generation: `The one to use by default, but long: about ${showInt(3500)} characters. Reusing it is safe, but payments to the same address can be linked on the chain (not their amounts), so give each payer a new address when that matters. Technical name: ${KIND_PROTOCOL.generation} address.`,
+  ec_hybrid: `Short enough to paste into a chat. Give each one to a single sender: if one is reused widely, a future quantum computer could reveal the payments sent to it, though never spend them. Technical name: ${KIND_PROTOCOL.ec_hybrid} address.`,
+  viewing: `Lets someone watch payments, such as an accountant. Whoever holds it sees every payment it receives, but can never spend them. Share it only with someone you trust with that. Technical name: ${KIND_PROTOCOL.viewing} address.`,
 };
 
 /** "Standard main address", "Short address 3". */
@@ -468,15 +467,7 @@ export function Receive() {
               orientation={stacked ? 'vertical' : 'horizontal'}
               value={kind}
               onChange={(v) => setKind(v as KeyKind)}
-              data={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({
-                value: k,
-                label: (
-                  <span className="vault-fee-seg">
-                    <span>{KIND_LABELS[k]}</span>
-                    <small>{KIND_PROTOCOL[k]}</small>
-                  </span>
-                ),
-              }))}
+              data={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))}
             />
             <KindNote kind={kind} />
 
