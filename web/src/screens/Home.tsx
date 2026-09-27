@@ -2,7 +2,7 @@
 
 import { ActionIcon, Alert, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronDown, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconLock, IconRefresh, IconShieldCheck, IconWifiOff } from '@tabler/icons-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
@@ -256,27 +256,37 @@ export function Home() {
     }
     incomingSeen.current = incomingNau;
   }, [incomingNau, loaded, hidden]);
-  /** The row's title: short, always one line. Who a send went to is on the line beneath. */
-  const rowTitleOf = (e: HistoryEntry) => (notSent(e) ? 'Not sent' : e.kind === 'sent' ? 'Sent' : titleOf(e));
   /** A send that failed or was given up on: nothing left the wallet. */
   const notSent = (e: HistoryEntry) => e.kind !== 'received' && e.record.status === 'failed';
   /** The payments of a send built here, when it paid more than one recipient. */
   const severalOf = (e: HistoryEntry) => ((e.record.payments?.length ?? 0) > 1 ? (e.record.payments ?? []) : null);
-  /** Who a send went to, for the line under its title. */
-  const recipientOf = (e: HistoryEntry): ReactNode => {
-    if (e.kind !== 'sent') return null;
-    // A send found on the chain: made on another device, or before a restore.
-    if (e.record.txid === '' || e.record.recipient === null) return 'recipient not recorded';
+  // A row says who, when and how much. Who: the contact a send went to, the
+  // name of the address a payment came in through, or how many a send paid.
+  // Without a name, the title says what happened. The line under it is the
+  // time, and the state only while it is not final and the title does not
+  // already say it. Block counts and the fee are in the sheet.
+  const whoOf = (e: HistoryEntry): string | null => {
+    if (e.kind === 'received') return labelOf(e.record);
+    if (e.kind === 'self' || e.record.txid === '' || e.record.recipient === null) return null;
     const several = severalOf(e);
-    if (several) return `to ${several.length} recipients`;
-    const c = contactFor(e.record.recipient);
-    return c ? (
-      <>
-        to <bdi>{c.name}</bdi>
-      </>
-    ) : (
-      `to ${shortAddress(e.record.recipient)}`
-    );
+    if (several) return `${several.length} recipients`;
+    return contactFor(e.record.recipient)?.name ?? null;
+  };
+  /** What happened, in one word: a send reads Sending until a block confirms it. */
+  const stateTitleOf = (e: HistoryEntry): string => {
+    if (notSent(e)) return 'Not sent';
+    if (e.kind === 'received') return e.record.status === 'failed' ? 'Failed' : 'Received';
+    if (e.kind === 'self') return e.record.status === 'pending' ? 'Moving to yourself' : 'Moved to yourself';
+    return e.record.status === 'pending' ? 'Sending' : 'Sent';
+  };
+  /** The state beside the time: Pending or Not sent, unless the title already says so. */
+  const stateWordOf = (e: HistoryEntry): { word: string; tone: 'pending' | 'failed' } | null => {
+    const saidInTitle = !whoOf(e) && e.kind !== 'received';
+    if (saidInTitle) return null;
+    if (notSent(e)) return { word: 'Not sent', tone: 'failed' };
+    if (e.record.status === 'pending') return { word: 'Pending', tone: 'pending' };
+    if (e.record.status === 'failed') return { word: 'Failed', tone: 'failed' };
+    return null;
   };
   // After "Show older", the first of the rows it showed, which takes the focus.
   const firstNew = useRef<string | null>(null);
@@ -286,20 +296,23 @@ export function Home() {
   const rowIconOf = (e: HistoryEntry) =>
     e.kind === 'received' ? <IconArrowDownLeft size={18} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={18} stroke={1.8} /> : <IconArrowUpRight size={18} stroke={1.8} />;
   /** What a screen reader says for a row, list or table alike. */
-  const rowLabelOf = (e: HistoryEntry) =>
-    notSent(e)
-      ? `Not sent, ${spoken(e.shownNau)} NPT, not taken from your balance, details`
-      : `${titleOf(e)}${labelOf(e.record) ? `, ${labelOf(e.record)}'s address` : ''}, ${e.kind === 'received' ? 'plus' : 'minus'} ${spoken(e.shownNau)} NPT${e.record.status !== 'confirmed' ? ', ' + e.record.status : ''}${lockOf(e.record) !== null ? ', time-locked' : ''}, details`;
+  const rowLabelOf = (e: HistoryEntry) => {
+    const who = whoOf(e);
+    const whom = !who ? '' : e.kind === 'received' ? `, ${who}'s address` : `, to ${who}`;
+    const money = notSent(e) ? `${spoken(e.shownNau)} NPT, not taken from your balance` : `${e.kind === 'received' ? 'plus' : 'minus'} ${spoken(e.shownNau)} NPT`;
+    // A send says its state in its first word (Sending, Not sent); a payment in says pending.
+    const pending = e.kind === 'received' && e.record.status === 'pending' ? ', pending' : '';
+    const release = lockOf(e.record);
+    return `${stateTitleOf(e)}${whom}, ${money}${pending}${release !== null ? `, spendable from ${showDate(release)}` : ''}, details`;
+  };
   /** The full title, for the detail sheet and for screen readers. */
   const titleOf = (e: HistoryEntry) => {
-    if (e.kind === 'received') return e.record.status === 'pending' ? 'Incoming' : 'Received';
-    if (notSent(e)) return 'Not sent';
-    if (e.kind === 'self') return e.record.status === 'pending' ? 'Moving to yourself' : 'Moved to yourself';
-    if (e.record.txid === '' || e.record.recipient === null) return 'Sent';
+    const word = stateTitleOf(e);
+    if (e.kind !== 'sent' || notSent(e) || e.record.txid === '' || e.record.recipient === null) return word;
     const several = severalOf(e);
-    if (several) return `Sent to ${several.length} recipients`;
+    if (several) return `${word} to ${several.length} recipients`;
     const c = contactFor(e.record.recipient);
-    return `Sent to ${c ? c.name : e.record.recipient ? abbreviateAddress(e.record.recipient) : 'address'}`;
+    return `${word} to ${c ? c.name : abbreviateAddress(e.record.recipient)}`;
   };
   // The coins a payment put on the chain, by their commitments: what a block
   // explorer knows them by. A received row's coin carries its own commitment
@@ -617,15 +630,15 @@ export function Home() {
                           <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
                           <div style={{ minWidth: 0 }}>
                             <Text size="sm" fw={500} className="vault-row-title">
-                              {rowTitleOf(e)}
+                              {whoOf(e) ? <bdi>{whoOf(e)}</bdi> : stateTitleOf(e)}
                             </Text>
                             <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
                               {formatTime(h.timestampMs)}
-                              {h.status !== 'confirmed' && !notSent(e) && (
+                              {stateWordOf(e) && (
                                 <>
                                   {' · '}
-                                  <Text span inherit className={h.status === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
-                                    {h.status === 'pending' ? 'Pending' : 'Failed'}
+                                  <Text span inherit className={stateWordOf(e)?.tone === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
+                                    {stateWordOf(e)?.word}
                                   </Text>
                                 </>
                               )}
@@ -633,23 +646,11 @@ export function Home() {
                                 <>
                                   {' · '}
                                   <Text span inherit className="vault-state-pending">
-                                    Locked until {showDate(lockOf(h) as number)}
+                                    Spendable from {showDate(lockOf(h) as number)}
                                   </Text>
                                 </>
                               )}
-                              {/* The first few blocks after it confirmed are counted, as people are told to wait for several. */}
-                              {blocksSince(h) !== null && (blocksSince(h) as number) < 5 && ` · Confirmed · ${(blocksSince(h) as number) + 1} ${blocksSince(h) === 0 ? 'block' : 'blocks'}`}
                               {e.kind === 'self' && !hidden && ' · fee only'}
-                              {/* The figure on a send is what left: the payment and the fee. */}
-                              {e.kind === 'sent' && !notSent(e) && h.feeNau && h.recipient !== null && ' · incl. fee'}
-                              {/* Last, so that on a narrow screen it is what gives way. */}
-                              {recipientOf(e) && <> · {recipientOf(e)}</>}
-                              {labelOf(h) && (
-                                <>
-                                  {' · '}
-                                  <bdi>{labelOf(h)}</bdi>'s address
-                                </>
-                              )}
                             </Text>
                           </div>
                         </Group>
@@ -692,7 +693,7 @@ export function Home() {
             {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
             {labelOf(detail.record) && <DetailRow label="Paid to" value={`Your address for ${labelOf(detail.record)}`} isolate />}
             {lockOf(detail.record) !== null && (
-              <DetailRow label="Time lock" value={`Not spendable before ${formatDateTime(lockOf(detail.record) as number)}. The sender set this; confirmations do not shorten it.`} />
+              <DetailRow label="Spendable from" value={`${formatDateTime(lockOf(detail.record) as number)}. The sender set this date; confirmations do not bring it forward.`} />
             )}
             {detail.kind === 'sent' && (
               <DetailRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : severalOf(detail) ? 'Amounts together' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />
