@@ -907,6 +907,14 @@ main h2[tabindex='-1']:focus {
 .vault-poc {
   cursor: pointer;
 }
+/* Setup's network line, under the card with the footer links: centred like
+   them while closed, the card's width once open. */
+.vault-setup-network {
+  align-self: center;
+}
+.vault-setup-network[open] {
+  align-self: stretch;
+}
 .vault-poc:focus-visible {
   outline: 2px solid var(--v-accent);
   outline-offset: 2px;

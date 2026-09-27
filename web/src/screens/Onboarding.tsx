@@ -1,7 +1,7 @@
 // Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Alert, Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, TextInput, Title, SegmentedControl } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
 import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -22,7 +22,7 @@ import type { Network } from '../storage/db';
 import { notifications } from '@mantine/notifications';
 import { MAX_BACKUP_BYTES, parseBackupFile, WrongPasswordError } from '../storage/envelope';
 
-type Step = 'welcome' | 'show' | 'confirm' | 'password' | 'import' | 'file';
+type Step = 'welcome' | 'existing' | 'show' | 'confirm' | 'password' | 'import' | 'file';
 
 // A newly generated phrase lives in this tab's session storage until the
 // account exists, so a screenshot, app switch, tab discard or reload does
@@ -275,44 +275,20 @@ export function Onboarding() {
             {!adding && <span className="vault-eyebrow vault-welcome-name">Neptune Vault</span>}
             <Title order={2} tabIndex={-1} className="vault-step-title">{adding ? 'Add a wallet' : 'Set up your wallet'}</Title>
             <Text size="sm" c="dimmed">
-              {adding
-                ? 'Another seed phrase, with its own password and its own backup. The wallet you have stays on this device; the header menu switches between them.'
-                : 'Your keys stay on this device. The seed phrase restores the wallet anywhere, and a backup file is an encrypted copy of it.'}
+              {adding ? 'A second wallet on this device, with its own seed phrase and password.' : 'Your keys stay on this device.'}
             </Text>
+            {/* Two doors: a new wallet, or one that exists; which way to bring
+                one back is asked behind the second door. */}
             <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
             {error && <Alert color="red">{error}</Alert>}
-            <Button variant="light" onClick={() => setStep('import')}>Restore with a seed phrase</Button>
-            <Button variant="light" onClick={() => setStep('file')}>Restore from a backup file</Button>
+            <Button variant="light" onClick={() => setStep('existing')}>I already have a wallet</Button>
             {/* Adding a wallet goes to the network that is open. Choosing another
                 here would lock the open wallet at once, with no question asked;
                 the header menu asks first, so that is where to switch. */}
-            {adding ? (
+            {adding && (
               <Text size="sm" c="dimmed">
                 Adds to {NETWORK_LABELS[network]}. To add on another network, switch network from the header first.
               </Text>
-            ) : (
-              /* Most people want Mainnet and should not meet the question first.
-                 Off Mainnet it is open, so a tester sees where the wallet will go.
-                 Named for what it holds, and stating it: a fact to a newcomer, a
-                 choice to a tester. Its contents sit under its words, not beside them. */
-              <details className="vault-setting" open={network !== 'main'}>
-                <summary>
-                  <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
-                  Network: {NETWORK_LABELS[network]}
-                </summary>
-                <div className="vault-setting-body">
-                  <Select
-                    aria-label="Network"
-                    data={NETWORK_OPTIONS}
-                    value={network}
-                    onChange={(v) => {
-                      if (!v) return;
-                      setNetwork(v as Network);
-                      void switchNetwork(v as Network);
-                    }}
-                  />
-                </div>
-              </details>
             )}
             {!adding && elsewhere.length > 0 && (
               <Info>
@@ -346,6 +322,42 @@ export function Onboarding() {
             )}
           </Stack>
         </Paper>
+      )}
+      {step === 'existing' && (
+        <Paper>
+          <Stack>
+            <Title order={2} tabIndex={-1} className="vault-step-title">Restore your wallet</Title>
+            <Text size="sm" c="dimmed">
+              The seed phrase is the 18 words you wrote down; a backup file is the encrypted copy this app saves.
+            </Text>
+            <Button variant="light" onClick={() => setStep('import')}>With the seed phrase</Button>
+            <Button variant="light" onClick={() => setStep('file')}>From a backup file</Button>
+            <Button variant="subtle" onClick={() => setStep('welcome')}>Back</Button>
+          </Stack>
+        </Paper>
+      )}
+      {/* Most people want Mainnet and should not meet the question at all: the
+          network is a quiet line under the card, open when it is not Mainnet,
+          so a tester sees where the wallet will go. */}
+      {step === 'welcome' && !adding && (
+        <details className="vault-setting vault-setup-network" open={network !== 'main'}>
+          <summary>
+            <IconChevronRight size={14} stroke={2} className="vault-setting-chevron" aria-hidden />
+            Network: {NETWORK_LABELS[network]}
+          </summary>
+          <div className="vault-setting-body">
+            <Select
+              aria-label="Network"
+              data={NETWORK_OPTIONS}
+              value={network}
+              onChange={(v) => {
+                if (!v) return;
+                setNetwork(v as Network);
+                void switchNetwork(v as Network);
+              }}
+            />
+          </div>
+        </details>
       )}
       {/* Before a wallet exists there is no Settings to find these in. Diagnostics
           is open without a wallet on purpose, for whoever cannot get started. */}
@@ -390,9 +402,6 @@ export function Onboarding() {
             <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); setStep('welcome'); }}>
               Cancel
             </Button>
-            <Text size="sm" c="dimmed" ta="center">
-              If you cancel, the words above will not be used.
-            </Text>
           </Stack>
         </Paper>
       )}
@@ -437,10 +446,9 @@ export function Onboarding() {
             {allPlaced && !confirmed && (
               <Caution>Some words are in the wrong place. Tap a word to take it out and try again.</Caution>
             )}
-            <Group>
-              <Button variant="subtle" onClick={() => setStep('show')}>Show the words again</Button>
-              <Button ref={continueRef} disabled={!confirmed} onClick={() => setStep('password')}>Continue</Button>
-            </Group>
+            {/* The step's one main button spans the card, as on every other step. */}
+            <Button ref={continueRef} disabled={!confirmed} onClick={() => setStep('password')}>Continue</Button>
+            <Button variant="subtle" onClick={() => setStep('show')}>Show the words again</Button>
           </Stack>
         </Paper>
       )}
@@ -479,11 +487,11 @@ export function Onboarding() {
             saveDraft(null);
             setStep('password');
           }}
-          onBack={() => setStep('welcome')}
+          onBack={() => setStep('existing')}
         />
       )}
 
-      {step === 'file' && <FileStep busy={busy} error={error} onFile={importFile} onBack={() => setStep('welcome')} onPicking={() => services.accounts.holdBackgroundLock()} />}
+      {step === 'file' && <FileStep busy={busy} error={error} onFile={importFile} onBack={() => setStep('existing')} onPicking={() => services.accounts.holdBackgroundLock()} />}
     </Stack>
   );
 }
@@ -495,6 +503,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
   const fileInput = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState('');
   const [fast, setFast] = useState(true);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   // A file dragged from the desktop onto this step is taken as if chosen.
   const [dragging, setDragging] = useState(false);
   const carriesFiles = (e: DragEvent<HTMLDivElement>) => Array.from(e.dataTransfer.types).includes('Files');
@@ -520,7 +529,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
     >
       <Stack>
         <Title order={2} tabIndex={-1} className="vault-step-title">Restore a backup file</Title>
-        <Text size="sm" c="dimmed">Restores the wallet with its network, start block, contacts and address labels. It opens with the password it was exported with.</Text>
+        <Text size="sm" c="dimmed">It opens with the password it was saved with, and brings back the wallet's contacts and address names too.</Text>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">
           <Button
@@ -548,24 +557,38 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
           <PasswordInput label="Backup file password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
           {/* The restored wallet keeps the file's password: said here, so an old password does not surprise at the next unlock. */}
           <Text size="sm" c="dimmed">
-            After restoring, this password also unlocks the wallet. You can change it in Settings.
+            After restoring, this password also unlocks the wallet.
           </Text>
         </Stack>
-        <SegmentedControl
-          aria-label="How to restore"
-          fullWidth
-          value={fast ? 'fast' : 'private'}
-          onChange={(v) => setFast(v === 'fast')}
-          data={[
-            { value: 'fast', label: 'Fast restore' },
-            { value: 'private', label: 'Private restore' },
-          ]}
-        />
-        <Text size="sm" c="dimmed">
-          {fast
-            ? 'Usually takes seconds: only the blocks holding your payments are fetched. The node learns which payments are yours, including later ones to these addresses, but not the amounts.'
-            : 'Every block from the start block in the file is downloaded and scanned on this device. The node learns nothing about your coins.'}
-        </Text>
+        {/* How to restore, as one line with its choice; Change opens the choice. */}
+        {optionsOpen ? (
+          <>
+            <SegmentedControl
+              aria-label="How to restore"
+              fullWidth
+              value={fast ? 'fast' : 'private'}
+              onChange={(v) => setFast(v === 'fast')}
+              data={[
+                { value: 'fast', label: 'Fast restore' },
+                { value: 'private', label: 'Private restore' },
+              ]}
+            />
+            <Text size="sm" c="dimmed">
+              {fast
+                ? 'Usually takes seconds: only the blocks holding your payments are fetched. The node learns which payments are yours, including later ones to these addresses, but not the amounts.'
+                : 'Every block from the start block in the file is downloaded and scanned on this device. The node learns nothing about your coins.'}
+            </Text>
+          </>
+        ) : (
+          <Stack gap={2}>
+            <Text size="sm" c="dimmed">
+              {fast ? 'Restores in seconds. The node learns which payments are yours, but not the amounts.' : "Scans every block from the file's start on this device. The node learns nothing."}
+            </Text>
+            <UnstyledButton onClick={() => setOptionsOpen(true)} aria-expanded={false} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+              Change
+            </UnstyledButton>
+          </Stack>
+        )}
         <Button disabled={!file || !password} loading={busy} onClick={() => file && onFile(file, password, fast)}>
           Restore
         </Button>
@@ -625,7 +648,7 @@ function PasswordStep({
         <span className="vault-eyebrow">{stepLabel}</span>
         <Title order={2} tabIndex={-1} className="vault-step-title">Choose a password</Title>
         <Text size="sm" c="dimmed">
-          Asked on every unlock, and it cannot be recovered. Forgetting it is not fatal: your seed phrase restores the wallet.
+          You will use it to unlock this wallet. If you forget it, your seed phrase restores the wallet.
         </Text>
         {/* A second wallet is told apart by its name; the first needs none yet. */}
         {defaultName !== undefined && (
@@ -709,6 +732,17 @@ function ImportStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
+  // How to restore, folded until asked for, and said in one line meanwhile.
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const monthName = /^\d{4}-\d{2}$/.test(month) ? new Date(`${month}-01T00:00:00`).toLocaleString('en-GB', { month: 'long', year: 'numeric' }) : null;
+  const restoreSummary =
+    when === 'unknown'
+      ? fast
+        ? 'Finds all your payments in seconds. The node learns which payments are yours, but not the amounts.'
+        : 'Finds all your payments by scanning every block on this device, about 8 to 10 GB on Mainnet. The node learns nothing.'
+      : when === 'month'
+        ? `Looks for payments from ${monthName ?? (Number(birthday) > 1 ? `block ${showBlock(Number(birthday))}` : 'the date you choose')}.`
+        : 'Starts now: this seed phrase has never received funds.';
   // How the month lookup stands: Continue waits for it.
   const [lookup, setLookup] = useState<StartLookup>('idle');
   // A start above the chain, found before the password step rather than after it.
@@ -764,7 +798,20 @@ function ImportStep({
             setPhraseError(null);
           }}
         />
-        {/* The question people can answer, instead of a block number. */}
+        {/* How to restore, as one line with its current choice: most people
+            restore everything, fast, and need decide nothing. Change opens
+            the question people can answer, instead of a block number. */}
+        {!optionsOpen && (
+          <Stack gap={2}>
+            <Text size="sm" c="dimmed">
+              {restoreSummary}
+            </Text>
+            <UnstyledButton onClick={() => setOptionsOpen(true)} aria-expanded={false} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+              Change
+            </UnstyledButton>
+          </Stack>
+        )}
+        {optionsOpen && (
         <Radio.Group label="When did this wallet first receive funds?" value={when} onChange={(v) => setWhen(v as FirstFunds)}>
           <Stack gap="xs" mt="xs">
             <Radio value="unknown" label="I don't know: find everything" />
@@ -772,7 +819,8 @@ function ImportStep({
             <Radio value="never" label="Never: this seed phrase is new" />
           </Stack>
         </Radio.Group>
-        {when === 'unknown' && (
+        )}
+        {optionsOpen && when === 'unknown' && (
           <>
             <SegmentedControl
               aria-label="How to find everything"
@@ -791,7 +839,7 @@ function ImportStep({
             </Text>
           </>
         )}
-        {when === 'month' && (
+        {optionsOpen && when === 'month' && (
           <StartBlockPicker
             value={birthday}
             onChange={(v) => {
@@ -805,7 +853,7 @@ function ImportStep({
             error={startError}
           />
         )}
-        {when === 'never' && (
+        {optionsOpen && when === 'never' && (
           <Text size="sm" c="dimmed">
             The wallet starts at the current block. Anything paid to this seed phrase before now would not show.
           </Text>
