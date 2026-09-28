@@ -396,7 +396,7 @@ export function Home() {
             ? 'This wallet lives only on this device. Export a backup file so you can restore it, with its contacts, if the device is lost or its data deleted.'
             : "This wallet lives only in this browser. Export a backup file so you can restore it, with its contacts, if the browser's data is cleared."}
           <div>
-            <UnstyledButton onClick={() => navigate('/settings#backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+            <UnstyledButton onClick={() => navigate('/settings/backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
               Export backup file
             </UnstyledButton>
           </div>
@@ -419,7 +419,7 @@ export function Home() {
         {online && (
           <span className="vault-status-actions">
             {sync?.phase === 'error' && !busy && (
-              <UnstyledButton onClick={() => navigate('/settings')} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
+              <UnstyledButton onClick={() => navigate('/settings/advanced')} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
                 Settings
               </UnstyledButton>
             )}
@@ -941,7 +941,7 @@ function SearchedFrom({ account }: { account: AccountRecord }) {
     <Text c="dimmed" size="xs">
       This wallet looks for payments from block {showBlock(from)}
       {date ? ` (${formatDate(date)})` : ''}. Expecting an older one?{' '}
-      <UnstyledButton onClick={() => navigate('/settings#rescan')} fz="xs" className="vault-inline-link">
+      <UnstyledButton onClick={() => navigate('/settings/advanced#rescan')} fz="xs" className="vault-inline-link">
         Rescan from an earlier date
       </UnstyledButton>
     </Text>

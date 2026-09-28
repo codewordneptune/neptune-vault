@@ -318,7 +318,7 @@ export function Onboarding() {
               </Button>
             )}
             {adding && (
-              <Button variant="subtle" onClick={() => navigate('/settings')}>
+              <Button variant="subtle" onClick={() => navigate('/settings/wallet')}>
                 Cancel
               </Button>
             )}

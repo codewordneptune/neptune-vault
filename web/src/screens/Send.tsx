@@ -1047,7 +1047,7 @@ export function Send() {
                   <UnstyledButton onClick={() => void syncNow()} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
                     Try again
                   </UnstyledButton>
-                  <UnstyledButton onClick={() => navigate('/settings')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+                  <UnstyledButton onClick={() => navigate('/settings/advanced')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
                     Settings
                   </UnstyledButton>
                 </Group>

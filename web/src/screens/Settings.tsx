@@ -1,11 +1,13 @@
-// Network, node URL with connectivity check, backup actions, lock.
+// Settings: a short list, each row with its current value, and a page for
+// each row with its explanations. Backup, lock and passkey, the node with
+// its connectivity check and rescan, appearance, currency, about, removal.
 
-import { Anchor, Button, Checkbox, Divider, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, useMantineColorScheme } from '@mantine/core';
-import { IconCopy, IconDownload, IconFingerprint } from '@tabler/icons-react';
+import { Anchor, Button, Checkbox, Divider, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { IconChevronLeft, IconChevronRight, IconCopy, IconDownload, IconFingerprint } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { BACKGROUND_LOCK_CHOICES_MS, backgroundLockOf, LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, showNau, useApp } from '../app/AppContext';
@@ -37,7 +39,118 @@ function useOpenForm(key: FormKey): [boolean, (on: boolean) => void] {
   return [open === key, set];
 }
 
+// Settings is a short list, in order of use, each row with its current
+// value; a row opens its page, where its explanations are, so each is read
+// only by someone changing that setting. On a wide window the list and the
+// open page sit side by side.
+type SectionKey = 'backup' | 'security' | 'appearance' | 'currency' | 'wallet' | 'advanced' | 'about' | 'remove';
+const SECTION_TITLES: Record<SectionKey, string> = {
+  backup: 'Backup',
+  security: 'Security',
+  appearance: 'Appearance',
+  currency: 'Currency',
+  wallet: 'Wallet',
+  advanced: 'Advanced',
+  about: 'About',
+  remove: 'Remove wallet',
+};
+const isSection = (key: string | undefined): key is SectionKey => key !== undefined && Object.hasOwn(SECTION_TITLES, key);
+
+// A page changed a value the list shows (the lock time, the currency): the
+// list beside it on a wide window shows the new one.
+const SettingsChangedContext = createContext<() => void>(() => undefined);
+
 export function Settings() {
+  const { services } = useApp();
+  const { section } = useParams<{ section?: string }>();
+  // Side by side from here: a list of 320 px and a page of 600 px or so.
+  // Read at once, so a wide window does not flash the phone's layout first.
+  const wide = useMediaQuery('(min-width: 1100px)', undefined, { getInitialValueInEffect: false });
+  const [, setRevision] = useState(0);
+  const changed = useCallback(() => setRevision((n) => n + 1), []);
+  if (section !== undefined && !isSection(section)) return <Navigate to="/settings" replace />;
+  const current: SectionKey | null = isSection(section) ? section : wide ? 'backup' : null;
+  const list = <SettingsList current={current} lockMinutes={Math.round(lockTimeoutOf(services.settings.lockTimeoutMs) / 60_000)} currency={services.settings.fiatCurrency} />;
+  if (!current) {
+    return (
+      <Stack gap="md">
+        <Title order={2} className="sr-only">
+          Settings
+        </Title>
+        {list}
+      </Stack>
+    );
+  }
+  const page = (
+    <Stack gap="md" className="vault-settings-page">
+      {!wide && (
+        <UnstyledButton component={Link} to="/settings" c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
+          <IconChevronLeft size={16} stroke={1.8} aria-hidden />
+          Settings
+        </UnstyledButton>
+      )}
+      <Title order={2}>{SECTION_TITLES[current]}</Title>
+      {/* A new page for each section, so what one page was doing is not carried to the next. */}
+      <SettingsSections key={current} section={current} />
+    </Stack>
+  );
+  return (
+    <SettingsChangedContext.Provider value={changed}>
+      {wide ? (
+        <div className="vault-settings-split">
+          {list}
+          {page}
+        </div>
+      ) : (
+        page
+      )}
+    </SettingsChangedContext.Provider>
+  );
+}
+
+/** The sections as rows, each with its current value, in groups by how often they are used. */
+function SettingsList({ current, lockMinutes, currency }: { current: SectionKey | null; lockMinutes: number; currency: string | undefined }) {
+  const { services, account } = useApp();
+  const { colorScheme } = useMantineColorScheme();
+  const [contacts, setContacts] = useState<number | null>(null);
+  useEffect(() => {
+    if (account) void services.contacts.list(account.id).then((list) => setContacts(list.length), () => setContacts(null));
+  }, [services, account]);
+  const backedUp = Boolean(account?.lastBackupAt || account?.backupConfirmed);
+  const backup = account?.lastBackupAt ? `File saved ${formatDate(account.lastBackupAt)}` : account?.backupConfirmed ? 'Seed phrase written down' : 'Not backed up';
+  const row = (key: SectionKey, value: string, tone?: 'warn' | 'danger') => (
+    <Link key={key} to={`/settings/${key}`} className={`vault-settings-row${current === key ? ' current' : ''}${tone === 'danger' ? ' danger' : ''}`} aria-current={current === key ? 'page' : undefined}>
+      <span className="vault-settings-row-label">{SECTION_TITLES[key]}</span>
+      <span className={`vault-settings-row-value${tone === 'warn' ? ' warn' : ''}`}>{value}</span>
+      <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
+    </Link>
+  );
+  return (
+    <nav aria-label="Settings" className="vault-settings-list">
+      <Paper p={0}>
+        {row('backup', backup, backedUp ? undefined : 'warn')}
+        {row('security', `Locks after ${lockMinutes} min`)}
+        <Link to="/contacts" className="vault-settings-row">
+          <span className="vault-settings-row-label">Contacts</span>
+          <span className="vault-settings-row-value">{contacts === null ? '' : contacts === 0 ? 'None' : contacts}</span>
+          <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
+        </Link>
+      </Paper>
+      <Paper p={0}>
+        {row('appearance', colorScheme === 'dark' ? 'Dark' : colorScheme === 'light' ? 'Light' : 'System')}
+        {row('currency', currency ?? 'Off')}
+        {row('wallet', account ? walletName(account) : '')}
+      </Paper>
+      <Paper p={0}>
+        {row('advanced', 'Node, rescan, diagnostics')}
+        {row('about', `Version ${__APP_VERSION__}`)}
+      </Paper>
+      <Paper p={0}>{row('remove', '', 'danger')}</Paper>
+    </nav>
+  );
+}
+
+function SettingsSections({ section }: { section: SectionKey }) {
   const { services, account, network, switchNetwork, refresh, sendJob, sync, lastSyncedAt } = useApp();
   const sending = Boolean(sendJob && !sendJob.done);
   // The same confirmation the header menu gives: switching locks and hides this wallet.
@@ -65,18 +178,16 @@ export function Settings() {
   const [message, setMessage] = useState<{ done: boolean; text: string } | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // Home's backup reminder links to /settings#backup: that card is brought
-  // into view, with focus on its heading. After a frame, since the app
-  // scrolls every new screen to its top once this screen has mounted.
+  // Home's rescan hint links to /settings/advanced#rescan: the rescan is
+  // brought into view, with focus on its button. After a frame, since the
+  // app scrolls every new screen to its top once this screen has mounted.
   const { hash } = useLocation();
-  const backupTitle = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
-    if (hash !== '#backup' && hash !== '#rescan') return;
+    if (hash !== '#rescan') return;
     const frame = requestAnimationFrame(() => {
       const target = document.getElementById(hash.slice(1));
       target?.scrollIntoView({ block: 'start' });
-      if (hash === '#backup') backupTitle.current?.focus({ preventScroll: true });
-      else target?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+      target?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [hash]);
@@ -295,16 +406,10 @@ export function Settings() {
 
   return (
     <OpenFormContext.Provider value={openFormValue}>
-      <Stack gap="md">
-        <Title order={2} className="sr-only">
-          Settings
-        </Title>
-        <WalletCard />
-        <Paper id="backup" className="vault-anchored">
+      {section === 'wallet' && <WalletCard />}
+      {section === 'backup' && (
+        <Paper>
           <Stack>
-            <Title order={3} className="vault-section-title vault-step-title" tabIndex={-1} ref={backupTitle}>
-              Backup
-            </Title>
             <Text size="sm">
               The backup file and the seed phrase below are for {account ? walletName(account) : 'this wallet'} only. Each wallet on this device has its own.
             </Text>
@@ -419,12 +524,10 @@ export function Settings() {
             )}
           </Stack>
         </Paper>
-
+      )}
+      {section === 'security' && (
         <Paper>
           <Stack>
-            <Title order={3} className="vault-section-title">
-              Security
-            </Title>
             <AutoLockSetting />
             <ConfirmSendsSetting />
             <ChangePassword />
@@ -442,12 +545,10 @@ export function Settings() {
             </Stack>
           </Stack>
         </Paper>
-
+      )}
+      {section === 'advanced' && (
         <Paper>
           <Stack>
-            <Title order={3} className="vault-section-title">
-              Network and node
-            </Title>
             <Modal opened={pendingNetwork !== null} onClose={() => setPendingNetwork(null)} title={pendingNetwork ? `Switch to ${NETWORK_LABELS[pendingNetwork]}?` : ''}>
               <Stack>
                 <Text size="sm">Your {NETWORK_LABELS[network]} wallet stays on this device, so you can switch back any time. Switching locks the app.</Text>
@@ -477,6 +578,14 @@ export function Settings() {
               )}
             </Group>
             <RescanCard />
+            <Text size="sm" c="dimmed">
+              Device and app details to include when you report a problem.
+            </Text>
+            <Group>
+              <Button variant="light" onClick={() => navigate('/diagnostics')}>
+                Diagnostics
+              </Button>
+            </Group>
             {/* For developers and testers, last: the network choice appears under it. */}
             <Checkbox
               label="Developer networks"
@@ -489,34 +598,26 @@ export function Settings() {
             )}
           </Stack>
         </Paper>
-
+      )}
+      {section === 'appearance' && (
         <Paper>
           <Stack>
-            <Title order={3} className="vault-section-title">
-              App
-            </Title>
             <AppearanceCard />
-            <FiatCard />
-            {!NATIVE && <InstallCard />}
-            {NATIVE && <Shortcuts />}
-            <Text size="sm" c="dimmed">
-              Device and app details to include when you report a problem.
-            </Text>
-            <Group>
-              <Button variant="light" onClick={() => navigate('/diagnostics')}>
-                Diagnostics
-              </Button>
-            </Group>
           </Stack>
         </Paper>
-
+      )}
+      {section === 'currency' && (
         <Paper>
           <Stack>
-            <Title order={3} className="vault-section-title">
-              About
-            </Title>
+            <FiatCard />
+          </Stack>
+        </Paper>
+      )}
+      {section === 'about' && (
+        <Paper>
+          <Stack>
             <Text size="sm" c="dimmed">
-              {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Your keys stay on this device, and only the node set above learns about your wallet.
+              {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Your keys stay on this device, and only the node set in Advanced learns about your wallet.
             </Text>
             <Group gap="md" style={{ rowGap: 24 }}>
               <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
@@ -538,11 +639,12 @@ export function Settings() {
             <Text size="xs" c="dimmed">
               Version {__APP_VERSION__} ({__APP_COMMIT__}), built {formatDate(Date.parse(__APP_BUILT_AT__))}.
             </Text>
+            {!NATIVE && <InstallCard />}
+            {NATIVE && <Shortcuts />}
           </Stack>
         </Paper>
-
-        <RemoveWalletCard />
-      </Stack>
+      )}
+      {section === 'remove' && <RemoveWalletCard />}
     </OpenFormContext.Provider>
   );
 }
@@ -552,6 +654,7 @@ export function Settings() {
 // short grace, for copying an address into another app and coming back.
 function AutoLockSetting() {
   const { services } = useApp();
+  const changed = useContext(SettingsChangedContext);
   const [ms, setMs] = useState(lockTimeoutOf(services.settings.lockTimeoutMs));
   const [background, setBackground] = useState(backgroundLockOf(services.settings.backgroundLockMs));
   return (
@@ -566,7 +669,7 @@ function AutoLockSetting() {
           const next = Number(v);
           setMs(next);
           services.accounts.setLockTimeout(next);
-          void services.updateSettings({ lockTimeoutMs: next });
+          void services.updateSettings({ lockTimeoutMs: next }).then(changed);
         }}
       />
       <Select
@@ -870,11 +973,9 @@ function AppearanceCard() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   // Narrow by the text's own measure (enlarged text counts): the choices stack.
   const stacked = useMediaQuery('(max-width: 22em)');
+  // The page's title names it: the control needs no label of its own on screen.
   return (
     <Stack gap="xs">
-      <Text size="sm" c="dimmed">
-        Appearance
-      </Text>
       <SegmentedControl
         fullWidth
         orientation={stacked ? 'vertical' : 'horizontal'}
@@ -897,6 +998,7 @@ function AppearanceCard() {
 // that the figure is rough.
 function FiatCard() {
   const { services } = useApp();
+  const changed = useContext(SettingsChangedContext);
   const [currency, setCurrency] = useState<string>(services.settings.fiatCurrency ?? 'off');
   return (
     <Stack gap="xs">
@@ -907,7 +1009,7 @@ function FiatCard() {
         onChange={(v) => {
           const next = v ?? 'off';
           setCurrency(next);
-          void services.updateSettings({ fiatCurrency: isFiatCurrency(next) ? next : undefined });
+          void services.updateSettings({ fiatCurrency: isFiatCurrency(next) ? next : undefined }).then(changed);
         }}
         data={[{ value: 'off', label: 'Off' }, ...FIAT_CURRENCIES.map((c) => ({ value: c, label: FIAT_LABELS[c] }))]}
       />
@@ -1091,7 +1193,7 @@ function PasskeyCard() {
   );
 }
 
-// This wallet's name, and another wallet. Removal has a card of its own, last.
+// This wallet's name, and another wallet. Contacts and removal have rows of their own.
 function WalletCard() {
   const { services, account, refresh, sendJob } = useApp();
   const navigate = useNavigate();
@@ -1117,9 +1219,6 @@ function WalletCard() {
   return (
     <Paper>
       <Stack>
-        <Title order={3} className="vault-section-title">
-          Wallet
-        </Title>
         <TextInput
           label="Wallet name"
           description="Only on this device."
@@ -1136,9 +1235,6 @@ function WalletCard() {
           }}
         />
         <Group>
-          <Button variant="light" onClick={() => navigate('/contacts')}>
-            Contacts
-          </Button>
           <Button variant="light" disabled={sending} onClick={() => navigate('/onboarding?add=1')}>
             Add a wallet
           </Button>
@@ -1187,9 +1283,6 @@ function RemoveWalletCard() {
   return (
     <Paper>
       <Stack>
-        <Title order={3} className="vault-section-title">
-          Remove wallet
-        </Title>
         <Text size="sm" c="dimmed">
           Removes {name} from this device only. Its coins stay on the chain, and its seed phrase or a backup file brings it back.
         </Text>

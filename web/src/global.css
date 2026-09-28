@@ -1648,6 +1648,91 @@ html {
     margin-inline: auto;
   }
 }
+/* Settings' list beside its open page needs more than one column's width. */
+@media (min-width: 1100px) {
+  .vault-main.vault-main.vault-main-settings {
+    max-width: 960px;
+  }
+}
+
+/* Settings as a short list (Settings.tsx): a row per page, its current
+   value on the right, in groups by how often they are used. A row is the
+   whole width to tap, and says where it leads with a chevron. */
+.vault-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.vault-settings-list .mantine-Paper-root {
+  overflow: hidden;
+}
+.vault-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 16px;
+  color: var(--v-text);
+  text-decoration: none;
+}
+.vault-settings-row + .vault-settings-row {
+  border-top: 1px solid var(--v-line);
+}
+.vault-settings-row:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: -2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .vault-settings-row:hover {
+    background: var(--v-surface-2);
+  }
+}
+.vault-settings-row-label {
+  flex: none;
+  font-weight: 600;
+}
+.vault-settings-row.danger .vault-settings-row-label {
+  color: var(--v-danger-text);
+}
+.vault-settings-row-value {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--v-fs-sm);
+  color: var(--v-muted);
+}
+.vault-settings-row-value.warn {
+  color: var(--v-warn-text);
+}
+.vault-settings-row-chevron {
+  flex-shrink: 0;
+  color: var(--v-muted);
+}
+/* The page open beside the list: its row is marked by a bar as well as a
+   fill, so it does not rest on colour alone. */
+.vault-settings-row.current {
+  background: var(--v-surface-2);
+  box-shadow: inset 3px 0 0 var(--v-accent);
+}
+/* Wide windows: the list and the open page side by side. The list stays
+   in view while a long page scrolls, below the sticky header. */
+.vault-settings-split {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.vault-settings-split .vault-settings-list {
+  position: sticky;
+  top: calc(80px + env(safe-area-inset-top, 0px));
+}
+/* The way back from a page to the list, on a phone: above the title. */
+.vault-back-link {
+  gap: 4px;
+  margin-bottom: -8px;
+}
 
 
 /* Notices, see components/Notice.tsx. A caution is a strip down the left

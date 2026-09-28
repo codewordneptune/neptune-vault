@@ -46,6 +46,8 @@ function screenName(pathname: string, hasWallet: boolean, locked: boolean): stri
   if (hasWallet && locked) return 'Locked';
   // With no wallet, only setup and the device facts are shown; the rest redirect.
   if (!hasWallet && pathname !== '/onboarding' && pathname !== '/diagnostics') return null;
+  // Settings' pages share its name: the page's own heading says which one.
+  if (pathname.startsWith('/settings/')) return SCREEN_NAMES['/settings'];
   return SCREEN_NAMES[pathname] ?? null;
 }
 
@@ -91,7 +93,7 @@ export function App() {
     const active = document.activeElement;
     if (active && active !== document.body && active.closest('main')) return;
     // A screen that moves focus itself (a result on Send, a card reached by
-    // a link such as /settings#backup) is left to it: two moves in a row
+    // a link such as /settings/advanced#rescan) is left to it: two moves in a row
     // cut off what the first one started to read out.
     if (window.location.hash || document.querySelector('main [data-focus-managed]')) return;
     const heading = document.querySelector<HTMLElement>('main h2');
@@ -236,7 +238,7 @@ export function App() {
       <SendStrip />
       {/* On a wide screen every screen shares one width, so moving between
           them does not make the content jump; Home's balance becomes a band. */}
-      <Container component="main" size="xs" py="md" className={pathname === '/' && !locked && account ? 'vault-main vault-main-home' : 'vault-main'}>
+      <Container component="main" size="xs" py="md" className={!locked && account && pathname === '/' ? 'vault-main vault-main-home' : !locked && account && pathname.startsWith('/settings') ? 'vault-main vault-main-settings' : 'vault-main'}>
         <Routes>
           {/* Adding a wallet is for whoever can unlock the one that is there: a locked app offers nothing else. */}
           <Route path="/onboarding" element={account && !addingWallet ? <Navigate to="/" replace /> : account && locked ? <Unlock /> : <Onboarding />} />
@@ -245,6 +247,7 @@ export function App() {
           <Route path="/send" element={gate(<Send />)} />
           <Route path="/contacts" element={gate(<Contacts />)} />
           <Route path="/settings" element={gate(<Settings />)} />
+          <Route path="/settings/:section" element={gate(<Settings />)} />
           {/* Behind the lock when there is a wallet to lock: the page tells when
               a send was last tried and, if it failed, which node was asked and
               what it said. With no wallet yet it stays open, since a person who
@@ -259,7 +262,7 @@ export function App() {
           <Container size="xs" px={0} className="vault-tabbar-inner">
             <Group gap={0} wrap="nowrap" className="vault-tabs">
               {TABS.map(({ to, label, Icon }, i) => (
-                <NavLink key={to} to={to} end className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`} {...(NATIVE ? shortcutProps(label, i + 1) : {})}>
+                <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`} {...(NATIVE ? shortcutProps(label, i + 1) : {})}>
                   <Icon size={20} stroke={1.8} />
                   {label}
                 </NavLink>
