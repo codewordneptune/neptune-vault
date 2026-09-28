@@ -39,8 +39,8 @@ function useOpenForm(key: FormKey): [boolean, (on: boolean) => void] {
   return [open === key, set];
 }
 
-// Settings is a short list, in order of use, each row with its current
-// value; a row opens its page, where its explanations are, so each is read
+// Settings is a short list, grouped by what each row is about, each row
+// with its current value; a row opens its page, where its explanations are, so each is read
 // only by someone changing that setting. On a wide window the list and the
 // open page sit side by side.
 type SectionKey = 'backup' | 'security' | 'appearance' | 'currency' | 'wallet' | 'advanced' | 'about' | 'remove';
@@ -108,7 +108,12 @@ export function Settings() {
   );
 }
 
-/** The sections as rows, each with its current value, in groups by how often they are used. */
+/**
+ * The sections as rows, each with its current value, grouped by what they
+ * are about, so each has a predictable place: this wallet (Backup first,
+ * since it carries the warning when nothing is saved), using the app,
+ * advanced and about, and removal on its own.
+ */
 function SettingsList({ current, lockMinutes, currency }: { current: SectionKey | null; lockMinutes: number; currency: string | undefined }) {
   const { services, account } = useApp();
   const { colorScheme } = useMantineColorScheme();
@@ -130,16 +135,16 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
       <Paper p={0}>
         {row('backup', backup, backedUp ? undefined : 'warn')}
         {row('security', `Locks after ${lockMinutes} min`)}
+        {row('wallet', account ? walletName(account) : '')}
+      </Paper>
+      <Paper p={0}>
         <Link to="/contacts" className="vault-settings-row">
           <span className="vault-settings-row-label">Contacts</span>
           <span className="vault-settings-row-value">{contacts === null ? '' : contacts === 0 ? 'None' : contacts}</span>
           <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
         </Link>
-      </Paper>
-      <Paper p={0}>
         {row('appearance', colorScheme === 'dark' ? 'Dark' : colorScheme === 'light' ? 'Light' : 'System')}
         {row('currency', currency ?? 'Off')}
-        {row('wallet', account ? walletName(account) : '')}
       </Paper>
       <Paper p={0}>
         {row('advanced', 'Node, rescan, diagnostics')}
