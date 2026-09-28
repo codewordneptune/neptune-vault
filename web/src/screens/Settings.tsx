@@ -43,11 +43,12 @@ function useOpenForm(key: FormKey): [boolean, (on: boolean) => void] {
 // its page, where its explanations are, so each is read only by someone
 // changing that setting. On a wide window the list and the open page sit
 // side by side.
-type SectionKey = 'backup' | 'security' | 'name' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove';
+type SectionKey = 'backup' | 'security' | 'name' | 'autolock' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove';
 const SECTION_TITLES: Record<SectionKey, string> = {
   backup: 'Backup',
   security: 'Security',
   name: 'Name',
+  autolock: 'Auto-lock',
   appearance: 'Appearance',
   currency: 'Currency',
   advanced: 'Advanced',
@@ -117,7 +118,8 @@ export function Settings() {
  * where they apply: the open wallet, named, since each wallet has its own
  * password, passkey, send confirmation, backup and contacts and wallets
  * are switched from the header; and the app, shared by every wallet on
- * this device. Backup comes first (it carries the warning when nothing is
+ * this device, auto-lock included: it is how long the app stays open when
+ * left alone, and only one wallet is ever open. Backup comes first (it carries the warning when nothing is
  * saved), expert rows come last, and removal stands alone, naming what goes.
  */
 function SettingsList({ current, lockMinutes, currency }: { current: SectionKey | null; lockMinutes: number; currency: string | undefined }) {
@@ -147,7 +149,7 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
         </div>
         <Paper p={0}>
           {row('backup', backup, backedUp ? undefined : 'warn')}
-          {row('security', `Locks after ${lockMinutes} min`)}
+          {row('security', !account || confirmsSends(account) ? 'Asked before each send' : 'Sends without asking', !account || confirmsSends(account) ? undefined : 'warn')}
           <Link to="/contacts" className="vault-settings-row">
             <span className="vault-settings-row-label">Contacts</span>
             <span className="vault-settings-row-value">{contacts === null ? '' : contacts === 0 ? 'None' : contacts}</span>
@@ -161,6 +163,7 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
           App
         </div>
         <Paper p={0}>
+          {row('autolock', `After ${lockMinutes} min`)}
           {row('appearance', colorScheme === 'dark' ? 'Dark' : colorScheme === 'light' ? 'Light' : 'System')}
           {row('currency', currency ?? 'Off')}
           {row('advanced', 'Node, rescan, diagnostics')}
@@ -550,10 +553,16 @@ function SettingsSections({ section }: { section: SectionKey }) {
       {section === 'security' && (
         <Paper>
           <Stack>
-            <AutoLockSetting />
             <ConfirmSendsSetting />
             <ChangePassword />
             <PasskeyCard />
+          </Stack>
+        </Paper>
+      )}
+      {section === 'autolock' && (
+        <Paper>
+          <Stack>
+            <AutoLockSetting />
             {/* Not during a send: a lock takes the keys the send is using, and it would end without a word. */}
             <Stack gap={4} align="flex-start">
               <Button variant="light" onClick={() => void services.accounts.lock()} disabled={sending}>
