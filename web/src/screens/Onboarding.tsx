@@ -68,7 +68,8 @@ export function Onboarding() {
   const { services, account, setAccount, switchNetwork, adoptNetwork, pauseSync, network: currentNetwork } = useApp();
   const navigate = useNavigate();
   // Adding a wallet next to an existing one: same steps, a way back to it.
-  const adding = Boolean(account) && new URLSearchParams(useLocation().search).has('add');
+  const location = useLocation();
+  const adding = Boolean(account) && new URLSearchParams(location.search).has('add');
   const draft = loadDraft();
   const [step, setStep] = useState<Step>(draft ? (draft.imported ? 'password' : 'show') : 'welcome');
   // The network is the app's: a switch made from the header menu must reach
@@ -318,7 +319,7 @@ export function Onboarding() {
               </Button>
             )}
             {adding && (
-              <Button variant="subtle" onClick={() => navigate('/settings/wallet')}>
+              <Button variant="subtle" onClick={() => (location.key !== 'default' ? navigate(-1) : navigate('/'))}>
                 Cancel
               </Button>
             )}

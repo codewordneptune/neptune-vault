@@ -1661,7 +1661,7 @@ html {
 .vault-settings-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 .vault-settings-list .mantine-Paper-root {
   overflow: hidden;
@@ -1727,6 +1727,19 @@ html {
 .vault-settings-split .vault-settings-list {
   position: sticky;
   top: calc(80px + env(safe-area-inset-top, 0px));
+}
+/* A group of rows under a small label naming where they apply: the open
+   wallet, or the app. In line with the rows' text. */
+.vault-settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vault-settings-group-label {
+  padding-inline: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* The way back from a page to the list, on a phone: above the title. */
 .vault-back-link {

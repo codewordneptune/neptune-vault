@@ -39,21 +39,23 @@ function useOpenForm(key: FormKey): [boolean, (on: boolean) => void] {
   return [open === key, set];
 }
 
-// Settings is a short list, grouped by what each row is about, each row
-// with its current value; a row opens its page, where its explanations are, so each is read
-// only by someone changing that setting. On a wide window the list and the
-// open page sit side by side.
-type SectionKey = 'backup' | 'security' | 'appearance' | 'currency' | 'wallet' | 'advanced' | 'about' | 'remove';
+// Settings is a short list, each row with its current value; a row opens
+// its page, where its explanations are, so each is read only by someone
+// changing that setting. On a wide window the list and the open page sit
+// side by side.
+type SectionKey = 'backup' | 'security' | 'name' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove';
 const SECTION_TITLES: Record<SectionKey, string> = {
   backup: 'Backup',
   security: 'Security',
+  name: 'Name',
   appearance: 'Appearance',
   currency: 'Currency',
-  wallet: 'Wallet',
   advanced: 'Advanced',
   about: 'About',
   remove: 'Remove wallet',
 };
+/** A row's label and its page's title; removal names the wallet it removes. */
+const titleOf = (key: SectionKey, account: AccountRecord | null): string => (key === 'remove' && account ? `Remove ${walletName(account)}` : SECTION_TITLES[key]);
 const isSection = (key: string | undefined): key is SectionKey => key !== undefined && Object.hasOwn(SECTION_TITLES, key);
 
 // A page changed a value the list shows (the lock time, the currency): the
@@ -61,7 +63,7 @@ const isSection = (key: string | undefined): key is SectionKey => key !== undefi
 const SettingsChangedContext = createContext<() => void>(() => undefined);
 
 export function Settings() {
-  const { services } = useApp();
+  const { services, account } = useApp();
   const { section } = useParams<{ section?: string }>();
   // Side by side from here: a list of 320 px and a page of 600 px or so.
   // Read at once, so a wide window does not flash the phone's layout first.
@@ -89,7 +91,9 @@ export function Settings() {
           Settings
         </UnstyledButton>
       )}
-      <Title order={2}>{SECTION_TITLES[current]}</Title>
+      <Title order={2}>
+        <bdi>{titleOf(current, account)}</bdi>
+      </Title>
       {/* A new page for each section, so what one page was doing is not carried to the next. */}
       <SettingsSections key={current} section={current} />
     </Stack>
@@ -109,10 +113,12 @@ export function Settings() {
 }
 
 /**
- * The sections as rows, each with its current value, grouped by what they
- * are about, so each has a predictable place: this wallet (Backup first,
- * since it carries the warning when nothing is saved), using the app,
- * advanced and about, and removal on its own.
+ * The sections as rows, each with its current value, in two groups by
+ * where they apply: the open wallet, named, since each wallet has its own
+ * password, passkey, send confirmation, backup and contacts and wallets
+ * are switched from the header; and the app, shared by every wallet on
+ * this device. Backup comes first (it carries the warning when nothing is
+ * saved), expert rows come last, and removal stands alone, naming what goes.
  */
 function SettingsList({ current, lockMinutes, currency }: { current: SectionKey | null; lockMinutes: number; currency: string | undefined }) {
   const { services, account } = useApp();
@@ -125,31 +131,42 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
   const backup = account?.lastBackupAt ? `File saved ${formatDate(account.lastBackupAt)}` : account?.backupConfirmed ? 'Seed phrase written down' : 'Not backed up';
   const row = (key: SectionKey, value: string, tone?: 'warn' | 'danger') => (
     <Link key={key} to={`/settings/${key}`} className={`vault-settings-row${current === key ? ' current' : ''}${tone === 'danger' ? ' danger' : ''}`} aria-current={current === key ? 'page' : undefined}>
-      <span className="vault-settings-row-label">{SECTION_TITLES[key]}</span>
+      <span className="vault-settings-row-label">
+        <bdi>{titleOf(key, account)}</bdi>
+      </span>
       <span className={`vault-settings-row-value${tone === 'warn' ? ' warn' : ''}`}>{value}</span>
       <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
     </Link>
   );
   return (
     <nav aria-label="Settings" className="vault-settings-list">
-      <Paper p={0}>
-        {row('backup', backup, backedUp ? undefined : 'warn')}
-        {row('security', `Locks after ${lockMinutes} min`)}
-        {row('wallet', account ? walletName(account) : '')}
-      </Paper>
-      <Paper p={0}>
-        <Link to="/contacts" className="vault-settings-row">
-          <span className="vault-settings-row-label">Contacts</span>
-          <span className="vault-settings-row-value">{contacts === null ? '' : contacts === 0 ? 'None' : contacts}</span>
-          <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
-        </Link>
-        {row('appearance', colorScheme === 'dark' ? 'Dark' : colorScheme === 'light' ? 'Light' : 'System')}
-        {row('currency', currency ?? 'Off')}
-      </Paper>
-      <Paper p={0}>
-        {row('advanced', 'Node, rescan, diagnostics')}
-        {row('about', `Version ${__APP_VERSION__}`)}
-      </Paper>
+      {/* A named group, not a heading: the page's own title stays its first heading. */}
+      <div role="group" aria-labelledby="settings-group-wallet" className="vault-settings-group">
+        <div id="settings-group-wallet" className="vault-eyebrow vault-settings-group-label">
+          <bdi>{account ? walletName(account) : 'This wallet'}</bdi>
+        </div>
+        <Paper p={0}>
+          {row('backup', backup, backedUp ? undefined : 'warn')}
+          {row('security', `Locks after ${lockMinutes} min`)}
+          <Link to="/contacts" className="vault-settings-row">
+            <span className="vault-settings-row-label">Contacts</span>
+            <span className="vault-settings-row-value">{contacts === null ? '' : contacts === 0 ? 'None' : contacts}</span>
+            <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
+          </Link>
+          {row('name', account ? walletName(account) : '')}
+        </Paper>
+      </div>
+      <div role="group" aria-labelledby="settings-group-app" className="vault-settings-group">
+        <div id="settings-group-app" className="vault-eyebrow vault-settings-group-label">
+          App
+        </div>
+        <Paper p={0}>
+          {row('appearance', colorScheme === 'dark' ? 'Dark' : colorScheme === 'light' ? 'Light' : 'System')}
+          {row('currency', currency ?? 'Off')}
+          {row('advanced', 'Node, rescan, diagnostics')}
+          {row('about', `Version ${__APP_VERSION__}`)}
+        </Paper>
+      </div>
       <Paper p={0}>{row('remove', '', 'danger')}</Paper>
     </nav>
   );
@@ -411,7 +428,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
 
   return (
     <OpenFormContext.Provider value={openFormValue}>
-      {section === 'wallet' && <WalletCard />}
+      {section === 'name' && <WalletCard />}
       {section === 'backup' && (
         <Paper>
           <Stack>
@@ -1198,17 +1215,16 @@ function PasskeyCard() {
   );
 }
 
-// This wallet's name, and another wallet. Contacts and removal have rows of their own.
+// This wallet's name, on this device. Adding another wallet is in the
+// wallet menu in the header, where wallets are switched.
 function WalletCard() {
-  const { services, account, refresh, sendJob } = useApp();
-  const navigate = useNavigate();
+  const { services, account, refresh } = useApp();
   const [name, setName] = useState(account ? walletName(account) : '');
   const [nameError, setNameError] = useState<string | null>(null);
   useEffect(() => {
     setName(account ? walletName(account) : '');
   }, [account?.id, account?.name]);
   if (!account) return null;
-  const sending = Boolean(sendJob && !sendJob.done);
 
   const save = async () => {
     if (name.trim() === walletName(account)) return;
@@ -1239,11 +1255,6 @@ function WalletCard() {
             if (e.key === 'Enter') void save();
           }}
         />
-        <Group>
-          <Button variant="light" disabled={sending} onClick={() => navigate('/onboarding?add=1')}>
-            Add a wallet
-          </Button>
-        </Group>
       </Stack>
     </Paper>
   );
