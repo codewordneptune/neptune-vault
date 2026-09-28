@@ -20,6 +20,7 @@ import { confirmsSends, DEFAULT_NODE_URLS, requestPersistentStorage, showsTestNe
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
+import { ContactsPanel } from './Contacts';
 import { isCancellation } from '../app/passkey';
 import { copyText } from '../util/clipboard';
 import { CLIPBOARD_RISK, FAST_SCAN, INSTALL_BENEFITS, NOT_DURING_SEND } from '../app/words';
@@ -43,10 +44,11 @@ function useOpenForm(key: FormKey): [boolean, (on: boolean) => void] {
 // its page, where its explanations are, so each is read only by someone
 // changing that setting. On a wide window the list and the open page sit
 // side by side.
-type SectionKey = 'backup' | 'security' | 'name' | 'autolock' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove';
+type SectionKey = 'backup' | 'security' | 'contacts' | 'name' | 'autolock' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove';
 const SECTION_TITLES: Record<SectionKey, string> = {
   backup: 'Backup',
   security: 'Security',
+  contacts: 'Contacts',
   name: 'Name',
   autolock: 'Auto-lock',
   appearance: 'Appearance',
@@ -66,6 +68,9 @@ const SettingsChangedContext = createContext<() => void>(() => undefined);
 export function Settings() {
   const { services, account } = useApp();
   const { section } = useParams<{ section?: string }>();
+  const navigate = useNavigate();
+  // Contacts is also opened from Send's contact picker: its way back is then to that send.
+  const fromSend = (useLocation().state as { from?: string } | null)?.from === 'send';
   // Side by side from here: a list of 320 px and a page of 600 px or so.
   // Read at once, so a wide window does not flash the phone's layout first.
   const wide = useMediaQuery('(min-width: 1100px)', undefined, { getInitialValueInEffect: false });
@@ -86,11 +91,18 @@ export function Settings() {
   }
   const page = (
     <Stack gap="md" className="vault-settings-page">
-      {!wide && (
-        <UnstyledButton component={Link} to="/settings" c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
+      {fromSend ? (
+        <UnstyledButton onClick={() => navigate(-1)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
           <IconChevronLeft size={16} stroke={1.8} aria-hidden />
-          Settings
+          Send
         </UnstyledButton>
+      ) : (
+        !wide && (
+          <UnstyledButton component={Link} to="/settings" c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
+            <IconChevronLeft size={16} stroke={1.8} aria-hidden />
+            Settings
+          </UnstyledButton>
+        )
       )}
       <Title order={2}>
         <bdi>{titleOf(current, account)}</bdi>
@@ -150,11 +162,7 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
         <Paper p={0}>
           {row('backup', backup, backedUp ? undefined : 'warn')}
           {row('security', !account || confirmsSends(account) ? 'Asked before each send' : 'Sends without asking', !account || confirmsSends(account) ? undefined : 'warn')}
-          <Link to="/contacts" className="vault-settings-row">
-            <span className="vault-settings-row-label">Contacts</span>
-            <span className="vault-settings-row-value">{contacts === null ? '' : contacts === 0 ? 'None' : contacts}</span>
-            <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
-          </Link>
+          {row('contacts', contacts === null ? '' : contacts === 0 ? 'None' : String(contacts))}
           {row('name', account ? walletName(account) : '')}
         </Paper>
       </div>
@@ -431,6 +439,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
 
   return (
     <OpenFormContext.Provider value={openFormValue}>
+      {section === 'contacts' && <ContactsPanel />}
       {section === 'name' && <WalletCard />}
       {section === 'backup' && (
         <Paper>

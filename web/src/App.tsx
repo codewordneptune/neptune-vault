@@ -11,7 +11,6 @@ import { NetworkMenu } from './components/NetworkMenu';
 import { PocTag } from './components/PocNotice';
 import { SendStrip } from './components/SendStrip';
 import { UpdateStrip } from './components/UpdateStrip';
-import { Contacts } from './screens/Contacts';
 import { Diagnostics } from './screens/Diagnostics';
 import { Home } from './screens/Home';
 import { Onboarding } from './screens/Onboarding';
@@ -33,7 +32,6 @@ const SCREEN_NAMES: Record<string, string> = {
   '/send': 'Send',
   '/receive': 'Receive',
   '/settings': 'Settings',
-  '/contacts': 'Contacts',
   '/diagnostics': 'Diagnostics',
   '/privacy': 'Privacy',
   '/onboarding': 'Set up',
@@ -245,7 +243,8 @@ export function App() {
           <Route path="/" element={gate(<Home />)} />
           <Route path="/receive" element={gate(<Receive />)} />
           <Route path="/send" element={gate(<Send />)} />
-          <Route path="/contacts" element={gate(<Contacts />)} />
+          {/* Contacts is a page of Settings; the old address still leads there. */}
+          <Route path="/contacts" element={gate(<Navigate to="/settings/contacts" replace />)} />
           <Route path="/settings" element={gate(<Settings />)} />
           <Route path="/settings/:section" element={gate(<Settings />)} />
           {/* Behind the lock when there is a wallet to lock: the page tells when

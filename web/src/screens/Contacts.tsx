@@ -1,8 +1,9 @@
-// Contacts: saved recipients for this account. Add by paste or scan, rename,
-// remove, and start a send to one.
+// Contacts: saved recipients for this wallet. Add by paste or scan, rename,
+// remove, and start a send to one. A page of Settings (Settings.tsx), which
+// gives it its title and the way back.
 
-import { ActionIcon, Badge, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
-import { IconArrowUpRight, IconChevronLeft, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconScan, IconTrash } from '@tabler/icons-react';
+import { ActionIcon, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Tooltip } from '@mantine/core';
+import { IconArrowUpRight, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconScan, IconTrash } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,11 +12,11 @@ import { ownAddresses } from '../app/ownAddresses';
 import { ErrorLine } from '../components/Notice';
 import { QrScanner } from '../components/QrScanner';
 import type { ContactRecord } from '../storage/db';
-import { abbreviateAddress, addressKindLabel, parsePaymentText } from '../util/address';
+import { abbreviateAddress, addressKind, parsePaymentText } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { networkLabel } from '../util/network';
 
-export function Contacts() {
+export function ContactsPanel() {
   const { services, account } = useApp();
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<ContactRecord[] | null>(null);
@@ -25,12 +26,12 @@ export function Contacts() {
   const [error, setError] = useState<string | null>(null);
   // After a dialog opened from a row's menu closes, the menu is gone: focus
   // goes back to that row's button by hand, or after a removal to the next
-  // row's, and what happened is said.
+  // row's (to Add contact when none is left), and what happened is said.
   const moreButtons = useRef(new Map<string, HTMLButtonElement>());
-  const headingRef = useRef<HTMLHeadingElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
   const [said, setSaid] = useState('');
   const refocus = (key: string | null) => {
-    setTimeout(() => (key ? moreButtons.current.get(key) : null)?.focus() ?? headingRef.current?.focus(), 0);
+    setTimeout(() => (key ? moreButtons.current.get(key) : null)?.focus() ?? addRef.current?.focus(), 0);
   };
 
   const load = useCallback(async () => {
@@ -59,20 +60,13 @@ export function Contacts() {
   };
 
   return (
-    <Stack gap="md">
+    <>
       <Paper>
         <Stack>
-          <Group justify="space-between" align="center">
-            <Group gap="xs" align="center" wrap="nowrap">
-              <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Back" onClick={() => navigate(-1)}>
-                <IconChevronLeft size={20} stroke={1.8} />
-              </ActionIcon>
-              <Title order={2} tabIndex={-1} ref={headingRef}>
-                Contacts
-              </Title>
-            </Group>
-            <Button size="compact-md" variant="light" className="vault-tap" leftSection={<IconPlus size={16} stroke={1.8} />} onClick={() => setAdding(true)}>
-              Add
+          {/* The page's one main action, first, as on the other pages of Settings. */}
+          <Group>
+            <Button ref={addRef} variant="light" leftSection={<IconPlus size={16} stroke={1.8} />} onClick={() => setAdding(true)}>
+              Add contact
             </Button>
           </Group>
           <div className="sr-only" role="status">
@@ -94,14 +88,15 @@ export function Contacts() {
                     <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
                       {abbreviateAddress(c.address)}
                     </Text>
-                    <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
-                      {addressKindLabel(c.address)}
-                    </Badge>
+                    {/* The kind in plain words; the protocol's name is on Receive, under the choice. */}
+                    <Text size="xs" c="dimmed">
+                      {addressKind(c.address).intent}
+                    </Text>
                   </div>
                   <Group gap={4} wrap="nowrap">
                     {/* Stays while the pointer moves onto it, so it can be read. */}
                     <Tooltip label="Send to this contact" interactive>
-                      <ActionIcon variant="light" size="lg" className="vault-tap" aria-label={`Send to ${c.name}`} onClick={() => navigate('/send', { state: { recipient: c.address } })}>
+                      <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`Send to ${c.name}`} onClick={() => navigate('/send', { state: { recipient: c.address } })}>
                         <IconArrowUpRight size={20} stroke={1.8} />
                       </ActionIcon>
                     </Tooltip>
@@ -208,7 +203,7 @@ export function Contacts() {
           </Group>
         </Stack>
       </Modal>
-    </Stack>
+    </>
   );
 }
 
