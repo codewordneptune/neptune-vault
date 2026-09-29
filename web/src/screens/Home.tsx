@@ -227,7 +227,7 @@ export function Home() {
           ? `Scanning block ${showBlock(sync.syncedHeight)} of ${showBlock(sync.tipHeight)}`
           : sync.phase === 'done'
             ? behind
-              ? `Synced with the node, but its newest block is ${Math.round(behindMs / 3_600_000)} h old, so it may be behind`
+              ? `Synced to block ${showBlock(sync.tipHeight)}, but that block is ${Math.round(behindMs / 3_600_000)} h old, so the node may be behind`
               : `Up to date · block ${showBlock(sync.syncedHeight)}${lastSyncedAt ? ` · ${ago(lastSyncedAt)}` : ''}`
             : sync.message ?? 'Sync failed';
   // What the status line says is announced after the person asked for a
