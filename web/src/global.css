@@ -447,6 +447,35 @@ button.vault-network::before {
 button.vault-picker {
   margin: -6px 0 -6px -8px;
 }
+/* A select's list headed as a menu's label reads (the address type's). */
+.vault-picker-label {
+  padding: 5px 12px 3px;
+  font-size: var(--v-fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--v-muted);
+}
+/* The address types in that list: a check in its own column on the type
+   showing, then the name and its note. Moved to with the arrow keys, an
+   option takes a ring, as a focused row does, not the library's filled
+   blue, on which the note's muted text would not read. */
+.vault-type-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.vault-type-check {
+  flex: none;
+  display: inline-flex;
+  width: 16px;
+  padding-top: 2px;
+  color: var(--v-accent-text);
+}
+.vault-type-option[data-combobox-selected] {
+  background-color: transparent;
+  color: inherit;
+  box-shadow: inset 0 0 0 2px var(--v-accent);
+}
 
 /* Fixed tab bar; respects the home indicator, and in landscape the notch. */
 .vault-tabbar {
@@ -717,11 +746,12 @@ main h2[tabindex='-1']:focus {
 /* "Your addresses" rows: a button showing the address, widened on its
    start side for the hover fill like a picker row, and the row's menu
    button beside it, so the menu is not a button inside a button. */
+/* Receive's address list: a row's mark (the check on the one showing, the
+   plus on New address) in a column of its own, then who it is for (or its
+   number) taking the room, with its number and payments on a quiet line
+   beneath, and its action at the end. */
 .vault-address-row {
   padding: 0;
-}
-.vault-address-row:first-child {
-  margin-top: -12px;
 }
 .vault-address-row + .vault-address-row::before {
   left: 0;
@@ -729,13 +759,41 @@ main h2[tabindex='-1']:focus {
 }
 .vault-address-show {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-left: -12px;
   padding: 12px;
   text-align: left;
   border-radius: var(--v-radius-xs);
 }
-.vault-address-show:hover {
+.vault-address-show:hover:not(:disabled) {
   background: var(--v-surface-2);
+}
+.vault-address-mark {
+  flex: none;
+  display: inline-flex;
+  width: 16px;
+  color: var(--v-accent-text);
+}
+.vault-address-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.vault-address-action {
+  display: flex;
+  justify-content: flex-end;
+}
+.vault-address-new {
+  color: var(--v-accent-text);
+}
+.vault-address-new:disabled {
+  cursor: default;
+  color: var(--v-muted);
+}
+.vault-address-new:disabled .vault-address-mark {
+  color: var(--v-muted);
 }
 .vault-address-show:focus-visible {
   outline: 2px solid var(--v-accent);

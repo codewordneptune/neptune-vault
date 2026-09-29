@@ -9,6 +9,22 @@
 
 import { createTheme, type MantineColorsTuple } from '@mantine/core';
 
+// A dropdown (a menu, a select's list) keeps clear of the sticky header and,
+// on a phone, of the tab bar, safe areas included, and opens the other way
+// when there is no room. Measured each time one is placed, so turning the
+// phone or a larger text size counts.
+const clearOfBars = {
+  get top() {
+    return (document.querySelector('.vault-topbar')?.getBoundingClientRect().bottom ?? 0) + 8;
+  },
+  get bottom() {
+    // The tab bar along a phone's foot; on a wide screen it is a rail at the side.
+    const bar = document.querySelector('.vault-tabbar')?.getBoundingClientRect();
+    const atFoot = bar !== undefined && bar.width > bar.height && bar.bottom >= window.innerHeight - 1;
+    return (atFoot ? window.innerHeight - bar.top : 0) + 8;
+  },
+};
+
 const dark: MantineColorsTuple = [
   '#e4ebf4', // text
   '#c9d4e2',
@@ -85,6 +101,8 @@ export const theme = createTheme({
     // not an empty placeholder; that placeholder was also an element a menu
     // may not hold among its items.
     Menu: { defaultProps: { radius: 'sm', shadow: 'lg', withInitialFocusPlaceholder: false } },
+    // Menus and selects place their dropdowns through Popover.
+    Popover: { defaultProps: { middlewares: { flip: { padding: clearOfBars }, shift: true } } },
     // A dialog's header is a <header>, which outside an article or a section
     // is a page banner: every open dialog would give the page a second one.
     // It is only a row holding the title and the close button, so it says so.

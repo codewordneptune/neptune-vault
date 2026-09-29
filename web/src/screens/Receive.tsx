@@ -4,8 +4,8 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { ActionIcon, Button, Group, Loader, Menu, Modal, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowsMaximize, IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconDotsVertical, IconPencil, IconShare, IconTrash } from '@tabler/icons-react';
+import { ActionIcon, Button, Combobox, Group, Loader, Menu, Modal, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton, useCombobox } from '@mantine/core';
+import { IconArrowsMaximize, IconCheck, IconChevronDown, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconShare, IconTrash } from '@tabler/icons-react';
 import { useElementSize } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
@@ -120,31 +120,17 @@ export function Receive() {
     void readLabels(services.core, services.accounts.engine, account.id).then(setLabels, () => setLabels({}));
   }, [services, account]);
   const key = addressKey(kind, index);
-  const [forText, setForText] = useState('');
-  const [forError, setForError] = useState<string | null>(null);
-  useEffect(() => {
-    setForText(labels[key] ?? '');
-    setForError(null);
-  }, [key, labels]);
-  const saveFor = async () => {
-    if (!account) return;
-    const clean = cleanLabel(forText);
-    if (clean === (labels[key] ?? '')) return;
-    try {
-      setLabels(await writeLabel(services.core, services.accounts.engine, account.id, kind, index, clean));
-    } catch (e) {
-      setForError((e as Error).message);
-    }
-  };
-
-  // Names are also given, changed and removed from "Your addresses". After
-  // the dialog or menu closes, focus goes back to that row's button, or to
-  // the list's summary when the row has gone, and what happened is said.
+  // Names are given, changed and removed in the address list: "Name it" on a
+  // row without one, its menu on a row with one, both opening one dialog.
+  // After it closes, focus goes back to that row's menu or "Name it", or to
+  // New address when the row has gone, and what happened is said.
   const [naming, setNaming] = useState<{ kind: KeyKind; index: number } | null>(null);
   const moreButtons = useRef(new Map<string, HTMLButtonElement>());
-  const summaryRef = useRef<HTMLElement>(null);
+  const nameButtons = useRef(new Map<string, HTMLButtonElement>());
+  const rowButtons = useRef(new Map<string, HTMLButtonElement>());
+  const newRef = useRef<HTMLButtonElement>(null);
   const refocus = (k: string) => {
-    setTimeout(() => (moreButtons.current.get(k) ?? summaryRef.current)?.focus(), 0);
+    setTimeout(() => (moreButtons.current.get(k) ?? nameButtons.current.get(k) ?? newRef.current)?.focus(), 0);
   };
   const nameAddress = async (k: KeyKind, i: number, text: string) => {
     if (!account) return;
@@ -369,21 +355,16 @@ export function Receive() {
   // never be looked at, and a payment to it never found, so none is offered.
   const used = account ? nextKeyIndicesOf(account)[kind] : 0;
   const furthest = used + KEY_LOOKAHEAD;
-  const mainRef = useRef<HTMLButtonElement>(null);
-  const newRef = useRef<HTMLButtonElement>(null);
+  // Each new address is the next one no payment has reached, and it is
+  // added to the list where it is asked for, so nothing above it moves. At
+  // the last one offered, New address rests and focus goes to the new row.
   const nextUnused = () => {
     const next = Math.min(furthest, Math.max(used, index + 1));
     setIndices({ ...indices, [kind]: next });
     setSaid(`${KIND_LABELS[kind]} address ${next} is showing. Payments to it arrive in this wallet like any other.`);
-    // At the last address offered, this button goes: focus moves to the one beside it.
-    if (next >= furthest) setTimeout(() => mainRef.current?.focus(), 0);
+    if (next >= furthest) setTimeout(() => rowButtons.current.get(addressKey(kind, next))?.focus(), 0);
   };
-  const toMain = () => {
-    setIndices({ ...indices, [kind]: 0 });
-    setSaid(`${KIND_LABELS[kind]} main address is showing.`);
-    setTimeout(() => newRef.current?.focus(), 0);
-  };
-  // Every address with a name or a payment, to find one again and see who paid.
+  // How many payments came through each address, for its row in the list.
   const payments = new Map<string, number>();
   for (const u of utxos) {
     const stored = u.stored as { own_build_height?: number | null } | undefined;
@@ -398,17 +379,38 @@ export function Receive() {
       payments.set(k, (payments.get(k) ?? 0) + 1);
     }
   }
-  const known = [...new Set([...Object.keys(labels), ...payments.keys()])]
-    .map((k) => ({ key: k, kind: k.split(':')[0] as KeyKind, index: Number(k.split(':')[1]) }))
-    .filter((a) => a.kind in KIND_LABELS && Number.isSafeInteger(a.index))
-    .sort((a, b) => Object.keys(KIND_LABELS).indexOf(a.kind) - Object.keys(KIND_LABELS).indexOf(b.kind) || a.index - b.index);
-  const showAddress = (k: KeyKind, i: number) => {
-    setKind(k);
-    setIndices((all) => ({ ...all, [k]: i }));
-    setTab('address');
-    setSaid(`${KIND_LABELS[k]} ${i === 0 ? 'main address' : `address ${i}`} is showing.`);
-    window.scrollTo({ top: 0 });
+  // The list, for the type showing: its main address first, then each with
+  // a name or a payment, and the one showing even with neither (a new one).
+  const listed = [
+    ...new Set([
+      0,
+      index,
+      ...[...Object.keys(labels), ...payments.keys()].filter((k) => k.startsWith(`${kind}:`)).map((k) => Number(k.slice(kind.length + 1))),
+    ]),
+  ]
+    .filter((i) => Number.isSafeInteger(i) && i >= 0)
+    .sort((a, b) => a - b);
+  // Choosing a row shows that address on the tab in use: on a request, the
+  // request moves to it. The row stays under the finger; the code above changes.
+  const showIndex = (i: number) => {
+    setIndices((all) => ({ ...all, [kind]: i }));
+    const which = `${KIND_LABELS[kind]} ${i === 0 ? 'main address' : `address ${i}`}`;
+    setSaid(tab === 'request' ? `The request is now to ${which}.` : `${which} is showing.`);
   };
+  // Another type shows its own addresses, from the one of it shown last.
+  const chooseKind = (k: KeyKind) => {
+    setKind(k);
+    setSaid(`${KIND_LABELS[k]} ${indices[k] === 0 ? 'main address' : `address ${indices[k]}`} is showing.`);
+  };
+  // The type is a value chosen from a list, so it is a select (a button and
+  // a list box), not a menu of commands: "Standard, selected". Opened from
+  // the keyboard, the arrows start at the type showing.
+  const typeBox = useCombobox({
+    onDropdownClose: () => typeBox.resetSelectedOption(),
+    onDropdownOpen: (source) => {
+      if (source === 'keyboard') typeBox.selectActiveOption();
+    },
+  });
   useEffect(() => {
     if (index > furthest) setIndices((all) => ({ ...all, [kind]: furthest }));
   }, [index, furthest, kind]);
@@ -416,15 +418,6 @@ export function Receive() {
   const requestInvalid = Boolean(amountError || noteError || labelError);
   // Copy and Share point to View-only's caution while it shows.
   const cautionId = kind === 'viewing' ? 'kind-note' : undefined;
-  // Said only once another address than the main one is showing: on the main
-  // address the address type under the buttons already says what it is, and
-  // the worry this answers (will a new address work?) has not come up.
-  const rotationNote =
-    index === 0
-      ? null
-      : `${tab === 'address' ? '' : 'The request is to '}${KIND_LABELS[kind]} address ${index}. ` +
-        (index >= furthest ? 'More addresses open up once one of these has received a payment.' : 'Payments to it arrive in this wallet like any other.');
-
   // The note above the code: a payment on its way to the address showing,
   // or, for a request, how much of it has arrived.
   const arrivingNote =
@@ -447,8 +440,8 @@ export function Receive() {
         </div>
         {/* What the card is for comes first, then the code and what to do with
             it: on the first screen for an address, after its fields for a
-            request. The kind of address, which both tabs share and most people
-            leave at Standard, is a quiet menu under the buttons. */}
+            request. Which address it is, shared by both tabs and most often
+            Standard's main one, is a list under the buttons. */}
         <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
           <Stack>
             <Tabs.List grow>
@@ -459,27 +452,6 @@ export function Receive() {
 
             <Tabs.Panel value="address">
               <Stack>
-                {/* Who it is for, on this device only: History names what arrives
-                    through it. Asked for a new address, the one made for one
-                    payer; the main address is everyone's, so it has no field. */}
-                {index > 0 && (
-                  <TextInput
-                    label="Who is this address for? (optional, only on this device)"
-                    placeholder="For example: Alice, or the market stall"
-                    value={forText}
-                    maxLength={ADDRESS_LABEL_MAX}
-                    onChange={(e) => {
-                      setForText(e.currentTarget.value);
-                      setForError(null);
-                    }}
-                    onBlur={() => void saveFor()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void saveFor();
-                    }}
-                    error={forError}
-                    description="Payments to this address show this name in History. Kept on this device and in its backup files, never sent anywhere."
-                  />
-                )}
                 {arrivingNote && (
                   <Done role={undefined}>
                     {arrivingNote}
@@ -573,154 +545,167 @@ export function Receive() {
               </Stack>
             </Tabs.Panel>
 
-            {/* The address type as one quiet menu under the buttons, like the
-                header's wallet menu: most people keep Standard, and the menu
-                says in full what each type is for when it opens. */}
-            <div ref={typeCol}>
-              <Menu
-                position="bottom-start"
-                // As wide as the card, up to a comfortable measure, and lined
-                // up with its edge (the button's padding reaches 8 px outside
-                // it); turned upwards rather than run under the header or the
-                // tab bar.
-                width={typeColWidth ? Math.min(typeColWidth, 440) : undefined}
-                offset={{ mainAxis: 8, crossAxis: 8 }}
-                middlewares={{ flip: { padding: { top: 72, bottom: 72 } }, shift: true }}
-              >
-                <Menu.Target>
-                  <button type="button" className="vault-picker" aria-label={`${KIND_LABELS[kind]} address. Change the address type`}>
-                    {KIND_LABELS[kind]} address
-                    <IconChevronDown size={16} stroke={1.8} aria-hidden />
-                  </button>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  <Menu.Label>Address type</Menu.Label>
-                  {(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => (
-                    <Menu.Item
-                      key={k}
-                      onClick={() => setKind(k)}
-                      aria-current={k === kind || undefined}
-                      leftSection={k === kind ? <IconCheck size={16} stroke={1.8} /> : <span style={{ width: 16 }} />}
-                    >
-                      <Text span display="block" size="sm" fw={600}>
-                        {KIND_LABELS[k]}
-                      </Text>
-                      <Text span display="block" size="xs" c="dimmed">
-                        {KIND_NOTES[k]}
-                      </Text>
-                    </Menu.Item>
-                  ))}
-                </Menu.Dropdown>
-              </Menu>
-            </div>
-          </Stack>
-        </Tabs>
-
-        {/* The sentence about the address showing, then what can be done about it, on the line beneath. */}
-        <Stack gap={4}>
-          {rotationNote && (
-            <Text size="sm" c="dimmed">
-              {rotationNote}
-            </Text>
-          )}
-          <Group gap={6} wrap="nowrap">
-            {index > 0 && (
-              <UnstyledButton ref={mainRef} onClick={toMain} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
-                Main address
-              </UnstyledButton>
-            )}
-            {index > 0 && index < furthest && (
-              <Text span size="sm" c="dimmed" aria-hidden>
-                ·
-              </Text>
-            )}
-            {index < furthest && (
-              <UnstyledButton ref={newRef} onClick={nextUnused} c="var(--v-accent-text)" fz="sm" className={index > 0 ? 'vault-tap-link' : 'vault-tap-link vault-tap-link-start'}>
-                New address
-              </UnstyledButton>
-            )}
-          </Group>
-          {/* Why a new one, in a line on the main address, where the question
-              comes up; Standard's note in the menu says more. A View-only
-              address is for watching, not for payers. */}
-          {index === 0 && kind !== 'viewing' && (
-            <Text size="sm" c="dimmed">
-              Payments to one address can be linked.
-            </Text>
-          )}
-        </Stack>
-
-        {/* Every address with a name or a payment: who each was for, and how
-            many payments came through it. Choosing one shows it above. */}
-        {known.length > 0 && (
-          <details className="vault-setting">
-            <summary ref={summaryRef}>
-              <IconChevronRight size={16} stroke={1.8} className="vault-setting-chevron" aria-hidden />
-              Your addresses
-            </summary>
-            <div className="vault-setting-body">
-              <Stack gap={2}>
-                {known.map((a) => {
-                  const count = payments.get(a.key) ?? 0;
-                  const current = a.kind === kind && a.index === index;
-                  const title = addressTitle(a.kind, a.index);
-                  const named = Boolean(labels[a.key]);
+            {/* Which address shows, for both tabs: its type as the heading, then
+                the addresses of that type (the main one first, then each with
+                a name or a payment), then a new one. */}
+            <Stack gap={6}>
+              <div ref={typeCol}>
+                <Combobox
+                  store={typeBox}
+                  onOptionSubmit={(value) => {
+                    chooseKind(value as KeyKind);
+                    typeBox.closeDropdown();
+                  }}
+                  position="bottom-start"
+                  // As wide as the card, up to a comfortable measure, and lined
+                  // up with its edge (the button's padding reaches 8 px outside it).
+                  width={typeColWidth ? Math.min(typeColWidth, 440) : undefined}
+                  offset={{ mainAxis: 8, crossAxis: 8 }}
+                >
+                  <Combobox.Target targetType="button" withExpandedAttribute>
+                    <button type="button" className="vault-picker" aria-label={`Address type, ${KIND_LABELS[kind]} addresses`} onClick={() => typeBox.toggleDropdown()}>
+                      {KIND_LABELS[kind]} addresses
+                      <IconChevronDown size={16} stroke={1.8} aria-hidden />
+                    </button>
+                  </Combobox.Target>
+                  <Combobox.Dropdown>
+                    <div className="vault-picker-label" aria-hidden>
+                      Address type
+                    </div>
+                    <Combobox.Options aria-label="Address type">
+                      {(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => (
+                        <Combobox.Option key={k} value={k} active={k === kind} aria-selected={k === kind} className="vault-type-option">
+                          <span className="vault-type-check" aria-hidden>
+                            {k === kind && <IconCheck size={16} stroke={1.8} />}
+                          </span>
+                          <span>
+                            <Text span display="block" size="sm" fw={600}>
+                              {KIND_LABELS[k]}
+                            </Text>
+                            <Text span display="block" size="xs" c="dimmed">
+                              {KIND_NOTES[k]}
+                            </Text>
+                          </span>
+                        </Combobox.Option>
+                      ))}
+                    </Combobox.Options>
+                  </Combobox.Dropdown>
+                </Combobox>
+              </div>
+              <div role="group" aria-label={`${KIND_LABELS[kind]} addresses`}>
+                {listed.map((i) => {
+                  const k = addressKey(kind, i);
+                  const current = i === index;
+                  const count = payments.get(k) ?? 0;
+                  const name = labels[k];
+                  const title = addressTitle(kind, i);
                   // Only a new address is named; a main address named before can still lose its name.
-                  const nameable = a.index > 0;
+                  const nameable = i > 0;
+                  // Who it is for leads when it has a name; its number and payments go beneath.
+                  const number = i === 0 ? 'Main address' : `Address ${i}`;
+                  const details = [name ? number : null, count === 0 ? null : count === 1 ? '1 payment' : `${count} payments`].filter(Boolean).join(' · ');
                   return (
-                    <div key={a.key} className="vault-row vault-address-row">
-                      <UnstyledButton className="vault-address-show" onClick={() => showAddress(a.kind, a.index)} aria-current={current || undefined}>
-                        <Text size="sm" fw={600}>
-                          {title}
-                          {named && (
-                            <>
-                              {' · '}
-                              <bdi>{labels[a.key]}</bdi>
-                            </>
+                    <div key={k} className="vault-row vault-address-row">
+                      <UnstyledButton
+                        className="vault-address-show"
+                        onClick={() => showIndex(i)}
+                        aria-current={current || undefined}
+                        ref={(el: HTMLButtonElement | null) => {
+                          if (el) rowButtons.current.set(k, el);
+                          else rowButtons.current.delete(k);
+                        }}
+                      >
+                        <span className="vault-address-mark" aria-hidden>
+                          {current && <IconCheck size={16} stroke={1.8} />}
+                        </span>
+                        <span className="vault-address-title">
+                          <Text span display="block" size="sm" fw={current ? 600 : 400}>
+                            {name ? <bdi>{name}</bdi> : number}
+                          </Text>
+                          {details && (
+                            <Text span display="block" size="xs" c="dimmed">
+                              {details}
+                            </Text>
                           )}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {count === 0 ? 'No payments yet' : count === 1 ? '1 payment' : `${count} payments`}
-                          {current ? ' · showing' : ''}
-                        </Text>
+                        </span>
                       </UnstyledButton>
-                      {(nameable || named) && (
-                        <Menu position="bottom-end">
-                          <Menu.Target>
-                            <ActionIcon
-                              variant="subtle"
-                              size="lg"
-                              className="vault-tap"
-                              aria-label={`More for ${title}`}
-                              ref={(el: HTMLButtonElement | null) => {
-                                if (el) moreButtons.current.set(a.key, el);
-                                else moreButtons.current.delete(a.key);
-                              }}
-                            >
-                              <IconDotsVertical size={20} stroke={1.8} />
-                            </ActionIcon>
-                          </Menu.Target>
-                          <Menu.Dropdown>
-                            {nameable && (
-                              <Menu.Item leftSection={<IconPencil size={16} stroke={1.8} />} onClick={() => setNaming({ kind: a.kind, index: a.index })}>
-                                {named ? 'Rename' : 'Name it'}
-                              </Menu.Item>
-                            )}
-                            {named && (
-                              <Menu.Item leftSection={<IconTrash size={16} stroke={1.8} />} onClick={() => void removeName(a.kind, a.index)}>
+                      <div className="vault-address-action">
+                        {nameable && !name && (
+                          <UnstyledButton
+                            onClick={() => setNaming({ kind, index: i })}
+                            aria-label={`Name it, ${title}`}
+                            c="var(--v-accent-text)"
+                            fz="sm"
+                            className="vault-tap-link"
+                            ref={(el: HTMLButtonElement | null) => {
+                              if (el) nameButtons.current.set(k, el);
+                              else nameButtons.current.delete(k);
+                            }}
+                          >
+                            Name it
+                          </UnstyledButton>
+                        )}
+                        {name && (
+                          <Menu position="bottom-end">
+                            <Menu.Target>
+                              <ActionIcon
+                                variant="subtle"
+                                size="lg"
+                                className="vault-tap"
+                                aria-label={`More for ${title}`}
+                                ref={(el: HTMLButtonElement | null) => {
+                                  if (el) moreButtons.current.set(k, el);
+                                  else moreButtons.current.delete(k);
+                                }}
+                              >
+                                <IconDotsVertical size={20} stroke={1.8} />
+                              </ActionIcon>
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                              {nameable && (
+                                <Menu.Item leftSection={<IconPencil size={16} stroke={1.8} />} onClick={() => setNaming({ kind, index: i })}>
+                                  Rename
+                                </Menu.Item>
+                              )}
+                              <Menu.Item leftSection={<IconTrash size={16} stroke={1.8} />} onClick={() => void removeName(kind, i)}>
                                 Remove name
                               </Menu.Item>
-                            )}
-                          </Menu.Dropdown>
-                        </Menu>
-                      )}
+                            </Menu.Dropdown>
+                          </Menu>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
-              </Stack>
-            </div>
-          </details>
-        )}
+                <div className="vault-row vault-address-row">
+                  <UnstyledButton ref={newRef} className="vault-address-show vault-address-new" onClick={nextUnused} disabled={index >= furthest}>
+                    <span className="vault-address-mark" aria-hidden>
+                      <IconPlus size={16} stroke={1.8} />
+                    </span>
+                    <span className="vault-address-title">
+                      <Text span display="block" size="sm" fw={600}>
+                        New address
+                      </Text>
+                      {index >= furthest && (
+                        <Text span display="block" size="xs" c="dimmed">
+                          More addresses open up once one of these has received a payment.
+                        </Text>
+                      )}
+                    </span>
+                  </UnstyledButton>
+                </div>
+              </div>
+              {/* Why a new one, on the main address, where the question comes up.
+                  A View-only address is for watching, not for payers. */}
+              {index === 0 && kind !== 'viewing' && (
+                <Text size="sm" c="dimmed">
+                  Payments to one address can be linked, so give each payer a new one.
+                </Text>
+              )}
+            </Stack>
+          </Stack>
+        </Tabs>
+
         <Modal
           opened={naming !== null}
           onClose={() => {
@@ -765,7 +750,7 @@ export function Receive() {
   );
 }
 
-/** Who one address was given to, from "Your addresses". Removing a name is the row menu's other item. */
+/** Who one address was given to, from the address list. Removing a name is the row menu's other item. */
 function AddressNameForm({ title, initial, onSave, onCancel }: { title: string; initial: string; onSave: (text: string) => Promise<void>; onCancel: () => void }) {
   const [text, setText] = useState(initial);
   const [error, setError] = useState<string | null>(null);
