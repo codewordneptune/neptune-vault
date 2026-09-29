@@ -991,7 +991,7 @@ export function Send() {
               </UnstyledButton>
             )}
             {/* For the whole send, however many recipients: kept in History on this device, never sent. */}
-            <TextInput label="Note to self (optional)" placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
+            <TextInput label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
             <div>
               <Text size="sm" fw={600} mb={6}>
                 Fee (NPT)
