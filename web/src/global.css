@@ -2091,28 +2091,14 @@ html {
   gap: 12px;
 }
 
-/* Copy and Share under a code on Receive: each as wide as its label needs,
-   Copy taking all the room left over, so a long label like "Copy address"
-   is never cut on a phone. Where even that does not fit, Share moves to a
-   line of its own, full width. */
+/* Copy and Share under a code on Receive: two exactly equal halves at
+   every width, so the pair centres on the code above it (a grid, as flex
+   halves came out 2 px apart by the buttons' borders). With a text size
+   too large for halves, each takes a row of its own; with no Share (no
+   share sheet), Copy takes the row. */
 .vault-receive-actions {
-  flex-wrap: wrap;
-}
-.vault-receive-actions > .mantine-Button-root {
-  flex: 1 0 auto;
-}
-.vault-receive-actions > .mantine-Button-root:first-child {
-  flex-grow: 999;
-}
-/* On a wide screen the code keeps its 420 px, centred, while the card is
-   wider: Copy and Share take equal halves of the row, so the pair centres
-   on the code above it. On a phone the code spans the card, and the rule
-   above holds. */
-@media (min-width: 900px) {
-  .vault-receive-actions > .mantine-Button-root,
-  .vault-receive-actions > .mantine-Button-root:first-child {
-    flex: 1 1 0;
-  }
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
 }
 
 /* The balance in another currency: the estimate as a figure of its own,

@@ -476,8 +476,10 @@ export function Receive() {
                   </Caution>
                 )}
                 <Group className="vault-receive-actions">
-                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address} aria-describedby={cautionId}>
-                    Copy address
+                  {/* One word, as Share is: the code above says what it copies, and
+                      so does the note it leaves. A screen reader hears it whole. */}
+                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address} aria-label="Copy address" aria-describedby={cautionId}>
+                    Copy
                   </Button>
                   {canShare && (
                     <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby={cautionId}>
@@ -535,8 +537,8 @@ export function Receive() {
                   </Caution>
                 )}
                 <Group className="vault-receive-actions">
-                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, 'Payment request copied', copyFailed)} disabled={requestInvalid} aria-describedby={cautionId}>
-                    Copy request
+                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, 'Payment request copied', copyFailed)} disabled={requestInvalid} aria-label="Copy request" aria-describedby={cautionId}>
+                    Copy
                   </Button>
                   <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid} aria-describedby={cautionId}>
                     Share
