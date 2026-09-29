@@ -212,7 +212,7 @@ export function AppProvider({ services, children }: { services: Services; childr
   useEffect(() => services.accounts.installVisibilityLock(), [services]);
 
   // One send at a time, decided before anything else happens: a second tap
-  // on "Send now" must not touch the job, the wake lock or the deferred
+  // on Send must not touch the job, the wake lock or the deferred
   // lock of the send already running.
   const sending = useRef(false);
   const sendAbort = useRef<AbortController | null>(null);

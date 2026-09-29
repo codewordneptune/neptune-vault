@@ -56,7 +56,7 @@ const UNDER_THE_FIELD: ('label' | 'input' | 'description' | 'error')[] = ['label
 
 
 export function Send() {
-  const { services, account, balance, utxos, history, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, awaitingApproval, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
+  const { services, account, balance, utxos, history, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
   const reducedMotion = useReducedMotion();
   // Narrow by the text's own measure (enlarged text counts): four fee choices stack.
   const stacked = useMediaQuery('(max-width: 22em)');
@@ -65,7 +65,8 @@ export function Send() {
   // A mouse or trackpad: a computer, where advice about touching the screen reads as a bug.
   const finePointer = useMediaQuery('(pointer: fine)');
   // Sends go out only once the person confirms with a password or passkey,
-  // unless they turned that off for this wallet in Settings.
+  // unless they turned that off for this wallet in Settings. It is asked on
+  // the review, before anything starts: the proof is made only after it.
   const confirmEach = confirmsSends(account);
   const location = useLocation();
   const navigate = useNavigate();
@@ -322,6 +323,28 @@ export function Send() {
 
   // A second tap while the first is being taken up does nothing at all.
   const [starting, setStarting] = useState(false);
+  // The password or passkey, asked on the review before the send starts.
+  // Once given it holds until the review closes, so a send that turns out
+  // to need its coins published ("Send anyway") is not asked again.
+  const [approvedHere, setApprovedHere] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [passkeyOffered, setPasskeyOffered] = useState<boolean | null>(null);
+  useEffect(() => {
+    void services.accounts.passkeySupported().then(setPasskeyOffered, () => setPasskeyOffered(false));
+  }, [services]);
+  const hasPasskey = Boolean(account?.passkey) && passkeyOffered === true;
+  useEffect(() => {
+    if (step === 'review') return;
+    setApprovedHere(false);
+    setPassword('');
+    setPasswordError(null);
+    setPasskeyError(null);
+  }, [step]);
+  const needsApproval = confirmEach && !approvedHere;
   const send = async (acceptLustration: boolean) => {
     if (!account || starting || !totals) return;
     setStarting(true);
@@ -341,7 +364,6 @@ export function Send() {
           fee_nau: totals.feeNau.toString(),
         },
         cleanNote(note) || null,
-        { confirm: confirmEach },
       );
       setLastRecipient(sentTo);
       setLastLabel(sentTo && linkMeta?.label ? linkMeta.label : null);
@@ -376,6 +398,44 @@ export function Send() {
     } finally {
       setStarting(false);
     }
+  };
+
+  // The password, checked before anything starts; a wrong one is said at the field.
+  const confirmWithPassword = async () => {
+    if (!account || !password) return;
+    setChecking(true);
+    setPasswordError(null);
+    let ok = false;
+    try {
+      await services.accounts.verifyPassword(account.id, password);
+      ok = true;
+    } catch (e) {
+      setPasswordError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+    } finally {
+      setChecking(false);
+    }
+    if (!ok) return;
+    setPassword('');
+    setApprovedHere(true);
+    await send(askLustration);
+  };
+  // The passkey, likewise. Closing its sheet is a choice, not an error: the password is there instead.
+  const confirmWithPasskey = async () => {
+    if (!account) return;
+    setPasskeyBusy(true);
+    setPasskeyError(null);
+    let ok = false;
+    try {
+      await services.accounts.verifyPasskey(account.id);
+      ok = true;
+    } catch (e) {
+      if (!isCancellation(e)) setPasskeyError((e as Error).message);
+    } finally {
+      setPasskeyBusy(false);
+    }
+    if (!ok) return;
+    setApprovedHere(true);
+    await send(askLustration);
   };
 
   const applyText = useCallback(
@@ -526,7 +586,6 @@ export function Send() {
           <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
             <Amount nau={paymentsTotalNau(request)} hidden={masked} /> to <span dir="auto" className="vault-bidi">{who}</span> · fee <Amount nau={BigInt(request.fee_nau ?? '0')} hidden={masked} />
           </Text>
-          {awaitingApproval && <ConfirmSendCard />}
           <div aria-live="polite">
             {/* The steps that wait on the node have no measure of their own: a
                 turning mark says the app is at work, not stuck. */}
@@ -741,12 +800,50 @@ export function Send() {
               label={`The fee is ${showNau(totals.feeNau)} NPT. Nodes usually do not finish proving sends that pay less than about ${LOW_FEE} NPT, so this one may never confirm. Send it anyway.`}
             />
           )}
+          {/* The password or passkey, before the send starts: the proof is made only after it. */}
+          {needsApproval && (
+            <Stack gap="sm">
+              {hasPasskey && (
+                <>
+                  <Button leftSection={<IconFingerprint size={16} stroke={1.8} />} loading={passkeyBusy || (starting && !checking)} disabled={running || checking || ((totals.feeHigh || totals.feeLow) && !feeAgreed)} onClick={() => void confirmWithPasskey()}>
+                    Send with passkey
+                  </Button>
+                  {passkeyError && <ErrorLine>{passkeyError}</ErrorLine>}
+                  <Divider label="or use the password" labelPosition="center" />
+                </>
+              )}
+              <PasswordInput
+                label="Password"
+                description="Asked before each send from this wallet."
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.currentTarget.value);
+                  setPasswordError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void confirmWithPassword();
+                  }
+                }}
+                error={passwordError}
+                errorProps={{ role: 'alert' }}
+                autoComplete="current-password"
+              />
+            </Stack>
+          )}
           <Group grow>
             <Button variant="default" onClick={() => setStep('form')}>
               Edit
             </Button>
-            <Button onClick={() => void send(askLustration)} loading={starting} disabled={running || ((totals.feeHigh || totals.feeLow) && !feeAgreed)}>
-              {askLustration ? 'Send anyway' : confirmEach ? 'Confirm and send' : 'Send now'}
+            <Button
+              variant={needsApproval && hasPasskey ? 'light' : 'filled'}
+              onClick={() => void (needsApproval ? confirmWithPassword() : send(askLustration))}
+              loading={checking || (starting && !passkeyBusy)}
+              disabled={running || passkeyBusy || ((totals.feeHigh || totals.feeLow) && !feeAgreed) || (needsApproval && !password)}
+            >
+              {/* The password above says what confirms it; the button says what it does. */}
+              {askLustration ? 'Send anyway' : 'Send'}
             </Button>
           </Group>
         </Stack>
@@ -1115,120 +1212,3 @@ function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/**
- * The person's confirmation of a running send: the passkey where one is set
- * up (its sheet opens by itself), the password otherwise, and as the
- * fallback. The proof runs meanwhile; nothing reaches the node until this is
- * done, and declining stops the proof.
- */
-function ConfirmSendCard() {
-  const { services, account, approveSend, declineSend } = useApp();
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [passkeyBusy, setPasskeyBusy] = useState(false);
-  const [passkeyError, setPasskeyError] = useState<string | null>(null);
-  const [supported, setSupported] = useState<boolean | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const hasPasskey = Boolean(account?.passkey) && supported === true;
-  useEffect(() => {
-    void services.accounts.passkeySupported().then(setSupported, () => setSupported(false));
-  }, [services]);
-
-  const withPasskey = useCallback(async () => {
-    if (!account) return;
-    setPasskeyBusy(true);
-    setPasskeyError(null);
-    try {
-      await services.accounts.verifyPasskey(account.id);
-      approveSend();
-    } catch (e) {
-      // Closing the system sheet is a choice: the password is there instead.
-      if (!isCancellation(e)) setPasskeyError((e as Error).message);
-      inputRef.current?.focus();
-    } finally {
-      setPasskeyBusy(false);
-    }
-  }, [services, account, approveSend]);
-
-  // The passkey's sheet opens by itself, once: the person has just asked to send.
-  const prompted = useRef(false);
-  useEffect(() => {
-    if (supported === null) return;
-    if (hasPasskey && !prompted.current) {
-      prompted.current = true;
-      void withPasskey();
-    } else if (!hasPasskey) {
-      // After the screen has put focus on its title, so the field keeps it.
-      const t = setTimeout(() => inputRef.current?.focus(), 0);
-      return () => clearTimeout(t);
-    }
-  }, [supported, hasPasskey, withPasskey]);
-
-  const withPassword = async () => {
-    if (!account) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await services.accounts.verifyPassword(account.id, password);
-      setPassword('');
-      approveSend();
-    } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form
-      className="vault-confirm-send"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void withPassword();
-      }}
-    >
-      <Stack gap="sm">
-        <Title order={3}>Confirm this send</Title>
-        <Text size="sm" c="dimmed">
-          The proof is being made meanwhile. Nothing goes out until you confirm.
-        </Text>
-        {hasPasskey && (
-          <>
-            <Button leftSection={<IconFingerprint size={16} stroke={1.8} />} loading={passkeyBusy} onClick={() => void withPasskey()}>
-              Confirm with passkey
-            </Button>
-            {passkeyError && (
-              <Text size="sm" c="var(--v-danger-text)" role="alert">
-                {passkeyError}
-              </Text>
-            )}
-            <Divider label="or use the password" labelPosition="center" />
-          </>
-        )}
-        <PasswordInput
-          ref={inputRef}
-          label="Password"
-          value={password}
-          onChange={(e) => {
-            setPassword(e.currentTarget.value);
-            setError(null);
-          }}
-          error={error}
-          errorProps={{ role: 'alert' }}
-          autoComplete="current-password"
-        />
-        <Group grow>
-          <Button variant="default" onClick={declineSend}>
-            Don't send
-          </Button>
-          <Button type="submit" variant={hasPasskey ? 'light' : 'filled'} loading={busy} disabled={!password}>
-            Confirm
-          </Button>
-        </Group>
-      </Stack>
-    </form>
-  );
-}

@@ -763,7 +763,7 @@ function ConfirmSendsSetting() {
         }}
       />
       <Text size="sm" c="dimmed" pl={32}>
-        {on ? 'Asked while the proof is made, so it adds no waiting. Nothing leaves this wallet until you confirm, and turning this off takes the password or passkey.' : 'Sends from this wallet go out as soon as the proof is ready. Anyone with the unlocked device can send.'}
+        {on ? 'Asked on the review, before the send is prepared. Nothing leaves this wallet until you confirm, and turning this off takes the password or passkey.' : 'Sends from this wallet go out as soon as the proof is ready. Anyone with the unlocked device can send.'}
       </Text>
       {asking && <ConfirmSendsOff onClose={close} />}
     </Stack>
