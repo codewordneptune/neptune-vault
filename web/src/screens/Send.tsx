@@ -1017,7 +1017,7 @@ export function Send() {
                   upgraders take part of it for proving the send into a block,
                   and pick the sends that pay them best first. */}
               <Text size="sm" c="dimmed" mt={6}>
-                Nodes finish proving your send before it can go into a block, and are paid from the fee. A higher fee gets that done sooner when many sends are waiting.
+                Higher fees go first when the network is busy.
               </Text>
             </div>
             {feePreset === 'custom' && (
