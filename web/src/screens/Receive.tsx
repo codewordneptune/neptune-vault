@@ -458,7 +458,8 @@ export function Receive() {
           <Stack>
             <Tabs.List grow>
               <Tabs.Tab value="address">Address</Tabs.Tab>
-              <Tabs.Tab value="request">Request payment</Tabs.Tab>
+              {/* What is shared, as the Address tab says it: the app's one word for it. */}
+              <Tabs.Tab value="request">Payment request</Tabs.Tab>
             </Tabs.List>
             <SegmentedControl
               aria-label="Address kind"
