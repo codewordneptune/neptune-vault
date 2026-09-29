@@ -2096,6 +2096,16 @@ html {
 .vault-receive-actions > .mantine-Button-root:first-child {
   flex-grow: 999;
 }
+/* On a wide screen the code keeps its 420 px, centred, while the card is
+   wider: Copy and Share take equal halves of the row, so the pair centres
+   on the code above it. On a phone the code spans the card, and the rule
+   above holds. */
+@media (min-width: 900px) {
+  .vault-receive-actions > .mantine-Button-root,
+  .vault-receive-actions > .mantine-Button-root:first-child {
+    flex: 1 1 0;
+  }
+}
 
 /* The balance in another currency: the estimate as a figure of its own,
    a step below the balance, and where it comes from, quietly, beside it. */
