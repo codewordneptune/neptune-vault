@@ -1136,7 +1136,7 @@ export function Send() {
                   and pick the sends that pay them best first. A hint about a
                   choice comes before it, as under every field's name. */}
               <Text id="fee-hint" size="sm" c="dimmed" mb={6}>
-                Higher fees go first when the network is busy.
+                Higher-fee sends go first at busy times.
               </Text>
               <SegmentedControl
                 fullWidth
