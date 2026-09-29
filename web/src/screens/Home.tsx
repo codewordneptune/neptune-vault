@@ -548,13 +548,19 @@ export function Home() {
             dismissSendJob();
           };
           // Not announced when it appears: the toast or the Send screen said it as it happened.
+          // Each sentence in one element: a notice stacks what it holds as
+          // lines, and the name, an element of its own, would break it there.
           return lastSend.state === 'unconfirmed' ? (
             <Caution title={UNANSWERED_TITLE} onClose={dismiss} closeLabel="Dismiss">
-              {amount(BigInt(lastSend.amountNau))} NPT to {who}, {formatDateTime(lastSend.at)}. {MAY_HAVE_GONE}
+              <span>
+                {amount(BigInt(lastSend.amountNau))} NPT to {who}, {formatDateTime(lastSend.at)}. {MAY_HAVE_GONE}
+              </span>
             </Caution>
           ) : (
             <Done title="Sending" onClose={dismiss} closeLabel="Dismiss" role={undefined}>
-              {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee, {formatDateTime(lastSend.at)}. {SENDING_UNTIL_CONFIRMED}
+              <span>
+                {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee, {formatDateTime(lastSend.at)}. {SENDING_UNTIL_CONFIRMED}
+              </span>
             </Done>
           );
         })()
@@ -574,7 +580,10 @@ export function Home() {
           through, and its coins are held for nothing until it expires. */}
       {stuck && (
         <Caution title="This send is not going through">
-          {amount(BigInt(stuck.amountNau))} NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? shortAddress(stuck.recipient)}</bdi> : 'a recipient'}, {formatDateTime(stuck.timestampMs)}. The node no longer has it, so no block will take it. Give up on this send to free {amount(reservedFor(stuck))} NPT now; otherwise the wallet frees them on its own on {formatDateTime(expiresAt(stuck))}, when no block can take it any more.
+          {/* The sentence in one element, as above, and the button on its own line. */}
+          <span>
+            {amount(BigInt(stuck.amountNau))} NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? shortAddress(stuck.recipient)}</bdi> : 'a recipient'}, {formatDateTime(stuck.timestampMs)}. The node no longer has it, so no block will take it. Give up on this send to free {amount(reservedFor(stuck))} NPT now; otherwise the wallet frees them on its own on {formatDateTime(expiresAt(stuck))}, when no block can take it any more.
+          </span>
           <Group mt={4}>
             <Button variant="light" color="red" size="compact-sm" className="vault-tap" onClick={() => setGivingUp(stuck)}>
               Give up on this send
