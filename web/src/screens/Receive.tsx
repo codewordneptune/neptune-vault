@@ -44,9 +44,9 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
 // the desktop wallet's addresses page, but for reuse: every payment carries
 // its address's receiver identifier in the clear, so payments to one address
 // can be linked (neptune-wallet's own note on into_announcement), though
-// never their amounts. Shown right under the choice, on both tabs (a request
-// carries the same address), and before the code and its Copy and Share, so
-// the View-only caution is read before sharing.
+// never their amounts. Shown under the choice once Change opens it, where the
+// kind is chosen; View-only's caution shows whenever that kind is chosen,
+// right before Copy and Share, so it is read before sharing.
 const KIND_NOTES: Record<KeyKind, string> = {
   generation: `The one to use by default, but long: about ${showInt(3500)} characters. Reusing it is safe, but payments to the same address can be linked on the chain (not their amounts), so give each payer a new address when that matters. Technical name: ${KIND_PROTOCOL.generation} address.`,
   ec_hybrid: `Short enough to paste into a chat. Give each one to a single sender: if one is reused widely, a future quantum computer could reveal the payments sent to it, though never spend them. Technical name: ${KIND_PROTOCOL.ec_hybrid} address.`,
@@ -227,6 +227,13 @@ export function Receive() {
   const labelError = requestLabel.trim() ? metaProblem(requestLabel.trim()) : null;
   const [requestNote, setRequestNote] = useState('');
   const noteError = requestNote.trim() ? metaProblem(requestNote.trim()) : null;
+  // Most requests are an amount alone: the name and the note wait behind a link.
+  const [extrasOpen, setExtrasOpen] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  // Most people keep Standard: the choice of address type, with what each is
+  // for, is one line under the buttons until Change opens it.
+  const [typesOpen, setTypesOpen] = useState(false);
+  const typesRef = useRef<HTMLDivElement>(null);
   const linkLabel = labelError ? undefined : requestLabel.trim() || undefined;
   const linkNote = noteError ? undefined : requestNote.trim() || undefined;
   const paymentLink = paymentUri(address, linkAmount, linkNote, linkLabel);
@@ -451,9 +458,9 @@ export function Receive() {
         <div className="sr-only" role="status">
           {said}
         </div>
-        {/* What the card is for comes first; the kind of address, which both
-            tabs share and most people leave at Standard, comes under it, and
-            then each tab's own content, as its panel. */}
+        {/* What the card is for comes first, then the code and what to do with
+            it, on the first screen. The kind of address, which both tabs share
+            and most people leave at Standard, is a line under the buttons. */}
         <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
           <Stack>
             <Tabs.List grow>
@@ -461,16 +468,6 @@ export function Receive() {
               {/* What is shared, as the Address tab says it: the app's one word for it. */}
               <Tabs.Tab value="request">Payment request</Tabs.Tab>
             </Tabs.List>
-            <SegmentedControl
-              aria-label="Address kind"
-              aria-describedby="kind-note"
-              fullWidth
-              orientation={stacked ? 'vertical' : 'horizontal'}
-              value={kind}
-              onChange={(v) => setKind(v as KeyKind)}
-              data={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))}
-            />
-            <KindNote kind={kind} />
 
             <Tabs.Panel value="address">
               <Stack>
@@ -512,6 +509,8 @@ export function Receive() {
                     Could not derive this address: {addressError}
                   </Text>
                 )}
+                {/* Its exposure cannot be taken back: read right before sharing. */}
+                {kind === 'viewing' && <KindNote kind="viewing" />}
                 <Group className="vault-receive-col vault-receive-actions">
                   <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address} aria-describedby="kind-note">
                     Copy address
@@ -536,22 +535,40 @@ export function Receive() {
                   description={requestEstimate}
                   inputWrapperOrder={['label', 'input', 'description', 'error']}
                 />
-                <TextInput
-                  label="Your name (optional)"
-                  description="Shown to the sender as an unverified name."
-                  value={requestLabel}
-                  onChange={(e) => setRequestLabel(e.currentTarget.value)}
-                  error={labelError}
-                  maxLength={255}
-                />
-                <TextInput
-                  label="Note for the sender (optional)"
-                  description="Shown to the sender only; it does not reach you."
-                  value={requestNote}
-                  onChange={(e) => setRequestNote(e.currentTarget.value)}
-                  error={noteError}
-                  maxLength={255}
-                />
+                {extrasOpen ? (
+                  <>
+                    <TextInput
+                      ref={nameRef}
+                      label="Your name (optional)"
+                      description="Shown to the sender as an unverified name."
+                      value={requestLabel}
+                      onChange={(e) => setRequestLabel(e.currentTarget.value)}
+                      error={labelError}
+                      maxLength={255}
+                    />
+                    <TextInput
+                      label="Note for the sender (optional)"
+                      description="Shown to the sender only; it does not reach you."
+                      value={requestNote}
+                      onChange={(e) => setRequestNote(e.currentTarget.value)}
+                      error={noteError}
+                      maxLength={255}
+                    />
+                  </>
+                ) : (
+                  <UnstyledButton
+                    onClick={() => {
+                      setExtrasOpen(true);
+                      setTimeout(() => nameRef.current?.focus(), 0);
+                    }}
+                    aria-expanded={false}
+                    c="var(--v-accent-text)"
+                    fz="sm"
+                    className="vault-tap-link vault-tap-link-start"
+                  >
+                    Add a name or a note
+                  </UnstyledButton>
+                )}
                 {arrivedNote && (
                   <Done role={undefined}>
                     {arrivedNote}
@@ -564,6 +581,7 @@ export function Receive() {
                     {requestQrNote}
                   </Text>
                 )}
+                {kind === 'viewing' && <KindNote kind="viewing" />}
                 <Group className="vault-receive-col vault-receive-actions">
                   <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, 'Payment request copied', copyFailed)} disabled={requestInvalid} aria-describedby="kind-note">
                     Copy request
@@ -574,6 +592,44 @@ export function Receive() {
                 </Group>
               </Stack>
             </Tabs.Panel>
+
+            {typesOpen ? (
+              <Stack gap="xs" ref={typesRef}>
+                <SegmentedControl
+                  aria-label="Address type"
+                  aria-describedby={kind === 'viewing' ? undefined : 'kind-note'}
+                  fullWidth
+                  orientation={stacked ? 'vertical' : 'horizontal'}
+                  value={kind}
+                  onChange={(v) => setKind(v as KeyKind)}
+                  data={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))}
+                />
+                {/* View-only's caution is above its buttons; the others' notes are read here, where they are chosen. */}
+                {kind !== 'viewing' && <KindNote kind={kind} />}
+              </Stack>
+            ) : (
+              <Group gap={6} wrap="nowrap">
+                <Text size="sm" c="dimmed">
+                  Address type: {KIND_LABELS[kind]}
+                </Text>
+                <Text span size="sm" c="dimmed" aria-hidden>
+                  ·
+                </Text>
+                <UnstyledButton
+                  onClick={() => {
+                    setTypesOpen(true);
+                    setTimeout(() => typesRef.current?.querySelector<HTMLInputElement>('input:checked')?.focus(), 0);
+                  }}
+                  aria-expanded={false}
+                  aria-label={`Change the address type, now ${KIND_LABELS[kind]}`}
+                  c="var(--v-accent-text)"
+                  fz="sm"
+                  className="vault-tap-link"
+                >
+                  Change
+                </UnstyledButton>
+              </Group>
+            )}
           </Stack>
         </Tabs>
 
