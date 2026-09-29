@@ -263,7 +263,8 @@ export function Home() {
   const severalOf = (e: HistoryEntry) => ((e.record.payments?.length ?? 0) > 1 ? (e.record.payments ?? []) : null);
   // A row says who, when and how much. Who: the contact a send went to, the
   // name of the address a payment came in through, or how many a send paid.
-  // Without a name, the title says what happened. The line under it is the
+  // A send's note to self names it when no contact does, or when it paid
+  // several. Without either, the title says what happened. The line under it is the
   // time, and the state only while it is not final and the title does not
   // already say it. Block counts and the fee are in the sheet.
   const whoOf = (e: HistoryEntry): string | null => {
@@ -272,6 +273,13 @@ export function Home() {
     const several = severalOf(e);
     if (several) return `${several.length} recipients`;
     return contactFor(e.record.recipient)?.name ?? null;
+  };
+  /** A send's note to self, when it has one. */
+  const noteOf = (e: HistoryEntry): string | null => (e.kind === 'sent' && e.record.note ? e.record.note : null);
+  /** The row's title when a name or a note gives one: the note before a count of recipients. */
+  const rowNameOf = (e: HistoryEntry): string | null => {
+    const note = noteOf(e);
+    return note && (severalOf(e) || !whoOf(e)) ? note : whoOf(e);
   };
   /** What happened, in one word: a send reads Sending until a block confirms it. */
   const stateTitleOf = (e: HistoryEntry): string => {
@@ -282,7 +290,7 @@ export function Home() {
   };
   /** The state beside the time: Pending or Not sent, unless the title already says so. */
   const stateWordOf = (e: HistoryEntry): { word: string; tone: 'pending' | 'failed' } | null => {
-    const saidInTitle = !whoOf(e) && e.kind !== 'received';
+    const saidInTitle = !rowNameOf(e) && e.kind !== 'received';
     if (saidInTitle) return null;
     if (notSent(e)) return { word: 'Not sent', tone: 'failed' };
     if (e.record.status === 'pending') return { word: 'Pending', tone: 'pending' };
@@ -299,7 +307,8 @@ export function Home() {
   /** What a screen reader says for a row, list or table alike. */
   const rowLabelOf = (e: HistoryEntry) => {
     const who = whoOf(e);
-    const whom = !who ? '' : e.kind === 'received' ? `, ${who}'s address` : `, to ${who}`;
+    const name = rowNameOf(e);
+    const whom = !name ? '' : name !== who ? `, ${name}` : e.kind === 'received' ? `, ${who}'s address` : `, to ${who}`;
     const money = notSent(e) ? `${spoken(e.shownNau)} NPT, not taken from your balance` : `${e.kind === 'received' ? 'plus' : 'minus'} ${spoken(e.shownNau)} NPT`;
     // A send says its state in its first word (Sending, Not sent); a payment in says pending.
     const pending = e.kind === 'received' && e.record.status === 'pending' ? ', pending' : '';
@@ -631,7 +640,7 @@ export function Home() {
                           <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
                           <div style={{ minWidth: 0 }}>
                             <Text size="sm" fw={600} className="vault-row-title">
-                              {whoOf(e) ? <bdi>{whoOf(e)}</bdi> : stateTitleOf(e)}
+                              {rowNameOf(e) ? <bdi>{rowNameOf(e)}</bdi> : stateTitleOf(e)}
                             </Text>
                             <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
                               {formatTime(h.timestampMs)}
@@ -732,7 +741,7 @@ export function Home() {
             {detail.kind === 'sent' && !detail.record.recipient && (
               <DetailRow label="Recipient" value="Not recorded. The send was made on another device or before a restore, so the amount above includes the fee." />
             )}
-            {detail.record.note && <DetailRow label="Note in the request" value={detail.record.note} isolate />}
+            {detail.record.note && <DetailRow label="Note" value={detail.record.note} isolate />}
             {detail.record.error && <DetailRow label="What happened" value={detail.record.error} />}
             {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
             {(outputsOf(detail).length > 0 || (detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n)) && (

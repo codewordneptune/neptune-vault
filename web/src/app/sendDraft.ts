@@ -20,6 +20,8 @@ export interface SendDraft {
   feePreset: string;
   fee: string;
   linkMeta: { label?: string; message?: string } | null;
+  /** The note to self, as typed or as a request's message filled it in. */
+  note: string;
 }
 
 const drafts = new Map<string, SendDraft>();

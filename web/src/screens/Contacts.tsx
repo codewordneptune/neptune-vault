@@ -213,12 +213,15 @@ export function ContactForm({
   onClose,
   onSave,
   fixedAddress,
+  initialName,
 }: {
   opened: boolean;
   onClose: () => void;
   onSave: (name: string, address: string) => Promise<void>;
   /** When set, the address is given and only a name is asked for. */
   fixedAddress?: string;
+  /** A name to start from: the one a payment request gave, for the person to accept or change. */
+  initialName?: string;
 }) {
   const [name, setName] = useState('');
   const [address, setAddress] = useState(fixedAddress ?? '');
@@ -246,13 +249,13 @@ export function ContactForm({
 
   useEffect(() => {
     if (opened) {
-      setName('');
+      setName(initialName ?? '');
       setAddress(fixedAddress ?? '');
       setError(null);
       setAddressError(null);
       setNameError(null);
     }
-  }, [opened, fixedAddress]);
+  }, [opened, fixedAddress, initialName]);
 
   // Same check as the Send screen: required, valid for the current network.
   // A scan passes the address it filled in, since the state has not caught up yet.

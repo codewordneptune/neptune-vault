@@ -119,7 +119,7 @@ export interface HistoryRecord {
   changeNau?: string | null;
   /** For sends: the outputs' canonical commitments, the explorer's keys. Absent on rows from before it was kept. */
   outputs?: HistoryOutput[];
-  /** For sends made from a payment link: the link's message, kept for the payer; never sent anywhere. */
+  /** For sends: the person's note to self (a payment request's message fills it in), kept on this device; never sent anywhere. */
   note?: string | null;
   /** For receipts: the coin's time lock, if any. A locked payment is real but cannot be spent before this date. */
   releaseDateMs?: number | null;

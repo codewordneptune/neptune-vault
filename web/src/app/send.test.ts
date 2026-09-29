@@ -7,7 +7,7 @@ import { openVaultDb, type AccountRecord, type UtxoRecord, type VaultDb } from '
 import { CHAIN_PARTS, type InputPlan, type SendPlan, type SendRequest, type StoredUtxo, type WalletCore } from '../backend/types';
 import { chainView, testEngine, type TestEngine } from '../backend/engineForTests';
 import type { Prover } from '../backend/types';
-import { RequiresLustrationError, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
+import { cleanNote, RequiresLustrationError, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
 
 function stored(hash: string, amount: string, height: number): StoredUtxo {
   return { hash, amount_nau: amount, amount, key_kind: 'generation', key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
@@ -462,5 +462,16 @@ describe('the time a send is stamped with', () => {
     expect(sendStamp(0, 9 * 3600_000).clockProblem).toBeNull();
     expect(sendStamp(0, 10 * 3600_000).clockProblem).toMatch(/10 hours behind the network/);
     expect(sendStamp(0, 3 * 86400_000).clockProblem).toMatch(/3 days behind the network/);
+  });
+});
+
+describe('a note to self on a send', () => {
+  it('is kept as one clean line, cut to length', () => {
+    expect(cleanNote('  Rent,   September  ')).toBe('Rent, September');
+    // A character that could reorder the text around it, and a line break, become spaces.
+    expect(cleanNote('Pay\u202eBob')).toBe('Pay Bob');
+    expect(cleanNote('a\nb')).toBe('a b');
+    expect(cleanNote('x'.repeat(SEND_NOTE_MAX + 20))).toHaveLength(SEND_NOTE_MAX);
+    expect(cleanNote('   ')).toBe('');
   });
 });

@@ -9,6 +9,7 @@
 // coin spent a moment earlier is not undone by a send that read it before.
 
 import { NodeError, type NodeClient } from '../node/rpc';
+import { cleanText } from '../util/text';
 import type { LedgerAnswer, LedgerOp, Prover, ProveOutcome, ProveProgress } from '../backend/types';
 import type { HistoryRecord } from '../storage/db';
 import type { SendPlan, SendRequest, StoredUtxo, WalletCore } from '../backend/types';
@@ -30,9 +31,17 @@ export const MAX_SEND_ATTEMPTS = 3;
 /** How the core says a block arrived between the proofs and the tip it read (`TIP_MOVED` in send.rs). */
 const TIP_MOVED = 'a new block arrived while the send was being built';
 
+/** How long a note to self on a send may be: a short line. */
+export const SEND_NOTE_MAX = 120;
+
+/** A note to self as kept: no characters that change how text around it reads, and cut to length. */
+export function cleanNote(text: string): string {
+  return cleanText(text).slice(0, SEND_NOTE_MAX);
+}
+
 /** What a send is told besides what to pay. */
 export interface SendOptions {
-  /** The payment link's message, kept with the send for the payer's own record. */
+  /** The person's note to self, kept with the send in History on this device; never sent anywhere. */
   note?: string | null;
   /** The person's Cancel. */
   signal?: AbortSignal;

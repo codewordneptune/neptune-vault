@@ -16,7 +16,7 @@ import { formatAbout, formatDuration } from '../util/time';
 import { useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
 import { fiatOf, fiatOfTyped, formatFiat } from '../util/fiat';
-import { MAX_PAYMENTS, paymentsTotalNau, RequiresLustrationError, SendBusyError, SendUnconfirmedError } from '../app/send';
+import { cleanNote, MAX_PAYMENTS, paymentsTotalNau, SEND_NOTE_MAX, RequiresLustrationError, SendBusyError, SendUnconfirmedError } from '../app/send';
 import { isCancellation } from '../app/passkey';
 import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
@@ -82,8 +82,16 @@ export function Send() {
     sendJob?.done && sendJob.ending === 'sent' && sendJob.request.payments.length === 1 ? sendJob.request.payments[0].recipient.trim().toLowerCase() : null,
   );
   const [savedName, setSavedName] = useState<string | null>(null);
-  // From a payment link: shown on the review step, never used for anything else.
+  // From a payment link: its name is shown as unverified and offered as the
+  // contact's name after the send; its message fills the note in.
   const [linkMeta, setLinkMeta] = useState<{ label?: string; message?: string } | null>(prefill ? null : (draft?.linkMeta ?? null));
+  // A note to self, kept with the send in History on this device only. A
+  // request's message replaces it, as the request's amount replaces the
+  // amount, and goes with the request when the recipient changes.
+  const [note, setNote] = useState(prefill ? '' : (draft?.note ?? ''));
+  const filledNote = useRef<string | null>(prefill ? null : (draft?.linkMeta?.message ?? null));
+  // The name a request gave, offered for the contact after the send.
+  const [lastLabel, setLastLabel] = useState<string | null>(null);
   // The review is a dialog like every other: centred on a wide screen, the
   // whole screen on a phone.
   const phone = useMediaQuery('(max-width: 36em)');
@@ -170,8 +178,8 @@ export function Send() {
   };
 
   // The form as it stands, kept as this wallet's draft when the screen goes.
-  const formNow = useRef<SendDraft>({ recipient, amount, extras, feePreset, fee, linkMeta });
-  formNow.current = { recipient, amount, extras, feePreset, fee, linkMeta };
+  const formNow = useRef<SendDraft>({ recipient, amount, extras, feePreset, fee, linkMeta, note });
+  formNow.current = { recipient, amount, extras, feePreset, fee, linkMeta, note };
   const draftFor = useRef(account?.id ?? null);
   draftFor.current = account?.id ?? null;
   useEffect(
@@ -332,14 +340,17 @@ export function Send() {
           accept_lustration: acceptLustration,
           fee_nau: totals.feeNau.toString(),
         },
-        linkMeta?.message ?? null,
+        cleanNote(note) || null,
         { confirm: confirmEach },
       );
       setLastRecipient(sentTo);
+      setLastLabel(sentTo && linkMeta?.label ? linkMeta.label : null);
       setRecipient('');
       setAmount('');
       setExtras([]);
       setLinkMeta(null);
+      setNote('');
+      filledNote.current = null;
       setTotals(null);
       setStep('form');
     } catch (e) {
@@ -354,6 +365,8 @@ export function Send() {
         setAmount('');
         setExtras([]);
         setLinkMeta(null);
+        setNote('');
+        filledNote.current = null;
         setTotals(null);
         setStep('form');
       } else {
@@ -376,9 +389,24 @@ export function Send() {
       setRecipientError(null);
       if (parsed.amount) setAmount(parsed.amount);
       setLinkMeta(parsed.label || parsed.message ? { label: parsed.label, message: parsed.message } : null);
+      // A request fills the form from itself: its message replaces the note.
+      // Without one, a note the person wrote stays; one an earlier request filled in goes.
+      // What an earlier request filled in is read now: the update runs later, after the ref has moved on.
+      const message = parsed.message ? cleanNote(parsed.message) : '';
+      const earlier = filledNote.current;
+      setNote((current) => (message ? message : current === earlier ? '' : current));
+      filledNote.current = message || null;
     },
     [],
   );
+  // The request no longer applies (another recipient): its name goes, and
+  // its message too while the note is still the one it filled in.
+  const dropRequest = () => {
+    setLinkMeta(null);
+    const earlier = filledNote.current;
+    setNote((current) => (current === earlier ? '' : current));
+    filledNote.current = null;
+  };
 
   // A link for an added recipient gives its address and amount. The name
   // and note a link can carry are shown for the first recipient only.
@@ -670,32 +698,26 @@ export function Send() {
               </Text>
             )}
           </div>
-          {(linkMeta?.label || linkMeta?.message) && (
+          {linkMeta?.label && (
             <div className="vault-link-meta-form">
               <IconLink size={16} stroke={1.8} aria-hidden />
               <div style={{ minWidth: 0 }}>
-                {linkMeta.label && (
-                  <div style={{ minWidth: 0 }}>
-                    <Text size="xs" c="dimmed">
-                      Name in the request (unverified)
-                    </Text>
-                    <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
-                      {linkMeta.label}
-                    </Text>
-                  </div>
-                )}
-                {linkMeta.message && (
-                  <div style={{ minWidth: 0 }}>
-                    <Text size="xs" c="dimmed">
-                      Note in the request
-                    </Text>
-                    <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
-                      {linkMeta.message}
-                    </Text>
-                  </div>
-                )}
+                <Text size="xs" c="dimmed">
+                  Name in the request (unverified)
+                </Text>
+                <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
+                  {linkMeta.label}
+                </Text>
               </div>
             </div>
+          )}
+          {cleanNote(note) && (
+            <Text size="sm">
+              <Text span inherit c="dimmed">
+                Note to self:{' '}
+              </Text>
+              <bdi>{cleanNote(note)}</bdi>
+            </Text>
           )}
           <Text size="sm" c="dimmed">
             Spendable while this is pending: {showNau(balance.spendableNau - heldNau)} NPT. After it confirms, usually within an hour: {showNau(balance.spendableNau - totalNau)} NPT.
@@ -835,7 +857,7 @@ export function Send() {
                   else {
                     setRecipient(value);
                     setRecipientError(null);
-                    setLinkMeta(null);
+                    dropRequest();
                   }
                 }}
                 onBlur={() => void checkRecipient()}
@@ -850,30 +872,16 @@ export function Send() {
                 }
               />
             </div>
-            {linkMeta && (linkMeta.label || linkMeta.message) && (
+            {linkMeta?.label && (
               <div className="vault-link-meta-form">
                 <IconLink size={16} stroke={1.8} aria-hidden />
                 <div style={{ minWidth: 0 }}>
-                  {linkMeta.label && (
-                    <div style={{ minWidth: 0 }}>
-                      <Text size="xs" c="dimmed">
-                        Name in the request (unverified)
-                      </Text>
-                      <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
-                        {linkMeta.label}
-                      </Text>
-                    </div>
-                  )}
-                  {linkMeta.message && (
-                    <div style={{ minWidth: 0 }}>
-                      <Text size="xs" c="dimmed">
-                        Note in the request
-                      </Text>
-                      <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
-                        {linkMeta.message}
-                      </Text>
-                    </div>
-                  )}
+                  <Text size="xs" c="dimmed">
+                    Name in the request (unverified)
+                  </Text>
+                  <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
+                    {linkMeta.label}
+                  </Text>
                 </div>
               </div>
             )}
@@ -982,6 +990,8 @@ export function Send() {
                 Add another recipient
               </UnstyledButton>
             )}
+            {/* For the whole send, however many recipients: kept in History on this device, never sent. */}
+            <TextInput label="Note to self (optional)" placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
             <div>
               <Text size="sm" fw={600} mb={6}>
                 Fee (NPT)
@@ -1074,7 +1084,7 @@ export function Send() {
           setRecipientError(null);
           // The name and note came with a link, for the link's address. They
           // say nothing about this contact and must not be saved with a payment to them.
-          setLinkMeta(null);
+          dropRequest();
         }}
       />
       {lastRecipient && (
@@ -1082,6 +1092,7 @@ export function Send() {
           opened={saving}
           onClose={() => setSaving(false)}
           fixedAddress={lastRecipient}
+          initialName={lastLabel ?? undefined}
           onSave={async (name, address) => {
             if (!account) return;
             const c = await services.contacts.add(account.id, name, address);

@@ -90,8 +90,8 @@ export interface AppState {
   screenAwake: WakeLockState;
   /** Run a send as a job: screen kept on, auto-lock deferred, toast at the end. */
   /**
-   * `note` is the payment link's message, kept with the send for the
-   * payer's own record. With `confirm`, the send waits for `approveSend`
+   * `note` is the person's note to self, kept with the send in History
+   * on this device. With `confirm`, the send waits for `approveSend`
    * before anything reaches the node; the proof runs meanwhile.
    */
   startSend: (request: SendRequest, note?: string | null, options?: { confirm?: boolean }) => Promise<SendOutcome>;
