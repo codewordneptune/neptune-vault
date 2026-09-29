@@ -2083,7 +2083,7 @@ html {
   font-weight: 600;
 }
 
-/* Send's first line: what can be spent, and at its end Clear (or Undo). */
+/* Send's first line: what can be spent, and at its end Clear. */
 .vault-send-head {
   display: flex;
   align-items: flex-start;
