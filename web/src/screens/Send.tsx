@@ -993,8 +993,15 @@ export function Send() {
             {/* For the whole send, however many recipients: kept in History on this device, never sent. */}
             <TextInput label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
             <div>
-              <Text size="sm" fw={600} mb={6}>
+              <Text size="sm" fw={600}>
                 Fee (NPT)
+              </Text>
+              {/* What the fee buys, which the numbers alone do not say. Proof
+                  upgraders take part of it for proving the send into a block,
+                  and pick the sends that pay them best first. A hint about a
+                  choice comes before it, as under every field's name. */}
+              <Text id="fee-hint" size="sm" c="dimmed" mb={6}>
+                Higher fees go first when the network is busy.
               </Text>
               <SegmentedControl
                 fullWidth
@@ -1002,6 +1009,7 @@ export function Send() {
                 onPointerDown={() => (feeByPointer.current = true)}
                 onKeyDown={() => (feeByPointer.current = false)}
                 aria-label="Fee"
+                aria-describedby="fee-hint"
                 value={feePreset}
                 onChange={(v) => {
                   setFeePreset(v);
@@ -1023,12 +1031,6 @@ export function Send() {
                   ),
                 }))}
               />
-              {/* What the fee buys, which the numbers alone do not say. Proof
-                  upgraders take part of it for proving the send into a block,
-                  and pick the sends that pay them best first. */}
-              <Text size="sm" c="dimmed" mt={6}>
-                Higher fees go first when the network is busy.
-              </Text>
             </div>
             {feePreset === 'custom' && (
               <TextInput
