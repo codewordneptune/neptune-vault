@@ -982,7 +982,7 @@ export function Send() {
                 autoCorrect="off"
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="Address or payment request"
+                placeholder="Address or request"
                 value={recipient}
                 onChange={(e) => {
                   const value = e.currentTarget.value;
@@ -1078,7 +1078,7 @@ export function Send() {
                     autoCorrect="off"
                     autoComplete="off"
                     spellCheck={false}
-                    placeholder="Address or payment request"
+                    placeholder="Address or request"
                     value={x.recipient}
                     ref={(el) => {
                       if (el && focusExtra.current === x.id) {
