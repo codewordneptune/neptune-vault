@@ -479,13 +479,67 @@ export function Send() {
     updateExtra(id, { recipient: parsed.address, recipientError: null, ...(parsed.amount ? { amount: parsed.amount, amountError: null } : {}) });
   };
 
-  const [scanSaid, setScanSaid] = useState('');
+  const [formSaid, setFormSaid] = useState('');
   const onScanned = (text: string) => {
     const target = scanFor;
     setScanFor(null);
     if (target === null || target === 0) applyText(text);
     else applyExtraText(target, text);
-    setScanSaid(target === null || target === 0 ? 'Address filled from the QR code.' : `Address of recipient ${extras.findIndex((x) => x.id === target) + 2} filled from the QR code.`);
+    setFormSaid(target === null || target === 0 ? 'Address filled from the QR code.' : `Address of recipient ${extras.findIndex((x) => x.id === target) + 2} filled from the QR code.`);
+  };
+
+  // Clear starts the form over: every recipient and amount, the added ones,
+  // a request's name, the note, and a custom fee, back to the usual level
+  // (Low, Medium and High are a setting, kept between sends). Right after,
+  // the same button undoes it, until the form changes again or the screen
+  // goes: a slip costs one tap, and no dialog asks first.
+  const [cleared, setCleared] = useState<{ form: SendDraft; filledNote: string | null; maxExact: { text: string; nau: bigint } | null } | null>(null);
+  const clearedAt = useRef<string | null>(null);
+  const formKey = JSON.stringify([recipient, amount, extras.map((x) => [x.recipient, x.amount]), feePreset, fee, note, linkMeta]);
+  useEffect(() => {
+    if (!cleared) {
+      clearedAt.current = null;
+      return;
+    }
+    if (clearedAt.current === null) clearedAt.current = formKey;
+    else if (clearedAt.current !== formKey) setCleared(null);
+  }, [cleared, formKey]);
+  const hasContent = recipient.trim() !== '' || amount.trim() !== '' || extras.length > 0 || note.trim() !== '' || feePreset === 'custom';
+  const clearForm = () => {
+    setCleared({ form: { ...formNow.current, extras: formNow.current.extras.map((x) => ({ ...x })) }, filledNote: filledNote.current, maxExact });
+    setRecipient('');
+    setRecipientError(null);
+    setAmount('');
+    setAmountError(null);
+    setExtras([]);
+    setLinkMeta(null);
+    setNote('');
+    filledNote.current = null;
+    if (feePreset === 'custom') {
+      setFeePreset(rememberedPreset);
+      setFee(presetFee(rememberedPreset, undefined));
+    }
+    setFeeError(null);
+    setMaxExact(null);
+    setFeeAgreed(false);
+    setAskLustration(false);
+    setTotals(null);
+    setFormSaid('Form cleared. Undo is where Clear was.');
+  };
+  const undoClear = () => {
+    if (!cleared) return;
+    const f = cleared.form;
+    setRecipient(f.recipient);
+    setAmount(f.amount);
+    setExtras(f.extras);
+    setLinkMeta(f.linkMeta);
+    setNote(f.note);
+    filledNote.current = cleared.filledNote;
+    setFeePreset(f.feePreset);
+    setFee(f.fee);
+    setMaxExact(cleared.maxExact);
+    setCleared(null);
+    setFormSaid('Form restored.');
   };
 
   // A finished job's notice belongs to this visit; leaving the screen
@@ -856,7 +910,9 @@ export function Send() {
         <Modal opened={reviewSheet !== null} onClose={() => setStep('form')} title="Review" size={560} centered fullScreen={phone}>
           {reviewSheet}
         </Modal>
-        <div>
+        {/* What can be spent, and at the end of its line Clear: away from
+            Review, and there only while the form holds something to clear. */}
+        <div className="vault-send-head">
           <Title order={2} className="sr-only">
             Send
           </Title>
@@ -865,6 +921,18 @@ export function Send() {
             {/* Home counts held coins in the balance; here they are the difference. */}
             {balance.reservedNau > 0n && ` · ${services.settings.hideBalance ? '••••' : showNau(balance.reservedNau)} NPT held until your ${history.filter((h) => h.kind === 'sent' && h.status === 'pending').length > 1 ? 'sends confirm' : 'send confirms'}`}
           </Text>
+          {(hasContent || cleared) && (
+            <UnstyledButton
+              type="button"
+              onClick={cleared ? undoClear : clearForm}
+              aria-label={cleared ? 'Undo clear' : 'Clear the form'}
+              c="var(--v-accent-text)"
+              fz="sm"
+              className="vault-tap-link"
+            >
+              {cleared ? 'Undo' : 'Clear'}
+            </UnstyledButton>
+          )}
         </div>
         {/* How the last send ended, where the person is: focused, so it is
             read out, and dismissed here and on Home at once. */}
@@ -913,7 +981,7 @@ export function Send() {
           </div>
         )}
         <div className="sr-only" role="status">
-          {scanSaid}
+          {formSaid}
         </div>
         <form
           ref={formRef}

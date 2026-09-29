@@ -2083,6 +2083,14 @@ html {
   font-weight: 600;
 }
 
+/* Send's first line: what can be spent, and at its end Clear (or Undo). */
+.vault-send-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 /* Copy and Share under a code on Receive: each as wide as its label needs,
    Copy taking all the room left over, so a long label like "Copy address"
    is never cut on a phone. Where even that does not fit, Share moves to a
