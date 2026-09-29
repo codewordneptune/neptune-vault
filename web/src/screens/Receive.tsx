@@ -227,9 +227,6 @@ export function Receive() {
   const labelError = requestLabel.trim() ? metaProblem(requestLabel.trim()) : null;
   const [requestNote, setRequestNote] = useState('');
   const noteError = requestNote.trim() ? metaProblem(requestNote.trim()) : null;
-  // Most requests are an amount alone: the name and the note wait behind a link.
-  const [extrasOpen, setExtrasOpen] = useState(false);
-  const nameRef = useRef<HTMLInputElement>(null);
   // Most people keep Standard: the choice of address type, with what each is
   // for, is one line under the buttons until Change opens it.
   const [typesOpen, setTypesOpen] = useState(false);
@@ -459,8 +456,9 @@ export function Receive() {
           {said}
         </div>
         {/* What the card is for comes first, then the code and what to do with
-            it, on the first screen. The kind of address, which both tabs share
-            and most people leave at Standard, is a line under the buttons. */}
+            it: on the first screen for an address, after its fields for a
+            request. The kind of address, which both tabs share and most people
+            leave at Standard, is a line under the buttons. */}
         <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
           <Stack>
             <Tabs.List grow>
@@ -535,40 +533,24 @@ export function Receive() {
                   description={requestEstimate}
                   inputWrapperOrder={['label', 'input', 'description', 'error']}
                 />
-                {extrasOpen ? (
-                  <>
-                    <TextInput
-                      ref={nameRef}
-                      label="Your name (optional)"
-                      description="Shown to the sender as an unverified name."
-                      value={requestLabel}
-                      onChange={(e) => setRequestLabel(e.currentTarget.value)}
-                      error={labelError}
-                      maxLength={255}
-                    />
-                    <TextInput
-                      label="Note for the sender (optional)"
-                      description="Shown to the sender only; it does not reach you."
-                      value={requestNote}
-                      onChange={(e) => setRequestNote(e.currentTarget.value)}
-                      error={noteError}
-                      maxLength={255}
-                    />
-                  </>
-                ) : (
-                  <UnstyledButton
-                    onClick={() => {
-                      setExtrasOpen(true);
-                      setTimeout(() => nameRef.current?.focus(), 0);
-                    }}
-                    aria-expanded={false}
-                    c="var(--v-accent-text)"
-                    fz="sm"
-                    className="vault-tap-link vault-tap-link-start"
-                  >
-                    Add a name or a note
-                  </UnstyledButton>
-                )}
+                {/* All three shown from the start: a request is written before it is
+                    shared, so they read as what a request can hold, not a hidden extra. */}
+                <TextInput
+                  label="Your name (optional)"
+                  description="Shown to the sender as an unverified name."
+                  value={requestLabel}
+                  onChange={(e) => setRequestLabel(e.currentTarget.value)}
+                  error={labelError}
+                  maxLength={255}
+                />
+                <TextInput
+                  label="Note for the sender (optional)"
+                  description="Shown to the sender only; it does not reach you."
+                  value={requestNote}
+                  onChange={(e) => setRequestNote(e.currentTarget.value)}
+                  error={noteError}
+                  maxLength={255}
+                />
                 {arrivedNote && (
                   <Done role={undefined}>
                     {arrivedNote}
