@@ -4,15 +4,15 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { ActionIcon, Button, Group, Loader, Menu, Modal, Paper, SegmentedControl, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowsMaximize, IconChevronRight, IconCopy, IconDotsVertical, IconPencil, IconShare, IconTrash } from '@tabler/icons-react';
-import { useMediaQuery } from '@mantine/hooks';
+import { ActionIcon, Button, Group, Loader, Menu, Modal, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconArrowsMaximize, IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconDotsVertical, IconPencil, IconShare, IconTrash } from '@tabler/icons-react';
+import { useElementSize } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
 import { useEffect, useRef, useState } from 'react';
 
 import { QrFullScreen } from '../components/QrFullScreen';
-import { Caution, Done, Info } from '../components/Notice';
+import { Caution, Done } from '../components/Notice';
 
 import { formatNau, showNau, useApp } from '../app/AppContext';
 import { ADDRESS_LABEL_MAX, addressKey, cleanLabel, coinAddressKey, readLabels, writeLabel, type AddressLabels } from '../app/addressLabels';
@@ -27,7 +27,7 @@ import { groupDigits, showInt } from '../util/format';
 import { KEY_LOOKAHEAD, type KeyKind } from '../backend/types';
 
 // Labelled by what the address is for; the protocol's name for the kind is
-// said once, at the end of its note under the choice, not on the choice.
+// said at the end of its note and on the full-screen code, not in its label.
 const KIND_LABELS: Record<KeyKind, string> = {
   generation: 'Standard',
   ec_hybrid: 'Short',
@@ -39,14 +39,15 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
   viewing: 'Viewing',
 };
 
-// What the chosen kind is for, said the same way for each so they can be
-// compared: who it is for first, then its one trade-off. The guidance of
-// the desktop wallet's addresses page, but for reuse: every payment carries
+// What each kind is for, said the same way for each so they can be
+// compared: who it is for first, then its one trade-off, then the
+// protocol's name for it. All three are shown in the menu where the kind is
+// chosen; View-only's shows again as a caution whenever that kind is chosen,
+// right before Copy and Share, so it is read before sharing. The reuse
+// guidance is the desktop wallet's addresses page's: every payment carries
 // its address's receiver identifier in the clear, so payments to one address
 // can be linked (neptune-wallet's own note on into_announcement), though
-// never their amounts. Shown under the choice once Change opens it, where the
-// kind is chosen; View-only's caution shows whenever that kind is chosen,
-// right before Copy and Share, so it is read before sharing.
+// never their amounts.
 const KIND_NOTES: Record<KeyKind, string> = {
   generation: `The one to use by default, but long: about ${showInt(3500)} characters. Reusing it is safe, but payments to the same address can be linked on the chain (not their amounts), so give each payer a new address when that matters. Technical name: ${KIND_PROTOCOL.generation} address.`,
   ec_hybrid: `Short enough to paste into a chat. Give each one to a single sender: if one is reused widely, a future quantum computer could reveal the payments sent to it, though never spend them. Technical name: ${KIND_PROTOCOL.ec_hybrid} address.`,
@@ -58,22 +59,13 @@ function addressTitle(kind: KeyKind, index: number): string {
   return `${KIND_LABELS[kind]} ${index === 0 ? 'main address' : `address ${index}`}`;
 }
 
-// The note's shape says how much care the kind needs: information for
-// Standard and Short, which are both ordinary choices (the words carry
-// Short's one-sender rule), so switching between them changes only the
-// words; a caution for View-only, whose exposure cannot be taken back.
-function KindNote({ kind }: { kind: KeyKind }) {
-  const text = KIND_NOTES[kind];
-  return kind === 'viewing' ? <Caution id="kind-note">{text}</Caution> : <Info id="kind-note">{text}</Info>;
-}
-
 // A code on the card, like a printed one: the white runs on below it into a
 // slim footer that says it opens full screen. The hint sits under the code,
 // never on it: a Standard address makes a code so dense that covering any
 // of it can stop a camera reading it.
 function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => void }) {
   return (
-    <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-receive-col vault-qr-code">
+    <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-qr-code">
       <img src={src} alt={alt} />
       <span className="vault-qr-foot" aria-hidden>
         <IconArrowsMaximize size={16} stroke={1.8} />
@@ -92,7 +84,7 @@ function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => 
  */
 function QrPending() {
   return (
-    <div className="vault-receive-col vault-qr-code" style={{ cursor: 'default' }} aria-hidden>
+    <div className="vault-qr-code" style={{ cursor: 'default' }} aria-hidden>
       <div style={{ aspectRatio: '1', display: 'grid', placeItems: 'center' }}>
         <Loader size="sm" color="gray" />
       </div>
@@ -108,8 +100,6 @@ const QR_OPTIONS = { type: 'image/png' as const, width: 1200, margin: 2, errorCo
 export function Receive() {
   const { services, account, history, utxos, checkIncoming } = useApp();
   const hidden = services.settings.hideBalance ?? false;
-  // Narrow by the text's own measure (enlarged text counts): the three kinds stack.
-  const stacked = useMediaQuery('(max-width: 22em)');
   const [tab, setTab] = useState<Tab>('address');
   const [kind, setKind] = useState<KeyKind>('generation');
   const [indices, setIndices] = useState<Record<KeyKind, number>>({ generation: 0, ec_hybrid: 0, viewing: 0 });
@@ -119,6 +109,8 @@ export function Receive() {
   // Which code, if any, is shown as large as the screen allows.
   const [enlarged, setEnlarged] = useState<'address' | 'request' | null>(null);
   const index = indices[kind];
+  // The address type's menu is as wide as the card, up to a comfortable measure.
+  const { ref: typeCol, width: typeColWidth } = useElementSize();
 
   // Who each address was given to: a name kept on this device, which History
   // then shows for what arrives through it. The one way to know who paid.
@@ -227,10 +219,6 @@ export function Receive() {
   const labelError = requestLabel.trim() ? metaProblem(requestLabel.trim()) : null;
   const [requestNote, setRequestNote] = useState('');
   const noteError = requestNote.trim() ? metaProblem(requestNote.trim()) : null;
-  // Most people keep Standard: the choice of address type, with what each is
-  // for, is one line under the buttons until Change opens it.
-  const [typesOpen, setTypesOpen] = useState(false);
-  const typesRef = useRef<HTMLDivElement>(null);
   const linkLabel = labelError ? undefined : requestLabel.trim() || undefined;
   const linkNote = noteError ? undefined : requestNote.trim() || undefined;
   const paymentLink = paymentUri(address, linkAmount, linkNote, linkLabel);
@@ -426,9 +414,11 @@ export function Receive() {
   }, [index, furthest, kind]);
 
   const requestInvalid = Boolean(amountError || noteError || labelError);
+  // Copy and Share point to View-only's caution while it shows.
+  const cautionId = kind === 'viewing' ? 'kind-note' : undefined;
   // Said only once another address than the main one is showing: on the main
-  // address the kind selector above already says what it is, and the worry
-  // this answers (will a new address work?) has not come up.
+  // address the address type under the buttons already says what it is, and
+  // the worry this answers (will a new address work?) has not come up.
   const rotationNote =
     index === 0
       ? null
@@ -458,7 +448,7 @@ export function Receive() {
         {/* What the card is for comes first, then the code and what to do with
             it: on the first screen for an address, after its fields for a
             request. The kind of address, which both tabs share and most people
-            leave at Standard, is a line under the buttons. */}
+            leave at Standard, is a quiet menu under the buttons. */}
         <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
           <Stack>
             <Tabs.List grow>
@@ -499,7 +489,7 @@ export function Receive() {
                 {/* The address shortened, for recognising it by its start and end.
                     Copy, Share and the code always carry it in full; a Standard
                     address runs to some 3,500 characters, which nobody reads. */}
-                <div className="vault-receive-col vault-address-box">
+                <div className="vault-address-box">
                   <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
                 </div>
                 {addressError && (
@@ -508,13 +498,17 @@ export function Receive() {
                   </Text>
                 )}
                 {/* Its exposure cannot be taken back: read right before sharing. */}
-                {kind === 'viewing' && <KindNote kind="viewing" />}
-                <Group className="vault-receive-col vault-receive-actions">
-                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address} aria-describedby="kind-note">
+                {kind === 'viewing' && (
+                  <Caution id="kind-note">
+                    {KIND_NOTES.viewing}
+                  </Caution>
+                )}
+                <Group className="vault-receive-actions">
+                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address} aria-describedby={cautionId}>
                     Copy address
                   </Button>
                   {canShare && (
-                    <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby="kind-note">
+                    <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby={cautionId}>
                       Share
                     </Button>
                   )}
@@ -559,59 +553,66 @@ export function Receive() {
                 {/* The code, then what to do with it: the same order as the Address tab. */}
                 {requestQr && !requestInvalid && <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => setEnlarged('request')} />}
                 {requestQrNote && !requestInvalid && (
-                  <Text size="sm" c="dimmed" className="vault-receive-col">
+                  <Text size="sm" c="dimmed">
                     {requestQrNote}
                   </Text>
                 )}
-                {kind === 'viewing' && <KindNote kind="viewing" />}
-                <Group className="vault-receive-col vault-receive-actions">
-                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, 'Payment request copied', copyFailed)} disabled={requestInvalid} aria-describedby="kind-note">
+                {kind === 'viewing' && (
+                  <Caution id="kind-note">
+                    {KIND_NOTES.viewing}
+                  </Caution>
+                )}
+                <Group className="vault-receive-actions">
+                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, 'Payment request copied', copyFailed)} disabled={requestInvalid} aria-describedby={cautionId}>
                     Copy request
                   </Button>
-                  <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid} aria-describedby="kind-note">
+                  <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid} aria-describedby={cautionId}>
                     Share
                   </Button>
                 </Group>
               </Stack>
             </Tabs.Panel>
 
-            {typesOpen ? (
-              <Stack gap="xs" ref={typesRef}>
-                <SegmentedControl
-                  aria-label="Address type"
-                  aria-describedby={kind === 'viewing' ? undefined : 'kind-note'}
-                  fullWidth
-                  orientation={stacked ? 'vertical' : 'horizontal'}
-                  value={kind}
-                  onChange={(v) => setKind(v as KeyKind)}
-                  data={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))}
-                />
-                {/* View-only's caution is above its buttons; the others' notes are read here, where they are chosen. */}
-                {kind !== 'viewing' && <KindNote kind={kind} />}
-              </Stack>
-            ) : (
-              <Group gap={6} wrap="nowrap">
-                <Text size="sm" c="dimmed">
-                  Address type: {KIND_LABELS[kind]}
-                </Text>
-                <Text span size="sm" c="dimmed" aria-hidden>
-                  ·
-                </Text>
-                <UnstyledButton
-                  onClick={() => {
-                    setTypesOpen(true);
-                    setTimeout(() => typesRef.current?.querySelector<HTMLInputElement>('input:checked')?.focus(), 0);
-                  }}
-                  aria-expanded={false}
-                  aria-label={`Change the address type, now ${KIND_LABELS[kind]}`}
-                  c="var(--v-accent-text)"
-                  fz="sm"
-                  className="vault-tap-link"
-                >
-                  Change
-                </UnstyledButton>
-              </Group>
-            )}
+            {/* The address type as one quiet menu under the buttons, like the
+                header's wallet menu: most people keep Standard, and the menu
+                says in full what each type is for when it opens. */}
+            <div ref={typeCol}>
+              <Menu
+                position="bottom-start"
+                // As wide as the card, up to a comfortable measure, and lined
+                // up with its edge (the button's padding reaches 8 px outside
+                // it); turned upwards rather than run under the header or the
+                // tab bar.
+                width={typeColWidth ? Math.min(typeColWidth, 440) : undefined}
+                offset={{ mainAxis: 8, crossAxis: 8 }}
+                middlewares={{ flip: { padding: { top: 72, bottom: 72 } }, shift: true }}
+              >
+                <Menu.Target>
+                  <button type="button" className="vault-picker" aria-label={`${KIND_LABELS[kind]} address. Change the address type`}>
+                    {KIND_LABELS[kind]} address
+                    <IconChevronDown size={16} stroke={1.8} aria-hidden />
+                  </button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>Address type</Menu.Label>
+                  {(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => (
+                    <Menu.Item
+                      key={k}
+                      onClick={() => setKind(k)}
+                      aria-current={k === kind || undefined}
+                      leftSection={k === kind ? <IconCheck size={16} stroke={1.8} /> : <span style={{ width: 16 }} />}
+                    >
+                      <Text span display="block" size="sm" fw={600}>
+                        {KIND_LABELS[k]}
+                      </Text>
+                      <Text span display="block" size="xs" c="dimmed">
+                        {KIND_NOTES[k]}
+                      </Text>
+                    </Menu.Item>
+                  ))}
+                </Menu.Dropdown>
+              </Menu>
+            </div>
           </Stack>
         </Tabs>
 
@@ -639,6 +640,14 @@ export function Receive() {
               </UnstyledButton>
             )}
           </Group>
+          {/* Why a new one, in a line on the main address, where the question
+              comes up; Standard's note in the menu says more. A View-only
+              address is for watching, not for payers. */}
+          {index === 0 && kind !== 'viewing' && (
+            <Text size="sm" c="dimmed">
+              Payments to one address can be linked.
+            </Text>
+          )}
         </Stack>
 
         {/* Every address with a name or a payment: who each was for, and how

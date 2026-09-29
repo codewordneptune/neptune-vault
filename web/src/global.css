@@ -408,7 +408,10 @@ h3.mantine-Title-root.vault-prose-heading {
   font-size: var(--v-fs-md);
   letter-spacing: -0.01em;
 }
-button.vault-network {
+/* A value that opens a menu of the others, in muted text with a chevron:
+   the header's wallet pill, and Receive's address type. */
+button.vault-network,
+button.vault-picker {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -423,7 +426,8 @@ button.vault-network {
   border-radius: var(--v-radius-xs);
   transition: background 160ms ease, color 160ms ease;
 }
-button.vault-network:hover {
+button.vault-network:hover,
+button.vault-picker:hover {
   background: var(--v-surface-2);
   color: var(--v-text);
 }
@@ -437,6 +441,11 @@ button.vault-network::before {
 .vault-network-hint {
   font-size: var(--v-fs-xs);
   color: var(--v-muted);
+}
+/* Receive's address type: its words line up with the card's other text,
+   and it takes a line's height, its padding drawn only on hover. */
+button.vault-picker {
+  margin: -6px 0 -6px -8px;
 }
 
 /* Fixed tab bar; respects the home indicator, and in landscape the notch. */
@@ -1066,8 +1075,12 @@ html {
     min-height: 44px;
   }
   button.vault-network,
+  button.vault-picker,
   .vault-lock-other.vault-lock-other {
     min-height: 44px;
+  }
+  button.vault-picker {
+    margin-block: -12px;
   }
   .vault-notice-close.vault-notice-close {
     min-width: 44px;
@@ -1639,11 +1652,9 @@ html {
   .vault-main-home .vault-balance-head {
     justify-content: flex-start;
   }
-  /* The code, the address under it and their buttons as one centred column
-     at the code's width: large enough to scan from a monitor, with edges
-     that line up, and buttons in proportion to the gap between them. */
-  .vault-receive-col.vault-receive-col {
-    width: 100%;
+  /* Receive's code at a size to scan from a monitor, centred like a
+     picture; everything else on the card spans its width, as on Send. */
+  .vault-qr-code.vault-qr-code {
     max-width: 420px;
     margin-inline: auto;
   }
