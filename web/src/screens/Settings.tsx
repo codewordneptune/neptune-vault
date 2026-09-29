@@ -173,7 +173,8 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
         <Paper p={0}>
           {row('autolock', `After ${lockMinutes} min`)}
           {row('appearance', colorScheme === 'dark' ? 'Dark' : colorScheme === 'light' ? 'Light' : 'System')}
-          {row('currency', currency ?? 'Off')}
+          {/* The code as it is written, in capitals, as the currency menu shows it ("Euro (EUR)"). */}
+          {row('currency', currency ? currency.toUpperCase() : 'Off')}
           {row('advanced', 'Node, rescan, diagnostics')}
           {row('about', `Version ${__APP_VERSION__}`)}
         </Paper>
