@@ -13,7 +13,7 @@ import type { Services } from './services';
 import { useScreenWakeLock, type WakeLockState } from './wakeLock';
 import { clearSendDraft } from './sendDraft';
 import { forgetOwnAddresses } from './ownAddresses';
-import { SENDING_UNTIL_CONFIRMED } from './words';
+import { notSentReason, SENDING_UNTIL_CONFIRMED } from './words';
 
 /** A send in flight, or just finished; lives here so it survives the
  * Send screen unmounting when the app locks on backgrounding. */
@@ -518,7 +518,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         // Refused by the node after its note was written: the note goes back to what it was.
         if (recorded) noteLastSend(accountId, earlierNote);
         if (message) noteSendFailure(accountId, { at: Date.now(), accountId, amount: showNau(paymentsTotalNau(request)), recipient: request.payments[0]?.recipient ?? '', others: request.payments.length - 1, message });
-        if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message });
+        if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message: notSentReason(message) });
         throw e;
       } finally {
         // However it ended, it is no longer running: the note that said so goes.

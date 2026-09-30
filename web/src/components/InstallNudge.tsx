@@ -23,12 +23,12 @@ export function InstallNudge() {
 
   // On an iPhone or iPad, Safari deletes what a site keeps once it has not
   // been opened for about a week, unless it was added to the Home Screen:
-  // this is a caution, and it comes back until the app is installed.
+  // this is a caution, and it comes back until the app is installed. One
+  // sentence: the risk, then the two taps that remove it.
   if (state.kind === 'ios-share') {
-    const device = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'iPad' : 'iPhone';
     return (
       <Caution title="Add Neptune Vault to the Home Screen">
-        Safari deletes this wallet from this {device} if you do not open it for about a week. Add it to the Home Screen to keep it: in Safari, tap Share, then "Add to Home Screen". And keep your seed phrase.
+        Safari deletes this wallet if you do not open it for about a week; to keep it, tap Share, then Add to Home Screen.
       </Caution>
     );
   }
