@@ -1,8 +1,11 @@
-// Report a problem: the facts a bug report needs (whether this page can run
-// the threaded prover, what the device reports, the versions, and how the
-// last proof went), a button that copies them, and where to report. A page
-// of Settings, reached from About, and a screen of its own before a wallet
-// exists, reached from setup.
+// The facts about this device and the app (whether this page can run the
+// threaded prover, what the device reports, the versions, and how the last
+// proof went) and a button that copies them, on two pages, one for each
+// reason to look. Diagnostics, a page of Settings reached from Advanced,
+// for whoever wants to see how the wallet runs here. Report a problem,
+// reached from About, and a screen of its own before a wallet exists,
+// reached from setup: first what to do with the facts, and where to send
+// them. The same facts on both, so a report copies what Diagnostics shows.
 
 import { Anchor, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
 import { IconCopy } from '@tabler/icons-react';
@@ -17,8 +20,8 @@ import { BackLink } from './Privacy';
 
 type FactRow = { label: string; value: string; state?: 'ok' | 'warn' };
 
-/** The page itself, for a page that gives it a title. */
-export function ReportProblem() {
+/** The facts and their Copy button, for a page that gives them a title; for a report, first what to do with them and where. */
+export function DeviceDetails({ report = false }: { report?: boolean }) {
   const { services, account } = useApp();
   const accountId = account?.id ?? null;
   const engine = services.accounts.engine;
@@ -72,20 +75,22 @@ export function ReportProblem() {
   return (
     <Paper>
       <Stack>
-        <Text size="sm">Copy these details into your report.</Text>
+        {report && <Text size="sm">Copy these details into your report.</Text>}
         <Group>
           <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(details(), 'Details copied')}>
             Copy details
           </Button>
         </Group>
-        <Group gap="md" style={{ rowGap: 24 }}>
-          <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-            Report on GitHub
-          </Anchor>
-          <Anchor href={LINKS.telegram} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-            Ask in Telegram
-          </Anchor>
-        </Group>
+        {report && (
+          <Group gap="md" style={{ rowGap: 24 }}>
+            <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
+              Report on GitHub
+            </Anchor>
+            <Anchor href={LINKS.telegram} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
+              Ask in Telegram
+            </Anchor>
+          </Group>
+        )}
         <Stack gap="sm">
           {facts.map((f, i) => (
             <Fact key={i} {...f} />
@@ -111,13 +116,13 @@ export function ReportProblem() {
   );
 }
 
-/** On its own, before a wallet exists: the way back, then the title, as Settings' pages have them. */
-export function Diagnostics() {
+/** Report a problem on its own, before a wallet exists: the way back, then the title, as Settings' pages have them. */
+export function ReportProblemScreen() {
   return (
     <Stack gap="md">
       <BackLink />
       <Title order={2}>Report a problem</Title>
-      <ReportProblem />
+      <DeviceDetails report />
     </Stack>
   );
 }

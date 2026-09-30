@@ -66,8 +66,10 @@ choose.
 - The detail sheet shows each coin's identifier, with a link to it on
   the explorer (Mainnet only).
 - Rescan the chain fast, or from a block or a date.
-- Report a problem, in Settings under About: the device and app details a
-  bug report needs, with a button that copies them.
+- Diagnostics, in Settings under Advanced: how this device runs the
+  wallet, the versions and the last proof, with a button that copies them.
+  Report a problem, under About, shows the same details and where to send
+  them.
 - Optionally, an estimate of the balance in another currency (off by
   default; see [docs/PRIVACY.md](docs/PRIVACY.md) for what that tells the
   price site).
@@ -301,8 +303,8 @@ cd shells/tauri && npx --prefix ../../web tauri build
 ### Versions and deployment
 
 - The app has one version: the `version` field in `web/package.json`.
-  - It appears under About and on Report a problem, with the commit and
-    the build time.
+  - It appears under About and on Diagnostics and Report a problem, with
+    the commit and the build time.
   - Each release is tagged `v<version>`. Desktop releases are tagged
     `desktop-v<version>`.
 - Each push to `main` that touches the app or the crates does three things:
