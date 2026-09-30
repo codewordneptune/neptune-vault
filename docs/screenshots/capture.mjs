@@ -6,11 +6,13 @@
 // 1. Run the app and a Regtest node (README, "Run the web app" and "Local
 //    regtest node"): `cd web && npm run dev` serves http://localhost:4400.
 // 2. Start Chrome with a DevTools port and a profile of its own, e.g.
-//      chrome --headless=new --remote-debugging-port=9222 --user-data-dir=<dir> http://localhost:4400/?developer
-// 3. In that profile, make the demo wallet the screenshots show. Choose
-//    Regtest in setup's Network line (there because of ?developer), and
-//    restore the public test phrase ("abandon" 17 times, then "agent") as
-//    "Everyday", answering "Never: this seed phrase is new".
+//      chrome --headless=new --remote-debugging-port=9222 --user-data-dir=<dir> http://localhost:4400/
+// 3. In that profile, make the demo wallet the screenshots show. The first
+//    wallet goes on Mainnet: make one, tick Developer networks in Settings,
+//    Advanced, then choose Add a wallet in the header's wallet menu. Choose
+//    Regtest in its Network line and restore the public test phrase
+//    ("abandon" 17 times, then "agent") as "Everyday", answering "Never:
+//    this seed phrase is new".
 //    On Receive, add address 1 and name it "Alex". From the node, pay
 //    12.5 NPT to the main address and 3 NPT to Alex's, mining a block
 //    after each. Save the node's address as the contact "Sam", send Sam

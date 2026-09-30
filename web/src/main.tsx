@@ -11,7 +11,6 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OpenElsewhere } from './components/OpenElsewhere';
-import { applyDeveloperLink } from './app/developerLink';
 import { captureInstallPrompt } from './app/install';
 import { installNativeBehaviour, NATIVE } from './app/platform';
 import { AppProvider } from './app/AppContext';
@@ -39,14 +38,11 @@ function Root() {
       return;
     }
     createServices(owner).then(
-      async (s) => {
+      (s) => {
         owner.beforeRelease = () => s.accounts.lock();
         // Start again from nothing. The reload finds the wallet in the other
         // window and says so, with no state of this one left behind.
         owner.afterRelease = () => window.location.reload();
-        // Before the router reads the address, which it is taken out of. A
-        // setting that could not be saved is no reason not to start.
-        await applyDeveloperLink(s).catch(() => undefined);
         setServices(s);
       },
       (e) => setError((e as Error).message),

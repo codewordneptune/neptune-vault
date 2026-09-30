@@ -350,8 +350,8 @@ export function Onboarding() {
         </Paper>
       )}
       {/* The network is asked only with Developer networks on (Settings,
-          Advanced, or a link with ?developer before a wallet exists): other
-          people never meet the question. A quiet line under the card, open
+          Advanced): other people never meet the question, and a first
+          wallet goes on Mainnet. A quiet line under the card, open
           when it is not Mainnet, so a tester sees where the wallet will go.
           Nothing changes until the wallet is made: the open wallet, when
           adding one, stays open until then. */}
