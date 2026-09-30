@@ -1,6 +1,7 @@
 // Takes the README's screenshots from a running Neptune Vault: four phone
-// screens (Home, Receive, the send review, Settings) in the light theme,
-// and Home on a wide screen in the dark theme, as WebP files in this folder.
+// screens (Home, Receive, the send review, Settings) and Home on a wide
+// screen, all in the dark theme, as WebP files in this folder. Dark reads
+// well on both of GitHub's themes; light ones melt into its white page.
 //
 // Once:
 // 1. Run the app and a Regtest node (README, "Run the web app" and "Local
@@ -41,12 +42,12 @@ const WIDE = { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false };
 
 // Each shot: its screen and theme, what to do first, and what to undo after.
 const SHOTS = [
-  { file: 'home.webp', screen: PHONE, scheme: 'light', before: `await go('/');` },
-  { file: 'receive.webp', screen: PHONE, scheme: 'light', before: `await go('/receive'); await tab('Address');` },
+  { file: 'home.webp', screen: PHONE, scheme: 'dark', before: `await go('/');` },
+  { file: 'receive.webp', screen: PHONE, scheme: 'dark', before: `await go('/receive'); await tab('Address');` },
   {
     file: 'send-review.webp',
     screen: PHONE,
-    scheme: 'light',
+    scheme: 'dark',
     before: `
       await go('/send');
       byText('.vault-send-head button', 'Clear')?.click();
@@ -67,7 +68,7 @@ const SHOTS = [
       await sleep(500);
       byText('.vault-send-head button', 'Clear')?.click();`,
   },
-  { file: 'settings.webp', screen: PHONE, scheme: 'light', before: `await go('/settings');` },
+  { file: 'settings.webp', screen: PHONE, scheme: 'dark', before: `await go('/settings');` },
   { file: 'wide-home-dark.webp', screen: WIDE, scheme: 'dark', before: `await go('/');` },
 ];
 
