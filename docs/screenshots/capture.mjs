@@ -11,11 +11,11 @@
 //    wallet goes on Mainnet: make one, tick Developer networks in Settings,
 //    Advanced, then choose Add a wallet in the header's wallet menu. Choose
 //    Regtest in its Network line and restore the public test phrase
-//    ("abandon" 17 times, then "agent") as "Everyday", answering "Never:
+//    ("abandon" 17 times, then "agent") as "Personal", answering "Never:
 //    this seed phrase is new".
-//    On Receive, add address 1 and name it "Alex". From the node, pay
-//    12.5 NPT to the main address and 3 NPT to Alex's, mining a block
-//    after each. Save the node's address as the contact "Sam", send Sam
+//    On Receive, add address 1 and name it "Alice". From the node, pay
+//    12.5 NPT to the main address and 3 NPT to Alice's, mining a block
+//    after each. Save the node's address as the contact "Bob", send Bob
 //    2 NPT at the Medium fee, and mine a block. Nothing is left pending.
 //
 // Then, whenever the screens change:
@@ -53,7 +53,7 @@ const SHOTS = [
       await sleep(400);
       byText('button', 'Choose contact').click();
       await sleep(1000);
-      $$('[role=dialog] .vault-pick').find((row) => row.innerText.includes('Sam')).click();
+      $$('[role=dialog] .vault-pick').find((row) => row.innerText.includes('Bob')).click();
       await sleep(800);
       setValue(field('Amount'), '1.5');
       await sleep(300);
