@@ -583,7 +583,7 @@ export function Home() {
         <Caution title="This send is not going through">
           {/* The sentence in one element, as above, and the button on its own line. */}
           <span>
-            Giving up on your {amount(BigInt(stuck.amountNau))}&nbsp;NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? shortAddress(stuck.recipient)}</bdi> : 'a recipient'} frees {amount(reservedFor(stuck))}&nbsp;NPT now; otherwise the wallet frees it {dayAhead(expiresAt(stuck))}.
+            Giving up on your {amount(BigInt(stuck.amountNau))}&nbsp;NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? shortAddress(stuck.recipient)}</bdi> : 'a recipient'} frees {amount(reservedFor(stuck))}&nbsp;NPT now; otherwise the wallet frees it {dayAhead(expiresAt(stuck)).replace(/ (?=\S+$)/, ' ')}.
           </span>
           <Group mt={4}>
             <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => setGivingUp(stuck)}>
