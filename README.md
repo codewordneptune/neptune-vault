@@ -58,7 +58,8 @@ choose.
 - The detail sheet shows each coin's identifier, with a link to it on
   the explorer (Mainnet only).
 - Rescan the chain fast, or from a block or a date.
-- Diagnostics for support requests.
+- Report a problem, in Settings under About: the device and app details a
+  bug report needs, with a button that copies them.
 - Optionally, an estimate of the balance in another currency (off by
   default; see [docs/PRIVACY.md](docs/PRIVACY.md) for what that tells the
   price site).
@@ -142,9 +143,10 @@ browser storage.
 - **Seed phrase.** Restores your funds in any wallet that supports
   Neptune's 18-word seed phrases, including this app on another device.
 - **Backup file.** Export one from Settings, with your password. It
-  restores the seed phrase, the network, the start block and your
-  contacts.
-  - The seed phrase and the contacts are encrypted.
+  restores the seed phrase, the network, the start block, your contacts,
+  the names you gave your addresses, and which addresses you have given out.
+  - The seed phrase, the contacts, the address names and the addresses given
+    out are encrypted.
   - The rest of the file is sealed, so the app refuses a file that has
     been changed. A wrong password gives a different message than a
     changed file.
@@ -155,8 +157,8 @@ browser storage.
 ## Getting help
 
 - **Bugs:** [open an issue](https://github.com/codewordneptune/neptune-vault/issues).
-  - Include the app version, the details from Settings, Diagnostics, the
-    network, and what you did.
+  - Tap Copy details on Settings, About, Report a problem, and paste them
+    into the issue, with the network and what you did.
   - **Never share your seed phrase or a backup file.**
 - **Questions:** the [Neptune Cash Telegram](https://t.me/neptune_project)
   or the [forum](https://talk.neptune.cash/).
@@ -228,7 +230,10 @@ Fund the node's wallet:
 neptune-cli --data-dir <dir> --port 9799 mine-blocks-to-wallet 5
 ```
 
-Then choose Regtest in the app, create a wallet, and send coins to it:
+Then choose Regtest in the app. Before a wallet exists, it is the Network
+line under the setup card; with one, tick Developer networks in Settings,
+Advanced, then pick Regtest from the wallet menu in the header. Create a
+wallet there, and send coins to it:
 
 ```bash
 neptune-cli --data-dir <dir> --port 9799 send <app address> 10 0.1 vault on-chain on-chain
@@ -247,9 +252,11 @@ Things to know about regtest:
 
 ### Networks and nodes
 
-- The app switches between Mainnet, Testnet and Regtest. Each wallet
-  belongs to one network.
-- You set the node in Settings.
+- The app switches between Mainnet, Testnet and Regtest from the wallet
+  menu in the header. Testnet and Regtest show there once Developer
+  networks is ticked in Settings, Advanced, or while a wallet is on one.
+  Each wallet belongs to one network.
+- You set the node in Settings, Advanced.
 - In a browser, the node must send CORS headers, because the page calls it
   directly. The default Mainnet node does.
 - Every network is past the delta fork (Mainnet block 55,000), so every
@@ -280,8 +287,8 @@ cd shells/tauri && npx --prefix ../../web tauri build
 ### Versions and deployment
 
 - The app has one version: the `version` field in `web/package.json`.
-  - It appears under About and in Diagnostics, with the commit and the
-    build time.
+  - It appears under About and on Report a problem, with the commit and
+    the build time.
   - Each release is tagged `v<version>`. Desktop releases are tagged
     `desktop-v<version>`.
 - Each push to `main` that touches the app or the crates does three things:

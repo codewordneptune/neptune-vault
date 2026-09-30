@@ -61,11 +61,11 @@ npx @azure/static-web-apps-cli deploy dist --deployment-token <token> --env prod
 
 ## Checking a deployment
 
-Open the site on the phone and look at Settings: it shows whether the
-persistent-storage request was granted. Then open the diagnostics page at
-`/diagnostics`: a Threads row reading "Available: the page is cross-origin
-isolated" confirms the headers are in place, and the prover will use all
-cores. Install to the home screen from
+Open the site on the phone and look at Settings, Backup: it says whether
+the browser keeps the wallet's data (the persistent-storage request). Then open Report a problem
+(`/diagnostics`, also in Settings under About): a Cross-origin isolation
+row reading "Yes: the wallet engine can run, and proving uses every core"
+confirms the headers are in place. Install to the home screen from
 the browser menu; the app must open in standalone mode with the icon.
 
 First deployment 2026-09-13 (workflow run 34764130991, about 35 minutes cold):

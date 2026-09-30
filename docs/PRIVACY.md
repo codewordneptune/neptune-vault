@@ -3,7 +3,7 @@
 What this wallet keeps, what it sends and to whom, and what is public. The
 same text is shown in the app under Settings, About, Privacy; the app's copy
 (`web/src/content/privacy.ts`) is the reference and this file mirrors it.
-Last changed 2026-09-27.
+Last changed 2026-09-30.
 
 The desktop app shows the same statement with a few sentences changed where
 it differs from a browser; those are marked *In the desktop app* below.
@@ -12,8 +12,8 @@ it differs from a browser; those are marked *In the desktop app* below.
 
 Your seed phrase, encrypted with your password (and, if you turn it on,
 wrapped for your passkey), the addresses and coins found by scanning, your
-history, your contacts, the names you gave your addresses, the settings, and
-a record of the last proof. All of
+history, your contacts, the names you gave your addresses and which of them
+you have given out, the settings, and a record of the last proof. All of
 it lives in this browser's storage on this device. Nothing is kept anywhere
 else by this app.
 
@@ -97,8 +97,8 @@ receives. The Receive screen says so beside it.
 ## What this app does not do
 
 No analytics, no telemetry, no crash reporting, no advertising, no cookies
-for tracking. The Diagnostics screen shows facts about this device to you;
-it sends them nowhere.
+for tracking. The Report a problem page shows facts about this device to
+you; it sends them nowhere, and copies them only when you ask.
 
 The camera, when you scan a code, is read on the device; no frame leaves it.
 The clipboard is written only when you tap Copy. The app never reads it by

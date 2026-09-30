@@ -228,7 +228,8 @@ writes version 3:
 password    --Argon2id--> wrap key --AES-GCM--> file key
 file key    --AES-GCM, AAD = readable part--> content key
 content key --AES-GCM--> seed (the database's own ciphertext)
-content key --AES-GCM, AAD = all of the above--> contacts
+content key --AES-GCM, AAD = all of the above--> contacts, address names,
+                                                  addresses given out
 ```
 
 The readable part (format, version, network, start block, export date, KDF

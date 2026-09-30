@@ -16,7 +16,7 @@ export const PRIVACY: PrivacySection[] = [
   {
     title: 'What this wallet keeps on your device',
     paragraphs: [
-      'Your seed phrase, encrypted with your password (and, if you turn it on, wrapped for your passkey), the addresses and coins found by scanning, your history, your contacts, the names you gave your addresses, the settings, and a record of the last proof. All of it lives in ' + (NATIVE ? "the app's own storage" : "this browser's storage") + ' on this device. Nothing is kept anywhere else by this app.',
+      'Your seed phrase, encrypted with your password (and, if you turn it on, wrapped for your passkey), the addresses and coins found by scanning, your history, your contacts, the names you gave your addresses and which of them you have given out, the settings, and a record of the last proof. All of it lives in ' + (NATIVE ? "the app's own storage" : "this browser's storage") + ' on this device. Nothing is kept anywhere else by this app.',
       NATIVE
         ? "Deleting the app's data deletes all of it. The seed phrase or a backup file is the only way back."
         : "Clearing the browser's site data deletes all of it. The seed phrase or a backup file is the only way back.",
