@@ -83,6 +83,32 @@ export function formatWhen(ms: number, now = Date.now()): string {
 }
 
 /**
+ * A moment inside a sentence: "today at 8:55 PM", "yesterday at 9:24 PM",
+ * "on Monday at 8:55 PM", "on 21 Aug at 8:55 PM", with the year when it is
+ * not this one.
+ */
+export function whenInSentence(ms: number, now = Date.now()): string {
+  const time = formatTime(ms);
+  const days = daysBack(ms, now);
+  if (days === 0) return `today at ${time}`;
+  if (days === 1) return `yesterday at ${time}`;
+  if (days !== null) return `on ${weekday(ms, 'long')} at ${time}`;
+  if (new Date(ms).getFullYear() === new Date(now).getFullYear()) return `on ${dayMonth(ms)} at ${time}`;
+  return `on ${formatDate(ms)} at ${time}`;
+}
+
+/** A day still to come, inside a sentence: "today", "tomorrow", "on 2 Oct", with the year when it is not this one. */
+export function dayAhead(ms: number, now = Date.now()): string {
+  const d = new Date(ms);
+  const n = new Date(now);
+  if (sameDay(d, n)) return 'today';
+  const next = new Date(n);
+  next.setDate(n.getDate() + 1);
+  if (sameDay(d, next)) return 'tomorrow';
+  return d.getFullYear() === n.getFullYear() ? `on ${dayMonth(ms)}` : `on ${formatDate(ms)}`;
+}
+
+/**
  * A length of time, one way everywhere: "45 s", "2 min 23 s", "1 h 5 min".
  * Seconds drop away past the hour, where nobody counts them.
  */

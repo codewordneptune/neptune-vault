@@ -9,7 +9,7 @@ import { IconAddressBook, IconFingerprint, IconLink, IconPlus, IconScan } from '
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import { formatNau, NAU_PER_COIN, sentText, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
+import { formatNau, NAU_PER_COIN, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { clearSendDraft, keepSendDraft, sendDraft, type ExtraPayee, type SendDraft } from '../app/sendDraft';
 import { NATIVE } from '../app/platform';
 import { formatAbout, formatDuration } from '../util/time';
@@ -22,10 +22,11 @@ import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
 import { Amount } from '../components/Amount';
 import { Caution, Done, ErrorLine, Info } from '../components/Notice';
-import { SENDING_UNTIL_CONFIRMED } from '../app/words';
+import { MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED } from '../app/words';
+import { usePendingSends } from '../app/pending';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
-import { abbreviateAddress, addressKindLabel, parsePaymentText, shortAddress } from '../util/address';
+import { abbreviateAddress, addressKindNote, parsePaymentText, shortAddress } from '../util/address';
 import { networkLabel } from '../util/network';
 import { confirmsSends, type ContactRecord } from '../storage/db';
 
@@ -57,6 +58,10 @@ const UNDER_THE_FIELD: ('label' | 'input' | 'description' | 'error')[] = ['label
 
 export function Send() {
   const { services, account, balance, utxos, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
+  // What is on hold, as Home counts it: the change pending sends bring back.
+  const { ready: pendingReady, onHoldNau, isOwn } = usePendingSends();
+  // Amounts hidden on Home stay hidden here, the review and its errors included.
+  const hidden = services.settings.hideBalance ?? false;
   const reducedMotion = useReducedMotion();
   // Narrow by the text's own measure (enlarged text counts): four fee choices stack.
   const stacked = useMediaQuery('(max-width: 22em)');
@@ -132,6 +137,28 @@ export function Send() {
       </span>
     ) : undefined;
   };
+  // Who a send went to, as every notice about it names them, Home's too:
+  // the contact, or the address shortened, and how many more.
+  const whoOf = (request: { payments: { recipient: string }[] }): string => {
+    const first = request.payments[0]?.recipient.trim() ?? '';
+    const others = request.payments.length - 1;
+    if (!others && first && isOwn(first)) return 'yourself';
+    const name = contacts.find((c) => c.address === first.toLowerCase())?.name ?? shortAddress(first);
+    return others ? `${name} and ${others} more` : name;
+  };
+  // One name per recipient, under its address: a saved contact's own, or
+  // else the name a payment request gave, in the same form and said to be
+  // unverified (anyone can write any name into a request).
+  const nameNote = (address: string, requestName: string | undefined) =>
+    contactNote(address) ??
+    (requestName ? (
+      <span className="vault-contact-match">
+        <IconLink size={16} stroke={1.8} aria-hidden />
+        <span>
+          Named in the request: <b dir="auto" className="vault-bidi">{requestName}</b> (not verified)
+        </span>
+      </span>
+    ) : undefined);
 
   useEffect(() => {
     if (!account || !lastRecipient) return;
@@ -205,8 +232,10 @@ export function Send() {
     [],
   );
 
-  // Field checks run on blur and again on submit. A value in nau, or the
-  // message explaining why there is none.
+  // Field checks run on blur and again on submit. On blur they judge only
+  // what was typed: an empty field is not an error until Review, which then
+  // takes the person to it, so nothing turns red on the way to a field. A
+  // value in nau, or the message explaining why there is none.
   const parsePositive = async (raw: string, what: string): Promise<{ nau: bigint } | { message: string }> => {
     // A pasted "1 234.5" is fine; spaces (including the narrow ones the app shows) are grouping.
     const text = raw.replace(/[\s\u202F\u00A0]/g, '');
@@ -235,45 +264,47 @@ export function Send() {
     return null;
   };
 
-  const checkRecipient = async (): Promise<boolean> => {
-    const message = await addressProblem(recipient, []);
+  const checkRecipient = async (leaving = false): Promise<boolean> => {
+    const message = leaving && recipient.trim() === '' ? null : await addressProblem(recipient, []);
     setRecipientError(message);
     return message === null;
   };
 
-  const checkExtraRecipient = async (id: number): Promise<boolean> => {
+  const checkExtraRecipient = async (id: number, leaving = false): Promise<boolean> => {
     const at = extras.findIndex((x) => x.id === id);
     if (at < 0) return true;
     const earlier = [recipient, ...extras.slice(0, at).map((x) => x.recipient)].map((a) => a.trim().toLowerCase());
-    const message = extras[at].recipient.trim() === '' ? 'Enter the address, or remove this recipient' : await addressProblem(extras[at].recipient, earlier);
+    const empty = extras[at].recipient.trim() === '';
+    const message = empty ? (leaving ? null : 'Enter the address, or remove this recipient') : await addressProblem(extras[at].recipient, earlier);
     updateExtra(id, { recipientError: message });
     return message === null;
   };
 
   // Every amount and the fee, against the spendable balance. On leaving a
-  // field (`leaving`) an added recipient's amount that is still empty is not
-  // an error yet: the person may be on the way to it.
+  // field (`leaving`) an amount or a fee that is still empty is not an error
+  // yet: the person may be on the way to it.
   const checkAmounts = async (leaving = false): Promise<boolean> => {
     const typed = await parsePositive(amount, 'amount');
     // Max means everything: the exact figure, not the eight decimals on screen.
     const a = maxExact && extras.length === 0 && maxExact.text === amount && 'nau' in typed ? { nau: maxExact.nau } : typed;
     const more = await Promise.all(extras.map((x) => parsePositive(x.amount, 'amount')));
     const f = await parsePositive(fee, 'fee');
-    let amountMessage = 'message' in a ? a.message : null;
+    let amountMessage = 'message' in a ? (leaving && amount.trim() === '' ? null : a.message) : null;
     const moreMessages = more.map((m, i) => {
       if (!('message' in m)) return null;
       if (extras[i].amount.trim() === '') return leaving ? null : 'Enter the amount, or remove this recipient';
       return m.message;
     });
-    const feeMessage = 'message' in f ? f.message : null;
+    const feeMessage = 'message' in f ? (leaving && fee.trim() === '' ? null : f.message) : null;
     const parsed = [a, ...more];
     if (parsed.every((p) => 'nau' in p) && 'nau' in f) {
       const payments = parsed.map((p) => (p as { nau: bigint }).nau);
       const total = payments.reduce((sum, n) => sum + n, 0n);
       if (total + f.nau > balance.spendableNau) {
-        const spendable = showNau(balance.spendableNau);
-        if (extras.length === 0) amountMessage = `Amount plus fee exceeds the spendable balance of ${spendable} NPT`;
-        else moreMessages[moreMessages.length - 1] = `The amounts plus the fee exceed the spendable balance of ${spendable} NPT`;
+        // The figure itself only while amounts are shown.
+        const spendable = hidden ? 'the spendable balance' : `the spendable balance of ${showNau(balance.spendableNau)} NPT`;
+        if (extras.length === 0) amountMessage = `Amount plus fee exceeds ${spendable}`;
+        else moreMessages[moreMessages.length - 1] = `The amounts plus the fee exceed ${spendable}`;
       } else {
         // Unusual: more than 1 NPT, or more than the payments themselves and above every preset.
         const one = BigInt(await services.core.parseAmount('1'));
@@ -299,7 +330,7 @@ export function Send() {
     }
     const max = balance.spendableNau - f.nau;
     if (max <= 0n) {
-      setAmountError(`The fee alone exceeds the spendable balance of ${showNau(balance.spendableNau)} NPT`);
+      setAmountError(hidden ? 'The fee alone exceeds the spendable balance' : `The fee alone exceeds the spendable balance of ${showNau(balance.spendableNau)} NPT`);
       return;
     }
     const text = formatNau(max);
@@ -610,12 +641,8 @@ export function Send() {
     // What is being sent, for a second look while it proves: the amount,
     // who gets it, and the fee.
     const request = sendJob.request;
-    const masked = services.settings.hideBalance;
-    const first = request.payments[0]?.recipient.trim() ?? '';
-    const who =
-      request.payments.length > 1
-        ? `${request.payments.length} recipients`
-        : (contacts.find((c) => c.address === first.toLowerCase())?.name ?? shortAddress(first));
+    const masked = hidden;
+    const who = whoOf(request);
     return (
       <Paper>
         <Stack>
@@ -625,20 +652,19 @@ export function Send() {
           <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
             <Amount nau={paymentsTotalNau(request)} hidden={masked} /> to <span dir="auto" className="vault-bidi">{who}</span> · fee <Amount nau={BigInt(request.fee_nau ?? '0')} hidden={masked} />
           </Text>
+          {/* One signal of progress at a time, in plain words: a line while the
+              send is being got ready and handed over, the bar while it is
+              proven (measured by the work done, so it never disagrees with a
+              step count). */}
           <div aria-live="polite">
             {/* The steps that wait on the node have no measure of their own: a
                 turning mark says the app is at work, not stuck. */}
-            <Group gap="xs" wrap="nowrap" align="center">
-              {!proving && sendJob.progress.stage !== 'confirming' && <Loader size={14} color="var(--v-muted)" aria-hidden />}
-            <Text>
-              {sendJob.progress.stage === 'planning' && 'Choosing coins…'}
-              {sendJob.progress.stage === 'membership-proofs' && 'Checking your coins with the node…'}
-              {sendJob.progress.stage === 'building' && 'Building the send…'}
-              {proving && (p ? `Proving, step ${Math.min(p.index + 1, p.total)} of ${p.total}` : 'Starting the prover…')}
-              {sendJob.progress.stage === 'confirming' && 'The proof is ready. Confirm above to send it.'}
-              {sendJob.progress.stage === 'submitting' && 'Submitting to the node…'}
-            </Text>
-            </Group>
+            {!(proving && p) && (
+              <Group gap="xs" wrap="nowrap" align="center">
+                <Loader size={14} color="var(--v-muted)" aria-hidden />
+                <Text>{sendJob.progress.stage === 'submitting' ? 'Almost done…' : 'Getting ready…'}</Text>
+              </Group>
+            )}
             {/* Why the steps started over, when they did: a block arrived. */}
             {sendJob.progress.note && (
               <Text size="sm" c="var(--v-warn-text)" mt={4}>
@@ -656,13 +682,13 @@ export function Send() {
           <Text size="sm">
             {screenAwake === 'refused'
               ? NATIVE
-                ? 'This computer would not promise to stay awake. Keep the app running and the computer awake until the send is submitted: sleep pauses the proof.'
+                ? 'This computer would not promise to stay awake. Keep the app running and the computer awake until this finishes: sleep pauses the send.'
                 : finePointer
-                  ? 'This browser would not promise to keep the computer awake. Keep this tab open and the computer awake until the send is submitted: sleep pauses the proof.'
-                  : 'This device would not keep the screen on. Keep the app open and touch the screen now and then until the send is submitted: a locked phone pauses the proof.'
+                  ? 'This browser would not promise to keep the computer awake. Keep this tab open and the computer awake until this finishes: sleep pauses the send.'
+                  : 'This device would not keep the screen on. Keep the app open and touch the screen now and then until this finishes: a locked phone pauses the send.'
               : NATIVE
-                ? 'Keep the app running until the send is submitted.'
-                : 'Keep the app open and in front until the send is submitted. You can move around the app meanwhile.'}
+                ? 'Keep the app running until this finishes.'
+                : 'Keep the app open and in front until this finishes. Other screens are fine.'}
           </Text>
           {proving && (
             <Button variant="light" color="red" onClick={() => setConfirmStop(true)} loading={stopping}>
@@ -672,10 +698,10 @@ export function Send() {
         </Stack>
         <Modal opened={confirmStop} onClose={() => setConfirmStop(false)} title="Stop this send?">
           <Stack>
-            <Text size="sm">The proof so far ({formatDuration(provingSeconds)}) is lost. Nothing has been sent.</Text>
+            <Text size="sm">What it has done so far ({formatDuration(provingSeconds)}) is lost. Nothing has been sent.</Text>
             <Group grow>
               <Button variant="default" onClick={() => setConfirmStop(false)}>
-                Keep proving
+                Keep going
               </Button>
               <Button
                 color="red"
@@ -699,7 +725,7 @@ export function Send() {
   let reviewSheet: ReactNode = null;
   if (step === 'review' && totals) {
     const totalNau = totals.amountNau + totals.feeNau;
-    const kind = addressKindLabel(recipient);
+    const kind = addressKindNote(recipient);
     const reviewName = reviewNames[0] ?? null;
     const payees = [recipient, ...extras.map((x) => x.recipient)].map((address, i) => ({ address: address.trim(), name: reviewNames[i] ?? null, nau: totals.payments[i] ?? 0n }));
     // The coins the core will pick (largest first, then oldest), so the
@@ -717,17 +743,20 @@ export function Send() {
       if (heldNau >= totalNau) break;
       heldNau += BigInt(c.amountNau);
     }
+    // What stays spendable while it is pending, and after: said only when the two differ.
+    const spendableWhile = balance.spendableNau - heldNau;
+    const spendableAfter = balance.spendableNau - totalNau;
     reviewSheet = (
         <Stack>
+          {/* One line before the payment: what cannot be undone, and how long it takes. */}
           <Text size="sm" c="dimmed">
-            Check the details. Once sending starts, the send cannot be changed.
-            {estimate !== null ? ` Proving it takes ${formatAbout(estimate)} on this device.` : NATIVE ? '' : ' Proving it can take a few minutes on a phone.'}
+            This send cannot be changed once it starts, and {estimate !== null ? `takes ${formatAbout(estimate)} on this device` : 'can take a few minutes'}.
           </Text>
           <div className="vault-review">
             {payees.length === 1 ? (
               <>
                 <div>
-                  <span className="vault-eyebrow">To</span>
+                  <span className="vault-review-label">To</span>
                   {reviewName && (
                     <Text size="md" fw={600}>
                       <bdi>{reviewName}</bdi>
@@ -736,9 +765,22 @@ export function Send() {
                   <Text ff="monospace" size="sm" c={reviewName ? 'dimmed' : undefined}>
                     {abbreviateAddress(recipient)}
                   </Text>
-                  <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
-                    {kind}
-                  </Badge>
+                  {/* One name per recipient: the saved contact's, or else the request's, said to be unverified. */}
+                  {!reviewName && linkMeta?.label && (
+                    <Text size="sm" c="dimmed" mt={2}>
+                      Named in the request:{' '}
+                      <Text span inherit c="var(--v-text)" fw={600} dir="auto" className="vault-bidi">
+                        {linkMeta.label}
+                      </Text>{' '}
+                      (not verified)
+                    </Text>
+                  )}
+                  {/* A kind other than Standard, in plain words. */}
+                  {kind && (
+                    <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
+                      {kind}
+                    </Badge>
+                  )}
                 </div>
                 <div className="vault-review-row">
                   <span>Amount</span>
@@ -750,7 +792,7 @@ export function Send() {
             ) : (
               <>
                 {/* Several recipients: each with what it gets, in the order sent. */}
-                <span className="vault-eyebrow">To {payees.length} recipients</span>
+                <span className="vault-review-label">To {payees.length} recipients</span>
                 {payees.map((p, i) => (
                   <div className="vault-review-row vault-review-payee" key={i}>
                     <div style={{ minWidth: 0 }}>
@@ -762,9 +804,11 @@ export function Send() {
                       <Text ff="monospace" size="sm" c={p.name ? 'dimmed' : undefined}>
                         {abbreviateAddress(p.address)}
                       </Text>
-                      <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
-                        {addressKindLabel(p.address)}
-                      </Badge>
+                      {addressKindNote(p.address) && (
+                        <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
+                          {addressKindNote(p.address)}
+                        </Badge>
+                      )}
                     </div>
                     <b>
                       <Amount nau={p.nau} />
@@ -796,19 +840,6 @@ export function Send() {
               </Text>
             )}
           </div>
-          {linkMeta?.label && (
-            <div className="vault-link-meta-form">
-              <IconLink size={16} stroke={1.8} aria-hidden />
-              <div style={{ minWidth: 0 }}>
-                <Text size="xs" c="dimmed">
-                  Name in the request (unverified)
-                </Text>
-                <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
-                  {linkMeta.label}
-                </Text>
-              </div>
-            </div>
-          )}
           {cleanNote(note) && (
             <Text size="sm">
               <Text span inherit c="dimmed">
@@ -817,9 +848,13 @@ export function Send() {
               <bdi>{cleanNote(note)}</bdi>
             </Text>
           )}
-          <Text size="sm" c="dimmed">
-            Spendable while this is pending: {showNau(balance.spendableNau - heldNau)} NPT. After it confirms, usually within an hour: {showNau(balance.spendableNau - totalNau)} NPT.
-          </Text>
+          {/* Only when the change of this send makes the two figures differ,
+              and never while amounts are hidden. */}
+          {!hidden && spendableWhile !== spendableAfter && (
+            <Text size="sm" c="dimmed">
+              You can spend {showNau(spendableWhile)} NPT until it confirms, then {showNau(spendableAfter)} NPT.
+            </Text>
+          )}
           {askLustration && (
             <Caution title="Part of this send will be public">
               The network asks this send to publish the coins that pay for it: how much each holds, which of your addresses received it, and where in the chain it came from. Anyone can then link this payment to the ones that funded it. The recipient and the amount you send stay private.
@@ -851,9 +886,10 @@ export function Send() {
                   <Divider label="or use the password" labelPosition="center" />
                 </>
               )}
+              {/* Where typing is how the send goes on (a wide screen, no passkey), the field has the focus. */}
               <PasswordInput
                 label="Password"
-                description="Asked before each send from this wallet."
+                data-autofocus={!phone && !hasPasskey ? true : undefined}
                 value={password}
                 onChange={(e) => {
                   setPassword(e.currentTarget.value);
@@ -902,10 +938,10 @@ export function Send() {
             Send
           </Title>
           <Text size="sm" c="dimmed">
-            Spendable {services.settings.hideBalance ? '••••' : showNau(balance.spendableNau)} NPT
-            {/* Home counts held coins in the balance and says why they are held;
-                here they are the difference, in two words, so the line stays one. */}
-            {balance.reservedNau > 0n && ` · ${services.settings.hideBalance ? '••••' : showNau(balance.reservedNau)} NPT on hold`}
+            Spendable {hidden ? '••••' : showNau(balance.spendableNau)} NPT
+            {/* The same line as Home's: the change pending sends bring back, so
+                the two figures add up to the balance Home shows. */}
+            {pendingReady && onHoldNau > 0n && ` · ${hidden ? '••••' : showNau(onHoldNau)} NPT on hold`}
           </Text>
           {hasContent && (
             <UnstyledButton type="button" onClick={clearForm} aria-label="Clear the form" c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
@@ -919,27 +955,26 @@ export function Send() {
           // Focused when it appears, so it is read out once, as focus
           // arrives; its notice is not a live region as well.
           <div ref={resultRef} tabIndex={-1} className="vault-send-result" data-focus-managed>
+            {/* One sentence, in the same words as Home's notice. The proof's time is in Diagnostics. */}
             {sendJob.ending === 'sent' && sendJob.outcome && (
               <Done title="Sending" onClose={dismissResult} closeLabel="Dismiss" role={undefined}>
                 <span>
-                  {sentText(paymentsTotalNau(sendJob.request), BigInt(sendJob.request.fee_nau ?? '0'), services.settings.hideBalance)} {SENDING_UNTIL_CONFIRMED}
-                  {sendJob.outcome.proving.seconds > 0 && ` The proof took ${formatDuration(sendJob.outcome.proving.seconds)}.`}
+                  {hidden ? '••••' : showNau(paymentsTotalNau(sendJob.request))} NPT to <bdi>{whoOf(sendJob.request)}</bdi>, plus a {hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} NPT fee. {SENDING_UNTIL_CONFIRMED}
                 </span>
-                {lastRecipient &&
-                  (savedName ? (
-                    <span>Sent to {savedName}.</span>
-                  ) : (
-                    <span>
-                      <UnstyledButton onClick={() => setSaving(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
-                        Save recipient as a contact
-                      </UnstyledButton>
-                    </span>
-                  ))}
+                {lastRecipient && !savedName && (
+                  <span>
+                    <UnstyledButton onClick={() => setSaving(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+                      Save recipient as a contact
+                    </UnstyledButton>
+                  </span>
+                )}
               </Done>
             )}
             {sendJob.ending === 'unconfirmed' && (
               <Caution title={UNANSWERED_TITLE} onClose={dismissResult} closeLabel="Dismiss">
-                <span>{sendJob.error}</span>
+                <span>
+                  Your {hidden ? '••••' : showNau(paymentsTotalNau(sendJob.request))} NPT to <bdi>{whoOf(sendJob.request)}</bdi> {MAY_HAVE_GONE_OUT}
+                </span>
                 <span>
                   <UnstyledButton onClick={() => navigate('/')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
                     See in History
@@ -952,9 +987,10 @@ export function Send() {
                 {sendJob.error}
               </Info>
             )}
+            {/* Under the title "Not sent", the reason without saying so again. */}
             {sendJob.ending === 'failed' && (
               <ErrorLine title="Not sent" onClose={dismissResult} role={undefined}>
-                {sendJob.error}
+                {notSentReason(sendJob.error ?? '')}
               </ErrorLine>
             )}
           </div>
@@ -976,15 +1012,18 @@ export function Send() {
                 it part of the field's name. */}
             <Stack role={extras.length > 0 ? 'group' : undefined} aria-labelledby={extras.length > 0 ? 'payee-first' : undefined}>
             {extras.length > 0 && (
-              <span className="vault-eyebrow" id="payee-first">
+              <span className="vault-group-label" id="payee-first">
                 Recipient 1
               </span>
             )}
-            <div className="vault-field-action-wrap">
-              <UnstyledButton type="button" onClick={() => setPickFor(0)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={extras.length > 0 ? 'Choose a contact for recipient 1' : undefined}>
-                <IconAddressBook size={16} stroke={1.8} aria-hidden />
-                Choose contact
-              </UnstyledButton>
+            <div className={contacts.length > 0 ? 'vault-field-action-wrap' : undefined}>
+              {/* Offered once there is a contact to choose: in a new wallet it would open an empty list. */}
+              {contacts.length > 0 && (
+                <UnstyledButton type="button" onClick={() => setPickFor(0)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={extras.length > 0 ? 'Choose a contact for recipient 1' : undefined}>
+                  <IconAddressBook size={16} stroke={1.8} aria-hidden />
+                  Choose contact
+                </UnstyledButton>
+              )}
               <TextInput
                 ref={recipientRef}
                 label="Recipient address"
@@ -1005,9 +1044,9 @@ export function Send() {
                     dropRequest();
                   }
                 }}
-                onBlur={() => void checkRecipient()}
+                onBlur={() => void checkRecipient(true)}
                 error={recipientError}
-                description={contactNote(recipient)}
+                description={nameNote(recipient, linkMeta?.label)}
                 inputWrapperOrder={['label', 'input', 'description', 'error']}
                 rightSectionWidth={80}
                 rightSection={
@@ -1017,19 +1056,6 @@ export function Send() {
                 }
               />
             </div>
-            {linkMeta?.label && (
-              <div className="vault-link-meta-form">
-                <IconLink size={16} stroke={1.8} aria-hidden />
-                <div style={{ minWidth: 0 }}>
-                  <Text size="xs" c="dimmed">
-                    Name in the request (unverified)
-                  </Text>
-                  <Text size="sm" dir="auto" className="vault-bidi vault-link-meta-text">
-                    {linkMeta.label}
-                  </Text>
-                </div>
-              </div>
-            )}
             <TextInput
               ref={(el) => {
                 if (el) amountRefs.current.set(0, el);
@@ -1058,7 +1084,7 @@ export function Send() {
             {extras.map((x, i) => (
               <div key={x.id} className="vault-payee" role="group" aria-labelledby={`payee-${x.id}`}>
                 <div className="vault-payee-head">
-                  <span className="vault-eyebrow" id={`payee-${x.id}`}>
+                  <span className="vault-group-label" id={`payee-${x.id}`}>
                     Recipient {i + 2}
                   </span>
                   <UnstyledButton
@@ -1077,11 +1103,13 @@ export function Send() {
                     Remove
                   </UnstyledButton>
                 </div>
-                <div className="vault-field-action-wrap">
-                  <UnstyledButton type="button" onClick={() => setPickFor(x.id)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={`Choose a contact for recipient ${i + 2}`}>
-                    <IconAddressBook size={16} stroke={1.8} aria-hidden />
-                    Choose contact
-                  </UnstyledButton>
+                <div className={contacts.length > 0 ? 'vault-field-action-wrap' : undefined}>
+                  {contacts.length > 0 && (
+                    <UnstyledButton type="button" onClick={() => setPickFor(x.id)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={`Choose a contact for recipient ${i + 2}`}>
+                      <IconAddressBook size={16} stroke={1.8} aria-hidden />
+                      Choose contact
+                    </UnstyledButton>
+                  )}
                   <TextInput
                     label="Recipient address"
                     autoCapitalize="none"
@@ -1101,7 +1129,7 @@ export function Send() {
                       if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyExtraText(x.id, value);
                       else updateExtra(x.id, { recipient: value, recipientError: null });
                     }}
-                    onBlur={() => void checkExtraRecipient(x.id)}
+                    onBlur={() => void checkExtraRecipient(x.id, true)}
                     error={x.recipientError}
                     description={contactNote(x.recipient)}
                     inputWrapperOrder={['label', 'input', 'description', 'error']}
@@ -1214,20 +1242,18 @@ export function Send() {
                 ref={customFeeRef}
               />
             )}
-            {!online && (
-              <Caution>You are offline. Sending needs the node; Review comes back when the connection does.</Caution>
-            )}
-            {/* The node not answering is said here too, before a send is
-                composed and reviewed that could not go. */}
+            {/* Why Review waits, one look for both reasons: a sentence, no
+                title. The node's own words are on Settings, Advanced. */}
+            {!online && <Caution>You are offline. Review works again once you are back online.</Caution>}
             {online && nodeDown && (
-              <Caution title="Sending is paused">
-                {sync?.message}
+              <Caution>
+                <span>The node is not answering, so sending has to wait.</span>
                 {/* The same two actions as Home's status line, in the same form. */}
                 <Group gap="sm" mt={4}>
                   <UnstyledButton onClick={() => void syncNow()} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
                     Try again
                   </UnstyledButton>
-                  <UnstyledButton onClick={() => navigate('/settings/advanced')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+                  <UnstyledButton onClick={() => navigate('/settings/advanced', { state: { from: 'send' } })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
                     Settings
                   </UnstyledButton>
                 </Group>

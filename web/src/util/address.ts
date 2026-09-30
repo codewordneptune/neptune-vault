@@ -36,6 +36,18 @@ export function addressKind(address: string): { intent: string; protocol: string
   return { intent: 'Unknown', protocol: 'unknown kind' };
 }
 
+/**
+ * The kind of an address in plain words, for lists and the review, or null
+ * for a Standard one: nearly every address is Standard, and a tag nobody can
+ * act on is noise. The protocol's name stays on Receive and the full-screen code.
+ */
+export function addressKindNote(address: string): string | null {
+  const { intent } = addressKind(address);
+  if (intent === 'Standard') return null;
+  if (intent === 'Short' || intent === 'View-only') return `${intent} address`;
+  return intent === 'Unknown' ? 'Unknown kind' : intent;
+}
+
 /** "Standard (Generation)": intent first, mechanism in brackets. */
 export function addressKindLabel(address: string): string {
   const k = addressKind(address);

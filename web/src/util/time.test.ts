@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dayKey, dayLabel, formatAbout, formatDate, formatDateTime, formatDuration, formatTime, formatWhen } from './time';
+import { dayAhead, dayKey, dayLabel, formatAbout, formatDate, formatDateTime, formatDuration, formatTime, formatWhen, whenInSentence } from './time';
 
 // Sunday 13 September 2026, 16:30 on this machine's clock.
 const now = new Date(2026, 8, 13, 16, 30).getTime();
@@ -16,6 +16,25 @@ describe('formatWhen', () => {
     expect(formatWhen(at(2026, 7, 2), now)).toMatch(/^2 Aug /);
     expect(formatWhen(at(2026, 7, 2), now)).not.toMatch(/2026|Today|Yesterday/);
     expect(formatWhen(at(2025, 11, 31), now)).toMatch(/2025/);
+  });
+});
+
+describe('whenInSentence', () => {
+  it('reads inside a sentence: today and yesterday in lower case, a weekday or a date after on, the time after at', () => {
+    expect(whenInSentence(at(2026, 8, 13, 9, 5), now)).toMatch(/^today at /);
+    expect(whenInSentence(at(2026, 8, 12, 23, 59), now)).toMatch(/^yesterday at /);
+    expect(whenInSentence(at(2026, 8, 9), now)).toMatch(/^on Wednesday at /);
+    expect(whenInSentence(at(2026, 7, 2), now)).toMatch(/^on 2 Aug at /);
+    expect(whenInSentence(at(2025, 11, 31), now)).toMatch(/^on 31 Dec 2025 at /);
+  });
+});
+
+describe('dayAhead', () => {
+  it('says today, tomorrow, or on the date, with the year only when it differs', () => {
+    expect(dayAhead(at(2026, 8, 13, 23, 0), now)).toBe('today');
+    expect(dayAhead(at(2026, 8, 14, 1, 0), now)).toBe('tomorrow');
+    expect(dayAhead(at(2026, 9, 2), now)).toBe('on 2 Oct');
+    expect(dayAhead(at(2027, 0, 3), now)).toBe('on 3 Jan 2027');
   });
 });
 

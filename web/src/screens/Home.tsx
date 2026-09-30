@@ -7,25 +7,25 @@ import { useNavigate } from 'react-router-dom';
 
 import { NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../app/addressLabels';
-import { MAY_HAVE_GONE, MEMPOOL_KEEPS_MS, SEND_LIFETIME_MS } from '../app/send';
+import { MEMPOOL_KEEPS_MS, SEND_LIFETIME_MS } from '../app/send';
+import { usePendingSends } from '../app/pending';
 import { speakNau } from '../components/Amount';
-import { ownAddresses } from '../app/ownAddresses';
 import { useQuote } from '../app/price';
 import { fiatOf, formatFiat } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
 import type { AccountRecord, ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
 import { Caution, Done, ErrorLine } from '../components/Notice';
-import { COINS_SAFE, SENDING_UNTIL_CONFIRMED } from '../app/words';
+import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED } from '../app/words';
 import { NATIVE } from '../app/platform';
 import { LINKS } from '../app/links';
 import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
-import { dayKey, dayLabel, formatDate, formatDateTime, formatTime, formatWhen } from '../util/time';
+import { dayAhead, dayKey, dayLabel, formatDate, formatDateTime, formatTime, whenInSentence } from '../util/time';
 
 export function Home() {
-  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure, lastSend, dismissLastSend } = useApp();
+  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure, lastSend, dismissLastSend, screenAwake } = useApp();
   // A send that failed while the person was elsewhere is easy to miss as a
   // toast; it stays here until dismissed, and survives a reload.
   const dismissFailure = () => {
@@ -84,27 +84,9 @@ export function Home() {
   // The wallet's history on this device would not open: why, or null.
   const unreadable = account ? services.accounts.engine.unopenedWhy(account.id) : null;
 
-  // A send to one of this wallet's own addresses is known as one once its
-  // coins come back in a block. Until then, its recipients are checked
-  // against the addresses Receive offers, so it does not read as money out.
-  const pendingToCheck = history.some((h) => h.kind === 'sent' && h.status === 'pending' && h.recipient !== null);
-  // Until they are known for this wallet, the balance waits rather than
-  // count a move to oneself as money out and then jump back.
-  const [own, setOwn] = useState<{ accountId: string; set: Set<string> } | null>(null);
-  const ownReady = !pendingToCheck || own?.accountId === account?.id;
-  useEffect(() => {
-    if (!account || !pendingToCheck) return;
-    let live = true;
-    void ownAddresses(services.core, account).then((set) => live && setOwn({ accountId: account.id, set }));
-    return () => {
-      live = false;
-    };
-  }, [services, account, pendingToCheck]);
-  const isOwn = (address: string) => own?.accountId === account?.id && Boolean(own?.set.has(address.toLowerCase()));
-  const toSelf = (h: HistoryRecord) => {
-    const to = (h.payments?.length ? h.payments.map((p) => p.recipient) : h.recipient ? [h.recipient] : []).map((a) => a.toLowerCase());
-    return to.length > 0 && to.every(isOwn);
-  };
+  // What the pending sends do to the balance, as every screen counts it: gone,
+  // with their change on hold until they confirm (app/pending.ts).
+  const { sends: pendingSends, ready: ownReady, isOwn, toSelf, balanceNau: headlineNau, onHoldNau } = usePendingSends();
 
   // One entry per transaction, with the recipient named when it is a contact.
   const entries = groupHistory(history, utxos).map((e) =>
@@ -158,20 +140,15 @@ export function Home() {
     await refresh();
     focusRow(key);
   };
-  // Exactly what is held: the inputs reserved for that transaction.
+  // Exactly what giving up frees: the inputs reserved for that transaction.
   const reservedFor = (h: HistoryRecord) => utxos.filter((u) => u.pendingTxid === h.txid).reduce((sum, u) => sum + BigInt(u.amountNau), 0n);
 
-  // What the balance becomes once every pending send is included: the held
-  // coins minus what leaves in those sends (amount plus fee) comes back.
-  const pendingSends = history.filter((h) => h.kind === 'sent' && h.status === 'pending');
-  // A send to this wallet's own address loses only its fee.
-  const leavingNau = pendingSends.reduce((sum, h) => sum + (toSelf(h) ? 0n : BigInt(h.amountNau)) + BigInt(h.feeNau ?? '0'), 0n);
-  const afterPendingNau = balance.spendableNau + balance.reservedNau - leavingNau;
-  // The headline counts a pending send as gone and its change as back: a
-  // small send never turns the balance into 0 because its coin is held for a
-  // block. What can be spent meanwhile is on the line beneath.
-  const headlineNau = afterPendingNau;
-  // What the headline did with the pending sends, in words that match it.
+  // The headline counts a pending send as gone and its change as on hold: a
+  // small send never turns the balance into 0 because its coin waits for a
+  // block. What can be spent meanwhile, and what is on hold, is the line
+  // beneath, and the two add up to the headline. What the headline did with
+  // the pending sends, in words that match it, and the raw figure of the
+  // coins that pay for them, are behind "What does this mean?".
   const pendingExplained = () => {
     const one = pendingSends.length === 1 ? pendingSends[0] : null;
     const fee = one?.feeNau ? BigInt(one.feeNau) : null;
@@ -183,7 +160,7 @@ export function Home() {
         ? `The balance above counts a pending move to yourself: only its fee${fee !== null ? ` of ${amount(fee)} NPT` : ''} is gone.`
         : `The balance above counts a pending send as already gone: ${amount(BigInt(one.amountNau))} NPT to ${(one.payments?.length ?? 1) > 1 ? 'the recipients' : 'the recipient'}${fee !== null ? ` and a ${amount(fee)} NPT fee` : ''}.`;
     const it = pendingSends.length === 1;
-    return `${gone} Until ${it ? 'it confirms' : 'they confirm'}, the ${amount(balance.reservedNau)} NPT of coins that pay for ${it ? 'it are' : 'them are'} held, and what comes back as change is spendable after that.`;
+    return `${gone} Until ${it ? 'it confirms' : 'they confirm'}, the ${amount(balance.reservedNau)} NPT of coins that pay for ${it ? 'it' : 'them'} cannot be spent${onHoldNau > 0n ? `, and the ${amount(onHoldNau)} NPT on hold is the change that comes back` : ''}.`;
   };
 
   // Whether the node still holds a pending send: it was seen there at the
@@ -197,8 +174,11 @@ export function Home() {
   const expiresAt = (h: HistoryRecord) => (h.stampMs ?? h.timestampMs) + SEND_LIFETIME_MS;
   // A send of this device that nodes have stopped keeping (they drop one
   // ten hours after it was made) and no block has taken: it is not going
-  // through, and its coins are held for nothing until it expires.
-  const stuck = pendingSends.find((h) => h.key.includes(':sent:') && Date.now() - (h.stampMs ?? h.timestampMs) > MEMPOOL_KEEPS_MS && nodeHolds(h) !== 'has');
+  // through, and its coins wait for nothing until it expires. The one state
+  // of a send that asks for something, so the one in the caution colour.
+  const isStuck = (h: HistoryRecord) =>
+    h.kind === 'sent' && h.status === 'pending' && h.key.includes(':sent:') && Date.now() - (h.stampMs ?? h.timestampMs) > MEMPOOL_KEEPS_MS && nodeHolds(h) !== 'has';
+  const stuck = pendingSends.find(isStuck);
 
   // A receipt's time lock, from the row or, for rows written before it was
   // kept there, from the coin. Null once the date has passed.
@@ -281,22 +261,33 @@ export function Home() {
     const note = noteOf(e);
     return note && (severalOf(e) || !whoOf(e)) ? note : whoOf(e);
   };
-  /** What happened, in one word: a send reads Sending until a block confirms it. */
+  /** What happened, in one word: a send reads Sending until a block confirms it, or Not going through once nodes dropped it. */
   const stateTitleOf = (e: HistoryEntry): string => {
     if (notSent(e)) return 'Not sent';
     if (e.kind === 'received') return e.record.status === 'failed' ? 'Failed' : 'Received';
     if (e.kind === 'self') return e.record.status === 'pending' ? 'Moving to yourself' : 'Moved to yourself';
+    if (isStuck(e.record)) return 'Not going through';
     return e.record.status === 'pending' ? 'Sending' : 'Sent';
   };
-  /** The state beside the time: Pending or Not sent, unless the title already says so. */
-  const stateWordOf = (e: HistoryEntry): { word: string; tone: 'pending' | 'failed' } | null => {
+  /**
+   * The state beside the time, unless the title already says it: in the
+   * row's own muted colour while it simply waits for a block (Sending,
+   * Pending), amber only where something is asked of the person (Not going
+   * through), red where it did not happen.
+   */
+  const stateWordOf = (e: HistoryEntry): { word: string; tone: 'muted' | 'warn' | 'failed' } | null => {
     const saidInTitle = !rowNameOf(e) && e.kind !== 'received';
     if (saidInTitle) return null;
     if (notSent(e)) return { word: 'Not sent', tone: 'failed' };
-    if (e.record.status === 'pending') return { word: 'Pending', tone: 'pending' };
+    if (e.record.status === 'pending') {
+      if (e.kind === 'received') return { word: 'Pending', tone: 'muted' };
+      if (isStuck(e.record)) return { word: 'Not going through', tone: 'warn' };
+      return { word: 'Sending', tone: 'muted' };
+    }
     if (e.record.status === 'failed') return { word: 'Failed', tone: 'failed' };
     return null;
   };
+  const toneClass = { muted: undefined, warn: 'vault-state-warn', failed: 'vault-state-failed' } as const;
   // After "Show older", the first of the rows it showed, which takes the focus.
   const firstNew = useRef<string | null>(null);
   // Each row's button, for giving focus back to a row once a dialog about it has closed.
@@ -378,7 +369,12 @@ export function Home() {
             : `Confirmed ${showBlock(since)} ${since === 1 ? 'block' : 'blocks'} ago (block ${showBlock(h.height)})`
         : 'Confirmed'
       : h.status === 'pending'
-        ? 'Pending'
+        ? // The row's words: a send waiting for a block is Sending, a payment coming in Pending.
+          h.kind === 'sent'
+          ? isStuck(h)
+            ? 'Not going through'
+            : 'Sending'
+          : 'Pending'
         : h.kind === 'sent'
           ? 'Not sent. Nothing left this wallet.'
           : 'Failed';
@@ -386,9 +382,9 @@ export function Home() {
   const nodeStatusOf = (h: HistoryRecord) => {
     if (h.kind !== 'sent' || h.status !== 'pending' || !h.mempoolCheckedAt) return null;
     const holds = nodeHolds(h);
-    if (holds === 'has') return `The node has it (checked ${formatWhen(h.mempoolCheckedAt)}).`;
-    if (holds === 'had') return `The node had it until ${formatWhen(h.mempoolSeenAt as number)}, but not at the last check (${formatWhen(h.mempoolCheckedAt)}). It may have been dropped.`;
-    return `The node does not have it (checked ${formatWhen(h.mempoolCheckedAt)}).`;
+    if (holds === 'has') return `The node has it (checked ${whenInSentence(h.mempoolCheckedAt)}).`;
+    if (holds === 'had') return `The node had it until ${whenInSentence(h.mempoolSeenAt as number)}, but not at the last check (${whenInSentence(h.mempoolCheckedAt)}). It may have been dropped.`;
+    return `The node does not have it (checked ${whenInSentence(h.mempoolCheckedAt)}).`;
   };
 
   return (
@@ -415,10 +411,11 @@ export function Home() {
           it says so, and how to rebuild it from the chain. */}
       {account && unreadable && <RebuildNotice accountId={account.id} why={unreadable} />}
       {/* The dot answers "is this current?" without reading: green up to date,
-          amber while working or when the node looks behind, red when it cannot say. */}
+          blue while working, amber when the node looks behind (a caution:
+          recent payments may not show), red when it cannot say. */}
       <div className="vault-status">
         <span className="vault-status-text">
-          <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' && !behind ? 'ok' : 'busy'}`} aria-hidden />
+          <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' ? (behind ? 'warn' : 'ok') : 'busy'}`} aria-hidden />
           {!online && <IconWifiOff size={16} stroke={1.8} />}
           {busy && <IconRefresh size={16} stroke={1.8} className="vault-spin" />}
           {syncText}
@@ -441,10 +438,11 @@ export function Home() {
       <div className="sr-only" role="status">
         {said}
       </div>
-      {/* A long scan stops when the screen turns off and the wallet locks: said while one runs. */}
+      {/* A long scan stops when the screen turns off and the wallet locks: said
+          while one runs, in full only when the app could not keep the screen on. */}
       {longScan && !NATIVE && (
         <Text size="xs" c="dimmed" mt={-8}>
-          Keep the app open with the screen on: the scan pauses when the screen turns off, and goes on at the next unlock.
+          {screenAwake === 'held' ? 'Keep the app open until the scan finishes.' : 'Keep the app open with the screen on: the scan pauses when the screen turns off, and goes on at the next unlock.'}
         </Text>
       )}
       {/* On a phone a card, the actions under the balance; on a wide screen a
@@ -484,11 +482,12 @@ export function Home() {
                 <Text size="sm">{amount(incomingNau)} NPT pending</Text>
               </Group>
             )}
-            {balance.reservedNau > 0n && (
+            {/* The same line as Send's, and the two figures add up to the balance above. */}
+            {loaded && ownReady && onHoldNau > 0n && (
               <Group gap={6} wrap="nowrap" align="flex-start">
                 <IconHourglass size={16} stroke={1.8} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
                 <Text size="sm">
-                  {amount(balance.spendableNau)} NPT of it spendable now, the rest once your {pendingSends.length === 1 ? 'send confirms' : 'sends confirm'}, usually within an hour
+                  Spendable {amount(balance.spendableNau)} NPT · {amount(onHoldNau)} NPT on hold
                 </Text>
               </Group>
             )}
@@ -548,18 +547,19 @@ export function Home() {
             dismissSendJob();
           };
           // Not announced when it appears: the toast or the Send screen said it as it happened.
-          // Each sentence in one element: a notice stacks what it holds as
-          // lines, and the name, an element of its own, would break it there.
+          // One sentence each, in the same words as on Send, and in one
+          // element: a notice stacks what it holds as lines, and the name,
+          // an element of its own, would break it there. When it was sent is in History.
           return lastSend.state === 'unconfirmed' ? (
             <Caution title={UNANSWERED_TITLE} onClose={dismiss} closeLabel="Dismiss">
               <span>
-                {amount(BigInt(lastSend.amountNau))} NPT to {who}, {formatDateTime(lastSend.at)}. {MAY_HAVE_GONE}
+                Your {amount(BigInt(lastSend.amountNau))} NPT to {who} {MAY_HAVE_GONE_OUT}
               </span>
             </Caution>
           ) : (
             <Done title="Sending" onClose={dismiss} closeLabel="Dismiss" role={undefined}>
               <span>
-                {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee, {formatDateTime(lastSend.at)}. {SENDING_UNTIL_CONFIRMED}
+                {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee. {SENDING_UNTIL_CONFIRMED}
               </span>
             </Done>
           );
@@ -570,22 +570,23 @@ export function Home() {
       {failure && failure.accountId === account?.id && !(lastSend && lastSend.accountId === account.id && lastSend.at >= failure.at) && (
         <ErrorLine title="Not sent" onClose={dismissFailure} role="group">
           <Text size="sm">
-            {hidden ? '••••' : failure.amount} NPT to {shortAddress(failure.recipient)}
-            {failure.others ? ` and ${failure.others} more` : ''}, {formatDateTime(failure.at)}. {/* Under the title "Not sent", a reason that starts by saying so again does not. */}
-            {failure.message.replace(/^Not sent: (.)/, (_, first: string) => first.toUpperCase())}
+            {hidden ? '••••' : failure.amount} NPT to <bdi>{contactFor(failure.recipient.toLowerCase())?.name ?? shortAddress(failure.recipient)}</bdi>
+            {failure.others ? ` and ${failure.others} more` : ''}. {notSentReason(failure.message)}
           </Text>
         </ErrorLine>
       )}
       {/* A send nodes no longer keep and no block took: it is not going
-          through, and its coins are held for nothing until it expires. */}
+          through, and its coins wait for nothing until it expires. One
+          sentence and a calm button: giving up is what it recommends, and
+          the dialog after it says why and gives the red button. */}
       {stuck && (
         <Caution title="This send is not going through">
           {/* The sentence in one element, as above, and the button on its own line. */}
           <span>
-            {amount(BigInt(stuck.amountNau))} NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? shortAddress(stuck.recipient)}</bdi> : 'a recipient'}, {formatDateTime(stuck.timestampMs)}. The node no longer has it, so no block will take it. Give up on this send to free {amount(reservedFor(stuck))} NPT now; otherwise the wallet frees them on its own on {formatDateTime(expiresAt(stuck))}, when no block can take it any more.
+            Giving up on your {amount(BigInt(stuck.amountNau))}&nbsp;NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? shortAddress(stuck.recipient)}</bdi> : 'a recipient'} frees {amount(reservedFor(stuck))}&nbsp;NPT now; otherwise the wallet frees it {dayAhead(expiresAt(stuck))}.
           </span>
           <Group mt={4}>
-            <Button variant="light" color="red" size="compact-sm" className="vault-tap" onClick={() => setGivingUp(stuck)}>
+            <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => setGivingUp(stuck)}>
               Give up on this send
             </Button>
           </Group>
@@ -604,9 +605,10 @@ export function Home() {
         ) : entries.length === 0 ? (
           busy ? (
             // Still being searched: "nothing" would be a guess, and a
-            // restore of a funded wallet reading as empty is alarming.
+            // restore of a funded wallet reading as empty is alarming. How
+            // far it has got is said once, on the status line above.
             <Text c="dimmed" size="sm">
-              {sync?.phase === 'scanning' ? `Looking for your payments: block ${showBlock(sync.syncedHeight)} of ${showBlock(sync.tipHeight)}.` : 'Looking for your payments…'}
+              Finding your payments…
             </Text>
           ) : (
             <Stack gap={6}>
@@ -648,7 +650,8 @@ export function Home() {
                         <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
                           <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
                           <div style={{ minWidth: 0 }}>
-                            <Text size="sm" fw={600} className="vault-row-title">
+                            {/* A send not going through says so in its title when nothing else names it, in the caution colour. */}
+                            <Text size="sm" fw={600} className={!rowNameOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>
                               {rowNameOf(e) ? <bdi>{rowNameOf(e)}</bdi> : stateTitleOf(e)}
                             </Text>
                             <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -656,19 +659,13 @@ export function Home() {
                               {stateWordOf(e) && (
                                 <>
                                   {' · '}
-                                  <Text span inherit className={stateWordOf(e)?.tone === 'pending' ? 'vault-state-pending' : 'vault-state-failed'}>
+                                  <Text span inherit className={toneClass[stateWordOf(e)?.tone ?? 'muted']}>
                                     {stateWordOf(e)?.word}
                                   </Text>
                                 </>
                               )}
-                              {lockOf(h) !== null && (
-                                <>
-                                  {' · '}
-                                  <Text span inherit className="vault-state-pending">
-                                    Spendable from {showDate(lockOf(h) as number)}
-                                  </Text>
-                                </>
-                              )}
+                              {/* A time lock only waits for its date: said in the row's own colour. */}
+                              {lockOf(h) !== null && ` · Spendable from ${showDate(lockOf(h) as number)}`}
                               {e.kind === 'self' && !hidden && ' · fee only'}
                             </Text>
                           </div>
@@ -709,19 +706,23 @@ export function Home() {
           <Stack gap="sm">
             <DetailRow label="Status" value={statusOf(detail.record)} />
             <DetailRow label="When" value={formatDateTime(detail.record.timestampMs)} />
-            {detail.kind === 'received' && <DetailRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
+            {/* The figures as the review showed them before the send: a
+                receipt, each on one line, the total set off beneath. */}
+            <div className="vault-review">
+              {detail.kind === 'received' && <ReceiptRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
+              {detail.kind === 'sent' && (
+                <ReceiptRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : severalOf(detail) ? 'Amounts together' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />
+              )}
+              {detail.kind === 'self' && <ReceiptRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT`} />}
+              {detail.kind !== 'received' && detail.record.feeNau && <ReceiptRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
+              {/* The figure on the row, where it is made of two: what left the wallet. */}
+              {/* When some of it paid this wallet's own addresses, the amounts and the fee add up to more than what left, so the row says which it is. */}
+              {detail.kind === 'sent' && detail.record.feeNau && <ReceiptRow total label={detail.ownPayments.length > 0 ? 'Left this wallet' : 'Total'} value={`${amount(detail.shownNau)} NPT`} />}
+            </div>
             {labelOf(detail.record) && <DetailRow label="Paid to" value={`Your address for ${labelOf(detail.record)}`} isolate />}
             {lockOf(detail.record) !== null && (
               <DetailRow label="Spendable from" value={`${formatDateTime(lockOf(detail.record) as number)}. The sender set this date; confirmations do not bring it forward.`} />
             )}
-            {detail.kind === 'sent' && (
-              <DetailRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : severalOf(detail) ? 'Amounts together' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />
-            )}
-            {detail.kind === 'self' && <DetailRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT, back to this wallet`} />}
-            {detail.kind !== 'received' && detail.record.feeNau && <DetailRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
-            {/* The figure on the row, where it is made of two: what left the wallet. */}
-            {/* When some of it paid this wallet's own addresses, the amounts and the fee add up to more than what left, so the row says which it is. */}
-            {detail.kind === 'sent' && detail.record.feeNau && <DetailRow label={detail.ownPayments.length > 0 ? 'Left this wallet' : 'Total'} value={`${amount(detail.shownNau)} NPT`} />}
             {/* A send to several: each recipient, with what it got, in the order sent. */}
             {detail.kind !== 'received' &&
               severalOf(detail)?.map((p, i) => {
@@ -752,8 +753,7 @@ export function Home() {
             )}
             {detail.record.note && <DetailRow label="Note" value={detail.record.note} isolate />}
             {detail.record.error && <DetailRow label="What happened" value={detail.record.error} />}
-            {nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
-            {(outputsOf(detail).length > 0 || (detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n)) && (
+            {(outputsOf(detail).length > 0 || nodeStatusOf(detail.record) !== null || (detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n)) && (
               <>
                 {/* A section of the sheet, not a link beside the address's own
                     link: a line above it, the muted colour, a chevron that turns. */}
@@ -761,6 +761,8 @@ export function Home() {
                   <span>Technical details</span>
                   <IconChevronRight size={16} stroke={1.8} aria-hidden className={tech ? 'vault-chevron open' : 'vault-chevron'} />
                 </UnstyledButton>
+                {/* What the node said at its last check: the status above already says what it means. */}
+                {tech && nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
                 {/* The change is the send's own business: what came back to this wallet, not money received. */}
                 {tech && detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n && (
                   <DetailRow label="Change" value={`${amount(detail.changeNau)} NPT, which came back to this wallet`} />
@@ -776,11 +778,11 @@ export function Home() {
                   ))}
               </>
             )}
+            {/* Calm, as on Home's notice: the dialog it opens says why and holds the red button. */}
             {detail.kind !== 'received' && detail.record.status === 'pending' && (
               <Group justify="flex-end" mt="xs">
                 <Button
                   variant="light"
-                  color="red"
                   onClick={() => {
                     setGivingUp(detail.record);
                     setDetail(null);
@@ -813,7 +815,7 @@ export function Home() {
                   : 'The node no longer has this send. Giving up frees the coins held for it, and the send stays in History, marked Not sent.'}
             </Text>
             <Text size="sm" c="dimmed">
-              This send: {showNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee`}. Held for it: {showNau(reservedFor(givingUp))} NPT, which becomes spendable again.
+              This send: {showNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee`}. Giving up makes {showNau(reservedFor(givingUp))} NPT spendable again.
             </Text>
             <Group grow>
               <Button
@@ -833,6 +835,16 @@ export function Home() {
         )}
       </Modal>
     </Stack>
+  );
+}
+
+/** A figure in the detail sheet, as the review shows it: the label, and the figure at the end of the line. */
+function ReceiptRow({ label, value, total }: { label: string; value: string; total?: boolean }) {
+  return (
+    <div className={total ? 'vault-review-row total' : 'vault-review-row'}>
+      <span>{label}</span>
+      <b>{value}</b>
+    </div>
   );
 }
 

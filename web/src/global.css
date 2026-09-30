@@ -431,12 +431,12 @@ button.vault-picker:hover {
   background: var(--v-surface-2);
   color: var(--v-text);
 }
-button.vault-network::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--v-accent);
+/* Focus looks as it does everywhere else in the app: the accent ring, not
+   the browser's own. */
+button.vault-network:focus-visible,
+button.vault-picker:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 2px;
 }
 .vault-network-hint {
   font-size: var(--v-fs-xs);
@@ -552,6 +552,15 @@ button.vault-picker {
 .vault-word.slot.empty {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--v-line);
+}
+
+/* A label over a group of rows, as History's day headings read: a name as
+   it is typed, in sentence case ("Wallet 1", "App", "Recipient 1"). Spaced
+   capitals (.vault-eyebrow) stay for card titles, step counters and menus. */
+.vault-group-label {
+  font-size: var(--v-fs-sm);
+  font-weight: 600;
+  color: var(--v-text-2);
 }
 
 /* Key figures. */
@@ -694,6 +703,12 @@ main h2[tabindex='-1']:focus {
 .vault-review {
   display: grid;
   gap: 10px;
+}
+/* The review's "To", in the style of its rows' labels. */
+.vault-review-label {
+  display: block;
+  font-size: var(--v-fs-sm);
+  color: var(--v-muted);
 }
 .vault-review-row {
   display: flex;
@@ -909,12 +924,18 @@ main h2[tabindex='-1']:focus {
 .vault-status-dot.busy {
   background: var(--v-accent);
 }
+/* The node looks behind the network: a caution, so the caution colour. */
+.vault-status-dot.warn {
+  background: var(--v-warn-text);
+}
 .vault-balance-note-in {
   color: var(--v-ok-text);
   flex-shrink: 0;
 }
-/* A row's state, on its second line. */
-.vault-state-pending {
+/* A row's state, on its second line: in the row's own muted colour while
+   it only waits (Sending, Pending, a time lock), amber where something is
+   asked of the person (Not going through), red where it did not happen. */
+.vault-state-warn {
   color: var(--v-warn-text);
 }
 .vault-state-failed {
