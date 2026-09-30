@@ -6,6 +6,7 @@
 
 import type { KeyKind, NextKeyIndices } from '../backend/types';
 import type { FiatCurrency } from '../util/fiat';
+import type { PhraseCheck } from '../app/phraseCheck';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from 'idb';
 
 export type Network = 'main' | 'testnet' | 'regtest';
@@ -61,6 +62,12 @@ export interface AccountRecord {
    * or passkey: see confirmsSends.
    */
   confirmSends?: boolean;
+  /**
+   * A salted fingerprint of the seed phrase (app/phraseCheck.ts), so that
+   * "Forgot password?" restores this wallet only from its own words. Kept at
+   * setup, and for an older wallet at its next opening. Absent until then.
+   */
+  phraseCheck?: PhraseCheck;
 }
 
 export interface UtxoRecord {

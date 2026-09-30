@@ -62,8 +62,10 @@ export function App() {
   const { ready, account, locked, services } = useApp();
   // A new screen starts at its top; the router alone keeps the old scroll position.
   const { pathname, search } = useLocation();
-  // Onboarding is closed once a wallet exists, except to add another.
+  // Onboarding is closed once a wallet exists, except to add another, or
+  // to restore a locked one whose password is forgotten.
   const addingWallet = new URLSearchParams(search).has('add');
+  const forgotPassword = new URLSearchParams(search).has('forgot');
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
@@ -191,7 +193,9 @@ export function App() {
     return element;
   };
 
-  const showTabs = Boolean(account) && !locked;
+  // Setup, adding a wallet included, keeps the whole screen: a tab would
+  // leave it and drop what was typed. Cancel and Back are the way out.
+  const showTabs = Boolean(account) && !locked && pathname !== '/onboarding';
 
   return (
     <Box onClick={touch} onKeyDown={touch} className={showTabs ? 'vault-shell has-tabs' : 'vault-shell'}>
@@ -228,7 +232,10 @@ export function App() {
                 the network question out of a newcomer's way, and the header
                 should not ask it either. Once one does, on any network, the
                 menu stays: it is the way back from a network without one. */}
-            {(account || anyWallet) && <NetworkMenu />}
+            {/* While locked the lock screen says which wallet it is, and offers
+                the others itself: the menu would only say it again, and its
+                Add a wallet would lead back to the lock. */}
+            {(account || anyWallet) && !(account && locked) && <NetworkMenu />}
           </Group>
         </Container>
       </header>
@@ -239,7 +246,7 @@ export function App() {
       <Container component="main" size="xs" py="md" className={!locked && account && pathname === '/' ? 'vault-main vault-main-home' : !locked && account && pathname.startsWith('/settings') ? 'vault-main vault-main-settings' : 'vault-main'}>
         <Routes>
           {/* Adding a wallet is for whoever can unlock the one that is there: a locked app offers nothing else. */}
-          <Route path="/onboarding" element={account && !addingWallet ? <Navigate to="/" replace /> : account && locked ? <Unlock /> : <Onboarding />} />
+          <Route path="/onboarding" element={account && locked && forgotPassword ? <Onboarding /> : account && !addingWallet ? <Navigate to="/" replace /> : account && locked ? <Unlock /> : <Onboarding />} />
           <Route path="/" element={gate(<Home />)} />
           <Route path="/receive" element={gate(<Receive />)} />
           <Route path="/send" element={gate(<Send />)} />

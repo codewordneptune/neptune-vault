@@ -11,7 +11,8 @@ import { Caution } from './Notice';
 
 const SEEN_KEY = 'neptune-vault.poc-notice-seen';
 const POC_TITLE = 'Early version, not yet audited';
-const POC_TEXT = 'No security audit yet, and changes every week. Use it only with amounts you can afford to lose, and keep your seed phrase somewhere safe.';
+// The title says it is not audited; the seed phrase comes on the next screen.
+const POC_TEXT = 'It changes every week. Use it only with amounts you can afford to lose.';
 
 function seen(): boolean {
   try {

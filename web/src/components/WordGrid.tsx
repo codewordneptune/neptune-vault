@@ -8,10 +8,13 @@
 import { Box, Group, SimpleGrid, Text, UnstyledButton } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
 
-export function WordGrid({ words, blanks = [], next, onClear }: { words: string[]; blanks?: number[]; next?: number; onClear?: (i: number) => void }) {
+// `only` shows just those places, by their numbers: the confirmation's
+// missing words, without the rest of the phrase on screen again.
+export function WordGrid({ words, blanks = [], next, onClear, only }: { words: string[]; blanks?: number[]; next?: number; onClear?: (i: number) => void; only?: number[] }) {
   return (
     <SimpleGrid cols={{ base: 2, xs: 3 }} spacing="xs">
-      {words.map((w, i) => {
+      {(only ?? words.map((_, i) => i)).map((i) => {
+        const w = words[i] ?? '';
         const blank = blanks.includes(i);
         const empty = blank && !w;
         const cell = (

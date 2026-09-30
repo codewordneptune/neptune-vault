@@ -113,7 +113,7 @@ export function StartBlockPicker({
         <NumberInput
           mt="xs"
           label="Start block"
-          description="The block your first funds arrived in, or earlier."
+          description="The block your first payment arrived in, or earlier."
           min={1}
           value={value}
           onChange={(v) => {
