@@ -299,18 +299,31 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
       if (!stopped) setTimeout(() => void tick(track, caps, count, index), 150);
     };
 
+    // Android asks for the camera on a screen of its own, over the app: the
+    // app is paused and the page hidden while it is up, and the background
+    // lock would lock the wallet under the question. It waits for the
+    // answer instead, as it does for a file picker.
+    const openHeld = async (deviceId: string | null) => {
+      services.accounts.holdBackgroundLock();
+      try {
+        return await openCamera(deviceId);
+      } finally {
+        services.accounts.releaseBackgroundLock();
+      }
+    };
+
     void (async () => {
       try {
         setStatus('Opening the camera…');
         setReadout('');
         const wanted = picked ?? remembered();
         try {
-          stream = await openCamera(wanted);
+          stream = await openHeld(wanted);
         } catch (e) {
           // A remembered camera that has gone (another phone's id, a camera unplugged): start afresh.
           if (!wanted) throw e;
           remember(null);
-          stream = await openCamera(null);
+          stream = await openHeld(null);
         }
         if (stopped) return stopStream();
 
@@ -338,7 +351,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
             if (stopped) return;
             if (candidate.deviceId === first) continue;
             try {
-              const tryStream = await openCamera(candidate.deviceId);
+              const tryStream = await openHeld(candidate.deviceId);
               const tryTrack = tryStream.getVideoTracks()[0] ?? null;
               if (tryTrack && capsOf(tryTrack).focusMode?.includes('continuous')) {
                 stream = tryStream;
@@ -353,7 +366,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           // None can: back to the one the browser chose.
           if (!track) {
             if (stopped) return;
-            stream = await openCamera(first);
+            stream = await openHeld(first);
             track = stream.getVideoTracks()[0] ?? null;
           }
           caps = capsOf(track);

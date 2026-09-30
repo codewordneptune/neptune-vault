@@ -1,0 +1,6 @@
+{
+  "default": "../../../../web/public/icons/icon-512.png",
+  "android_bg": "background.png",
+  "android_fg": "foreground.png",
+  "android_monochrome": "monochrome.png"
+}

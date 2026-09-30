@@ -64,11 +64,21 @@ jobs:
         run: npm ci
 
       # The Android project is generated from tauri.conf.json on each run,
-      # rather than kept in the repository, until the app needs changes of
-      # its own there (a camera permission for the scanner, for one).
+      # rather than kept in the repository, and then given what is the
+      # app's own: the camera, for the QR scanner (not required, so a phone
+      # without one still installs it), and the launcher icon, the web
+      # app's icon as an adaptive icon (shells/tauri/icons/README.md).
       - name: Android project
         working-directory: shells/tauri
-        run: npx --prefix ../../web tauri android init --ci
+        run: |
+          set -euo pipefail
+          npx --prefix ../../web tauri android init --ci
+          manifest=gen/android/app/src/main/AndroidManifest.xml
+          sed -i 's|^\( *\)<uses-permission android:name="android.permission.INTERNET" />|&\n\1<uses-permission android:name="android.permission.CAMERA" />\n\1<uses-feature android:name="android.hardware.camera" android:required="false" />|' "$manifest"
+          grep -q 'android.permission.CAMERA' "$manifest"
+          grep -n 'uses-' "$manifest"
+          cp -r icons/android/. gen/android/app/src/main/res/
+          ls gen/android/app/src/main/res/mipmap-anydpi-v26
 
       - name: Build
         working-directory: shells/tauri

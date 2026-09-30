@@ -23,6 +23,13 @@ A high-trust app that needs no personal registration with Google:
   on each push to `cwn/android`, signed with a key made for that run and
   thrown away. A newer test build installs only after the older one is
   uninstalled, which deletes that app's wallet data.
+- **The app's own parts of the Android project.** The workflow generates the
+  project on each run, then adds the camera permission for the QR scanner
+  and the launcher icon from `shells/tauri/icons/android` (the web app's
+  icon, as an adaptive icon).
+- **Android's own screens.** Android asks for the camera on a screen over
+  the app, which pauses it and hides the page. The wallet waits for the
+  answer instead of locking, as it does for a file picker.
 - **First build installed** on a Galaxy S24 (2026-09-30). Still to measure:
   how long a send takes to prove, against the web app's (about 2 min 14 s in
   September on the same phone).
@@ -34,9 +41,8 @@ A high-trust app that needs no personal registration with Google:
 2. **Fix what the test build lacks:**
    - Backup export. The shell writes the file to the path the save dialog
      returns, and on Android that is a content URI, not a path. Write through
-     the Android file plugin instead.
-   - The QR scanner needs the camera permission in the Android manifest,
-     which means keeping the generated Android project in the repository.
+     the Android file plugin instead. The save dialog is one of Android's
+     own screens too, so the wallet must wait for it without locking.
    - Keep the screen on while a send is proved, from the native side.
 3. **Fingerprint unlock** in place of passkey unlock, which the Android web
    view cannot offer (see below).
