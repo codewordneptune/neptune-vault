@@ -11,7 +11,7 @@ import { NetworkMenu } from './components/NetworkMenu';
 import { PocTag } from './components/PocNotice';
 import { SendStrip } from './components/SendStrip';
 import { UpdateStrip } from './components/UpdateStrip';
-import { Diagnostics } from './screens/Diagnostics';
+import { ReportProblemScreen } from './screens/Diagnostics';
 import { Home } from './screens/Home';
 import { Onboarding } from './screens/Onboarding';
 import { Privacy } from './screens/Privacy';
@@ -275,7 +275,7 @@ export function App() {
               a send was last tried and, if it failed, which node was asked and
               what it said. With no wallet yet it stays open, since a person who
               cannot get started needs the device facts to report why. */}
-          <Route path="/diagnostics" element={account && locked ? <Unlock /> : <Diagnostics />} />
+          <Route path="/diagnostics" element={account && locked ? <Unlock /> : <ReportProblemScreen />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

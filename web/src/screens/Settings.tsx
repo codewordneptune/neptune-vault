@@ -1,7 +1,8 @@
 // Settings: a short list, each row with its current value, and a page for
 // each row with its explanations. Backup, lock and passkey, the node with
-// its connectivity check and rescan, appearance, currency, about (with its
-// pages: report a problem, privacy), removal.
+// its connectivity check, rescan and diagnostics (a page of its own),
+// appearance, currency, about (with its pages: report a problem, privacy),
+// removal.
 
 import { Anchor, Button, Checkbox, Divider, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import { IconChevronLeft, IconChevronRight, IconCopy, IconDownload, IconFingerprint } from '@tabler/icons-react';
@@ -17,12 +18,12 @@ import { Caution, Done, ErrorLine, Info } from '../components/Notice';
 import { DESKTOP, NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
-import { confirmsSends, DEFAULT_NODE_URLS, requestPersistentStorage, showsTestNetworks, walletName, type AccountRecord } from '../storage/db';
+import { confirmsSends, DEFAULT_NODE_URLS, offeredNetworks, requestPersistentStorage, showsTestNetworks, walletName, type AccountRecord } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { ContactsPanel } from './Contacts';
-import { ReportProblem } from './Diagnostics';
+import { DeviceDetails } from './Diagnostics';
 import { PrivacyStatement } from './Privacy';
 import { usePendingSends } from '../app/pending';
 import { isCancellation } from '../app/passkey';
@@ -47,7 +48,7 @@ function useOpenForm(key: FormKey): [boolean, (on: boolean) => void] {
 // its page, where its explanations are, so each is read only by someone
 // changing that setting. On a wide window the list and the open page sit
 // side by side.
-type SectionKey = 'backup' | 'security' | 'contacts' | 'name' | 'autolock' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove' | 'report' | 'privacy';
+type SectionKey = 'backup' | 'security' | 'contacts' | 'name' | 'autolock' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove' | 'diagnostics' | 'report' | 'privacy';
 const SECTION_TITLES: Record<SectionKey, string> = {
   backup: 'Backup',
   security: 'Security',
@@ -59,12 +60,13 @@ const SECTION_TITLES: Record<SectionKey, string> = {
   advanced: 'Advanced',
   about: 'About',
   remove: 'Remove wallet',
+  diagnostics: 'Diagnostics',
   report: 'Report a problem',
   privacy: 'Privacy',
 };
-// Pages reached from About rather than from the list: their way back is to
-// About, and on a wide window the list beside them marks About.
-const ABOUT_PAGES: SectionKey[] = ['report', 'privacy'];
+// Pages reached from another page rather than from the list: their way
+// back is to that page, and on a wide window the list beside them marks it.
+const PARENT_OF: Partial<Record<SectionKey, SectionKey>> = { diagnostics: 'advanced', report: 'about', privacy: 'about' };
 /** A node's address as the list shows it: its host, or a path on this site as written. */
 function nodeHost(url: string): string {
   if (url.startsWith('/')) return url;
@@ -117,8 +119,8 @@ export function Settings() {
   const changed = useCallback(() => setRevision((n) => n + 1), []);
   if (section !== undefined && !isSection(section)) return <Navigate to="/settings" replace />;
   const current: SectionKey | null = isSection(section) ? section : wide ? 'backup' : null;
-  const aboutPage = current !== null && ABOUT_PAGES.includes(current);
-  const list = <SettingsList current={aboutPage ? 'about' : current} lockMinutes={Math.round(lockTimeoutOf(services.settings.lockTimeoutMs) / 60_000)} currency={services.settings.fiatCurrency} />;
+  const parent = current !== null ? PARENT_OF[current] : undefined;
+  const list = <SettingsList current={parent ?? current} lockMinutes={Math.round(lockTimeoutOf(services.settings.lockTimeoutMs) / 60_000)} currency={services.settings.fiatCurrency} />;
   if (!current) {
     return (
       <Stack gap="md">
@@ -136,10 +138,10 @@ export function Settings() {
           <IconChevronLeft size={16} stroke={1.8} aria-hidden />
           {cameFrom}
         </UnstyledButton>
-      ) : aboutPage ? (
-        <UnstyledButton component={Link} to="/settings/about" c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
+      ) : parent ? (
+        <UnstyledButton component={Link} to={`/settings/${parent}`} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
           <IconChevronLeft size={16} stroke={1.8} aria-hidden />
-          About
+          {SECTION_TITLES[parent]}
         </UnstyledButton>
       ) : (
         !wide && (
@@ -239,17 +241,18 @@ function SettingsSections({ section }: { section: SectionKey }) {
   const sending = Boolean(sendJob && !sendJob.done);
   // A saved node shows in the list beside this page at once.
   const changed = useContext(SettingsChangedContext);
-  // Testnet and Regtest are for developers and testers: offered in the
-  // wallet menu once asked for here, or while the app is on one of them or
-  // this device has a wallet on one (showsTestNetworks), so that wallet
-  // stays reachable.
+  // Testnet and Regtest are for developers and testers: offered in setup and
+  // the wallet menu once asked for here. Without it new wallets go on
+  // Mainnet, and the menu keeps a test network only while a wallet of this
+  // device is on it (offeredNetworks), so that wallet stays reachable.
   const [testNets, setTestNets] = useState(services.settings.developerNetworks === true);
   const [allAccounts, setAllAccounts] = useState<AccountRecord[]>([]);
   useEffect(() => {
     void services.db.getAll('accounts').then(setAllAccounts, () => undefined);
   }, [services, account]);
   const testNetsShown = showsTestNetworks({ developerNetworks: testNets, network }, allAccounts);
-  const testNetsWhy = testNets || !testNetsShown ? null : network !== 'main' ? `In the menu anyway while the app is on ${NETWORK_LABELS[network]}.` : 'In the menu anyway while this device has a wallet on one of them.';
+  const kept = offeredNetworks({ network }, allAccounts).filter((n) => n !== 'main');
+  const testNetsWhy = testNets || kept.length === 0 ? null : `${kept.map((n) => NETWORK_LABELS[n]).join(' and ')} ${kept.length === 1 ? 'stays' : 'stay'} in the menu while this device has ${kept.length === 1 ? 'a wallet on it' : 'wallets on them'}.`;
   const toggleTestNets = (on: boolean) => {
     setTestNets(on);
     void services.updateSettings({ developerNetworks: on });
@@ -633,10 +636,11 @@ function SettingsSections({ section }: { section: SectionKey }) {
           </Stack>
         </Paper>
       )}
-      {/* Two named items. The node: its address, how it answers, and a
+      {/* Three named items. The node: its address, how it answers, and a
           button only when there is something to do (an edit to test and save,
           a failure to try again); Home's Sync checks a node that answers.
-          Networks are switched in the wallet menu. Then the rescan. */}
+          Networks are switched in the wallet menu. Then the rescan, and
+          diagnostics, for whoever wants to see how the wallet runs here. */}
       {section === 'advanced' && (
         <Paper>
           <div className="vault-setting-items">
@@ -671,12 +675,22 @@ function SettingsSections({ section }: { section: SectionKey }) {
               <Checkbox
                 mt="xs"
                 label="Developer networks"
-                description={`Adds Testnet and Regtest to the wallet menu, for developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
+                description={`Lets you add wallets on Testnet and Regtest, and switch to them in the wallet menu. For developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
                 checked={testNets}
                 onChange={(e) => toggleTestNets(e.currentTarget.checked)}
               />
             </SettingItem>
             <RescanCard />
+            <SettingItem name="Diagnostics">
+              <Text size="sm" c="dimmed">
+                How this device runs the wallet, the app's version, and how the last proof went.
+              </Text>
+              <Group>
+                <Button variant="light" component={Link} to="/settings/diagnostics">
+                  Show diagnostics
+                </Button>
+              </Group>
+            </SettingItem>
           </div>
         </Paper>
       )}
@@ -727,7 +741,8 @@ function SettingsSections({ section }: { section: SectionKey }) {
         </Paper>
       )}
       {section === 'remove' && <RemoveWalletCard />}
-      {section === 'report' && <ReportProblem />}
+      {section === 'diagnostics' && <DeviceDetails />}
+      {section === 'report' && <DeviceDetails report />}
       {section === 'privacy' && <PrivacyStatement />}
     </OpenFormContext.Provider>
   );

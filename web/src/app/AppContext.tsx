@@ -208,6 +208,14 @@ export function AppProvider({ services, children }: { services: Services; childr
     })();
   }, [services]);
 
+  // Without Developer networks every new wallet goes on Mainnet, so the app
+  // does not stay on a test network that has no wallet: left there (by an
+  // older version's setup, or by removing the last wallet there), it goes
+  // back to Mainnet and its wallet, or to setup.
+  useEffect(() => {
+    if (ready && !account && network !== 'main' && services.settings.developerNetworks !== true) void switchNetwork('main');
+  }, [ready, account, network, services, switchNetwork]);
+
   useEffect(() => services.accounts.onLockChange(setLocked), [services]);
   useEffect(() => services.accounts.installVisibilityLock(), [services]);
 

@@ -380,13 +380,23 @@ export function walletName(account: Pick<AccountRecord, 'name'>): string {
   return account.name?.trim() || 'Wallet 1';
 }
 
+/** Every network, in the order the app lists them. */
+export const NETWORKS: Network[] = ['main', 'testnet', 'regtest'];
+
 /**
- * Whether Testnet and Regtest are offered: when asked for in Settings, when
- * the app is on one of them, or when a wallet on one of them is on this
- * device (it must stay reachable). Mainnet alone otherwise.
+ * The networks the wallet menu offers. All three with Developer networks
+ * on. Without it, new wallets go on Mainnet only, so a test network is
+ * offered only while a wallet of this device is on it (it must stay
+ * reachable) or the app is.
  */
+export function offeredNetworks(settings: Pick<SettingsRecord, 'developerNetworks' | 'network'>, accounts: Pick<AccountRecord, 'network'>[]): Network[] {
+  if (settings.developerNetworks === true) return NETWORKS;
+  return NETWORKS.filter((n) => n === 'main' || n === settings.network || accounts.some((a) => a.network === n));
+}
+
+/** Whether a network other than Mainnet is offered (offeredNetworks); Mainnet alone needs no choosing. */
 export function showsTestNetworks(settings: Pick<SettingsRecord, 'developerNetworks' | 'network'>, accounts: Pick<AccountRecord, 'network'>[]): boolean {
-  return settings.developerNetworks === true || settings.network !== 'main' || accounts.some((a) => a.network !== 'main');
+  return offeredNetworks(settings, accounts).length > 1;
 }
 
 /** Whether a wallet's sends wait for the password or passkey: yes unless it was turned off. */

@@ -12,6 +12,14 @@ choose.
 
 **Try it:** <https://vault.dev.useneptune.org>
 
+<p align="center">
+  <img src="docs/screenshots/home.webp" width="190" alt="Home: the balance, Send and Receive, and the history by day">
+  <img src="docs/screenshots/receive.webp" width="190" alt="Receive: the address as a QR code, Copy and Share, and the address list">
+  <img src="docs/screenshots/send-review.webp" width="190" alt="Send: the review before sending, with the amount, the fee and the total">
+  <img src="docs/screenshots/settings.webp" width="190" alt="Settings: a short list, each row with its current value">
+</p>
+<p align="center"><sub>A demo wallet on Regtest, a local test network.</sub></p>
+
 ## Contents
 
 - [Features](#features)
@@ -58,8 +66,10 @@ choose.
 - The detail sheet shows each coin's identifier, with a link to it on
   the explorer (Mainnet only).
 - Rescan the chain fast, or from a block or a date.
-- Report a problem, in Settings under About: the device and app details a
-  bug report needs, with a button that copies them.
+- Diagnostics, in Settings under Advanced: how this device runs the
+  wallet, the versions and the last proof, with a button that copies them.
+  Report a problem, under About, shows the same details and where to send
+  them.
 - Optionally, an estimate of the balance in another currency (off by
   default; see [docs/PRIVACY.md](docs/PRIVACY.md) for what that tells the
   price site).
@@ -86,6 +96,10 @@ The web app and the desktop apps are the same interface. The desktop apps
 run the wallet engine and the prover as native code rather than
 WebAssembly. They store the wallet in the app's data folder rather than in
 browser storage.
+
+<p align="center">
+  <img src="docs/screenshots/wide-home-dark.webp" width="720" alt="Home on a wide screen, in the dark theme">
+</p>
 
 ## Before you use it
 
@@ -230,10 +244,10 @@ Fund the node's wallet:
 neptune-cli --data-dir <dir> --port 9799 mine-blocks-to-wallet 5
 ```
 
-Then choose Regtest in the app. Before a wallet exists, it is the Network
-line under the setup card; with one, tick Developer networks in Settings,
-Advanced, then pick Regtest from the wallet menu in the header. Create a
-wallet there, and send coins to it:
+Then, in the app, tick Developer networks in Settings, Advanced. The first
+wallet always goes on Mainnet, so create or restore one before that. Add a
+wallet, in the header's wallet menu, then has a Network line under its
+card: choose Regtest there, create the wallet, and send coins to it:
 
 ```bash
 neptune-cli --data-dir <dir> --port 9799 send <app address> 10 0.1 vault on-chain on-chain
@@ -252,10 +266,12 @@ Things to know about regtest:
 
 ### Networks and nodes
 
-- The app switches between Mainnet, Testnet and Regtest from the wallet
-  menu in the header. Testnet and Regtest show there once Developer
-  networks is ticked in Settings, Advanced, or while a wallet is on one.
-  Each wallet belongs to one network.
+- New wallets go on Mainnet unless Developer networks is ticked in
+  Settings, Advanced. Then Add a wallet also offers Testnet and Regtest,
+  and the wallet menu in the header switches between all three. With it
+  off, a test network stays in that menu only while a wallet is on it. Each
+  wallet belongs to one network, and a backup file restores on the network
+  it was saved on.
 - You set the node in Settings, Advanced.
 - In a browser, the node must send CORS headers, because the page calls it
   directly. The default Mainnet node does.
@@ -287,8 +303,8 @@ cd shells/tauri && npx --prefix ../../web tauri build
 ### Versions and deployment
 
 - The app has one version: the `version` field in `web/package.json`.
-  - It appears under About and on Report a problem, with the commit and
-    the build time.
+  - It appears under About and on Diagnostics and Report a problem, with
+    the commit and the build time.
   - Each release is tagged `v<version>`. Desktop releases are tagged
     `desktop-v<version>`.
 - Each push to `main` that touches the app or the crates does three things:
@@ -310,6 +326,7 @@ cd shells/tauri && npx --prefix ../../web tauri build
 - [docs/HOSTING.md](docs/HOSTING.md): hosting, headers and verifying a deploy
 - [docs/DESKTOP-RELEASE.md](docs/DESKTOP-RELEASE.md): building and releasing the desktop apps
 - [docs/M0-BENCHMARK.md](docs/M0-BENCHMARK.md): the measured cost of proving in a browser (historical record)
+- [docs/screenshots/capture.mjs](docs/screenshots/capture.mjs): how the screenshots above are taken, and the demo wallet they show
 
 ## Licence
 

@@ -3,7 +3,7 @@
 What this wallet keeps, what it sends and to whom, and what is public. The
 same text is shown in the app under Settings, About, Privacy; the app's copy
 (`web/src/content/privacy.ts`) is the reference and this file mirrors it.
-Last changed 2026-09-30.
+Last changed 2026-10-01.
 
 The desktop app shows the same statement with a few sentences changed where
 it differs from a browser; those are marked *In the desktop app* below.
@@ -97,8 +97,8 @@ receives. The Receive screen says so beside it.
 ## What this app does not do
 
 No analytics, no telemetry, no crash reporting, no advertising, no cookies
-for tracking. The Report a problem page shows facts about this device to
-you; it sends them nowhere, and copies them only when you ask.
+for tracking. The Diagnostics and Report a problem pages show facts about
+this device to you; they send them nowhere, and copy them only when you ask.
 
 The camera, when you scan a code, is read on the device; no frame leaves it.
 The clipboard is written only when you tap Copy. The app never reads it by

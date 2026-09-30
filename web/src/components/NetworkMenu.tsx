@@ -1,8 +1,8 @@
 // The wallet pill in the header: names the open wallet, and its network
 // when that is not Mainnet, and opens a menu of the wallets on this network,
 // a way to add one, a way to lock, and, for developers and testers, the
-// three networks (showsTestNetworks). Choosing a network applies the same
-// lock-and-switch as Settings; choosing a wallet locks and opens that wallet.
+// networks (offeredNetworks). Choosing a network locks this wallet and shows
+// that network's; choosing a wallet locks and opens that wallet.
 
 import { Button, Group, Menu, Modal, Stack, Text } from '@mantine/core';
 import { IconCheck, IconChevronDown, IconLock, IconPlus } from '@tabler/icons-react';
@@ -10,10 +10,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
-import { byCreation, showsTestNetworks, walletName, type AccountRecord, type Network } from '../storage/db';
+import { byCreation, offeredNetworks, walletName, type AccountRecord, type Network } from '../storage/db';
 import { NETWORK_LABELS } from '../util/network';
-
-const NETWORKS: Network[] = ['main', 'testnet', 'regtest'];
 
 export function NetworkMenu() {
   const { services, network, switchNetwork, switchAccount, account, locked, sendJob } = useApp();
@@ -30,8 +28,10 @@ export function NetworkMenu() {
   const sending = Boolean(sendJob && !sendJob.done);
   const onThisNetwork = accounts.filter((a) => a.network === network);
   const countOn = (n: Network) => accounts.filter((a) => a.network === n).length;
-  // Testnet and Regtest only once asked for in Settings, or while a wallet is on one.
-  const testNets = showsTestNetworks({ developerNetworks: services.settings.developerNetworks, network }, accounts);
+  // Testnet and Regtest once asked for in Settings; without that, only one a
+  // wallet is on, so the wallet stays reachable (new wallets go on Mainnet).
+  const networks = offeredNetworks({ developerNetworks: services.settings.developerNetworks, network }, accounts);
+  const testNets = networks.length > 1;
   // Mainnet goes without saying; a test network is always named, in its own colour.
   const named = network !== 'main' || !account;
   const hint = (n: Network) => (countOn(n) === 0 ? 'no wallet' : countOn(n) === 1 ? '1 wallet' : countOn(n) + ' wallets');
@@ -101,7 +101,7 @@ export function NetworkMenu() {
         )}
         {testNets && <Menu.Label>Network</Menu.Label>}
         {testNets &&
-          NETWORKS.map((n) => (
+          networks.map((n) => (
             <Menu.Item
               key={n}
               onClick={() => choose(n)}

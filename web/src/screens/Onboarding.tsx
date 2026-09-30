@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { WALLET_NAME_MAX, WalletNameTakenError } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
+import { nodeFor } from '../app/services';
 import { PocNotice } from '../components/PocNotice';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { Caution, ErrorLine, Info } from '../components/Notice';
@@ -71,12 +72,21 @@ export function Onboarding() {
   const adding = Boolean(account) && new URLSearchParams(location.search).has('add');
   const draft = loadDraft();
   const [step, setStep] = useState<Step>(draft ? (draft.imported ? 'password' : 'show') : 'welcome');
-  // The network is the app's: a switch made from the header menu must reach
-  // the wallet being made here, or it would be saved on the wrong network.
-  const [network, setNetwork] = useState<Network>(draft?.network ?? currentNetwork);
+  // The network the new wallet goes on. Without Developer networks it is
+  // Mainnet, and nobody is asked. With it, setup asks, starting on Mainnet,
+  // or on the network picked in the wallet menu when that one has no wallet
+  // yet (that is why setup is open). The app moves there once it is made.
+  const developer = services.settings.developerNetworks === true;
+  const [chosen, setChosen] = useState<Network>(draft?.network ?? (adding ? 'main' : currentNetwork));
+  const network: Network = developer ? chosen : 'main';
+  const shownNetwork = useRef(currentNetwork);
   useEffect(() => {
-    setNetwork(currentNetwork);
-  }, [currentNetwork]);
+    if (shownNetwork.current === currentNetwork) return;
+    shownNetwork.current = currentNetwork;
+    if (!adding) setChosen(currentNetwork);
+  }, [currentNetwork, adding]);
+  // That network's node, which need not be the app's yet.
+  const node = () => nodeFor(services.settings.nodeUrls[network], network);
   const [phrase, setPhrase] = useState<string[]>(draft?.phrase ?? []);
   const [imported, setImported] = useState(draft?.imported ?? false);
   const [birthday, setBirthday] = useState<number | string>(draft?.birthday ?? 1);
@@ -88,12 +98,12 @@ export function Onboarding() {
   const [fast, setFast] = useState(draft?.fast ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Networks other than this one that have a wallet on this device: after a
-  // switch to an empty network, the way back.
+  // Networks other than the app's that have a wallet on this device: after
+  // a switch to an empty network, the way back.
   const [elsewhere, setElsewhere] = useState<Network[]>([]);
   useEffect(() => {
-    void services.db.getAll('accounts').then((all) => setElsewhere([...new Set(all.map((a) => a.network))].filter((n) => n !== network)));
-  }, [services, network]);
+    void services.db.getAll('accounts').then((all) => setElsewhere([...new Set(all.map((a) => a.network))].filter((n) => n !== currentNetwork)));
+  }, [services, currentNetwork]);
   // Adding a wallet beside others offers a name; this is the one it gets otherwise.
   const [defaultName, setDefaultName] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -212,7 +222,7 @@ export function Onboarding() {
         // cannot be reached now, 0 marks the height as unknown and the first
         // successful sync starts at the tip it sees.
         try {
-          height = Math.max(1, await services.node().probe());
+          height = Math.max(1, await node().probe());
         } catch {
           height = 0;
         }
@@ -221,8 +231,10 @@ export function Onboarding() {
       const record = await services.accounts.createAccount(phrase, password, network, height, { fastRestore, name: adding ? name : undefined });
       saveDraft(null);
       await services.accounts.markBackupConfirmed(record.id);
-      await services.updateSettings({ currentAccountId: record.id });
+      await services.updateSettings({ currentAccountId: record.id, network: record.network });
       setAccount({ ...record, backupConfirmed: true });
+      // Made on another network than the app was on: the app goes with it.
+      if (record.network !== currentNetwork) adoptNetwork(record.network);
       navigate('/');
     } catch (e) {
       if (e instanceof WalletNameTakenError) setNameError(e.message);
@@ -283,13 +295,12 @@ export function Onboarding() {
             <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
             {error && <ErrorLine>{error}</ErrorLine>}
             <Button variant="light" onClick={() => setStep('existing')}>I already have a wallet</Button>
-            {/* Adding a wallet goes to the network that is open. Choosing another
-                here would lock the open wallet at once, with no question asked;
-                the header menu asks first, so that is where to switch. */}
-            {/* Said only where test networks are offered: on Mainnet alone it is noise. */}
-            {adding && (network !== 'main' || elsewhere.length > 0 || services.settings.developerNetworks === true) && (
+            {/* Without Developer networks a wallet is added on Mainnet, even
+                beside a test network's wallet (still in the menu, to reach
+                it): said before it is made, as the app goes to Mainnet too. */}
+            {adding && !developer && currentNetwork !== 'main' && (
               <Text size="sm" c="dimmed">
-                Adds to {NETWORK_LABELS[network]}. To add on another network, switch network from the header first.
+                Adds to Mainnet. To add on {NETWORK_LABELS[currentNetwork]}, turn on Developer networks in Settings, Advanced.
               </Text>
             )}
             {!adding && elsewhere.length > 0 && (
@@ -338,10 +349,13 @@ export function Onboarding() {
           </Stack>
         </Paper>
       )}
-      {/* Most people want Mainnet and should not meet the question at all: the
-          network is a quiet line under the card, open when it is not Mainnet,
-          so a tester sees where the wallet will go. */}
-      {step === 'welcome' && !adding && (
+      {/* The network is asked only with Developer networks on (Settings,
+          Advanced): other people never meet the question, and a first
+          wallet goes on Mainnet. A quiet line under the card, open
+          when it is not Mainnet, so a tester sees where the wallet will go.
+          Nothing changes until the wallet is made: the open wallet, when
+          adding one, stays open until then. */}
+      {step === 'welcome' && developer && (
         <details className="vault-setting vault-setup-network" open={network !== 'main'}>
           <summary>
             <IconChevronRight size={16} stroke={1.8} className="vault-setting-chevron" aria-hidden />
@@ -353,9 +367,7 @@ export function Onboarding() {
               data={NETWORK_OPTIONS}
               value={network}
               onChange={(v) => {
-                if (!v) return;
-                setNetwork(v as Network);
-                void switchNetwork(v as Network);
+                if (v) setChosen(v as Network);
               }}
             />
           </div>
@@ -477,7 +489,7 @@ export function Onboarding() {
           setMonth={setMonth}
           fast={fast}
           setFast={setFast}
-          node={() => services.node()}
+          node={node}
           initialText={imported ? phrase.join(' ') : ''}
           checkPhrase={(words) => services.core.phraseProblem(words)}
           onPhrase={(words) => {

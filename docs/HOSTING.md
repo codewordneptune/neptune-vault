@@ -63,7 +63,8 @@ npx @azure/static-web-apps-cli deploy dist --deployment-token <token> --env prod
 
 Open the site on the phone and look at Settings, Backup: it says whether
 the browser keeps the wallet's data (the persistent-storage request). Then open Report a problem
-(`/diagnostics`, also in Settings under About): a Cross-origin isolation
+(`/diagnostics`, also in Settings under About, or Diagnostics under
+Advanced): a Cross-origin isolation
 row reading "Yes: the wallet engine can run, and proving uses every core"
 confirms the headers are in place. Install to the home screen from
 the browser menu; the app must open in standalone mode with the icon.
