@@ -55,7 +55,8 @@ export function DeviceDetails({ report = false }: { report?: boolean }) {
     ? [
         {
           label: formatDateTime(last.at),
-          value: last.error ? `Failed: ${last.error}` : `${showInt(last.seconds)} s, peak ${showInt(last.peakMb)} MB, ${last.threads || 'single'} threads`,
+          // A peak of 0 was not measured (an app from before it was, or macOS): left out, not shown as nothing.
+          value: last.error ? `Failed: ${last.error}` : `${showInt(last.seconds)} s${last.peakMb > 0 ? `, peak ${showInt(last.peakMb)} MB` : ''}, ${last.threads || 'single'} threads`,
           state: last.error ? 'warn' : 'ok',
         },
         { label: 'Prover', value: `Claim version ${last.claimVersion}${last.error && last.peakMb > 0 ? `, ${showInt(last.peakMb)} MB before it failed` : ''}` },

@@ -18,8 +18,9 @@
 pub mod envelope;
 pub mod wallet_store;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
@@ -527,6 +528,127 @@ pub struct ProveOutcome {
     pub threads: usize,
 }
 
+/// The app's memory in use now, in bytes: its resident set on Android and
+/// Linux, its working set on Windows, the RAM the system counts against it.
+/// None where it is not measured yet (macOS and iOS), and the page then
+/// leaves the figure out rather than show nothing as zero.
+pub fn resident_bytes() -> Option<u64> {
+    resident::bytes()
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+mod resident {
+    /// VmRSS in the kernel's own account of this process, kept in kB.
+    pub fn bytes() -> Option<u64> {
+        let status = std::fs::read_to_string("/proc/self/status").ok()?;
+        let line = status.lines().find(|line| line.starts_with("VmRSS:"))?;
+        let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+        Some(kb * 1024)
+    }
+}
+
+#[cfg(windows)]
+mod resident {
+    use std::ffi::c_void;
+
+    /// PROCESS_MEMORY_COUNTERS, laid out as psapi.h has it.
+    #[repr(C)]
+    #[derive(Default)]
+    struct Counters {
+        cb: u32,
+        page_fault_count: u32,
+        peak_working_set_size: usize,
+        working_set_size: usize,
+        quota_peak_paged_pool_usage: usize,
+        quota_paged_pool_usage: usize,
+        quota_peak_non_paged_pool_usage: usize,
+        quota_non_paged_pool_usage: usize,
+        pagefile_usage: usize,
+        peak_pagefile_usage: usize,
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentProcess() -> *mut c_void;
+        fn K32GetProcessMemoryInfo(process: *mut c_void, counters: *mut Counters, size: u32) -> i32;
+    }
+
+    pub fn bytes() -> Option<u64> {
+        let size = std::mem::size_of::<Counters>() as u32;
+        let mut counters = Counters { cb: size, ..Counters::default() };
+        // SAFETY: GetCurrentProcess gives a pseudo-handle that needs no
+        // closing, and the call writes at most `size` bytes into `counters`,
+        // which has the layout the API defines.
+        let ok = unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, size) };
+        (ok != 0).then_some(counters.working_set_size as u64)
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "android", windows)))]
+mod resident {
+    pub fn bytes() -> Option<u64> {
+        None
+    }
+}
+
+/// The most memory the app held while a proof ran, sampled every 20 ms by a
+/// thread of its own. The prover's big tables come and go between
+/// sub-proofs, and the peak is what decides whether a phone can finish a
+/// send. It counts the whole app, so it is what the system sees.
+struct PeakMemory {
+    peak: Arc<AtomicU64>,
+    stop: Arc<AtomicBool>,
+    sampler: Option<std::thread::JoinHandle<()>>,
+}
+
+impl PeakMemory {
+    fn start() -> Self {
+        let now = resident_bytes();
+        let peak = Arc::new(AtomicU64::new(now.unwrap_or(0)));
+        let stop = Arc::new(AtomicBool::new(false));
+        // Where nothing can be read, nothing is sampled, and the peak stays 0.
+        let sampler = now.map(|_| {
+            let (peak, stop) = (peak.clone(), stop.clone());
+            std::thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    if let Some(bytes) = resident_bytes() {
+                        peak.fetch_max(bytes, Ordering::Relaxed);
+                    }
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+            })
+        });
+        Self { peak, stop, sampler }
+    }
+
+    /// The highest so far; 0 where memory is not measured.
+    fn peak(&self) -> u64 {
+        self.peak.load(Ordering::Relaxed)
+    }
+
+    /// Stops sampling, and gives the highest seen, the last moment included.
+    fn finish(mut self) -> u64 {
+        self.stop_sampling();
+        if let Some(bytes) = resident_bytes() {
+            self.peak.fetch_max(bytes, Ordering::Relaxed);
+        }
+        self.peak()
+    }
+
+    fn stop_sampling(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(sampler) = self.sampler.take() {
+            let _ = sampler.join();
+        }
+    }
+}
+
+impl Drop for PeakMemory {
+    fn drop(&mut self) {
+        self.stop_sampling();
+    }
+}
+
 /// Proving, and the one flag that stops it.
 #[derive(Default)]
 pub struct Prover {
@@ -584,6 +706,7 @@ impl Prover {
         let total = vault_prover::num_sub_proofs(&witness);
         progress(ProveEvent::Ready { total, threads });
 
+        let memory = PeakMemory::start();
         let mut report = |event: vault_prover::ProgressEvent| match event {
             vault_prover::ProgressEvent::Started { name, index, total } => {
                 progress(ProveEvent::Started { name, index, total })
@@ -599,7 +722,7 @@ impl Prover {
                 index,
                 total,
                 millis,
-                memory_bytes: 0,
+                memory_bytes: memory.peak(),
             }),
         };
 
@@ -624,6 +747,7 @@ impl Prover {
                 &mut report,
             )
         })?;
+        let memory_bytes = memory.finish();
 
         if self.cancelled.swap(false, Ordering::SeqCst) {
             return Err(BridgeError::new(
@@ -636,7 +760,7 @@ impl Prover {
             .map_err(|e| BridgeError::plain(format!("cannot encode the proof collection: {e}")))?;
         Ok(ProveOutcome {
             proof_collection: BASE64.encode(&bytes),
-            memory_bytes: 0,
+            memory_bytes,
             threads,
         })
     }
@@ -703,6 +827,22 @@ mod tests {
     fn a_bad_phrase_is_explained() {
         assert!(phrase_problem(&["fish".to_string()]).is_some());
         assert!(phrase_problem(&generate_phrase()).is_none());
+    }
+
+    /// Where memory is measured, a proof's peak counts what it allocated,
+    /// even when that is freed again before the proof ends.
+    #[test]
+    #[cfg(any(target_os = "linux", target_os = "android", windows))]
+    fn the_peak_sees_memory_that_comes_and_goes() {
+        let before = resident_bytes().expect("measured on this system");
+        let memory = PeakMemory::start();
+        let big = vec![1u8; 256 << 20];
+        std::thread::sleep(Duration::from_millis(120));
+        assert_eq!(big[big.len() - 1], 1);
+        drop(big);
+        std::thread::sleep(Duration::from_millis(60));
+        let peak = memory.finish();
+        assert!(peak >= before + (200 << 20), "peak {peak}, before {before}");
     }
 
     #[test]
