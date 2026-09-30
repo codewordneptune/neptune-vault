@@ -17,7 +17,7 @@ import { addressKindLabel } from '../util/address';
 import { distinctNames } from './contacts';
 import type { WalletCore } from '../backend/types';
 import type { LastSend, SendStarted } from './send';
-import { labelsFromFile, readLabels, type AddressLabels } from './addressLabels';
+import { givenFromFile, labelsFromFile, readGiven, readLabels, type AddressLabels } from './addressLabels';
 
 export type LockListener = (locked: boolean) => void;
 
@@ -753,12 +753,14 @@ export class AccountService {
       this.engine.where(accountId, 'contacts') === 'engine'
         ? ((await this.core.storeRead!(accountId, 'contacts')) as ContactRecord[])
         : await this.db.getAllFromIndex('contacts', 'byAccount', accountId);
-    // Who each address was given to goes with the contacts, encrypted.
+    // Who each address was given to goes with the contacts, encrypted, and
+    // so does which addresses were given out at all.
     const labels = await readLabels(this.core, this.engine, accountId).catch(() => ({}));
+    const given = [...(await readGiven(this.core, this.engine, accountId).catch(() => new Set<string>()))].sort();
     return sealBackup(
       { network: record.network, birthdayHeight: record.birthdayHeight, exportedAt: Date.now() },
       record.envelope,
-      { contacts: contacts.map((c) => ({ name: c.name, address: c.address })), ...(Object.keys(labels).length > 0 ? { labels } : {}) },
+      { contacts: contacts.map((c) => ({ name: c.name, address: c.address })), ...(Object.keys(labels).length > 0 ? { labels } : {}), ...(given.length > 0 ? { given } : {}) },
       password,
       this.derive,
     );
@@ -816,11 +818,13 @@ export class AccountService {
     let envelope: SeedEnvelope;
     let fromFile: unknown;
     let labels: AddressLabels = {};
+    let given = new Set<string>();
     if (file.version === 3) {
       const opened = await openBackup(file, password, this.derive);
       envelope = opened.envelope;
       fromFile = opened.secrets.contacts;
       labels = labelsFromFile(opened.secrets.labels);
+      given = givenFromFile(opened.secrets.given);
     } else {
       envelope = file.envelope;
       fromFile = file.contacts;
@@ -879,6 +883,9 @@ export class AccountService {
       }
       if (this.core.storeCommit && Object.keys(labels).length > 0 && this.engine.where(record.id, 'private') === 'engine') {
         await this.core.storeCommit(record.id, [{ op: 'putPrivate', key: 'addressLabels', value: labels }]);
+      }
+      if (this.core.storeCommit && given.size > 0 && this.engine.where(record.id, 'private') === 'engine') {
+        await this.core.storeCommit(record.id, [{ op: 'putPrivate', key: 'addressesGiven', value: [...given].sort() }]);
       }
       if (epoch !== this.epoch) throw new UnlockCancelledError();
       this.setUnlocked(record.id);

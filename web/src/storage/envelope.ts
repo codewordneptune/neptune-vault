@@ -394,6 +394,12 @@ export interface BackupSecrets {
    * older app reading a newer file passes over it.
    */
   labels?: Record<string, string>;
+  /**
+   * The addresses given out (copied, shared or shown full screen), by the
+   * same keys, so a restored wallet's New address never offers one again.
+   * Absent in files from before they were kept.
+   */
+  given?: string[];
 }
 
 /**
@@ -494,7 +500,11 @@ export async function openBackup(file: SealedExportFile, password: string, deriv
     const parsed = JSON.parse(td.decode(plain)) as Partial<BackupSecrets>;
     const wrappedContentKey = await aesEncrypt(wrapKey, contentRaw);
     return {
-      secrets: { contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [], labels: typeof parsed.labels === 'object' && parsed.labels !== null ? parsed.labels : undefined },
+      secrets: {
+        contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [],
+        labels: typeof parsed.labels === 'object' && parsed.labels !== null ? parsed.labels : undefined,
+        given: Array.isArray(parsed.given) ? parsed.given : undefined,
+      },
       envelope: { version: 1, kdf: e.kdf, wrappedContentKey, seed: e.seed },
     };
   } catch {

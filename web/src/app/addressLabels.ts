@@ -51,6 +51,38 @@ export async function writeLabel(core: WalletCore, engine: EngineParts, accountI
   return labels;
 }
 
+/** The private note holding the addresses given out on this device. */
+const ADDRESSES_GIVEN = 'addressesGiven';
+const ADDRESS_KEY = /^(generation|ec_hybrid|viewing):\d{1,9}$/;
+
+/**
+ * The addresses of a wallet given out: copied, shared or shown full screen
+ * on Receive, as a payment request too. New address never offers one of
+ * them again, named or not, paid or not: someone may be about to pay it.
+ * Empty for a wallet whose private notes are not kept by the engine.
+ */
+export async function readGiven(core: WalletCore, engine: EngineParts, accountId: string): Promise<Set<string>> {
+  if (engine.where(accountId, 'private') !== 'engine') return new Set();
+  const notes = (await core.storeRead!(accountId, 'private')) as { key: string; value: unknown }[];
+  return givenFromFile(notes.find((n) => n.key === ADDRESSES_GIVEN)?.value);
+}
+
+/** Note that one address was given out. Answers the addresses given out as they now are. */
+export async function markGiven(core: WalletCore, engine: EngineParts, accountId: string, kind: KeyKind, index: number): Promise<Set<string>> {
+  const given = await readGiven(core, engine, accountId);
+  const key = addressKey(kind, index);
+  // Kept for this visit only where the wallet has no private notes to keep it in.
+  if (given.has(key) || engine.where(accountId, 'private') !== 'engine') return new Set([...given, key]);
+  given.add(key);
+  await core.storeCommit!(accountId, [{ op: 'putPrivate', key: ADDRESSES_GIVEN, value: [...given].sort() }]);
+  return given;
+}
+
+/** The addresses given out, from a backup file or the private note: only well-formed keys survive. */
+export function givenFromFile(value: unknown): Set<string> {
+  return new Set(Array.isArray(value) ? value.slice(0, 5000).filter((k): k is string => typeof k === 'string' && ADDRESS_KEY.test(k)) : []);
+}
+
 /** Labels from a backup file: only well-formed keys and cleaned text survive. */
 export function labelsFromFile(value: unknown): AddressLabels {
   if (typeof value !== 'object' || value === null) return {};

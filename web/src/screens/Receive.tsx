@@ -9,13 +9,13 @@ import { IconArrowsMaximize, IconCheck, IconChevronDown, IconCopy, IconDotsVerti
 import { useElementSize } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 
 import { QrFullScreen } from '../components/QrFullScreen';
-import { Caution, Done } from '../components/Notice';
+import { Caution, Done, Info } from '../components/Notice';
 
 import { formatNau, showNau, useApp } from '../app/AppContext';
-import { ADDRESS_LABEL_MAX, addressKey, cleanLabel, coinAddressKey, readLabels, writeLabel, type AddressLabels } from '../app/addressLabels';
+import { ADDRESS_LABEL_MAX, addressKey, cleanLabel, coinAddressKey, markGiven, readGiven, readLabels, writeLabel, type AddressLabels } from '../app/addressLabels';
 import { coinKeyOfReceipt } from '../util/history';
 import { useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
@@ -41,18 +41,21 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
 
 // What each kind is for, said the same way for each so they can be
 // compared: who it is for first, then its one trade-off, then the
-// protocol's name for it. All three are shown in the menu where the kind is
-// chosen; View-only's shows again as a caution whenever that kind is chosen,
-// right before Copy and Share, so it is read before sharing. The reuse
-// guidance is the desktop wallet's addresses page's: every payment carries
-// its address's receiver identifier in the clear, so payments to one address
-// can be linked (neptune-wallet's own note on into_announcement), though
-// never their amounts.
+// protocol's name for it. All three are shown in the list where the kind is
+// chosen. View-only's risk shows again as a caution whenever that kind is
+// chosen, right before Copy and Share, so it is read before sharing: a
+// payer needs the address to pay it, so every payer can watch too. The
+// reuse guidance is the desktop wallet's addresses page's: every payment
+// carries its address's receiver identifier in the clear, so payments to
+// one address can be linked (neptune-wallet's own note on
+// into_announcement), though never their amounts.
 const KIND_NOTES: Record<KeyKind, string> = {
   generation: `The one to use by default, but long: about ${showInt(3500)} characters. Reusing it is safe, but payments to the same address can be linked on the chain (not their amounts), so give each payer a new address when that matters. Technical name: ${KIND_PROTOCOL.generation} address.`,
   ec_hybrid: `Short enough to paste into a chat. Give each one to a single sender: if one is reused widely, a future quantum computer could reveal the payments sent to it, though never spend them. Technical name: ${KIND_PROTOCOL.ec_hybrid} address.`,
-  viewing: `Lets someone watch payments, such as an accountant. Whoever holds it sees every payment it receives, but can never spend them. Share it only with someone you trust with that. Technical name: ${KIND_PROTOCOL.viewing} address.`,
+  viewing: `Anyone who has it, payers included, can see every payment made to it (only to it) but never spend them. Suits a fundraiser that shows its donations. Technical name: ${KIND_PROTOCOL.viewing} address.`,
 };
+/** Right before sharing a View-only address: its one risk, in a line. */
+const VIEWING_CAUTION = 'Anyone who has this address, payers included, can see every payment made to it.';
 
 /** "Standard main address", "Short address 3". */
 function addressTitle(kind: KeyKind, index: number): string {
@@ -78,15 +81,16 @@ function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => 
 }
 
 /**
- * The code's place while it is being drawn: the same white square and
- * footer, so the buttons beneath stay where they are when another kind of
- * address is chosen instead of jumping up and back under the finger.
+ * The code's place while it is being drawn, or while a request's amount is
+ * still being typed: the same white square and footer, so the buttons
+ * beneath stay where they are instead of jumping up and back under the
+ * finger. It turns only while something is being drawn.
  */
-function QrPending() {
+function QrPending({ waiting = true }: { waiting?: boolean }) {
   return (
     <div className="vault-qr-code" style={{ cursor: 'default' }} aria-hidden>
       <div style={{ aspectRatio: '1', display: 'grid', placeItems: 'center' }}>
-        <Loader size="sm" color="gray" />
+        {waiting && <Loader size="sm" color="gray" />}
       </div>
       <span className="vault-qr-foot">&nbsp;</span>
     </div>
@@ -119,6 +123,19 @@ export function Receive() {
     if (!account) return;
     void readLabels(services.core, services.accounts.engine, account.id).then(setLabels, () => setLabels({}));
   }, [services, account]);
+  // Which addresses were given out (copied, shared, shown full screen, as
+  // an address or in a request), kept with the names: each stays in the
+  // list, and New address never offers one of them again.
+  const [given, setGiven] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!account) return;
+    void readGiven(services.core, services.accounts.engine, account.id).then(setGiven, () => setGiven(new Set()));
+  }, [services, account]);
+  const giveOut = (k: KeyKind, i: number) => {
+    if (!account || given.has(addressKey(k, i))) return;
+    setGiven((all) => new Set([...all, addressKey(k, i)]));
+    void markGiven(services.core, services.accounts.engine, account.id, k, i).then(setGiven, () => undefined);
+  };
   const key = addressKey(kind, index);
   // Names are given, changed and removed in the address list: "Name it" on a
   // row without one, its menu on a row with one, both opening one dialog.
@@ -169,9 +186,11 @@ export function Receive() {
     };
   }
   const commitmentOf = (h: (typeof history)[number]) => (utxos.find((u) => u.hash === coinKeyOfReceipt(h))?.stored as { commitment?: string } | undefined)?.commitment;
-  const paidNau = history
-    .filter((h) => h.kind === 'received' && h.status !== 'failed' && toThis(h) && !atOpen.current?.keys.has(h.key) && !atOpen.current?.pending.has(commitmentOf(h) ?? ''))
-    .reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
+  const visit = history.filter((h) => h.kind === 'received' && h.status !== 'failed' && toThis(h) && !atOpen.current?.keys.has(h.key) && !atOpen.current?.pending.has(commitmentOf(h) ?? ''));
+  const sumOf = (rows: typeof history) => rows.reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
+  // Of what came during this visit: still on its way, and confirmed.
+  const visitPendingNau = sumOf(visit.filter((h) => h.status === 'pending'));
+  const visitConfirmedNau = sumOf(visit.filter((h) => h.status === 'confirmed'));
 
   // What changed on this screen without a click on it, said once.
   const [said, setSaid] = useState('');
@@ -184,7 +203,11 @@ export function Receive() {
   // The request: amount, name and note. They belong to this visit of the
   // screen: kept while switching tabs, gone when the screen is left.
   const [requestAmount, setRequestAmount] = useState('');
+  // Why the amount typed cannot be asked for, worked out as it is typed; said
+  // only once the field is left, as on Send, so "0" on the way to "0.5"
+  // is never red. Meanwhile Copy and Share wait, and the code keeps its place.
   const [amountError, setAmountError] = useState<string | null>(null);
+  const [amountLeft, setAmountLeft] = useState(false);
   // With the balance shown in another currency, the amount asked for is
   // too, as on Send: an estimate on this screen only. The link and the code
   // carry NPT alone.
@@ -228,6 +251,7 @@ export function Receive() {
     if (tooPrecise) {
       setAmountError(tooPrecise);
       setLinkAmount(undefined);
+      setRequestNau(null);
       return;
     }
     void (async () => {
@@ -247,6 +271,7 @@ export function Receive() {
         if (!cancelled) {
           setAmountError('Enter a number, such as 1.5');
           setLinkAmount(undefined);
+          setRequestNau(null);
         }
       }
     })();
@@ -328,26 +353,41 @@ export function Receive() {
   // The text on this screen is the shortened address, so a failed copy points
   // to what carries it in full, never to long-pressing the text.
   const copyFailed = canShare ? 'Could not copy. Use Share instead, or let the sender scan the code.' : 'Could not copy. Try again, or let the sender scan the code.';
-  const copy = () => void copyText(address, 'Address copied', copyFailed);
+  // Whatever hands the address on gives it out, on either tab.
+  const copy = () => {
+    giveOut(kind, index);
+    void copyText(address, 'Address copied', copyFailed);
+  };
   const shareAddress = async () => {
+    giveOut(kind, index);
     try {
       await navigator.share({ text: address });
     } catch {
       // Cancelled by the user; nothing to report.
     }
   };
-
-  // The system share sheet where it exists; otherwise the link is copied.
-  const share = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ text: paymentLink });
-      } catch {
-        // Cancelled by the user; nothing to report.
-      }
-    } else {
-      await copyText(paymentLink, 'Payment request copied', copyFailed);
+  const copyRequest = () => {
+    giveOut(kind, index);
+    void copyText(paymentLink, 'Payment request copied', copyFailed);
+  };
+  // Shown only where the system share sheet exists, as on the Address tab:
+  // elsewhere it would only copy, which Copy already does.
+  const shareRequest = async () => {
+    giveOut(kind, index);
+    try {
+      await navigator.share({ text: paymentLink });
+    } catch {
+      // Cancelled by the user; nothing to report.
     }
+  };
+  // The box shows the address shortened, which is no address at all: text
+  // copied from it (a long press, a triple click) is the whole address.
+  const copyWhole = (e: ClipboardEvent<HTMLDivElement>) => {
+    if (!address) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', address);
+    giveOut(kind, index);
+    notifications.show({ message: 'Address copied', color: 'green', autoClose: 4000 });
   };
 
   // The sync looks for payments on every address up to a few past the
@@ -355,15 +395,6 @@ export function Receive() {
   // never be looked at, and a payment to it never found, so none is offered.
   const used = account ? nextKeyIndicesOf(account)[kind] : 0;
   const furthest = used + KEY_LOOKAHEAD;
-  // Each new address is the next one no payment has reached, and it is
-  // added to the list where it is asked for, so nothing above it moves. At
-  // the last one offered, New address rests and focus goes to the new row.
-  const nextUnused = () => {
-    const next = Math.min(furthest, Math.max(used, index + 1));
-    setIndices({ ...indices, [kind]: next });
-    setSaid(`${KIND_LABELS[kind]} address ${next} is showing. Payments to it arrive in this wallet like any other.`);
-    if (next >= furthest) setTimeout(() => rowButtons.current.get(addressKey(kind, next))?.focus(), 0);
-  };
   // How many payments came through each address, for its row in the list.
   const payments = new Map<string, number>();
   for (const u of utxos) {
@@ -380,16 +411,32 @@ export function Receive() {
     }
   }
   // The list, for the type showing: its main address first, then each with
-  // a name or a payment, and the one showing even with neither (a new one).
+  // a name, a payment or given out, and the one showing even with none of
+  // those (a new one).
   const listed = [
     ...new Set([
       0,
       index,
-      ...[...Object.keys(labels), ...payments.keys()].filter((k) => k.startsWith(`${kind}:`)).map((k) => Number(k.slice(kind.length + 1))),
+      ...[...Object.keys(labels), ...given, ...payments.keys()].filter((k) => k.startsWith(`${kind}:`)).map((k) => Number(k.slice(kind.length + 1))),
     ]),
   ]
     .filter((i) => Number.isSafeInteger(i) && i >= 0)
     .sort((a, b) => a - b);
+  // Each new address is the first past every one in the list (named, paid
+  // or given out) and past the one showing: never one someone may already
+  // have. It is added to the list where it is asked for, so nothing above
+  // it moves. Once the next one would be past the last offered, New address
+  // rests with its line, and focus goes to the row just added.
+  const ofKind = (k: string) => (k.startsWith(`${kind}:`) ? Number(k.slice(kind.length + 1)) : -1);
+  const takenUpTo = Math.max(0, index, ...[...Object.keys(labels), ...given, ...payments.keys()].map(ofKind).filter(Number.isSafeInteger));
+  const nextNew = Math.max(used, takenUpTo + 1);
+  const canNew = nextNew <= furthest;
+  const nextUnused = () => {
+    if (!canNew) return;
+    setIndices({ ...indices, [kind]: nextNew });
+    setSaid(`${KIND_LABELS[kind]} address ${nextNew} is showing. Payments to it arrive in this wallet like any other.`);
+    if (nextNew + 1 > furthest) setTimeout(() => rowButtons.current.get(addressKey(kind, nextNew))?.focus(), 0);
+  };
   // Choosing a row shows that address on the tab in use: on a request, the
   // request moves to it. The row stays under the finger; the code above changes.
   const showIndex = (i: number) => {
@@ -418,16 +465,37 @@ export function Receive() {
   const requestInvalid = Boolean(amountError || noteError || labelError);
   // Copy and Share point to View-only's caution while it shows.
   const cautionId = kind === 'viewing' ? 'kind-note' : undefined;
-  // The note above the code: a payment on its way to the address showing,
-  // or, for a request, how much of it has arrived.
-  const arrivingNote =
-    arrivingNau > 0n ? (hidden ? 'A payment to this address is pending.' : `${showNau(arrivingNau)} NPT to this address is pending.`) : null;
-  const arrivedNote =
-    requestNau === null || paidNau === 0n
-      ? null
-      : paidNau >= requestNau
-        ? `Paid in full: ${hidden ? '••••' : showNau(paidNau)} NPT${arrivingNau > 0n ? ', pending' : ''}.`
-        : `${hidden ? '••••' : showNau(paidNau)} of ${showNau(requestNau)} NPT arrived.`;
+  // The note above the code: what came to the address showing. A payment on
+  // its way reads as information, never as done: it is final only once a
+  // block confirms it. Only a confirmed payment, or a request confirmed in
+  // full, takes the check.
+  const show = (nau: bigint) => (hidden ? '••••' : showNau(nau));
+  const addressArrival: { done: boolean; text: string } | null =
+    arrivingNau > 0n
+      ? { done: false, text: hidden ? 'A payment to this address is pending until a block confirms it.' : `${showNau(arrivingNau)} NPT to this address is pending until a block confirms it.` }
+      : visitConfirmedNau > 0n
+        ? { done: true, text: hidden ? 'A payment to this address arrived.' : `${showNau(visitConfirmedNau)} NPT received.` }
+        : null;
+  // For a request, how much of it came during this visit, against the amount asked.
+  const visitNau = visitPendingNau + visitConfirmedNau;
+  const requestArrival: { done: boolean; text: string } | null =
+    requestNau === null
+      ? addressArrival
+      : visitNau === 0n
+        ? null
+        : visitPendingNau > 0n
+          ? {
+              done: false,
+              text:
+                visitConfirmedNau > 0n
+                  ? `${show(visitNau)}${visitNau < requestNau ? ` of ${showNau(requestNau)}` : ''} NPT arrived; ${show(visitPendingNau)} NPT of it is pending until a block confirms it.`
+                  : `${show(visitNau)}${visitNau < requestNau ? ` of ${showNau(requestNau)}` : ''} NPT is pending until a block confirms it.`,
+            }
+          : visitNau >= requestNau
+            ? { done: true, text: `Paid in full: ${show(visitNau)} NPT.` }
+            : { done: false, text: `${show(visitNau)} of ${showNau(requestNau)} NPT received.` };
+  const noteOf = (note: { done: boolean; text: string } | null) =>
+    note === null ? null : note.done ? <Done role={undefined}>{note.text}</Done> : <Info>{note.text}</Info>;
 
   return (
     <Paper>
@@ -452,16 +520,13 @@ export function Receive() {
 
             <Tabs.Panel value="address">
               <Stack>
-                {arrivingNote && (
-                  <Done role={undefined}>
-                    {arrivingNote}
-                  </Done>
-                )}
-                {qr ? <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => setEnlarged('address')} /> : !addressError && <QrPending />}
+                {noteOf(addressArrival)}
+                {qr ? <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => { giveOut(kind, index); setEnlarged('address'); }} /> : !addressError && <QrPending />}
                 {/* The address shortened, for recognising it by its start and end.
-                    Copy, Share and the code always carry it in full; a Standard
-                    address runs to some 3,500 characters, which nobody reads. */}
-                <div className="vault-address-box">
+                    Copy, Share and the code always carry it in full, and so does
+                    text copied from here; a Standard address runs to some 3,500
+                    characters, which nobody reads. */}
+                <div className="vault-address-box" onCopy={copyWhole}>
                   <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
                 </div>
                 {addressError && (
@@ -470,11 +535,7 @@ export function Receive() {
                   </Text>
                 )}
                 {/* Its exposure cannot be taken back: read right before sharing. */}
-                {kind === 'viewing' && (
-                  <Caution id="kind-note">
-                    {KIND_NOTES.viewing}
-                  </Caution>
-                )}
+                {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
                 <Group className="vault-receive-actions">
                   {/* One word, as Share is: the code above says what it copies, and
                       so does the note it leaves. A screen reader hears it whole. */}
@@ -496,8 +557,12 @@ export function Receive() {
                   label="Amount (NPT, optional)"
                   inputMode="decimal"
                   value={requestAmount}
-                  onChange={(e) => setRequestAmount(e.currentTarget.value)}
-                  error={amountError}
+                  onChange={(e) => {
+                    setRequestAmount(e.currentTarget.value);
+                    setAmountLeft(false);
+                  }}
+                  onBlur={() => setAmountLeft(true)}
+                  error={amountLeft ? amountError : null}
                   description={requestEstimate}
                   inputWrapperOrder={['label', 'input', 'description', 'error']}
                 />
@@ -519,30 +584,25 @@ export function Receive() {
                   error={noteError}
                   maxLength={255}
                 />
-                {arrivedNote && (
-                  <Done role={undefined}>
-                    {arrivedNote}
-                  </Done>
-                )}
-                {/* The code, then what to do with it: the same order as the Address tab. */}
-                {requestQr && !requestInvalid && <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => setEnlarged('request')} />}
+                {noteOf(requestArrival)}
+                {/* The code, then what to do with it: the same order as the Address
+                    tab. While the amount is unfinished the code keeps its place. */}
+                {requestInvalid ? <QrPending waiting={false} /> : requestQr ? <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => { giveOut(kind, index); setEnlarged('request'); }} /> : <QrPending />}
                 {requestQrNote && !requestInvalid && (
                   <Text size="sm" c="dimmed">
                     {requestQrNote}
                   </Text>
                 )}
-                {kind === 'viewing' && (
-                  <Caution id="kind-note">
-                    {KIND_NOTES.viewing}
-                  </Caution>
-                )}
+                {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
                 <Group className="vault-receive-actions">
-                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(paymentLink, 'Payment request copied', copyFailed)} disabled={requestInvalid} aria-label="Copy request" aria-describedby={cautionId}>
+                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copyRequest} disabled={requestInvalid} aria-label="Copy request" aria-describedby={cautionId}>
                     Copy
                   </Button>
-                  <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void share()} disabled={requestInvalid} aria-describedby={cautionId}>
-                    Share
-                  </Button>
+                  {canShare && (
+                    <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void shareRequest()} disabled={requestInvalid} aria-describedby={cautionId}>
+                      Share
+                    </Button>
+                  )}
                 </Group>
               </Stack>
             </Tabs.Panel>
@@ -565,7 +625,8 @@ export function Receive() {
                   offset={{ mainAxis: 8, crossAxis: 8 }}
                 >
                   <Combobox.Target targetType="button" withExpandedAttribute>
-                    <button type="button" className="vault-picker" aria-label={`Address type, ${KIND_LABELS[kind]} addresses`} onClick={() => typeBox.toggleDropdown()}>
+                    {/* The list goes when focus moves on (Tab), as a native select's does. */}
+                    <button type="button" className="vault-picker" aria-label={`Address type, ${KIND_LABELS[kind]} addresses`} onClick={() => typeBox.toggleDropdown()} onBlur={() => typeBox.closeDropdown()}>
                       {KIND_LABELS[kind]} addresses
                       <IconChevronDown size={16} stroke={1.8} aria-hidden />
                     </button>
@@ -669,7 +730,8 @@ export function Receive() {
                                   Rename
                                 </Menu.Item>
                               )}
-                              <Menu.Item leftSection={<IconTrash size={16} stroke={1.8} />} onClick={() => void removeName(kind, i)}>
+                              {/* Red, as Remove is in every other menu. */}
+                              <Menu.Item leftSection={<IconTrash size={16} stroke={1.8} />} c="var(--v-danger-text)" onClick={() => void removeName(kind, i)}>
                                 Remove name
                               </Menu.Item>
                             </Menu.Dropdown>
@@ -680,7 +742,7 @@ export function Receive() {
                   );
                 })}
                 <div className="vault-row vault-address-row">
-                  <UnstyledButton ref={newRef} className="vault-address-show vault-address-new" onClick={nextUnused} disabled={index >= furthest}>
+                  <UnstyledButton ref={newRef} className="vault-address-show vault-address-new" onClick={nextUnused} disabled={!canNew}>
                     <span className="vault-address-mark" aria-hidden>
                       <IconPlus size={16} stroke={1.8} />
                     </span>
@@ -688,22 +750,23 @@ export function Receive() {
                       <Text span display="block" size="sm" fw={600}>
                         New address
                       </Text>
-                      {index >= furthest && (
+                      {/* Why a new one, on the row that makes it; at the limit, why
+                          there is none. View-only is for watching, not for payers. */}
+                      {!canNew ? (
                         <Text span display="block" size="xs" c="dimmed">
                           More addresses open up once one of these has received a payment.
                         </Text>
+                      ) : (
+                        kind !== 'viewing' && (
+                          <Text span display="block" size="xs" c="dimmed">
+                            Give each payer their own; payments to one address can be linked.
+                          </Text>
+                        )
                       )}
                     </span>
                   </UnstyledButton>
                 </div>
               </div>
-              {/* Why a new one, on the main address, where the question comes up.
-                  A View-only address is for watching, not for payers. */}
-              {index === 0 && kind !== 'viewing' && (
-                <Text size="sm" c="dimmed">
-                  Payments to one address can be linked, so give each payer a new one.
-                </Text>
-              )}
             </Stack>
           </Stack>
         </Tabs>
