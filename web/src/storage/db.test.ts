@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_SETTINGS, loadSettings, openVaultDb, saveSettings, showsTestNetworks, type AccountRecord, type VaultDb } from './db';
+import { DEFAULT_SETTINGS, loadSettings, offeredNetworks, openVaultDb, saveSettings, showsTestNetworks, type AccountRecord, type VaultDb } from './db';
 
 let db: VaultDb | null = null;
 afterEach(() => {
@@ -129,5 +129,15 @@ describe('developer networks', () => {
     // A wallet on a test network stays reachable, and so does the network the app is on.
     expect(showsTestNetworks({ network: 'main' }, [main, { network: 'testnet' }])).toBe(true);
     expect(showsTestNetworks({ network: 'regtest' }, [])).toBe(true);
+  });
+
+  it('lists a test network without the switch only while it holds a wallet or the app', () => {
+    const main = { network: 'main' as const };
+    // Asked for: all three, empty or not.
+    expect(offeredNetworks({ network: 'main', developerNetworks: true }, [main])).toEqual(['main', 'testnet', 'regtest']);
+    // Not asked: Mainnet, and the test networks that must stay reachable.
+    expect(offeredNetworks({ network: 'main' }, [main])).toEqual(['main']);
+    expect(offeredNetworks({ network: 'main', developerNetworks: false }, [main, { network: 'regtest' }])).toEqual(['main', 'regtest']);
+    expect(offeredNetworks({ network: 'testnet' }, [])).toEqual(['main', 'testnet']);
   });
 });

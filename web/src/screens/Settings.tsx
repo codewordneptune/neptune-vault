@@ -17,7 +17,7 @@ import { Caution, Done, ErrorLine, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
-import { confirmsSends, DEFAULT_NODE_URLS, requestPersistentStorage, showsTestNetworks, walletName, type AccountRecord } from '../storage/db';
+import { confirmsSends, DEFAULT_NODE_URLS, offeredNetworks, requestPersistentStorage, showsTestNetworks, walletName, type AccountRecord } from '../storage/db';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
@@ -239,17 +239,18 @@ function SettingsSections({ section }: { section: SectionKey }) {
   const sending = Boolean(sendJob && !sendJob.done);
   // A saved node shows in the list beside this page at once.
   const changed = useContext(SettingsChangedContext);
-  // Testnet and Regtest are for developers and testers: offered in the
-  // wallet menu once asked for here, or while the app is on one of them or
-  // this device has a wallet on one (showsTestNetworks), so that wallet
-  // stays reachable.
+  // Testnet and Regtest are for developers and testers: offered in setup and
+  // the wallet menu once asked for here. Without it new wallets go on
+  // Mainnet, and the menu keeps a test network only while a wallet of this
+  // device is on it (offeredNetworks), so that wallet stays reachable.
   const [testNets, setTestNets] = useState(services.settings.developerNetworks === true);
   const [allAccounts, setAllAccounts] = useState<AccountRecord[]>([]);
   useEffect(() => {
     void services.db.getAll('accounts').then(setAllAccounts, () => undefined);
   }, [services, account]);
   const testNetsShown = showsTestNetworks({ developerNetworks: testNets, network }, allAccounts);
-  const testNetsWhy = testNets || !testNetsShown ? null : network !== 'main' ? `In the menu anyway while the app is on ${NETWORK_LABELS[network]}.` : 'In the menu anyway while this device has a wallet on one of them.';
+  const kept = offeredNetworks({ network }, allAccounts).filter((n) => n !== 'main');
+  const testNetsWhy = testNets || kept.length === 0 ? null : `${kept.map((n) => NETWORK_LABELS[n]).join(' and ')} ${kept.length === 1 ? 'stays' : 'stay'} in the menu while this device has ${kept.length === 1 ? 'a wallet on it' : 'wallets on them'}.`;
   const toggleTestNets = (on: boolean) => {
     setTestNets(on);
     void services.updateSettings({ developerNetworks: on });
@@ -671,7 +672,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               <Checkbox
                 mt="xs"
                 label="Developer networks"
-                description={`Adds Testnet and Regtest to the wallet menu, for developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
+                description={`Lets you add wallets on Testnet and Regtest, and switch to them in the wallet menu. For developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
                 checked={testNets}
                 onChange={(e) => toggleTestNets(e.currentTarget.checked)}
               />

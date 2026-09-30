@@ -242,10 +242,11 @@ Fund the node's wallet:
 neptune-cli --data-dir <dir> --port 9799 mine-blocks-to-wallet 5
 ```
 
-Then choose Regtest in the app. Before a wallet exists, it is the Network
-line under the setup card; with one, tick Developer networks in Settings,
-Advanced, then pick Regtest from the wallet menu in the header. Create a
-wallet there, and send coins to it:
+Then open the app with `?developer` at the end of its address,
+<http://localhost:4400/?developer>. That turns on Developer networks, which
+is also in Settings, Advanced, once a wallet exists. Setup, and Add a
+wallet in the header's wallet menu, then have a Network line under the
+card: choose Regtest there, create the wallet, and send coins to it:
 
 ```bash
 neptune-cli --data-dir <dir> --port 9799 send <app address> 10 0.1 vault on-chain on-chain
@@ -264,10 +265,12 @@ Things to know about regtest:
 
 ### Networks and nodes
 
-- The app switches between Mainnet, Testnet and Regtest from the wallet
-  menu in the header. Testnet and Regtest show there once Developer
-  networks is ticked in Settings, Advanced, or while a wallet is on one.
-  Each wallet belongs to one network.
+- New wallets go on Mainnet. With Developer networks on (in Settings,
+  Advanced, or in a browser with `?developer` at the end of the app's
+  address), setup also offers Testnet and Regtest, and the wallet menu in
+  the header switches between all three. With it off, a test network stays
+  in that menu only while a wallet is on it. Each wallet belongs to one
+  network, and a backup file restores on the network it was saved on.
 - You set the node in Settings, Advanced.
 - In a browser, the node must send CORS headers, because the page calls it
   directly. The default Mainnet node does.
