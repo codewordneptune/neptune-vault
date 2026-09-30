@@ -9,7 +9,7 @@ import { IconCopy } from '@tabler/icons-react';
 
 import { useApp } from '../app/AppContext';
 import { LINKS } from '../app/links';
-import { NATIVE } from '../app/platform';
+import { ANDROID, DESKTOP, NATIVE } from '../app/platform';
 import { copyText } from '../util/clipboard';
 import { showInt } from '../util/format';
 import { formatDateTime } from '../util/time';
@@ -31,7 +31,7 @@ export function ReportProblem() {
   // Each verdict is said in words, not only by the colour of its dot.
   const facts: FactRow[] = [
     NATIVE
-      ? { label: 'Proving', value: `Native, on all ${cores} cores: the desktop app needs no cross-origin isolation`, state: 'ok' }
+      ? { label: 'Proving', value: `Native, on all ${cores} cores: the ${DESKTOP ? 'desktop ' : ''}app needs no cross-origin isolation`, state: 'ok' }
       : {
           label: 'Cross-origin isolation',
           value: isolated ? 'Yes: the wallet engine can run, and proving uses every core' : 'No: the wallet engine needs it and cannot run on this page',
@@ -43,7 +43,7 @@ export function ReportProblem() {
       value: memoryGb === undefined ? 'Not reported' : memoryGb >= 4 ? `${memoryGb} GB or more: enough for most sends` : `${memoryGb} GB or more: a send with many coins may run out of memory while proving`,
       state: memoryGb === undefined ? undefined : memoryGb >= 4 ? 'ok' : 'warn',
     },
-    { label: 'Running as', value: NATIVE ? 'Desktop app' : installed ? 'Installed app' : 'Browser tab: the browser may delete its data when space runs low', state: NATIVE || installed ? 'ok' : 'warn' },
+    { label: 'Running as', value: NATIVE ? (DESKTOP ? 'Desktop app' : ANDROID ? 'Android app' : 'Phone app') : installed ? 'Installed app' : 'Browser tab: the browser may delete its data when space runs low', state: NATIVE || installed ? 'ok' : 'warn' },
     { label: 'App version', value: `${__APP_VERSION__} (${__APP_COMMIT__}), built ${formatDateTime(Date.parse(__APP_BUILT_AT__))}` },
     { label: 'Wallet core', value: services.backendKind === 'native' ? 'Native, in the app' : 'WebAssembly, in a worker' },
     ...(accountId ? engine.problems(accountId).map((problem): FactRow => ({ label: 'Did not move', value: problem, state: 'warn' })) : []),

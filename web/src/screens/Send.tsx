@@ -11,7 +11,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { formatNau, NAU_PER_COIN, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { clearSendDraft, keepSendDraft, sendDraft, type ExtraPayee, type SendDraft } from '../app/sendDraft';
-import { NATIVE } from '../app/platform';
+import { DESKTOP } from '../app/platform';
 import { formatAbout, formatDuration } from '../util/time';
 import { useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
@@ -681,12 +681,12 @@ export function Send() {
           )}
           <Text size="sm">
             {screenAwake === 'refused'
-              ? NATIVE
+              ? DESKTOP
                 ? 'This computer would not promise to stay awake. Keep the app running and the computer awake until this finishes: sleep pauses the send.'
                 : finePointer
                   ? 'This browser would not promise to keep the computer awake. Keep this tab open and the computer awake until this finishes: sleep pauses the send.'
                   : 'This device would not keep the screen on. Keep the app open and touch the screen now and then until this finishes: a locked phone pauses the send.'
-              : NATIVE
+              : DESKTOP
                 ? 'Keep the app running until this finishes.'
                 : 'Keep the app open and in front until this finishes. Other screens are fine.'}
           </Text>

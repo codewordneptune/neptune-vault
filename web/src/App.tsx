@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import { useApp } from './app/AppContext';
-import { NATIVE } from './app/platform';
+import { DESKTOP, MOBILE, NATIVE } from './app/platform';
 import { DesktopUpdateNotice } from './components/DesktopUpdateNotice';
 import { Logo } from './components/Logo';
 import { NetworkMenu } from './components/NetworkMenu';
@@ -130,7 +130,7 @@ export function App() {
   const navigate = useNavigate();
   const open = Boolean(account) && !locked;
   useEffect(() => {
-    if (!NATIVE) return;
+    if (!DESKTOP) return;
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
       // Pressed with focus on the page's body, outside the shell's handlers.
@@ -221,7 +221,7 @@ export function App() {
             <Group gap={6} wrap="nowrap">
               <h1 className="vault-brand">
                 <Logo size={26} />
-                <span className={NATIVE ? 'sr-only' : 'vault-wordmark'}>Neptune Vault</span>
+                <span className={DESKTOP ? 'sr-only' : 'vault-wordmark'}>Neptune Vault</span>
               </h1>
               {/* The early-version warning, on every screen: setup also shows it in full. */}
               <PocTag />
@@ -237,7 +237,9 @@ export function App() {
           </Group>
         </Container>
       </header>
-      {NATIVE ? <DesktopUpdateNotice /> : <UpdateStrip />}
+      {/* Updates: the web app's own, the desktop app's releases on GitHub; a
+          phone app is updated by installing its next build. */}
+      {DESKTOP ? <DesktopUpdateNotice /> : !NATIVE ? <UpdateStrip /> : null}
       <SendStrip />
       {/* On a wide screen every screen shares one width, so moving between
           them does not make the content jump; Home's balance becomes a band. */}
@@ -266,7 +268,7 @@ export function App() {
           <Container size="xs" px={0} className="vault-tabbar-inner">
             <Group gap={0} wrap="nowrap" className="vault-tabs">
               {TABS.map(({ to, label, Icon }, i) => (
-                <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`} {...(NATIVE ? shortcutProps(label, i + 1) : {})}>
+                <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`} {...(DESKTOP ? shortcutProps(label, i + 1) : {})}>
                   <Icon size={20} stroke={1.8} />
                   {label}
                 </NavLink>
@@ -330,7 +332,8 @@ function CloseGuard() {
   const handing = sendJob?.progress.stage === 'submitting';
   const [asking, setAsking] = useState(false);
   useEffect(() => {
-    if (!running) return;
+    // A phone app has no window to close: swiped away, it is gone, as a tab is.
+    if (!running || MOBILE) return;
     if (!NATIVE) {
       // The browser asks, in its own words; the page cannot choose them.
       const onLeave = (event: BeforeUnloadEvent) => {

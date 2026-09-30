@@ -17,7 +17,7 @@ import type { AccountRecord, ContactRecord, HistoryRecord } from '../storage/db'
 import { InstallNudge } from '../components/InstallNudge';
 import { Caution, Done, ErrorLine } from '../components/Notice';
 import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED } from '../app/words';
-import { NATIVE } from '../app/platform';
+import { DESKTOP, NATIVE } from '../app/platform';
 import { LINKS } from '../app/links';
 import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
@@ -440,7 +440,7 @@ export function Home() {
       </div>
       {/* A long scan stops when the screen turns off and the wallet locks: said
           while one runs, in full only when the app could not keep the screen on. */}
-      {longScan && !NATIVE && (
+      {longScan && !DESKTOP && (
         <Text size="xs" c="dimmed" mt={-8}>
           {screenAwake === 'held' ? 'Keep the app open until the scan finishes.' : 'Keep the app open with the screen on: the scan pauses when the screen turns off, and goes on at the next unlock.'}
         </Text>

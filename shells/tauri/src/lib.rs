@@ -368,6 +368,9 @@ fn app_open_url(app: tauri::AppHandle, url: String) -> Result<()> {
 
 // ---------------------------------------------------------------------------
 
+/// The app. The desktop binary calls it from main.rs; Android and iOS load
+/// the library and call it through the entry point Tauri generates here.
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
     // Registered first, so a second launch is caught before it starts
