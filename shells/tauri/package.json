@@ -1,8 +1,0 @@
-{
-  "name": "vault-shell",
-  "private": true,
-  "description": "Runs the Tauri CLI that web/ installs. The Android project's Gradle build calls back into it as `npm run tauri -- ...` from this directory.",
-  "scripts": {
-    "tauri": "node ../../web/node_modules/@tauri-apps/cli/tauri.js"
-  }
-}
