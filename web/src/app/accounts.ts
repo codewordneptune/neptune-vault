@@ -776,7 +776,7 @@ export class AccountService {
     // What scanning found goes, what a person made stays, and the scan state
     // starts again, in one step. The engine's; a wallet is unlocked to do it.
     if (this.engine.where(accountId, 'utxos') !== 'engine' || !this.core.ledger) {
-      throw new Error('This wallet\'s coins could not be read, so there is nothing to rescan into. Unlock it again, and see Settings, Diagnostics.');
+      throw new Error('This wallet\'s coins could not be read, so there is nothing to rescan into. Unlock it again, and see Report a problem, under About in Settings.');
     }
     await this.core.ledger(accountId, { op: 'resetForRescan', height: Math.max(0, Math.floor(height)), fast });
   }

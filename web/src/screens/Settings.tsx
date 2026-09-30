@@ -1,12 +1,13 @@
 // Settings: a short list, each row with its current value, and a page for
 // each row with its explanations. Backup, lock and passkey, the node with
-// its connectivity check and rescan, appearance, currency, about, removal.
+// its connectivity check and rescan, appearance, currency, about (with its
+// pages: report a problem, privacy), removal.
 
 import { Anchor, Button, Checkbox, Divider, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import { IconChevronLeft, IconChevronRight, IconCopy, IconDownload, IconFingerprint } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { BACKGROUND_LOCK_CHOICES_MS, backgroundLockOf, LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
@@ -21,13 +22,15 @@ import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { ContactsPanel } from './Contacts';
+import { ReportProblem } from './Diagnostics';
+import { PrivacyStatement } from './Privacy';
+import { usePendingSends } from '../app/pending';
 import { isCancellation } from '../app/passkey';
 import { copyText } from '../util/clipboard';
 import { CLIPBOARD_RISK, FAST_SCAN, INSTALL_BENEFITS, NOT_DURING_SEND } from '../app/words';
 import { FIAT_CURRENCIES, FIAT_LABELS, isFiatCurrency } from '../util/fiat';
-import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
-import { formatDate, formatDateTime, formatTime } from '../util/time';
-import type { Network } from '../storage/db';
+import { NETWORK_LABELS } from '../util/network';
+import { formatDate, formatTime } from '../util/time';
 
 // One inline form open at a time: opening one (a new password, a passkey,
 // turning send confirmation off) closes any other, so the page shows one
@@ -44,7 +47,7 @@ function useOpenForm(key: FormKey): [boolean, (on: boolean) => void] {
 // its page, where its explanations are, so each is read only by someone
 // changing that setting. On a wide window the list and the open page sit
 // side by side.
-type SectionKey = 'backup' | 'security' | 'contacts' | 'name' | 'autolock' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove';
+type SectionKey = 'backup' | 'security' | 'contacts' | 'name' | 'autolock' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove' | 'report' | 'privacy';
 const SECTION_TITLES: Record<SectionKey, string> = {
   backup: 'Backup',
   security: 'Security',
@@ -56,7 +59,40 @@ const SECTION_TITLES: Record<SectionKey, string> = {
   advanced: 'Advanced',
   about: 'About',
   remove: 'Remove wallet',
+  report: 'Report a problem',
+  privacy: 'Privacy',
 };
+// Pages reached from About rather than from the list: their way back is to
+// About, and on a wide window the list beside them marks About.
+const ABOUT_PAGES: SectionKey[] = ['report', 'privacy'];
+/** A node's address as the list shows it: its host, or a path on this site as written. */
+function nodeHost(url: string): string {
+  if (url.startsWith('/')) return url;
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * One item of a Settings page: its name, then its sentence and its own
+ * button, 6 px apart, so each button is plainly the one its sentence
+ * explains. Items are set apart by the list's hairline (global.css).
+ */
+function SettingItem({ name, children, id, className }: { name?: ReactNode; children: ReactNode; id?: string; className?: string }) {
+  return (
+    <div className={className ? `vault-setting-item ${className}` : 'vault-setting-item'} id={id}>
+      {name && (
+        <Text size="sm" fw={600}>
+          {name}
+        </Text>
+      )}
+      {children}
+    </div>
+  );
+}
+
 /** A row's label and its page's title; removal names the wallet it removes. */
 const titleOf = (key: SectionKey, account: AccountRecord | null): string => (key === 'remove' && account ? `Remove ${walletName(account)}` : SECTION_TITLES[key]);
 const isSection = (key: string | undefined): key is SectionKey => key !== undefined && Object.hasOwn(SECTION_TITLES, key);
@@ -69,8 +105,11 @@ export function Settings() {
   const { services, account } = useApp();
   const { section } = useParams<{ section?: string }>();
   const navigate = useNavigate();
-  // Contacts is also opened from Send's contact picker: its way back is then to that send.
-  const fromSend = (useLocation().state as { from?: string } | null)?.from === 'send';
+  // A page opened from elsewhere (Home's backup reminder or status line,
+  // Send's contact picker or node notice) leads back there: the detour
+  // returns to the task it interrupted.
+  const from = (useLocation().state as { from?: string } | null)?.from;
+  const cameFrom = from === 'send' ? 'Send' : from === 'home' ? 'Home' : null;
   // Side by side from here: a list of 320 px and a page of 600 px or so.
   // Read at once, so a wide window does not flash the phone's layout first.
   const wide = useMediaQuery('(min-width: 1100px)', undefined, { getInitialValueInEffect: false });
@@ -78,7 +117,8 @@ export function Settings() {
   const changed = useCallback(() => setRevision((n) => n + 1), []);
   if (section !== undefined && !isSection(section)) return <Navigate to="/settings" replace />;
   const current: SectionKey | null = isSection(section) ? section : wide ? 'backup' : null;
-  const list = <SettingsList current={current} lockMinutes={Math.round(lockTimeoutOf(services.settings.lockTimeoutMs) / 60_000)} currency={services.settings.fiatCurrency} />;
+  const aboutPage = current !== null && ABOUT_PAGES.includes(current);
+  const list = <SettingsList current={aboutPage ? 'about' : current} lockMinutes={Math.round(lockTimeoutOf(services.settings.lockTimeoutMs) / 60_000)} currency={services.settings.fiatCurrency} />;
   if (!current) {
     return (
       <Stack gap="md">
@@ -91,10 +131,15 @@ export function Settings() {
   }
   const page = (
     <Stack gap="md" className="vault-settings-page">
-      {fromSend ? (
+      {cameFrom ? (
         <UnstyledButton onClick={() => navigate(-1)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
           <IconChevronLeft size={16} stroke={1.8} aria-hidden />
-          Send
+          {cameFrom}
+        </UnstyledButton>
+      ) : aboutPage ? (
+        <UnstyledButton component={Link} to="/settings/about" c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
+          <IconChevronLeft size={16} stroke={1.8} aria-hidden />
+          About
         </UnstyledButton>
       ) : (
         !wide && (
@@ -143,6 +188,9 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
   }, [services, account]);
   const backedUp = Boolean(account?.lastBackupAt || account?.backupConfirmed);
   const backup = account?.lastBackupAt ? `File saved ${formatDate(account.lastBackupAt)}` : account?.backupConfirmed ? 'Seed phrase written down' : 'Not backed up';
+  // Every value is a current state: the node in use, not what the page holds.
+  const nodeUrl = services.settings.nodeUrls[services.settings.network] ?? '';
+  const node = !nodeUrl || nodeUrl === DEFAULT_NODE_URLS[services.settings.network] ? 'Default node' : nodeHost(nodeUrl);
   const row = (key: SectionKey, value: string, tone?: 'warn' | 'danger') => (
     <Link key={key} to={`/settings/${key}`} className={`vault-settings-row${current === key ? ' current' : ''}${tone === 'danger' ? ' danger' : ''}`} aria-current={current === key ? 'page' : undefined}>
       <span className="vault-settings-row-label">
@@ -155,19 +203,21 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
   return (
     <nav aria-label="Settings" className="vault-settings-list">
       {/* A named group, not a heading: the page's own title stays its first heading. */}
+      {/* Group labels read as History's day headings do: the wallet's name as typed. */}
       <div role="group" aria-labelledby="settings-group-wallet" className="vault-settings-group">
-        <div id="settings-group-wallet" className="vault-eyebrow vault-settings-group-label">
+        <div id="settings-group-wallet" className="vault-group-label vault-settings-group-label">
           <bdi>{account ? walletName(account) : 'This wallet'}</bdi>
         </div>
         <Paper p={0}>
           {row('backup', backup, backedUp ? undefined : 'warn')}
           {row('security', !account || confirmsSends(account) ? 'Asked before each send' : 'Sends without asking', !account || confirmsSends(account) ? undefined : 'warn')}
           {row('contacts', contacts === null ? '' : contacts === 0 ? 'None' : String(contacts))}
-          {row('name', account ? walletName(account) : '')}
+          {/* The name is the group's label just above: no value to repeat it. */}
+          {row('name', '')}
         </Paper>
       </div>
       <div role="group" aria-labelledby="settings-group-app" className="vault-settings-group">
-        <div id="settings-group-app" className="vault-eyebrow vault-settings-group-label">
+        <div id="settings-group-app" className="vault-group-label vault-settings-group-label">
           App
         </div>
         <Paper p={0}>
@@ -175,7 +225,7 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
           {row('appearance', colorScheme === 'dark' ? 'Dark' : colorScheme === 'light' ? 'Light' : 'System')}
           {/* The code as it is written, in capitals, as the currency menu shows it ("Euro (EUR)"). */}
           {row('currency', currency ? currency.toUpperCase() : 'Off')}
-          {row('advanced', 'Node, rescan, diagnostics')}
+          {row('advanced', node)}
           {row('about', `Version ${__APP_VERSION__}`)}
         </Paper>
       </div>
@@ -185,26 +235,26 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
 }
 
 function SettingsSections({ section }: { section: SectionKey }) {
-  const { services, account, network, switchNetwork, refresh, sendJob, sync, lastSyncedAt } = useApp();
+  const { services, account, network, refresh, sendJob, sync, lastSyncedAt } = useApp();
   const sending = Boolean(sendJob && !sendJob.done);
-  // The same confirmation the header menu gives: switching locks and hides this wallet.
-  const [pendingNetwork, setPendingNetwork] = useState<Network | null>(null);
-  // Testnet and Regtest are for developers and testers: offered once asked
-  // for here, or while the app is on one of them or this device has a
-  // wallet on one (showsTestNetworks), so that wallet stays reachable.
+  // A saved node shows in the list beside this page at once.
+  const changed = useContext(SettingsChangedContext);
+  // Testnet and Regtest are for developers and testers: offered in the
+  // wallet menu once asked for here, or while the app is on one of them or
+  // this device has a wallet on one (showsTestNetworks), so that wallet
+  // stays reachable.
   const [testNets, setTestNets] = useState(services.settings.developerNetworks === true);
   const [allAccounts, setAllAccounts] = useState<AccountRecord[]>([]);
   useEffect(() => {
     void services.db.getAll('accounts').then(setAllAccounts, () => undefined);
   }, [services, account]);
   const testNetsShown = showsTestNetworks({ developerNetworks: testNets, network }, allAccounts);
-  const testNetsWhy = testNets || !testNetsShown ? null : network !== 'main' ? `Shown while the app is on ${NETWORK_LABELS[network]}.` : 'Shown while this device has a wallet on one of them.';
+  const testNetsWhy = testNets || !testNetsShown ? null : network !== 'main' ? `In the menu anyway while the app is on ${NETWORK_LABELS[network]}.` : 'In the menu anyway while this device has a wallet on one of them.';
   const toggleTestNets = (on: boolean) => {
     setTestNets(on);
     void services.updateSettings({ developerNetworks: on });
   };
-  const navigate = useNavigate();
-  const lastBackup = account?.lastBackupAt ? formatDateTime(account.lastBackupAt) : null;
+  const lastBackup = account?.lastBackupAt ? formatDate(account.lastBackupAt) : null;
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
   const [probe, setProbe] = useState<{ ok: boolean; text: string; at?: number } | null>(services.settings.nodeProbe?.[network] ?? null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
@@ -225,26 +275,6 @@ function SettingsSections({ section }: { section: SectionKey }) {
     });
     return () => cancelAnimationFrame(frame);
   }, [hash]);
-
-  const changeNetwork = async (value: string | null) => {
-    if (!value || value === network) return;
-    const next = value as Network;
-    if (account) {
-      setPendingNetwork(next);
-      return;
-    }
-    setNodeUrl(services.settings.nodeUrls[next] ?? '');
-    setProbe(services.settings.nodeProbe?.[next] ?? null);
-    await switchNetwork(next);
-  };
-  const confirmNetwork = async () => {
-    const next = pendingNetwork;
-    setPendingNetwork(null);
-    if (!next) return;
-    setNodeUrl(services.settings.nodeUrls[next] ?? '');
-    setProbe(services.settings.nodeProbe?.[next] ?? null);
-    await switchNetwork(next);
-  };
 
   // Saving is explicit; the test result is kept per network.
   const [testing, setTesting] = useState(false);
@@ -294,6 +324,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
   // The way back after trying another node: it fills the field, and the
   // button then tests it before it is saved, like any other URL.
   const defaultUrl = DEFAULT_NODE_URLS[network];
+  const offerDefault = Boolean(defaultUrl && savedUrl !== defaultUrl && nodeUrl.trim() !== defaultUrl);
   const saveAndTestNode = async () => {
     if (!(await testNode())) {
       setProbe((p) => (p ? { ...p, text: `Not saved. ${p.text}` } : p));
@@ -303,6 +334,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
       nodeUrls: { ...services.settings.nodeUrls, [network]: nodeUrl.trim() },
       nodeProbe: { ...services.settings.nodeProbe, [network]: { ok: true, text: 'Connected when it was saved', at: Date.now() } },
     });
+    changed();
   };
 
   // The backup file's contacts are encrypted and the rest of it is sealed
@@ -444,54 +476,90 @@ function SettingsSections({ section }: { section: SectionKey }) {
       {section === 'name' && <WalletCard />}
       {section === 'backup' && (
         <Paper>
-          <Stack>
-            <Text size="sm">
-              The backup file and the seed phrase below are for {account ? walletName(account) : 'this wallet'} only. Each wallet on this device has its own.
-            </Text>
-            {NATIVE ? null : persistent ? (
+          {/* The answer to "am I backed up?" first: the two backups, each
+              with its state and its one button; then, in a browser, the one
+              thing that can still lose the wallet. */}
+          <div className="vault-setting-items">
+            <SettingItem name="Seed phrase">
               <Text size="sm" c="dimmed">
-                The browser will not delete this wallet's data on its own. Clearing site data still does, so keep your seed phrase or a backup file.
+                {account?.backupConfirmed ? 'Confirmed at setup. Brings back your coins.' : 'Not confirmed yet. Brings back your coins.'}
               </Text>
-            ) : (
-              <Caution title="The browser may delete this wallet">
-                When space runs low, the browser may delete this wallet's data. Installing the app usually prevents that. Your seed phrase brings back your coins; a backup file also brings back your contacts and address labels.
-                <Group mt={4} gap="sm" align="center">
-                  {installState().kind === 'promptable' && (
-                    <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => void promptInstall()}>
-                      Install app
-                    </Button>
-                  )}
-                  <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => void requestPersistent()}>
-                    Request again
-                  </Button>
-                  {persistAsked && (
-                    <Text size="sm" c="dimmed">
-                      Still not granted.
-                    </Text>
-                  )}
-                </Group>
-              </Caution>
-            )}
-            <Text size="sm" c="dimmed">
-              {lastBackup ? `Last backup file of ${account ? walletName(account) : 'this wallet'}: ${lastBackup}` : `No backup file of ${account ? walletName(account) : 'this wallet'} saved yet.`}
-            </Text>
-            <Group>
-              <Button variant="light" leftSection={<IconDownload size={16} stroke={1.8} />} onClick={askExport} disabled={!account}>Export backup file</Button>
-              <Button variant="light" onClick={togglePhrase} disabled={!account}>
-                {phrase ? 'Hide seed phrase' : 'Show seed phrase'}
+              <Button variant="light" onClick={togglePhrase} disabled={!account} aria-label={phrase ? 'Hide seed phrase' : 'Show seed phrase'}>
+                {phrase ? 'Hide' : 'Show'}
               </Button>
-            </Group>
-            {message &&
-              (message.done ? (
-                <Done onClose={() => setMessage(null)} focusOnMount>
-                  {message.text}
-                </Done>
-              ) : (
-                <Info onClose={() => setMessage(null)} focusOnMount>
-                  {message.text}
-                </Info>
-              ))}
-            {exportError && <ErrorLine onClose={() => setExportError(null)}>Could not make the backup file: {exportError}</ErrorLine>}
+              {phrase && (
+                <Stack gap="xs" mt="xs" w="100%">
+                  <WordGrid words={phrase} />
+                  {/* The button, then what copying means, beneath it, as on the setup step. */}
+                  <Stack gap={4} align="flex-start">
+                    <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+                      Copy words
+                    </Button>
+                    <Text size="sm" c="dimmed">
+                      {CLIPBOARD_RISK}
+                    </Text>
+                  </Stack>
+                  <Text size="sm" c="dimmed" aria-live="off">
+                    Hidden again in {Math.max(0, phraseLeft)} s, or when you leave this screen.
+                  </Text>
+                  <Button variant="subtle" size="compact-sm" className="vault-button-start" onClick={() => setPhraseLeft((n) => n + PHRASE_SECONDS)}>
+                    Keep showing
+                  </Button>
+                  <div className="sr-only" role="status">
+                    {phraseLeft <= 20 && phraseLeft > 0 ? 'The seed phrase hides in 20 seconds. Keep showing adds a minute.' : ''}
+                  </div>
+                </Stack>
+              )}
+            </SettingItem>
+            <SettingItem name="Backup file">
+              <Text size="sm" c="dimmed">
+                {lastBackup ? `Saved ${lastBackup}.` : 'None saved yet.'} Also brings back contacts and address names.
+              </Text>
+              <Button variant="light" leftSection={<IconDownload size={16} stroke={1.8} />} onClick={askExport} disabled={!account} aria-label="Export backup file">
+                Export
+              </Button>
+              {message &&
+                (message.done ? (
+                  <Done onClose={() => setMessage(null)} focusOnMount>
+                    {message.text}
+                  </Done>
+                ) : (
+                  <Info onClose={() => setMessage(null)} focusOnMount>
+                    {message.text}
+                  </Info>
+                ))}
+              {exportError && <ErrorLine onClose={() => setExportError(null)}>Could not make the backup file: {exportError}</ErrorLine>}
+            </SettingItem>
+            {!NATIVE && (
+              <SettingItem>
+                {persistent ? (
+                  <Text size="sm" c="dimmed">
+                    The browser keeps this wallet's data; clearing site data still deletes it.
+                  </Text>
+                ) : (
+                  <Caution>
+                    <span>The browser may delete this wallet when space runs low; installing the app usually stops that.</span>
+                    <Group mt={4} gap="sm" align="center">
+                      {installState().kind === 'promptable' ? (
+                        <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => void promptInstall()}>
+                          Install app
+                        </Button>
+                      ) : (
+                        <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => void requestPersistent()}>
+                          Ask again
+                        </Button>
+                      )}
+                      {persistAsked && (
+                        <Text size="sm" c="dimmed">
+                          Still not granted.
+                        </Text>
+                      )}
+                    </Group>
+                  </Caution>
+                )}
+              </SettingItem>
+            )}
+          </div>
             <Modal opened={exportAsking} onClose={() => setExportAsking(false)} title="Export backup file">
               <form
                 onSubmit={(e) => {
@@ -500,7 +568,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
                 }}
               >
                 <Stack>
-                  <Text size="sm">The file restores this wallet, its contacts and its address labels. It is encrypted with this password, which you will need to open it, and any change to it is detected. Keep it somewhere safe.</Text>
+                  <Text size="sm">The file restores this wallet, its contacts and its address names. It is encrypted with this password, which you will need to open it, and any change to it is detected. Keep it somewhere safe.</Text>
                   <PasswordInput label="Password" value={exportPassword} onChange={(e) => setExportPassword(e.currentTarget.value)} error={exportPasswordError} errorProps={{ role: 'alert' }} autoComplete="current-password" data-autofocus />
                   <Group grow>
                     <Button variant="default" onClick={() => setExportAsking(false)}>
@@ -534,39 +602,17 @@ function SettingsSections({ section }: { section: SectionKey }) {
                 </Stack>
               </form>
             </Modal>
-            {phrase && (
-              <Stack gap="xs">
-                <WordGrid words={phrase} />
-                {/* The button, then what copying means, beneath it, as on the setup step. */}
-                <Stack gap={4} align="flex-start">
-                  <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
-                    Copy words
-                  </Button>
-                  <Text size="sm" c="dimmed">
-                    {CLIPBOARD_RISK}
-                  </Text>
-                </Stack>
-                <Text size="sm" c="dimmed" aria-live="off">
-                  Hidden again in {Math.max(0, phraseLeft)} s, or when you leave this screen.
-                </Text>
-                <Button variant="subtle" size="compact-sm" className="vault-button-start" onClick={() => setPhraseLeft((n) => n + PHRASE_SECONDS)}>
-                  Keep showing
-                </Button>
-                <div className="sr-only" role="status">
-                  {phraseLeft <= 20 && phraseLeft > 0 ? 'The seed phrase hides in 20 seconds. Keep showing adds a minute.' : ''}
-                </div>
-              </Stack>
-            )}
-          </Stack>
         </Paper>
       )}
+      {/* Named items, the everyday one first: unlocking, then the password,
+          then what each send asks for. */}
       {section === 'security' && (
         <Paper>
-          <Stack>
-            <ConfirmSendsSetting />
-            <ChangePassword />
+          <div className="vault-setting-items">
             <PasskeyCard />
-          </Stack>
+            <ChangePassword />
+            <ConfirmSendsSetting />
+          </div>
         </Paper>
       )}
       {section === 'autolock' && (
@@ -587,57 +633,51 @@ function SettingsSections({ section }: { section: SectionKey }) {
           </Stack>
         </Paper>
       )}
+      {/* Two named items. The node: its address, how it answers, and a
+          button only when there is something to do (an edit to test and save,
+          a failure to try again); Home's Sync checks a node that answers.
+          Networks are switched in the wallet menu. Then the rescan. */}
       {section === 'advanced' && (
         <Paper>
-          <Stack>
-            <Modal opened={pendingNetwork !== null} onClose={() => setPendingNetwork(null)} title={pendingNetwork ? `Switch to ${NETWORK_LABELS[pendingNetwork]}?` : ''}>
-              <Stack>
-                <Text size="sm">Your {NETWORK_LABELS[network]} wallet stays on this device, so you can switch back any time. Switching locks the app.</Text>
-                <Group grow>
-                  <Button variant="default" onClick={() => setPendingNetwork(null)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={() => void confirmNetwork()}>Switch</Button>
+          <div className="vault-setting-items">
+            <SettingItem name="Node">
+              <TextInput
+                w="100%"
+                label="Node URL"
+                description={testNetsShown ? `Used on ${NETWORK_LABELS[network]}; each network has its own.` : undefined}
+                value={nodeUrl}
+                onChange={(e) => setNodeUrl(e.currentTarget.value)}
+                placeholder="https://…"
+              />
+              {/* Always there, so what the test says as it runs and ends is announced. */}
+              <Text size="sm" c={shown && !shown.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status" className={shown?.text ? undefined : 'sr-only'}>
+                {shown?.text}
+                {shown?.at && shown.text !== 'Testing…' ? ` · checked ${formatTime(shown.at)}` : ''}
+              </Text>
+              {(dirty || testing || (shown && !shown.ok) || offerDefault) && (
+                <Group>
+                  {(dirty || testing || (shown && !shown.ok)) && (
+                    <Button variant={dirty ? 'filled' : 'light'} onClick={() => void (dirty ? saveAndTestNode() : testNode())} loading={testing}>
+                      {dirty ? 'Test and save' : 'Try again'}
+                    </Button>
+                  )}
+                  {offerDefault && (
+                    <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => setNodeUrl(defaultUrl)}>
+                      Use the default node
+                    </Anchor>
+                  )}
                 </Group>
-              </Stack>
-            </Modal>
-            <TextInput label="Node URL" description={testNetsShown ? `Used on ${NETWORK_LABELS[network]}; each network has its own.` : undefined} value={nodeUrl} onChange={(e) => setNodeUrl(e.currentTarget.value)} placeholder="https://…" />
-            {/* Always there, so what the test says as it runs and ends is announced. */}
-            <Text size="sm" c={shown && !shown.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status" className={shown?.text ? undefined : 'sr-only'}>
-              {shown?.text}
-              {shown?.at && shown.text !== 'Testing…' ? ` · checked ${formatTime(shown.at)}` : ''}
-            </Text>
-            {/* One button: a URL that differs from the saved one is tested, then saved. */}
-            <Group>
-              <Button variant={dirty ? 'filled' : 'light'} onClick={() => void (dirty ? saveAndTestNode() : testNode())} loading={testing}>
-                {dirty ? 'Test and save' : 'Test'}
-              </Button>
-              {defaultUrl && savedUrl !== defaultUrl && nodeUrl.trim() !== defaultUrl && (
-                <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => setNodeUrl(defaultUrl)}>
-                  Use the default node
-                </Anchor>
               )}
-            </Group>
+              <Checkbox
+                mt="xs"
+                label="Developer networks"
+                description={`Adds Testnet and Regtest to the wallet menu, for developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
+                checked={testNets}
+                onChange={(e) => toggleTestNets(e.currentTarget.checked)}
+              />
+            </SettingItem>
             <RescanCard />
-            <Text size="sm" c="dimmed">
-              Device and app details to include when you report a problem.
-            </Text>
-            <Group>
-              <Button variant="light" onClick={() => navigate('/diagnostics')}>
-                Diagnostics
-              </Button>
-            </Group>
-            {/* For developers and testers, last: the network choice appears under it. */}
-            <Checkbox
-              label="Developer networks"
-              description={`Offers Testnet and Regtest, for developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
-              checked={testNets}
-              onChange={(e) => toggleTestNets(e.currentTarget.checked)}
-            />
-            {testNetsShown && (
-              <Select label="Network" data={NETWORK_OPTIONS} value={network} onChange={(v) => void changeNetwork(v)} disabled={sending} description={sending ? NOT_DURING_SEND : undefined} />
-            )}
-          </Stack>
+          </div>
         </Paper>
       )}
       {section === 'appearance' && (
@@ -661,7 +701,8 @@ function SettingsSections({ section }: { section: SectionKey }) {
               {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Your keys stay on this device, and only the node set in Advanced learns about your wallet.
             </Text>
             <Group gap="md" style={{ rowGap: 24 }}>
-              <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
+              {/* A page of Settings, with the details a report needs and where to send it. */}
+              <Anchor component={Link} to="/settings/report" size="sm" className="vault-tap-link">
                 Report a problem
               </Anchor>
               <Anchor href={LINKS.telegram} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
@@ -673,7 +714,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               <Anchor href={LINKS.neptune} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
                 About Neptune Cash
               </Anchor>
-              <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => navigate('/privacy')}>
+              <Anchor component={Link} to="/settings/privacy" size="sm" className="vault-tap-link">
                 Privacy
               </Anchor>
             </Group>
@@ -686,6 +727,8 @@ function SettingsSections({ section }: { section: SectionKey }) {
         </Paper>
       )}
       {section === 'remove' && <RemoveWalletCard />}
+      {section === 'report' && <ReportProblem />}
+      {section === 'privacy' && <PrivacyStatement />}
     </OpenFormContext.Provider>
   );
 }
@@ -751,10 +794,11 @@ function ConfirmSendsSetting() {
     boxRef.current?.focus();
   }, [setAsking]);
   return (
-    <Stack gap={4}>
+    <SettingItem>
       <Checkbox
         ref={boxRef}
         label="Confirm each send with the password or passkey"
+        description={on ? 'Asked on the review, before anything leaves this wallet.' : 'Sends from this wallet go out as soon as they are ready. Anyone with the unlocked device can send.'}
         checked={on}
         onChange={(e) => {
           if (!account) return;
@@ -762,11 +806,8 @@ function ConfirmSendsSetting() {
           else void services.accounts.enableSendConfirmation(account.id).then(() => refresh());
         }}
       />
-      <Text size="sm" c="dimmed" pl={32}>
-        {on ? 'Asked on the review, before the send is prepared. Nothing leaves this wallet until you confirm, and turning this off takes the password or passkey.' : 'Sends from this wallet go out as soon as the proof is ready. Anyone with the unlocked device can send.'}
-      </Text>
       {asking && <ConfirmSendsOff onClose={close} />}
-    </Stack>
+    </SettingItem>
   );
 }
 
@@ -926,19 +967,19 @@ function ChangePassword() {
 
   if (!open) {
     return (
-      <Stack>
-        <Group>
-          <Button ref={buttonRef} variant="light" disabled={!account} onClick={() => { setDone(false); setOpen(true); }}>
-            Change password
-          </Button>
-        </Group>
+      <SettingItem name="Password">
+        <Button ref={buttonRef} variant="light" disabled={!account} aria-label="Change password" onClick={() => { setDone(false); setOpen(true); }}>
+          Change
+        </Button>
         {done && <Done onClose={() => setDone(false)} focusOnMount>Password changed. An older backup file still opens with the old password, so export a new one if you keep one.</Done>}
-      </Stack>
+      </SettingItem>
     );
   }
 
   return (
+    <SettingItem name="Password">
     <form
+      style={{ width: '100%' }}
       onSubmit={(e) => {
         e.preventDefault();
         void submit();
@@ -969,6 +1010,7 @@ function ChangePassword() {
         {error && <ErrorLine onClose={() => setError(null)}>{error}</ErrorLine>}
       </Stack>
     </form>
+    </SettingItem>
   );
 }
 
@@ -1054,8 +1096,9 @@ function FiatCard() {
         }}
         data={[{ value: 'off', label: 'Off' }, ...FIAT_CURRENCIES.map((c) => ({ value: c, label: FIAT_LABELS[c] }))]}
       />
+      {/* What it shows and what it costs, in a sentence; which service is asked when, in Privacy. */}
       <Text size="sm" c="dimmed">
-        Shows an estimate under your balance. While it is on and the app is open, the app asks CoinGecko (or CoinPaprika, when CoinGecko does not answer) for the NPT price every 10 minutes. They see this device's network address and that it runs a Neptune Cash wallet, and nothing about your wallet. NPT trades in small volumes, so the price can move a lot: treat the figure as a rough guide.
+        Shows a rough estimate under your balance. While it is on, the app asks CoinGecko or CoinPaprika for the NPT price every 10 minutes: they see this device's network address, not your wallet.
       </Text>
     </Stack>
   );
@@ -1163,44 +1206,45 @@ function PasskeyCard() {
     await refresh();
   };
 
+  // Where the passkey is kept is said in Privacy; here, what it does.
   if (supported === false && !enabled) {
     return (
-      <Text size="sm" c="dimmed">
-        {NATIVE ? 'Passkey unlock is not available in this app. The password unlocks it.' : 'Passkey unlock is not available here. It needs a device with a screen lock and a browser that supports passkeys.'}
-      </Text>
+      <SettingItem name="Passkey unlock">
+        <Text size="sm" c="dimmed">
+          {NATIVE ? 'Not available in this app. The password unlocks it.' : 'Not available here: it needs a device with a screen lock and a browser that supports passkeys.'}
+        </Text>
+      </SettingItem>
     );
   }
   if (enabled) {
     return (
-      <Stack gap="xs">
+      <SettingItem name="Passkey unlock">
         <Text size="sm" c="dimmed">
-          Passkey unlock is on. The password still works, and backup files still use it.
+          On. The password still works, and backup files still use it.
         </Text>
-        <Group>
-          <Button ref={actionRef} variant="light" onClick={() => void disable()}>
-            Turn off passkey unlock
-          </Button>
-        </Group>
+        <Button ref={actionRef} variant="light" aria-label="Turn off passkey unlock" onClick={() => void disable()}>
+          Turn off
+        </Button>
         {justEnabled && <Done onClose={() => setJustEnabled(false)} focusOnMount>Passkey set up. Next time, unlock with your fingerprint, face or device PIN.</Done>}
-      </Stack>
+      </SettingItem>
     );
   }
   if (!open) {
     return (
-      <Stack gap="xs">
+      <SettingItem name="Passkey unlock">
         <Text size="sm" c="dimmed">
-          Unlock with your fingerprint, face or device PIN. Your device, or the account it saves passkeys to, keeps the passkey.
+          Unlock with your fingerprint, face or device PIN.
         </Text>
-        <Group>
-          <Button ref={actionRef} variant="light" disabled={!account || supported === null} onClick={() => setOpen(true)}>
-            Set up passkey unlock
-          </Button>
-        </Group>
-      </Stack>
+        <Button ref={actionRef} variant="light" aria-label="Set up passkey unlock" disabled={!account || supported === null} onClick={() => setOpen(true)}>
+          Set up
+        </Button>
+      </SettingItem>
     );
   }
   return (
+    <SettingItem name="Passkey unlock">
     <form
+      style={{ width: '100%' }}
       onSubmit={(e) => {
         e.preventDefault();
         void enable();
@@ -1231,6 +1275,7 @@ function PasskeyCard() {
         {error && <ErrorLine onClose={() => setError(null)}>{error}</ErrorLine>}
       </Stack>
     </form>
+    </SettingItem>
   );
 }
 
@@ -1279,14 +1324,17 @@ function WalletCard() {
   );
 }
 
-// Removal from this device, in a card of its own at the foot of Settings,
-// away from everyday buttons. The dialog says what the wallet holds, so the
-// stakes are in front of the person, and afterwards a notice says what
-// happened: the next screen is another lock screen, or setup.
+// Removal from this device, on a page of its own at the foot of Settings,
+// away from everyday buttons. The page is the decision: what the wallet
+// holds, so the stakes are in front of the person, what is forgotten and
+// what stays on the chain, a check that a backup exists, the password and
+// the red button, with no dialog saying it all again. Afterwards a notice
+// says what happened: the next screen is another lock screen, or setup.
 function RemoveWalletCard() {
-  const { services, account, balance, history, loaded, removeAccount, sendJob } = useApp();
+  const { services, account, balance, loaded, removeAccount, sendJob } = useApp();
+  // What Home shows, with pending sends counted as gone.
+  const { balanceNau, ready } = usePendingSends();
   const navigate = useNavigate();
-  const [removing, setRemoving] = useState(false);
   const [password, setPassword] = useState('');
   const [haveBackup, setHaveBackup] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1294,10 +1342,8 @@ function RemoveWalletCard() {
   if (!account) return null;
   const sending = Boolean(sendJob && !sendJob.done);
   const name = walletName(account);
-  // Everything the wallet owns: spendable, held for a pending send, and time-locked.
-  // What Home shows, with pending sends counted as gone, plus what is time-locked.
-  const leaving = history.filter((h) => h.kind === 'sent' && h.status === 'pending').reduce((sum, h) => sum + BigInt(h.amountNau) + BigInt(h.feeNau ?? '0'), 0n);
-  const holds = balance.spendableNau + balance.reservedNau - leaving + balance.lockedNau;
+  // Everything the wallet owns: Home's balance, plus what is time-locked.
+  const holds = balanceNau + balance.lockedNau;
 
   const remove = async () => {
     setBusy(true);
@@ -1305,7 +1351,6 @@ function RemoveWalletCard() {
     try {
       await services.accounts.verifyPassword(account.id, password);
       await removeAccount(account.id);
-      setRemoving(false);
       notifications.show({ message: `${name} was removed from this device.` });
       navigate('/');
     } catch (e) {
@@ -1317,39 +1362,36 @@ function RemoveWalletCard() {
 
   return (
     <Paper>
-      <Stack>
-        <Text size="sm" c="dimmed">
-          Removes {name} from this device only. Its coins stay on the chain, and its seed phrase or a backup file brings it back.
-        </Text>
-        <Group>
-          <Button variant="light" color="red" disabled={sending} onClick={() => setRemoving(true)}>
-            Remove from this device
-          </Button>
-        </Group>
-        <Modal opened={removing} onClose={() => setRemoving(false)} title={`Remove ${name} from this device?`}>
-          <Stack>
-            {loaded && (
-              <Text size="sm" fw={600}>
-                {/* Shown even with amounts hidden: it is what the decision is about. */}
-                {name} holds {showNau(holds)} NPT.
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void remove();
+        }}
+      >
+        <Stack>
+          {loaded && ready && (
+            <Text size="sm" fw={600}>
+              {/* Shown even with amounts hidden: it is what the decision is about. */}
+              {name} holds {showNau(holds)} NPT.
+            </Text>
+          )}
+          <Text size="sm">
+            This device forgets the wallet, its history and its contacts. The coins stay on the chain, and only the seed phrase or a backup file brings them back.
+          </Text>
+          <Checkbox label="I have this wallet's seed phrase or a backup file" checked={haveBackup} onChange={(e) => setHaveBackup(e.currentTarget.checked)} />
+          <PasswordInput label="This wallet's password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} error={error} errorProps={{ role: 'alert' }} autoComplete="current-password" />
+          <Stack gap={4} align="flex-start">
+            <Button type="submit" color="red" loading={busy} disabled={sending || !haveBackup || !password}>
+              Remove from this device
+            </Button>
+            {sending && (
+              <Text size="sm" c="dimmed">
+                {NOT_DURING_SEND}
               </Text>
             )}
-            <Text size="sm">
-              This device forgets the wallet, its history and its contacts. The coins stay on the chain, and only the seed phrase or a backup file brings them back.
-            </Text>
-            <Checkbox label="I have this wallet's seed phrase or a backup file" checked={haveBackup} onChange={(e) => setHaveBackup(e.currentTarget.checked)} />
-            <PasswordInput label="This wallet's password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} error={error} errorProps={{ role: 'alert' }} autoComplete="current-password" />
-            <Group grow>
-              <Button variant="default" onClick={() => setRemoving(false)}>
-                Cancel
-              </Button>
-              <Button color="red" loading={busy} disabled={!haveBackup || !password} onClick={() => void remove()}>
-                Remove
-              </Button>
-            </Group>
           </Stack>
-        </Modal>
-      </Stack>
+        </Stack>
+      </form>
     </Paper>
   );
 }
@@ -1381,7 +1423,7 @@ function RescanCard() {
     ? firstPayment !== null
       ? `Found through the node's coin index on ${restoredOn}, which checks the whole chain. First payment: block ${showBlock(firstPayment)}.`
       : `Found through the node's coin index on ${restoredOn}, which checks the whole chain. No payments to this wallet found.`
-    : `Scanned from ${from}. Payments before that block are not found, so rescan from an earlier block if you expect some.`;
+    : `${walletName(account)} was scanned from ${from}.`;
 
   const rescan = async (fast: boolean) => {
     setBusy(true);
@@ -1426,7 +1468,7 @@ function RescanCard() {
   };
 
   return (
-    <Stack gap="xs" id="rescan" className="vault-anchored">
+    <SettingItem name="Rescan" id="rescan" className="vault-anchored">
       <Text size="sm" c="dimmed">
         {how}
       </Text>
@@ -1477,7 +1519,7 @@ function RescanCard() {
             <>
               {/* The same question as a private restore: the month, with the block number behind a disclosure. */}
               <Text size="sm" c="dimmed">
-                When did this wallet first receive funds? Every block from then is downloaded and scanned here, so an earlier month takes longer.
+                When did this wallet first receive a payment? Every block from then is downloaded and scanned here, so an earlier month takes longer.
               </Text>
               <StartBlockPicker
                 value={height}
@@ -1502,6 +1544,6 @@ function RescanCard() {
           {rescanError && <ErrorLine>Could not start the rescan: {rescanError}</ErrorLine>}
         </Stack>
       </Modal>
-    </Stack>
+    </SettingItem>
   );
 }

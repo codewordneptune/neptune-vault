@@ -32,7 +32,7 @@ const SCREEN_NAMES: Record<string, string> = {
   '/send': 'Send',
   '/receive': 'Receive',
   '/settings': 'Settings',
-  '/diagnostics': 'Diagnostics',
+  '/diagnostics': 'Report a problem',
   '/privacy': 'Privacy',
   '/onboarding': 'Set up',
 };

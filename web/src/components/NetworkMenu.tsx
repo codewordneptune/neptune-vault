@@ -117,7 +117,7 @@ export function NetworkMenu() {
         {pending && (
           <Stack>
             <Text size="sm">
-              Your {NETWORK_LABELS[network]} wallet stays on this device, so you can switch back any time. Switching locks the app.
+              Your {NETWORK_LABELS[network]} wallet stays on this device, so you can switch back any time. Switching locks this wallet.
             </Text>
             <Group grow>
               <Button variant="default" onClick={cancelSwitch}>

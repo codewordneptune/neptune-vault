@@ -10,7 +10,7 @@ export interface PrivacySection {
   paragraphs: string[];
 }
 
-export const PRIVACY_UPDATED = '2026-09-27';
+export const PRIVACY_UPDATED = '2026-09-30';
 
 export const PRIVACY: PrivacySection[] = [
   {
@@ -52,7 +52,7 @@ export const PRIVACY: PrivacySection[] = [
   {
     title: 'What this app does not do',
     paragraphs: [
-      'No analytics, no telemetry, no crash reporting, no advertising, no cookies for tracking. The Diagnostics screen shows facts about this device to you; it sends them nowhere.',
+      'No analytics, no telemetry, no crash reporting, no advertising, no cookies for tracking. The Report a problem page shows facts about this device to you; it sends them nowhere, and copies them only when you ask.',
       NATIVE
         ? 'The camera, when you scan a code, is read on the device; no frame leaves it. The clipboard is written only when you tap Copy. The app never reads it by itself: it sees only what you paste, into a field or, as an image, into the scanner.'
         : 'The camera, when you scan a code, is read on the device; no frame leaves it. The clipboard is written only when you tap Copy. The app never reads it by itself: it sees only what you paste, into a field or, as an image, into the scanner, and the site tells the browser to refuse it clipboard reads altogether.',

@@ -1831,6 +1831,26 @@ html {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The items of a Settings page (Backup, Security, Advanced): each a name,
+   then its sentence and its own button 6 px apart, so every button is
+   plainly the one its sentence explains; items are set apart by the list's
+   hairline. */
+.vault-setting-items {
+  display: flex;
+  flex-direction: column;
+}
+.vault-setting-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+.vault-setting-item + .vault-setting-item {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--v-line);
+}
 /* The way back from a page to the list, on a phone: above the title. */
 .vault-back-link {
   gap: 4px;

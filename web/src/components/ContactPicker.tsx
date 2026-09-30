@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 import type { ContactRecord } from '../storage/db';
-import { abbreviateAddress, addressKind } from '../util/address';
+import { abbreviateAddress, addressKindNote } from '../util/address';
 
 export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; onClose: () => void; onPick: (c: ContactRecord) => void }) {
   const { services, account } = useApp();
@@ -38,9 +38,12 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
                 {abbreviateAddress(c.address)}
               </Text>
             </div>
-            <Text size="xs" c="dimmed">
-              {addressKind(c.address).intent}
-            </Text>
+            {/* The kind only when it is not Standard. */}
+            {addressKindNote(c.address) && (
+              <Text size="xs" c="dimmed">
+                {addressKindNote(c.address)}
+              </Text>
+            )}
           </UnstyledButton>
         ))}
         <Button

@@ -2,7 +2,7 @@
 // remove, and start a send to one. A page of Settings (Settings.tsx), which
 // gives it its title and the way back.
 
-import { ActionIcon, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Tooltip } from '@mantine/core';
+import { ActionIcon, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core';
 import { IconArrowUpRight, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconScan, IconTrash } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,7 +12,7 @@ import { ownAddresses } from '../app/ownAddresses';
 import { ErrorLine } from '../components/Notice';
 import { QrScanner } from '../components/QrScanner';
 import type { ContactRecord } from '../storage/db';
-import { abbreviateAddress, addressKind, parsePaymentText } from '../util/address';
+import { abbreviateAddress, addressKindNote, parsePaymentText } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { networkLabel } from '../util/network';
 
@@ -26,7 +26,7 @@ export function ContactsPanel() {
   const [error, setError] = useState<string | null>(null);
   // After a dialog opened from a row's menu closes, the menu is gone: focus
   // goes back to that row's button by hand, or after a removal to the next
-  // row's (to Add contact when none is left), and what happened is said.
+  // row's (to New contact when none is left), and what happened is said.
   const moreButtons = useRef(new Map<string, HTMLButtonElement>());
   const addRef = useRef<HTMLButtonElement>(null);
   const [said, setSaid] = useState('');
@@ -63,21 +63,18 @@ export function ContactsPanel() {
     <>
       <Paper>
         <Stack>
-          {/* The page's one main action, first, as on the other pages of Settings. */}
-          <Group>
-            <Button ref={addRef} variant="light" leftSection={<IconPlus size={16} stroke={1.8} />} onClick={() => setAdding(true)}>
-              Add contact
-            </Button>
-          </Group>
           <div className="sr-only" role="status">
             {said}
           </div>
           {error && <ErrorLine onClose={() => setError(null)}>{error}</ErrorLine>}
-          {contacts === null ? null : contacts.length === 0 ? (
+          {contacts !== null && contacts.length === 0 && (
             <Text size="sm" c="dimmed">
-              No contacts yet. Add one here, or save a recipient after you send.
+              No contacts yet. Add one below, or save a recipient after you send.
             </Text>
-          ) : (
+          )}
+          {/* One pattern for adding to a list, as Receive's addresses: the
+              rows, then "+ New contact" as the last one. */}
+          {contacts !== null && (
             <div>
               {contacts.map((c) => (
                 <div className="vault-row" key={c.key}>
@@ -88,10 +85,12 @@ export function ContactsPanel() {
                     <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
                       {abbreviateAddress(c.address)}
                     </Text>
-                    {/* The kind in plain words; the protocol's name is on Receive, under the choice. */}
-                    <Text size="xs" c="dimmed">
-                      {addressKind(c.address).intent}
-                    </Text>
+                    {/* The kind in plain words, and only when it is not Standard. */}
+                    {addressKindNote(c.address) && (
+                      <Text size="xs" c="dimmed">
+                        {addressKindNote(c.address)}
+                      </Text>
+                    )}
                   </div>
                   <Group gap={4} wrap="nowrap">
                     {/* Stays while the pointer moves onto it, so it can be read. */}
@@ -131,6 +130,18 @@ export function ContactsPanel() {
                   </Group>
                 </div>
               ))}
+              <div className="vault-row vault-address-row">
+                <UnstyledButton ref={addRef} className="vault-address-show vault-address-new" onClick={() => setAdding(true)}>
+                  <span className="vault-address-mark" aria-hidden>
+                    <IconPlus size={16} stroke={1.8} />
+                  </span>
+                  <span className="vault-address-title">
+                    <Text span display="block" size="sm" fw={600}>
+                      New contact
+                    </Text>
+                  </span>
+                </UnstyledButton>
+              </div>
             </div>
           )}
         </Stack>
@@ -288,7 +299,7 @@ export function ContactForm({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title={fixedAddress ? 'Save recipient' : 'Add contact'}>
+    <Modal opened={opened} onClose={onClose} title={fixedAddress ? 'Save recipient' : 'New contact'}>
       <form
         onSubmit={(e) => {
           e.preventDefault();

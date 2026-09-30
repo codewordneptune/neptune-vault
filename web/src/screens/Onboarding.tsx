@@ -11,7 +11,6 @@ import { showBlock, useApp } from '../app/AppContext';
 import { PocNotice } from '../components/PocNotice';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { Caution, ErrorLine, Info } from '../components/Notice';
-import { LINKS } from '../app/links';
 import { NATIVE } from '../app/platform';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
@@ -362,8 +361,9 @@ export function Onboarding() {
           </div>
         </details>
       )}
-      {/* Before a wallet exists there is no Settings to find these in. Diagnostics
-          is open without a wallet on purpose, for whoever cannot get started. */}
+      {/* Before a wallet exists there is no Settings to find these in.
+          Report a problem is open without a wallet on purpose, for whoever
+          cannot get started: it holds the details a report needs. */}
       {step === 'welcome' && !adding && (
         <Group gap={6} justify="center">
           <Anchor component="button" type="button" size="sm" className="vault-tap-link vault-inline-link" onClick={() => navigate('/privacy')}>
@@ -373,12 +373,6 @@ export function Onboarding() {
             ·
           </Text>
           <Anchor component="button" type="button" size="sm" className="vault-tap-link vault-inline-link" onClick={() => navigate('/diagnostics')}>
-            Diagnostics
-          </Anchor>
-          <Text span size="sm" c="dimmed" aria-hidden>
-            ·
-          </Text>
-          <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link vault-inline-link">
             Report a problem
           </Anchor>
         </Group>
