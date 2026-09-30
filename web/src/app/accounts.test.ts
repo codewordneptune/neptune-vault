@@ -236,55 +236,6 @@ describe('the engine store, as the account service drives it', () => {
   });
 });
 
-describe('forgot password', () => {
-  const other = Array.from({ length: 18 }, (_, i) => `x${i}`);
-
-  it('keeps a fingerprint of the words at setup that knows them and no others', async () => {
-    const { service } = await setup();
-    const phrase = await service.generatePhrase();
-    const record = await service.createAccount(phrase, 'password-1', 'regtest', 5);
-    expect(record.phraseCheck?.hash).toBeTruthy();
-    expect(JSON.stringify(record.phraseCheck)).not.toContain(phrase[0]);
-    expect(await service.phraseIsFor(record.id, phrase)).toBe(true);
-    expect(await service.phraseIsFor(record.id, phrase.map((w) => ` ${w.toUpperCase()} `))).toBe(true);
-    expect(await service.phraseIsFor(record.id, other)).toBe(false);
-  });
-
-  it('restores the wallet from its own words in its place, under a new password, and refuses another wallet\'s', async () => {
-    const { service } = await setup();
-    const phrase = await service.generatePhrase();
-    const old = await service.createAccount(phrase, 'password-1', 'regtest', 5, { name: 'Savings' });
-    await service.lock();
-    await expect(service.restoreForgotten(old.id, other, 'password-2', 5)).rejects.toThrow('These words are for a different wallet.');
-    expect(await db.get('accounts', old.id)).toBeTruthy();
-    const { record, keptAs } = await service.restoreForgotten(old.id, phrase, 'password-2', 5);
-    expect(keptAs).toBeNull();
-    expect(await db.get('accounts', old.id)).toBeUndefined();
-    const stored = await db.get('accounts', record.id);
-    expect(stored?.name).toBe('Savings');
-    expect(stored?.backupConfirmed).toBe(true);
-    expect(stored?.birthdayHeight).toBe(5);
-    await service.lock();
-    await service.unlock(record.id, 'password-2');
-    await expect(service.verifyPassword(record.id, 'password-1')).rejects.toThrow();
-  });
-
-  it('keeps an older wallet it cannot check the words against, renamed, beside the restored one', async () => {
-    const { service } = await setup();
-    const phrase = await service.generatePhrase();
-    const old = await service.createAccount(phrase, 'password-1', 'regtest', 5, { name: 'Savings' });
-    await service.lock();
-    // As a wallet made before the fingerprint was kept.
-    const { phraseCheck: _gone, ...rest } = (await db.get('accounts', old.id))!;
-    await db.put('accounts', rest);
-    expect(await service.phraseIsFor(old.id, phrase)).toBeNull();
-    const { record, keptAs } = await service.restoreForgotten(old.id, phrase, 'password-2', 5);
-    expect(keptAs).toBe('Savings (old)');
-    expect((await db.get('accounts', old.id))?.name).toBe('Savings (old)');
-    expect((await db.get('accounts', record.id))?.name).toBe('Savings');
-  });
-});
-
 describe('account service', () => {
   it('names wallets in order per network, renames, and removes one without touching another', async () => {
     const { service } = await setup();

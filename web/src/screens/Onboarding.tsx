@@ -18,9 +18,7 @@ import { copyText } from '../util/clipboard';
 import { CLIPBOARD_RISK, FAST_SCAN } from '../app/words';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import type { NodeClient } from '../node/rpc';
-import { walletName, type Network } from '../storage/db';
-import { clearSendDraft } from '../app/sendDraft';
-import { forgetOwnAddresses } from '../app/ownAddresses';
+import type { Network } from '../storage/db';
 import { notifications } from '@mantine/notifications';
 import { MAX_BACKUP_BYTES, parseBackupFile, WrongPasswordError } from '../storage/envelope';
 
@@ -66,18 +64,13 @@ function saveDraft(draft: Draft | null) {
 }
 
 export function Onboarding() {
-  const { services, account, locked, setAccount, switchNetwork, adoptNetwork, pauseSync, network: currentNetwork } = useApp();
+  const { services, account, setAccount, switchNetwork, adoptNetwork, pauseSync, network: currentNetwork } = useApp();
   const navigate = useNavigate();
   // Adding a wallet next to an existing one: same steps, a way back to it.
   const location = useLocation();
   const adding = Boolean(account) && new URLSearchParams(location.search).has('add');
-  // "Forgot password?" on the lock screen: the locked wallet made again from
-  // its seed phrase under a new password, in its place. Its words are
-  // checked against the fingerprint kept beside it; its name, network and
-  // start block carry over.
-  const forgot = account && locked && new URLSearchParams(location.search).has('forgot') ? account : null;
-  const draft = forgot ? null : loadDraft();
-  const [step, setStep] = useState<Step>(forgot ? 'import' : draft ? (draft.imported ? 'password' : 'show') : 'welcome');
+  const draft = loadDraft();
+  const [step, setStep] = useState<Step>(draft ? (draft.imported ? 'password' : 'show') : 'welcome');
   // The network is the app's: a switch made from the header menu must reach
   // the wallet being made here, or it would be saved on the wrong network.
   const [network, setNetwork] = useState<Network>(draft?.network ?? currentNetwork);
@@ -86,14 +79,11 @@ export function Onboarding() {
   }, [currentNetwork]);
   const [phrase, setPhrase] = useState<string[]>(draft?.phrase ?? []);
   const [imported, setImported] = useState(draft?.imported ?? false);
-  // A forgotten wallet starts where it did: from its start block, or with the
-  // coin index when that is how it was found.
-  const forgotFrom = forgot && !forgot.restoredAt && forgot.birthdayHeight > 1 ? forgot.birthdayHeight : null;
-  const [birthday, setBirthday] = useState<number | string>(forgotFrom ?? draft?.birthday ?? 1);
+  const [birthday, setBirthday] = useState<number | string>(draft?.birthday ?? 1);
   // When an imported phrase first received a payment: not known (find
   // everything), a month (scan from its first block), or never (start at the
   // tip; 0 = unknown, resolved at first sync).
-  const [when, setWhen] = useState<FirstFunds>(forgotFrom ? 'month' : 'unknown');
+  const [when, setWhen] = useState<FirstFunds>('unknown');
   const [month, setMonth] = useState('');
   const [fast, setFast] = useState(draft?.fast ?? true);
   const [error, setError] = useState<string | null>(null);
@@ -228,27 +218,6 @@ export function Onboarding() {
         }
       }
       await pauseSync();
-      if (forgot) {
-        const { record, keptAs } = await services.accounts.restoreForgotten(forgot.id, phrase, password, height, { fastRestore });
-        // What this session kept of the old one in memory goes with it.
-        if (!keptAs) {
-          services.forgetAccount(forgot.id);
-          clearSendDraft(forgot.id);
-          forgetOwnAddresses(forgot.id);
-        }
-        await services.updateSettings({ currentAccountId: record.id });
-        setAccount(record);
-        if (keptAs) {
-          notifications.show({
-            color: 'yellow',
-            title: `${walletName(record)} is restored`,
-            message: `The words could not be checked against the old copy on this device, so it stays, as ${keptAs}. Remove it in Settings once you are sure.`,
-            autoClose: false,
-          });
-        }
-        navigate('/');
-        return;
-      }
       const record = await services.accounts.createAccount(phrase, password, network, height, { fastRestore, name: adding ? name : undefined });
       saveDraft(null);
       await services.accounts.markBackupConfirmed(record.id);
@@ -491,7 +460,6 @@ export function Onboarding() {
           onSubmit={finish}
           stepLabel={imported ? 'Step 2 of 2' : 'Step 3 of 3'}
           actionLabel={imported ? 'Restore wallet' : 'Create wallet'}
-          title={forgot ? 'Choose a new password' : undefined}
           onBack={() => setStep(imported ? 'import' : 'confirm')}
           defaultName={adding ? defaultName : undefined}
           nameError={nameError}
@@ -512,10 +480,6 @@ export function Onboarding() {
           node={() => services.node()}
           initialText={imported ? phrase.join(' ') : ''}
           checkPhrase={(words) => services.core.phraseProblem(words)}
-          // Forgot password: the words must be this wallet's.
-          verifyPhrase={forgot ? async (words) => ((await services.accounts.phraseIsFor(forgot.id, words)) === false ? 'These words are for a different wallet.' : null) : undefined}
-          title={forgot ? `Restore ${walletName(forgot)}` : undefined}
-          intro={forgot ? 'Enter its 18 words, then choose a new password. Contacts and address names on this device are not kept.' : undefined}
           onPhrase={(words) => {
             setPhrase(words);
             setImported(true);
@@ -523,7 +487,7 @@ export function Onboarding() {
             saveDraft(null);
             setStep('password');
           }}
-          onBack={() => (forgot ? navigate('/') : setStep('existing'))}
+          onBack={() => setStep('existing')}
         />
       )}
 
@@ -657,7 +621,6 @@ function PasswordStep({
   onSubmit,
   stepLabel,
   actionLabel,
-  title,
   onBack,
   defaultName,
   nameError,
@@ -668,8 +631,6 @@ function PasswordStep({
   onSubmit: (password: string, name: string) => void;
   stepLabel: string;
   actionLabel: string;
-  /** In place of "Choose a password". */
-  title?: string;
   onBack: () => void;
   /** When adding a wallet beside others: the name it gets if none is typed, and the field to type one. */
   defaultName?: string | null;
@@ -684,7 +645,7 @@ function PasswordStep({
     <Paper>
       <Stack>
         <span className="vault-eyebrow">{stepLabel}</span>
-        <Title order={2} tabIndex={-1} className="vault-step-title">{title ?? 'Choose a password'}</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">Choose a password</Title>
         <Text size="sm" c="dimmed">
           You will use it to unlock this wallet. If you forget it, your seed phrase restores the wallet.
         </Text>
@@ -727,9 +688,6 @@ function ImportStep({
   node,
   initialText,
   checkPhrase,
-  verifyPhrase,
-  title,
-  intro,
   onPhrase,
   onBack,
 }: {
@@ -747,11 +705,6 @@ function ImportStep({
   initialText: string;
   /** Why the words cannot be a phrase, or null; asked before the step advances. */
   checkPhrase: (words: string[]) => Promise<string | null>;
-  /** Why these words, a phrase, will not do here, or null: asked last, once, before the step advances. */
-  verifyPhrase?: (words: string[]) => Promise<string | null>;
-  /** In place of "Restore with a seed phrase", with a sentence under it. */
-  title?: string;
-  intro?: string;
   onPhrase: (words: string[]) => void;
   onBack: () => void;
 }) {
@@ -800,7 +753,7 @@ function ImportStep({
     const lower = words.map((w) => w.toLowerCase());
     setChecking(true);
     try {
-      const problem = (await checkPhrase(lower)) ?? (verifyPhrase ? await verifyPhrase(lower) : null);
+      const problem = await checkPhrase(lower);
       if (problem) {
         setPhraseError(problem);
         return;
@@ -827,12 +780,7 @@ function ImportStep({
     <Paper>
       <Stack>
         <span className="vault-eyebrow">Step 1 of 2</span>
-        <Title order={2} tabIndex={-1} className="vault-step-title">{title ?? 'Restore with a seed phrase'}</Title>
-        {intro && (
-          <Text size="sm" c="dimmed">
-            {intro}
-          </Text>
-        )}
+        <Title order={2} tabIndex={-1} className="vault-step-title">Restore with a seed phrase</Title>
         <Textarea
           label="Seed phrase (18 words)"
           description={words.length === 0 ? undefined : words.length > 18 ? '18 words needed, you have ' + words.length : words.length + ' of 18 words'}

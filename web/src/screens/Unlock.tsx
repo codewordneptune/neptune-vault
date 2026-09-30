@@ -1,7 +1,6 @@
 import { Badge, Button, Divider, Menu, Paper, PasswordInput, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { IconFingerprint } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 // The passkey sheet opens by itself once per page load; after that the
 // button is there for a retry, and the password field for the fallback.
@@ -16,7 +15,6 @@ import { NETWORK_LABELS } from '../util/network';
 
 export function Unlock() {
   const { services, account, switchAccount, sendJob } = useApp();
-  const navigate = useNavigate();
   // During a send the wallet stays as it is: another is not offered.
   const sending = Boolean(sendJob && !sendJob.done);
   // The other wallets on this network, for "Not this wallet?".
@@ -143,13 +141,6 @@ export function Unlock() {
             <Button type="submit" variant={hasPasskey ? 'light' : 'filled'} loading={busy} disabled={!password}>
               Unlock
             </Button>
-            {/* Setup's promise, kept: the seed phrase restores the wallet under
-                a new password, without touching the other wallets here. */}
-            {!sending && (
-              <UnstyledButton className="vault-lock-other" onClick={() => navigate('/onboarding?forgot=1')}>
-                Forgot password?
-              </UnstyledButton>
-            )}
             {others.length > 0 && !sending && (
               <Menu position="bottom" width={240}>
                 <Menu.Target>

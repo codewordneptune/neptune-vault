@@ -18,7 +18,6 @@ import { distinctNames } from './contacts';
 import type { WalletCore } from '../backend/types';
 import type { LastSend, SendStarted } from './send';
 import { givenFromFile, labelsFromFile, readGiven, readLabels, type AddressLabels } from './addressLabels';
-import { phraseCheckOf, phraseMatches } from './phraseCheck';
 
 export type LockListener = (locked: boolean) => void;
 
@@ -259,13 +258,10 @@ export class AccountService {
     if (!record?.passkey) throw new Error('No passkey is set up for this wallet');
     const secret = await this.passkeys.secret(record.passkey.credentialId, record.passkey.prfSalt);
     const wrapped = record.passkey.wrappedContentKey;
-    // An older wallet's words, once, for its fingerprint, while the passkey's secret is at hand.
-    const opened: { words: string[] | null } = { words: null };
     await this.load(epoch, async () => {
       try {
         if (this.core.unlockEnvelopeWithSecret) await this.core.unlockEnvelopeWithSecret(record.envelope, wrapped, new Uint8Array(secret), record.network);
         else await this.core.unlock(await openSeedWithSecret(record.envelope, wrapped, secret), record.network);
-        if (!record.phraseCheck) opened.words = await openSeedWithSecret(record.envelope, wrapped, secret).catch(() => null);
       } finally {
         secret.fill(0);
       }
@@ -273,7 +269,6 @@ export class AccountService {
     await this.openStore(accountId);
     if (epoch !== this.epoch) throw new UnlockCancelledError();
     this.setUnlocked(accountId);
-    if (opened.words) void this.storePhraseCheck(accountId, opened.words).catch(() => undefined);
   }
 
   /**
@@ -449,72 +444,8 @@ export class AccountService {
   async revealPhrase(accountId: string, password: string): Promise<string[]> {
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
-    const words = this.core.openEnvelope ? ((await this.core.openEnvelope(record.envelope, password, true)) ?? []) : await openSeed(record.envelope, password, this.derive);
-    if (!record.phraseCheck) void this.storePhraseCheck(accountId, words).catch(() => undefined);
-    return words;
-  }
-
-  /** Keep the fingerprint of a wallet's words (app/phraseCheck.ts), when it has none yet. */
-  private async storePhraseCheck(accountId: string, words: string[]): Promise<void> {
-    if (words.length === 0) return;
-    const check = await phraseCheckOf(words);
-    await this.patch(accountId, (current) => (current.phraseCheck ? current : { ...current, phraseCheck: check }));
-  }
-
-  /** The same after an opening with the password: the words are opened once more, in the background. */
-  private async rememberPhraseCheck(accountId: string, password: string): Promise<void> {
-    const record = await this.db.get('accounts', accountId);
-    if (!record || record.phraseCheck) return;
-    await this.revealPhrase(accountId, password);
-  }
-
-  /**
-   * "Forgot password?": whether these words are this wallet's, by the
-   * fingerprint kept beside it; null when it has none (a wallet made before
-   * it was kept, and not opened since).
-   */
-  async phraseIsFor(accountId: string, phrase: string[]): Promise<boolean | null> {
-    const record = await this.db.get('accounts', accountId);
-    if (!record) throw new Error('account not found');
-    return record.phraseCheck ? phraseMatches(phrase, record.phraseCheck) : null;
-  }
-
-  /**
-   * A wallet whose password is forgotten, made again from its seed phrase
-   * under a new password, in its place: the same name, network and start
-   * block. What only the old password opens (its contacts, its address
-   * names, its history on this device) cannot come along; the chain gives
-   * the coins and their history back. Words that are another wallet's are
-   * refused. Words that cannot be checked (the wallet has no fingerprint
-   * yet) make the new wallet beside the old one, which stays, renamed,
-   * rather than be lost: the answer names it.
-   */
-  async restoreForgotten(accountId: string, phrase: string[], password: string, birthdayHeight: number, options: { fastRestore?: boolean } = {}): Promise<{ record: AccountRecord; keptAs: string | null }> {
-    const old = await this.db.get('accounts', accountId);
-    if (!old) throw new Error('account not found');
-    const verdict = await this.phraseIsFor(accountId, phrase);
-    if (verdict === false) throw new Error('These words are for a different wallet.');
-    const name = walletName(old);
-    // Made under a passing name first, so a failure here leaves the old one as it was.
-    const record = await this.createAccount(phrase, password, old.network, birthdayHeight, { ...options, name: await this.freeName(old.network, `${name} (restoring)`) });
-    let keptAs: string | null = null;
-    if (verdict === true) await this.deleteAccount(accountId);
-    else {
-      keptAs = await this.freeName(old.network, `${name} (old)`);
-      await this.rename(accountId, keptAs);
-    }
-    await this.rename(record.id, name);
-    await this.markBackupConfirmed(record.id);
-    return { record: { ...record, name, backupConfirmed: true }, keptAs };
-  }
-
-  /** `wanted`, or with a number after it, whichever no wallet on the network has. */
-  private async freeName(network: Network, wanted: string): Promise<string> {
-    const names = await this.namesOn(network);
-    for (let n = 1; ; n++) {
-      const candidate = (n === 1 ? wanted : `${wanted} ${n}`).slice(0, WALLET_NAME_MAX);
-      if (clashingName(candidate, names) === null) return candidate;
-    }
+    if (this.core.openEnvelope) return (await this.core.openEnvelope(record.envelope, password, true)) ?? [];
+    return openSeed(record.envelope, password, this.derive);
   }
 
   /**
@@ -550,8 +481,6 @@ export class AccountService {
     // Read before the first await: a lock that arrives at any point after this cancels what follows.
     const epoch = this.epoch;
     const name = await this.newName(network, options.name);
-    // For "Forgot password?": the words' fingerprint, kept beside the wallet.
-    const phraseCheck = await phraseCheckOf(phrase);
     // The new wallet's log is keyed from the content key, which is made here
     // with the envelope and handed to the core once, along with the phrase.
     const { envelope, contentKey } = await sealSeedKeepingKey(phrase, password, this.derive, DEFAULT_KDF);
@@ -568,7 +497,6 @@ export class AccountService {
         nextKeyIndices: FRESH_KEY_INDICES,
         backupConfirmed: false,
         name,
-        phraseCheck,
         ...(options.fastRestore ? { restore: 'fast' as const } : {}),
       };
       await this.db.put('accounts', record);
@@ -596,7 +524,6 @@ export class AccountService {
     this.setUnlocked(accountId);
     // Not awaited: the wallet is open, and this is housekeeping.
     void this.strengthen(accountId, password).catch(() => undefined);
-    void this.rememberPhraseCheck(accountId, password).catch(() => undefined);
   }
 
   /**
@@ -963,7 +890,6 @@ export class AccountService {
       if (epoch !== this.epoch) throw new UnlockCancelledError();
       this.setUnlocked(record.id);
       void this.strengthen(record.id, password).catch(() => undefined);
-      void this.rememberPhraseCheck(record.id, password).catch(() => undefined);
       return record;
     } catch (e) {
       await this.forget();
