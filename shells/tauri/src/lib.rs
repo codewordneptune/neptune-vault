@@ -383,6 +383,11 @@ pub fn run() {
             let _ = window.set_focus();
         }
     }));
+    // On a phone, a payment link (neptunecash:) tapped in another app or on
+    // a web page opens this one, and the page fills in Send from it. The
+    // scheme is in tauri.conf.json, which puts it in the Android manifest.
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_deep_link::init());
     builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

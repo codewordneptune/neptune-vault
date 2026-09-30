@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "description": "On a phone the page may also read the payment link (neptunecash:) that opened the app; the ones that arrive later come as an event, which core:default already lets it hear.",
+  "platforms": ["android", "iOS"],
+  "windows": ["main"],
+  "permissions": ["deep-link:default"]
+}

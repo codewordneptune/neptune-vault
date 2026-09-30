@@ -30,6 +30,11 @@ A high-trust app that needs no personal registration with Google:
 - **Android's own screens.** Android asks for the camera on a screen over
   the app, which pauses it and hides the page. The wallet waits for the
   answer instead of locking, as it does for a file picker.
+- **Payment links.** A `neptunecash:` link tapped in another app or on a
+  web page opens the app (Tauri's deep-link plugin, phones only; when
+  several apps take such links, Android asks which one). Send is filled in
+  from it as from a scanned code, after the password if the wallet is
+  locked, and nothing goes out without the review.
 - **First build installed** on a Galaxy S24 (2026-09-30). Still to measure:
   how long a send takes to prove, against the web app's (about 2 min 14 s in
   September on the same phone).

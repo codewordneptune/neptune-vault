@@ -75,11 +75,14 @@ export function Send() {
   const confirmEach = confirmsSends(account);
   const location = useLocation();
   const navigate = useNavigate();
-  const arrival = location.state as { recipient?: string; fresh?: boolean } | null;
+  // `link`: a payment link opened from another app or a web page, in the
+  // phone app (app/paymentLinks.ts), read below as a scanned code is.
+  const arrival = location.state as { recipient?: string; fresh?: boolean; link?: string } | null;
   const prefill = arrival?.recipient;
-  // "Send to" a contact, or a new send by shortcut, starts with an empty
-  // form: a draft's amount or extra recipients were meant for someone else.
-  const draft = account && !prefill && !arrival?.fresh ? sendDraft(account.id) : undefined;
+  // "Send to" a contact, a new send by shortcut, or a payment link starts
+  // with an empty form: a draft's amount or extra recipients were meant for
+  // someone else.
+  const draft = account && !prefill && !arrival?.fresh && !arrival?.link ? sendDraft(account.id) : undefined;
   const [step, setStep] = useState<Step>('form');
   const [recipient, setRecipient] = useState(prefill ?? draft?.recipient ?? '');
   // The last successfully sent recipient, offered for saving as a contact.
@@ -557,6 +560,23 @@ export function Send() {
     setFormSaid('Form cleared.');
     recipientRef.current?.focus();
   };
+
+  // A payment link opened from elsewhere: the form starts over from it, as
+  // from a scanned code, and a review open for an earlier send closes. Each
+  // link once, by its place in the history; nothing goes out without the
+  // review.
+  const linkRead = useRef<string | null>(null);
+  useEffect(() => {
+    const link = arrival?.link;
+    if (!link || linkRead.current === location.key) return;
+    linkRead.current = location.key;
+    setStep('form');
+    clearForm();
+    applyText(link);
+    setFormSaid('Filled in from the payment link.');
+    // The form's own helpers, as they are now; the arrival is what counts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
 
   // A finished job's notice belongs to this visit; leaving the screen
   // clears it. Locking unmounts the screen too, and there the notice is kept:

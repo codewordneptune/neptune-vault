@@ -153,6 +153,23 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, services, navigate]);
 
+  // In the phone app, a payment link tapped in another app or on a web page
+  // opens Send, filled in from it (app/paymentLinks.ts). A locked wallet asks
+  // for its password first; with no wallet, setup comes first and the link
+  // is let go. Loaded only there: the web app never gets these links.
+  useEffect(() => {
+    if (!MOBILE) return;
+    let gone = false;
+    let stop: (() => void) | undefined;
+    void import('./app/paymentLinks').then(({ onPaymentLinks }) => {
+      if (!gone) stop = onPaymentLinks((link) => navigate('/send', { state: { link } }));
+    });
+    return () => {
+      gone = true;
+      stop?.();
+    };
+  }, [navigate]);
+
   // Anything the person does postpones the idle lock: not only a click or a
   // key, but a touch, scrolling, typing, and focus moving on (a screen
   // reader reading). At most once a second. While the warning before the
