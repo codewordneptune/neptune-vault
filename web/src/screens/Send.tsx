@@ -56,7 +56,7 @@ const UNDER_THE_FIELD: ('label' | 'input' | 'description' | 'error')[] = ['label
 
 
 export function Send() {
-  const { services, account, balance, utxos, history, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
+  const { services, account, balance, utxos, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
   const reducedMotion = useReducedMotion();
   // Narrow by the text's own measure (enlarged text counts): four fee choices stack.
   const stacked = useMediaQuery('(max-width: 22em)');
@@ -91,6 +91,12 @@ export function Send() {
   // amount, and goes with the request when the recipient changes.
   const [note, setNote] = useState(prefill ? '' : (draft?.note ?? ''));
   const filledNote = useRef<string | null>(prefill ? null : (draft?.linkMeta?.message ?? null));
+  // Most sends have no note, so its field waits behind "+ Add a note". It
+  // shows once asked for, and by itself while it holds text: a request's
+  // message, or a draft's note.
+  const [noteOpen, setNoteOpen] = useState(false);
+  const noteRef = useRef<HTMLInputElement>(null);
+  const showNote = noteOpen || note !== '';
   // The name a request gave, offered for the contact after the send.
   const [lastLabel, setLastLabel] = useState<string | null>(null);
   // The review is a dialog like every other: centred on a wide screen, the
@@ -372,6 +378,7 @@ export function Send() {
       setExtras([]);
       setLinkMeta(null);
       setNote('');
+      setNoteOpen(false);
       filledNote.current = null;
       setTotals(null);
       setStep('form');
@@ -388,6 +395,7 @@ export function Send() {
         setExtras([]);
         setLinkMeta(null);
         setNote('');
+        setNoteOpen(false);
         filledNote.current = null;
         setTotals(null);
         setStep('form');
@@ -504,6 +512,7 @@ export function Send() {
     setExtras([]);
     setLinkMeta(null);
     setNote('');
+    setNoteOpen(false);
     filledNote.current = null;
     if (feePreset === 'custom') {
       setFeePreset(rememberedPreset);
@@ -894,8 +903,9 @@ export function Send() {
           </Title>
           <Text size="sm" c="dimmed">
             Spendable {services.settings.hideBalance ? '••••' : showNau(balance.spendableNau)} NPT
-            {/* Home counts held coins in the balance; here they are the difference. */}
-            {balance.reservedNau > 0n && ` · ${services.settings.hideBalance ? '••••' : showNau(balance.reservedNau)} NPT held until your ${history.filter((h) => h.kind === 'sent' && h.status === 'pending').length > 1 ? 'sends confirm' : 'send confirms'}`}
+            {/* Home counts held coins in the balance and says why they are held;
+                here they are the difference, in two words, so the line stays one. */}
+            {balance.reservedNau > 0n && ` · ${services.settings.hideBalance ? '••••' : showNau(balance.reservedNau)} NPT on hold`}
           </Text>
           {hasContent && (
             <UnstyledButton type="button" onClick={clearForm} aria-label="Clear the form" c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
@@ -1119,14 +1129,37 @@ export function Send() {
                 />
               </div>
             ))}
-            {1 + extras.length < MAX_PAYMENTS && (
-              <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-add-payee">
-                <IconPlus size={16} stroke={1.8} aria-hidden />
-                Add another recipient
-              </UnstyledButton>
+            {/* The two extras as links on one line: another recipient, and a note,
+                which most sends do without. The note opens where it is asked for. */}
+            {(1 + extras.length < MAX_PAYMENTS || !showNote) && (
+              <div className="vault-send-extras">
+                {1 + extras.length < MAX_PAYMENTS && (
+                  <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-add-payee">
+                    <IconPlus size={16} stroke={1.8} aria-hidden />
+                    Add another recipient
+                  </UnstyledButton>
+                )}
+                {!showNote && (
+                  <UnstyledButton
+                    type="button"
+                    onClick={() => {
+                      setNoteOpen(true);
+                      setTimeout(() => noteRef.current?.focus(), 0);
+                    }}
+                    c="var(--v-accent-text)"
+                    fz="sm"
+                    className="vault-tap-link vault-tap-link-start vault-add-payee"
+                  >
+                    <IconPlus size={16} stroke={1.8} aria-hidden />
+                    Add a note
+                  </UnstyledButton>
+                )}
+              </div>
             )}
             {/* For the whole send, however many recipients: kept in History on this device, never sent. */}
-            <TextInput label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
+            {showNote && (
+              <TextInput ref={noteRef} label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
+            )}
             <div>
               <Text size="sm" fw={600}>
                 Fee (NPT)

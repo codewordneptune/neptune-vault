@@ -2064,6 +2064,16 @@ html {
 .vault-add-payee {
   gap: 6px;
 }
+/* Send's two extras on one line, another recipient at the start and a note
+   at the end. Where both do not fit, the note takes the next line, far
+   enough below that the two 44 px touch targets do not overlap. */
+.vault-send-extras {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  column-gap: 16px;
+  row-gap: 24px;
+}
 .vault-review-payee {
   align-items: flex-start;
 }
