@@ -368,6 +368,9 @@ fn app_open_url(app: tauri::AppHandle, url: String) -> Result<()> {
 
 // ---------------------------------------------------------------------------
 
+/// The app. The desktop binary calls it from main.rs; Android and iOS load
+/// the library and call it through the entry point Tauri generates here.
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
     // Registered first, so a second launch is caught before it starts
@@ -380,6 +383,11 @@ pub fn run() {
             let _ = window.set_focus();
         }
     }));
+    // On a phone, a payment link (neptunecash:) tapped in another app or on
+    // a web page opens this one, and the page fills in Send from it. The
+    // scheme is in tauri.conf.json, which puts it in the Android manifest.
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_deep_link::init());
     builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

@@ -1,11 +1,22 @@
 // Where the app runs, for the few places where that changes what it says or
 // does. The interface is the same everywhere; only a native shell has no
-// browser around it, keeps its data in its own folder, and has a window.
+// browser around it and keeps its data in its own folder. On a computer it
+// also has a window, a title bar and keyboard shortcuts; on a phone it has
+// a screen that can lock in the middle of a send, as in a browser.
 
 import { isNative } from '../backend';
 
-/** True inside the desktop (or, later, mobile) app, false in a browser. */
+/** True inside the desktop or phone app, false in a browser. */
 export const NATIVE = isNative();
+
+/** The native app on a phone: Android now, iOS later. */
+export const MOBILE = NATIVE && /Android|iPhone|iPad/i.test(navigator.userAgent);
+
+/** The native app on a computer: Windows, Linux or macOS. */
+export const DESKTOP = NATIVE && !MOBILE;
+
+/** The native app on Android. */
+export const ANDROID = MOBILE && /Android/i.test(navigator.userAgent);
 
 /**
  * Desktop behaviour for the native app: links open in the system's browser,

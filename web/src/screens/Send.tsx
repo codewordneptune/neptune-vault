@@ -11,7 +11,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { formatNau, NAU_PER_COIN, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { clearSendDraft, keepSendDraft, sendDraft, type ExtraPayee, type SendDraft } from '../app/sendDraft';
-import { NATIVE } from '../app/platform';
+import { DESKTOP } from '../app/platform';
 import { formatAbout, formatDuration } from '../util/time';
 import { useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
@@ -75,11 +75,14 @@ export function Send() {
   const confirmEach = confirmsSends(account);
   const location = useLocation();
   const navigate = useNavigate();
-  const arrival = location.state as { recipient?: string; fresh?: boolean } | null;
+  // `link`: a payment link opened from another app or a web page, in the
+  // phone app (app/paymentLinks.ts), read below as a scanned code is.
+  const arrival = location.state as { recipient?: string; fresh?: boolean; link?: string } | null;
   const prefill = arrival?.recipient;
-  // "Send to" a contact, or a new send by shortcut, starts with an empty
-  // form: a draft's amount or extra recipients were meant for someone else.
-  const draft = account && !prefill && !arrival?.fresh ? sendDraft(account.id) : undefined;
+  // "Send to" a contact, a new send by shortcut, or a payment link starts
+  // with an empty form: a draft's amount or extra recipients were meant for
+  // someone else.
+  const draft = account && !prefill && !arrival?.fresh && !arrival?.link ? sendDraft(account.id) : undefined;
   const [step, setStep] = useState<Step>('form');
   const [recipient, setRecipient] = useState(prefill ?? draft?.recipient ?? '');
   // The last successfully sent recipient, offered for saving as a contact.
@@ -558,6 +561,23 @@ export function Send() {
     recipientRef.current?.focus();
   };
 
+  // A payment link opened from elsewhere: the form starts over from it, as
+  // from a scanned code, and a review open for an earlier send closes. Each
+  // link once, by its place in the history; nothing goes out without the
+  // review.
+  const linkRead = useRef<string | null>(null);
+  useEffect(() => {
+    const link = arrival?.link;
+    if (!link || linkRead.current === location.key) return;
+    linkRead.current = location.key;
+    setStep('form');
+    clearForm();
+    applyText(link);
+    setFormSaid('Filled in from the payment link.');
+    // The form's own helpers, as they are now; the arrival is what counts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
+
   // A finished job's notice belongs to this visit; leaving the screen
   // clears it. Locking unmounts the screen too, and there the notice is kept:
   // a send that ended while the app locked must still say how it ended.
@@ -681,12 +701,12 @@ export function Send() {
           )}
           <Text size="sm">
             {screenAwake === 'refused'
-              ? NATIVE
+              ? DESKTOP
                 ? 'This computer would not promise to stay awake. Keep the app running and the computer awake until this finishes: sleep pauses the send.'
                 : finePointer
                   ? 'This browser would not promise to keep the computer awake. Keep this tab open and the computer awake until this finishes: sleep pauses the send.'
                   : 'This device would not keep the screen on. Keep the app open and touch the screen now and then until this finishes: a locked phone pauses the send.'
-              : NATIVE
+              : DESKTOP
                 ? 'Keep the app running until this finishes.'
                 : 'Keep the app open and in front until this finishes. Other screens are fine.'}
           </Text>

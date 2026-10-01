@@ -546,6 +546,33 @@ describe('account service', () => {
     expect(service.currentAccountId).toBeNull();
   });
 
+  it('holds the background lock only until the question the app asked is answered', async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const { service } = await setup(5 * 60 * 1000);
+    await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const doc = { visibilityState: 'visible', listeners: [] as Array<() => void>, addEventListener(_: string, f: () => void) { this.listeners.push(f); }, removeEventListener() {} };
+    service.installVisibilityLock(doc as unknown as Document);
+    const show = (state: 'visible' | 'hidden') => {
+      doc.visibilityState = state;
+      for (const f of doc.listeners) f();
+    };
+    // Android's camera question pauses the app, and its answer can reach the
+    // page before the page is shown again: the hold lasts until then.
+    service.holdBackgroundLock();
+    show('hidden');
+    service.releaseBackgroundLock();
+    await sleep(30);
+    show('visible');
+    expect(service.currentAccountId).not.toBeNull();
+    // Answered with the page in view (the camera allowed before): the hold
+    // ends there, and the next time in the background locks at once.
+    service.holdBackgroundLock();
+    service.releaseBackgroundLock();
+    show('hidden');
+    await sleep(10);
+    expect(service.currentAccountId).toBeNull();
+  });
+
   it('warns before the idle lock, and activity puts the warning away', async () => {
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     const { service } = await setup(400);

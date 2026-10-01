@@ -1,0 +1,108 @@
+# Builds a test APK of the app for Android phones (64-bit ARM) from the
+# Tauri shell, on each push to cwn/android, or by hand from the Actions tab.
+#
+# Not a release. Gradle leaves a release APK unsigned and Android installs
+# only signed ones, so the APK is signed with a key made for this one run
+# and then thrown away. A newer test build therefore installs only after
+# the older one is uninstalled, which deletes that app's wallet data:
+# restore from the seed phrase or a backup file. The APK is kept as a
+# workflow artifact for 14 days.
+#
+# Third-party actions are pinned to a commit, not a tag, so a moved tag cannot
+# change what runs here (security audit H4).
+name: Android test build
+
+on:
+  push:
+    branches: [cwn/android]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Test APK (arm64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # The runner carries the Android SDK, its NDKs, and Java 17, which the
+      # Android build needs; Tauri finds the NDK through NDK_HOME.
+      - name: Android toolchain
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          echo "SDK: $ANDROID_HOME"
+          echo "NDK: $ANDROID_NDK_LATEST_HOME"
+
+      # rust-toolchain.toml pins the nightly; this installs it, and the
+      # phones' target.
+      - name: Rust toolchain
+        run: |
+          rustup show
+          rustup target add aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: android-aarch64
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.20.0
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # The page the shell loads; the Tauri CLI lives here too.
+      - name: Web dependencies
+        working-directory: web
+        run: npm ci
+
+      # The Android project is generated from tauri.conf.json on each run,
+      # rather than kept in the repository, and then given what is the
+      # app's own: the camera, for the QR scanner (not required, so a phone
+      # without one still installs it), and the launcher icon, the web
+      # app's icon as an adaptive icon (shells/tauri/icons/README.md).
+      - name: Android project
+        working-directory: shells/tauri
+        run: |
+          set -euo pipefail
+          npx --prefix ../../web tauri android init --ci
+          manifest=gen/android/app/src/main/AndroidManifest.xml
+          sed -i 's|^\( *\)<uses-permission android:name="android.permission.INTERNET" />|&\n\1<uses-permission android:name="android.permission.CAMERA" />\n\1<uses-feature android:name="android.hardware.camera" android:required="false" />|' "$manifest"
+          grep -q 'android.permission.CAMERA' "$manifest"
+          grep -n 'uses-' "$manifest"
+          cp -r icons/android/. gen/android/app/src/main/res/
+          ls gen/android/app/src/main/res/mipmap-anydpi-v26
+
+      - name: Build
+        working-directory: shells/tauri
+        run: npx --prefix ../../web tauri android build --apk --target aarch64 --ci
+
+      - name: Sign with a throwaway key
+        run: |
+          set -euo pipefail
+          apk=$(find shells/tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -n 1)
+          echo "Built: $apk"
+          tools="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)"
+          pass=$(openssl rand -hex 16)
+          keytool -genkeypair -keystore "$RUNNER_TEMP/test.jks" -storepass "$pass" -keypass "$pass" \
+            -alias test -keyalg RSA -keysize 3072 -validity 30 -dname "CN=Neptune Vault test build"
+          out="neptune-vault-android-test-${GITHUB_SHA::7}.apk"
+          "$tools/zipalign" -f -p 4 "$apk" "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" sign --ks "$RUNNER_TEMP/test.jks" --ks-pass "pass:$pass" --out "$out" "$RUNNER_TEMP/aligned.apk"
+          rm -f "$RUNNER_TEMP/test.jks"
+          "$tools/apksigner" verify --print-certs "$out"
+          ls -l "$out"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: neptune-vault-android-test-${{ github.sha }}
+          path: neptune-vault-android-test-*.apk
+          if-no-files-found: error
+          retention-days: 14

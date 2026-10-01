@@ -622,13 +622,24 @@ export class AccountService {
   }
 
   /**
-   * The app is about to open a system picker (a file, an image): on some
-   * phones that hides the page, and locking then would lose what the
+   * The app is about to open a system picker (a file, an image), or ask for
+   * something Android asks about on a screen of its own (the camera): on
+   * some phones that hides the page, and locking then would lose what the
    * person was doing. The background lock waits until the page is back, two
    * minutes at most.
    */
   holdBackgroundLock(): void {
     this.pickerUntil = Date.now() + PICKER_HOLD_MS;
+  }
+
+  /**
+   * What the hold was for is done: the hold ends, or, while the page is
+   * still hidden (an answer can reach it before it is shown again), ends
+   * when the page is back. Without this, a question that never hid the page
+   * would leave the background lock waiting for two minutes.
+   */
+  releaseBackgroundLock(): void {
+    if (this.doc?.visibilityState !== 'hidden') this.pickerUntil = 0;
   }
 
   /**

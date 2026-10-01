@@ -15,7 +15,7 @@ import { BACKGROUND_LOCK_CHOICES_MS, backgroundLockOf, LOCK_CHOICES_MS, lockTime
 import { showBlock, showNau, useApp } from '../app/AppContext';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { Caution, Done, ErrorLine, Info } from '../components/Notice';
-import { NATIVE } from '../app/platform';
+import { DESKTOP, NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
 import { confirmsSends, DEFAULT_NODE_URLS, offeredNetworks, requestPersistentStorage, showsTestNetworks, walletName, type AccountRecord } from '../storage/db';
@@ -736,7 +736,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               Version {__APP_VERSION__} ({__APP_COMMIT__}), built {formatDate(Date.parse(__APP_BUILT_AT__))}.
             </Text>
             {!NATIVE && <InstallCard />}
-            {NATIVE && <Shortcuts />}
+            {DESKTOP && <Shortcuts />}
           </Stack>
         </Paper>
       )}
@@ -772,7 +772,7 @@ function AutoLockSetting() {
         }}
       />
       <Select
-        label={NATIVE ? 'When the window is minimized' : 'When the app goes to the background'}
+        label={DESKTOP ? 'When the window is minimized' : 'When the app goes to the background'}
         data={BACKGROUND_LOCK_CHOICES_MS.map((choice) => ({ value: String(choice), label: choice === 0 ? 'Lock at once' : choice < 60_000 ? `Lock after ${choice / 1000} seconds` : `Lock after ${choice / 60_000} minutes` }))}
         value={String(background)}
         allowDeselect={false}
