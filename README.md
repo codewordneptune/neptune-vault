@@ -1,8 +1,9 @@
 # Neptune Vault
 
 A self-custodial wallet for [Neptune Cash](https://neptune.cash). It runs in
-a browser as an installable web app, and as a desktop app for Windows,
-Linux and macOS. Your keys never leave your device. It proves your
+a browser as an installable web app. Desktop apps for Windows, Linux and
+macOS, and an Android app, are in development; see
+[Platforms](#platforms). Your keys never leave your device. It proves your
 transactions on the device itself and talks only to the Neptune node you
 choose.
 
@@ -91,7 +92,7 @@ choose.
 | iOS, Safari (installed web app) | Intended. Not tested yet. |
 | Desktop browsers | Work. Good for trying the app out. |
 | Windows desktop app | Builds and runs. Not signed yet. |
-| Linux and macOS desktop apps | Built by CI. Not tested yet. Not signed yet. |
+| Linux and macOS desktop apps | The release workflow can build them, but has not run yet. Not tested, not signed. |
 
 The web app and the native apps (desktop and Android) are the same
 interface. The native apps run the wallet engine and the prover as native
@@ -110,8 +111,8 @@ rather than in browser storage.
   screen". A browser is much less likely to clear an installed app's
   storage. Settings warns you when the browser has not granted persistent
   storage.
-- **Sending takes a few minutes.** A transaction proof needs about 1 GB of
-  free memory and a few minutes on a recent phone. Devices with 4 GB of RAM
+- **Sending takes a few minutes in the web app.** A transaction proof needs
+  about 1 GB of free memory and a few minutes on a recent phone. Devices with 4 GB of RAM
   or less may run out of memory. A block that arrives while the proof is
   being made is usually no problem: nodes from neptune-core 0.18 take a
   proof built up to three blocks behind the tip. If the node refuses it,
@@ -125,15 +126,16 @@ rather than in browser storage.
     From the start of Mainnet that is several gigabytes and hours of
     scanning. The node learns nothing about your coins.
 - **Your seed phrase is the only real backup.** Your password protects the
-  wallet on this device and cannot be recovered. If you forget the
-  password, restore with your seed phrase again. If you lose the seed phrase, you
-  lose the funds.
+  wallet on this device and cannot be recovered. If you forget it, restore
+  your seed phrase on another device or browser, or clear this app's data
+  first, which deletes the locked wallet here. If you lose the seed phrase,
+  you lose the funds.
 
 ## Security model
 
 - **Neptune's own code.** Keys, addresses, scanning and proving come from
-  Neptune's own crates. The web app runs them as WebAssembly and the
-  desktop app runs them natively. Addresses and signatures match what
+  Neptune's own crates. The web app runs them as WebAssembly, and the
+  desktop and Android apps run them natively. Addresses and signatures match what
   neptune-core produces.
 - **Encryption at rest.** The seed phrase is encrypted with AES-256-GCM,
   under a key derived from your password with Argon2id. A passkey can wrap
@@ -152,8 +154,8 @@ rather than in browser storage.
     GitHub.
   - Each deploy publishes a list of file hashes, so anyone can check what
     the site serves ([docs/HOSTING.md](docs/HOSTING.md)).
-  - The desktop apps carry their own files. They only ask GitHub whether a
-    newer release exists.
+  - The desktop and Android apps carry their own files. The desktop apps
+    only ask GitHub whether a newer release exists.
 
 ## Backup and recovery
 
@@ -168,8 +170,9 @@ rather than in browser storage.
     been changed. A wrong password gives a different message than a
     changed file.
   - Every version of the app can read backup files from earlier versions.
-- **Password.** Cannot be recovered. Restore with your seed phrase again and
-  choose a new password.
+- **Password.** Cannot be recovered. If you forget it, restore your seed
+  phrase on another device or browser, or clear this app's data first,
+  which deletes the locked wallet here, and choose a new password.
 
 ## Getting help
 
@@ -189,11 +192,11 @@ rather than in browser storage.
 web/                    the app: Vite, React, Mantine; wasm packages under public/wasm
 crates/vault-core       wallet engine (keys, scanning, transactions, storage format), Rust to wasm
 crates/vault-prover     transaction prover, Rust to wasm with threads
-crates/vault-bridge     vault-core and the prover as native code, for the desktop shell
+crates/vault-bridge     vault-core and the prover as native code, for the desktop and Android apps
 crates/vault-fixtures   deterministic witnesses for prover tests
 crates/vendor           neptune-consensus, neptune-primitives, triton-vm, twenty-first,
                         patched for wasm (see crates/vendor/VENDOR.md)
-shells/tauri            the desktop app (Tauri 2)
+shells/tauri            the desktop and Android apps (Tauri 2)
 fixtures/, test-vectors/  test inputs
 docs/                   design, privacy, hosting, releases
 ```
@@ -228,12 +231,13 @@ prover needs. It also proxies `/regtest-node` to a regtest node at
 cd web && npm test                                   # web app (vitest)
 cd web && npm run typecheck
 cargo test -p vault-core                             # wallet engine, native
+cargo test -p vault-bridge                           # the native bridge the desktop and Android apps use
 cargo test --release -p vault-prover -- --ignored    # full proof round trip, takes minutes
 ```
 
 ### Local regtest node
 
-Use neptune-core 0.17. Start the node with JSON-RPC, the coin index (for
+Use neptune-core 0.17 or later. Start the node with JSON-RPC, the coin index (for
 fast restores) and proof upgrading. Without upgrading, transactions never
 leave the mempool on regtest:
 
