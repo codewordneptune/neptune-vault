@@ -39,20 +39,29 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
   viewing: 'Viewing',
 };
 
-// What each kind is for, said the same way for each so they can be
-// compared: who it is for first, then its one trade-off, then the
-// protocol's name for it. All three are shown in the list where the kind is
-// chosen. View-only's risk shows again as a caution whenever that kind is
-// chosen, right before Copy and Share, so it is read before sharing: a
-// payer needs the address to pay it, so every payer can watch too. The
-// reuse guidance is the desktop wallet's addresses page's: every payment
-// carries its address's receiver identifier in the clear, so payments to
-// one address can be linked (neptune-wallet's own note on
-// into_announcement), though never their amounts.
+// What each kind is for. In the list where the kind is chosen, one line
+// each, saying only what sets it apart; "Compare address types" at the
+// list's foot opens the whole of it: first what every kind shares, then
+// each kind with the protocol's name for it. View-only's risk shows again
+// as a caution whenever that kind is chosen, right before Copy and Share,
+// so it is read before sharing: a payer needs the address to pay it, so
+// every payer can watch too.
+const KIND_LINES: Record<KeyKind, string> = {
+  generation: `Recommended. About ${showInt(3500)} characters long.`,
+  ec_hybrid: 'Less private against future quantum computers.',
+  viewing: 'Lets anyone who has it see the payments made to it.',
+};
+// Every payment carries its address's receiver identifier in the clear, so
+// payments to one address can be linked (neptune-wallet's own note on
+// into_announcement), though never their amounts: true of every kind.
+const LINKING_NOTE = 'Payments to the same address can be linked on the chain, though never their amounts, so give each payer a new address when that matters.';
+// Short's caveat is neptune-wallet's own, on KeyType::EcHybrid: an attacker
+// with a quantum computer who knows the address sees its whole history.
+// Standard's encryption is lattice-based, made to resist that.
 const KIND_NOTES: Record<KeyKind, string> = {
-  generation: `The one to use by default, but long: about ${showInt(3500)} characters. Reusing it is safe, but payments to the same address can be linked on the chain (not their amounts), so give each payer a new address when that matters. Technical name: ${KIND_PROTOCOL.generation} address.`,
-  ec_hybrid: `Short enough to paste into a chat. Give each one to a single sender: if one is reused widely, a future quantum computer could reveal the payments sent to it, though never spend them. Technical name: ${KIND_PROTOCOL.ec_hybrid} address.`,
-  viewing: `Anyone who has it, payers included, can see every payment made to it (only to it) but never spend them. Suits a fundraiser that shows its donations. Technical name: ${KIND_PROTOCOL.viewing} address.`,
+  generation: `Recommended for most payments, but long: about ${showInt(3500)} characters. Its encryption is designed to resist future quantum computers, so it can be published, on a donation page for example.`,
+  ec_hybrid: 'Short enough to paste into a message. A future quantum computer that knows a Short address could see every payment made to it, though never spend them, so give each one to a single payer and never publish it.',
+  viewing: 'Anyone who has it, payers included, can see every payment made to it (only to it), but never spend them. Suits a fundraiser that shows its donations.',
 };
 /** Right before sharing a View-only address: its one risk, in a line. */
 const VIEWING_CAUTION = 'Anyone who has this address, payers included, can see every payment made to it.';
@@ -142,6 +151,8 @@ export function Receive() {
   // After it closes, focus goes back to that row's menu or "Name it", or to
   // New address when the row has gone, and what happened is said.
   const [naming, setNaming] = useState<{ kind: KeyKind; index: number } | null>(null);
+  // The three kinds side by side, opened from the foot of the type list.
+  const [comparing, setComparing] = useState(false);
   const moreButtons = useRef(new Map<string, HTMLButtonElement>());
   const nameButtons = useRef(new Map<string, HTMLButtonElement>());
   const rowButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -615,8 +626,9 @@ export function Receive() {
                 <Combobox
                   store={typeBox}
                   onOptionSubmit={(value) => {
-                    chooseKind(value as KeyKind);
                     typeBox.closeDropdown();
+                    if (value === 'compare') setComparing(true);
+                    else chooseKind(value as KeyKind);
                   }}
                   position="bottom-start"
                   // As wide as the card, up to a comfortable measure, and lined
@@ -646,11 +658,18 @@ export function Receive() {
                               {KIND_LABELS[k]}
                             </Text>
                             <Text span display="block" size="xs" c="dimmed">
-                              {KIND_NOTES[k]}
+                              {KIND_LINES[k]}
                             </Text>
                           </span>
                         </Combobox.Option>
                       ))}
+                      {/* An option of the list, so the arrow keys reach it too; it opens the comparison rather than choosing. */}
+                      <Combobox.Option value="compare" className="vault-type-option vault-type-compare">
+                        <span className="vault-type-check" aria-hidden />
+                        <Text span size="sm">
+                          Compare address types
+                        </Text>
+                      </Combobox.Option>
                     </Combobox.Options>
                   </Combobox.Dropdown>
                 </Combobox>
@@ -796,6 +815,24 @@ export function Receive() {
               }}
             />
           )}
+        </Modal>
+        <Modal opened={comparing} onClose={() => setComparing(false)} title="Address types">
+          <Stack gap="md">
+            <Text size="sm">{LINKING_NOTE}</Text>
+            {(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => (
+              <Stack key={k} gap={4}>
+                <Text size="sm" fw={600}>
+                  {KIND_LABELS[k]}{' '}
+                  <Text span size="sm" fw={400} c="dimmed">
+                    · {KIND_PROTOCOL[k]} address
+                  </Text>
+                </Text>
+                <Text size="sm" c="dimmed">
+                  {KIND_NOTES[k]}
+                </Text>
+              </Stack>
+            ))}
+          </Stack>
         </Modal>
         <QrFullScreen
           opened={enlarged !== null && Boolean(enlarged === 'request' ? requestQr : qr)}

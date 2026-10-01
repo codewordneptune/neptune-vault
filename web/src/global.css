@@ -476,6 +476,16 @@ button.vault-picker {
   color: inherit;
   box-shadow: inset 0 0 0 2px var(--v-accent);
 }
+/* The comparison at the list's foot: a link in look, below a hairline. */
+.vault-type-option.vault-type-compare {
+  margin-top: 4px;
+  border-top: 1px solid var(--v-line);
+  border-radius: 0;
+  color: var(--v-accent-text);
+}
+.vault-type-option.vault-type-compare[data-combobox-selected] {
+  color: var(--v-accent-text);
+}
 
 /* Fixed tab bar; respects the home indicator, and in landscape the notch. */
 .vault-tabbar {
