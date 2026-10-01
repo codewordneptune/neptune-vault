@@ -191,11 +191,10 @@ impl MerkleTree {
                 debug_assert!(tree_layers.len() > 1, "internal error: infinite iteration");
                 let mut previous_layer = tree_layers.pop().unwrap();
                 for next_layer in tree_layers.into_iter().rev() {
-                    for (node, (&left, &right)) in
-                        next_layer.iter_mut().zip(previous_layer.iter().tuples())
-                    {
-                        *node = Tip5::hash_pair(left, right);
-                    }
+                    let (pairs, []) = previous_layer.as_chunks::<2>() else {
+                        unreachable!("layers have even length");
+                    };
+                    next_layer.copy_from_slice(&Tip5::hash_pair_many(pairs));
                     previous_layer = next_layer;
                 }
             });
@@ -703,6 +702,10 @@ impl<'a> Arbitrary<'a> for MerkleTree {
         let tree = Self::par_new(&leaf_digests?).unwrap();
         Ok(tree)
     }
+
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        <Vec<Digest>>::size_hint(depth)
+    }
 }
 
 impl MerkleTreeInclusionProof {
@@ -714,19 +717,30 @@ impl MerkleTreeInclusionProof {
         self.indexed_leafs.is_empty() && self.authentication_structure.is_empty()
     }
 
-    /// Verify that the given root digest is the root of a Merkle tree that contains
-    /// the indicated leafs.
+    /// Verify that the given root digest is the root of a Merkle tree that
+    /// contains the indicated leafs.
+    ///
+    /// If you require additional information in case of verification failure,
+    /// use [`Self::try_verify`].
+    #[must_use]
     pub fn verify(self, expected_root: Digest) -> bool {
+        self.try_verify(expected_root).is_ok()
+    }
+
+    /// Verify that the given root digest is the root of a Merkle tree that
+    /// contains the indicated leafs.
+    ///
+    /// Like [`Self::verify`], but with additional information in case of
+    /// verification failure.
+    pub fn try_verify(self, expected_root: Digest) -> Result<()> {
         if self.is_trivial() {
-            return true;
+            return Ok(());
         }
-        let Ok(partial_tree) = PartialMerkleTree::try_from(self) else {
-            return false;
-        };
-        let Ok(computed_root) = partial_tree.root() else {
-            return false;
-        };
-        computed_root == expected_root
+        if PartialMerkleTree::try_from(self)?.root()? != expected_root {
+            return Err(MerkleTreeError::RootMismatch);
+        }
+
+        Ok(())
     }
 
     /// Transform the inclusion proof into a list of authentication paths.
@@ -916,6 +930,7 @@ impl TryFrom<MerkleTreeInclusionProof> for PartialMerkleTree {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum MerkleTreeError {
     #[error("All leaf indices must be valid, i.e., less than the number of leafs.")]
     LeafIndexInvalid,
@@ -943,6 +958,9 @@ pub enum MerkleTreeError {
 
     #[error("Tree height implies a tree that does not fit in RAM")]
     TreeTooHigh,
+
+    #[error("The actual root and the expected root dont't correspond")]
+    RootMismatch,
 }
 
 #[cfg(test)]
@@ -950,9 +968,9 @@ pub enum MerkleTreeError {
 pub(crate) mod tests {
     use proptest::collection::vec;
     use proptest::prelude::*;
+    use proptest_arbitrary_adapter::arb;
 
     use super::*;
-    use crate::proptest_arbitrary_interop::arb;
     use crate::tests::proptest;
     use crate::tests::test;
     use crate::tip5::digest::tests::DigestCorruptor;

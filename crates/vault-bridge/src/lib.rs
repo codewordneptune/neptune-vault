@@ -649,6 +649,17 @@ impl Drop for PeakMemory {
     }
 }
 
+/// Whether the prover keeps the low-degree-extended trace in memory. Keeping
+/// it saves about a fifth of the time and costs several times the memory:
+/// 3.4 GB at the peak instead of 0.8 GB for the benchmark's test transaction
+/// on a desktop; on a Galaxy S24 a Mainnet send peaked at 1.8 GB keeping it
+/// (Triton VM 8) and 1.0 GB without (Triton VM 9). A phone shares its memory
+/// with everything else it runs, so it recomputes.
+#[cfg(target_os = "android")]
+const LDE_TRACE: vault_prover::LdeTrace = vault_prover::LdeTrace::NoCache;
+#[cfg(not(target_os = "android"))]
+const LDE_TRACE: vault_prover::LdeTrace = vault_prover::LdeTrace::Cache;
+
 /// Proving, and the one flag that stops it.
 #[derive(Default)]
 pub struct Prover {
@@ -742,7 +753,7 @@ impl Prover {
             vault_prover::prove_proof_collection(
                 &witness,
                 rule_set,
-                vault_prover::LdeTrace::Cache,
+                LDE_TRACE,
                 false,
                 &mut report,
             )

@@ -16,13 +16,10 @@
 pub mod config;
 pub mod error;
 pub mod math;
+pub mod memory;
 pub mod prelude;
 pub mod tip5;
 pub mod util_types;
-
-#[cfg(test)]
-#[cfg_attr(coverage_nightly, feature(coverage_attribute))]
-mod proptest_arbitrary_interop;
 
 // This is needed for `#[derive(BFieldCodec)]` macro to work consistently across crates.
 // Specifically:

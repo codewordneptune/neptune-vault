@@ -404,3 +404,51 @@ other builds loaded the machine (times are inflated, memory is not).
 The pre-fork prover needs the same memory as the current one, and a second
 input adds three percent, so neither explains a phone running out of memory
 on a one-input send; the memory free on the device at the time does.
+
+### Triton VM 9 (2026-10-01, desktop, 16 threads, no LDE cache)
+
+The prover from main (Triton VM 8, Neptune crates 0.17) against the one
+moved to Triton VM 9 and the Neptune crates 0.19, which also checks every
+proof before it is sent. Same laptop, nothing else running, the two
+alternated, two runs each, witness `witness_1in_2out.bin`.
+
+In the browser (benchmark page, headless Chrome 154, both packages built
+with wasm-opt):
+
+| # | Sub-proof | Triton VM 8 (s) | Triton VM 9 (s) |
+|---|-----------|----------------:|----------------:|
+| 1 | removal_records_integrity | 77.1 / 80.0 | 46.6 / 47.4 |
+| 2 | collect_lock_scripts | 4.5 / 4.6 | 3.3 / 3.2 |
+| 3 | kernel_to_outputs | 8.4 / 8.8 | 6.0 / 5.9 |
+| 4 | collect_type_scripts | 8.4 / 8.9 | 5.9 / 5.8 |
+| 5 | lock_script_0 | 0.9 / 1.0 | 0.9 / 0.9 |
+| 6 | type_script_0 | 16.9 / 17.9 | 11.4 / 11.1 |
+| | Total | 116.5 / 121.4 | 74.3 / 74.6 |
+| | Peak wasm memory (MB) | 1037 / 1040 | 844 / 858 |
+
+Natively (`cargo test --release -p vault-prover -- --ignored`, the round
+trip, which ends with the node's own verifier):
+
+| # | Sub-proof | Triton VM 8 (s) | Triton VM 9 (s) |
+|---|-----------|----------------:|----------------:|
+| 1 | removal_records_integrity | 26.6 / 26.7 | 13.4 / 13.4 |
+| 2 | collect_lock_scripts | 1.3 / 1.3 | 1.0 / 1.1 |
+| 3 | kernel_to_outputs | 2.6 / 2.5 | 1.7 / 1.8 |
+| 4 | collect_type_scripts | 2.5 / 2.5 | 1.8 / 1.8 |
+| 5 | lock_script_0 | 0.2 / 0.2 | 0.3 / 0.3 |
+| 6 | type_script_0 | 5.3 / 5.4 | 3.4 / 3.4 |
+| | Total | 38.5 / 38.6 | 21.6 / 21.8 |
+
+1.6 times as fast in the browser with 18 percent less memory, 1.8 times as
+fast natively. The check of every proof takes 0.25 s of the 74 s in the
+browser and 0.15 s natively. The prover download grows from 3.3 MB to
+5.1 MB (0.8 to 1.1 MB compressed). This CPU (Zen 3) has no AVX-512, so
+none of the new AVX-512 code ran: like a phone, it gets only the gains that
+apply everywhere.
+
+Measured on the S24 the same day. In Chrome, with this benchmark: 151 s and
+955 MB with Triton VM 8, 97 s and 849 MB with Triton VM 9, 1.56 times as
+fast. The Android app's Mainnet sends: 19 s (peak 1,825 MB) with Triton VM 8
+keeping the table in memory, and 16, 23 and 17 s (peak 976 MB on the first)
+with Triton VM 9 computing it again. The first Triton VM 9 build kept the
+table, and the app disappeared mid-send (docs/ANDROID.md).

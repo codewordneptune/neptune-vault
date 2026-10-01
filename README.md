@@ -97,9 +97,9 @@ choose.
 The web app and the native apps (desktop and Android) are the same
 interface. The native apps run the wallet engine and the prover as native
 code rather than WebAssembly, which is much faster: on a Galaxy S24, the
-Android app proved a Mainnet send in 19 seconds, against about 2 minutes
-14 seconds in the web app. They store the wallet in the app's data folder
-rather than in browser storage.
+Android app proves a Mainnet send in 16 to 23 seconds, where the web app
+on the same phone takes over a minute. They store the wallet in the app's
+data folder rather than in browser storage.
 
 <p align="center">
   <img src="docs/screenshots/wide-home-dark.webp" width="720" alt="Home on a wide screen, in the dark theme">
@@ -111,8 +111,9 @@ rather than in browser storage.
   screen". A browser is much less likely to clear an installed app's
   storage. Settings warns you when the browser has not granted persistent
   storage.
-- **Sending takes a few minutes in the web app.** A transaction proof needs
-  about 1 GB of free memory and a few minutes on a recent phone. Devices with 4 GB of RAM
+- **Sending takes a minute or more in the web app.** A transaction proof needs
+  about 1 GB of free memory, and one to two minutes on a recent high-end
+  phone, longer on others. Devices with 4 GB of RAM
   or less may run out of memory. A block that arrives while the proof is
   being made is usually no problem: nodes from neptune-core 0.18 take a
   proof built up to three blocks behind the tip. If the node refuses it,

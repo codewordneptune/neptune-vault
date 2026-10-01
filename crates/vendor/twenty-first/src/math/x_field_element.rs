@@ -11,11 +11,13 @@ use std::ops::SubAssign;
 
 use arbitrary::Arbitrary;
 use bfieldcodec_derive::BFieldCodec;
+use get_size2::GetSize;
 use num_traits::ConstOne;
 use num_traits::ConstZero;
 use num_traits::One;
 use num_traits::Zero;
 use rand::Rng;
+use rand::RngExt;
 use rand::distr::Distribution;
 use rand::distr::StandardUniform;
 use serde::Deserialize;
@@ -35,8 +37,21 @@ use crate::tip5::Digest;
 
 pub const EXTENSION_DEGREE: usize = 3;
 
+// due to a bug in rustfmt, the formatted `derive` would exceed 100 characters
+// see also: https://github.com/rust-lang/rustfmt/issues/5796
+#[rustfmt::skip::attributes(derive)]
 #[derive(
-    Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize, BFieldCodec, Arbitrary,
+    Debug,
+    PartialEq,
+    Eq,
+    Copy,
+    Clone,
+    Hash,
+    Serialize,
+    Deserialize,
+    GetSize,
+    BFieldCodec,
+    Arbitrary,
 )]
 #[repr(transparent)]
 pub struct XFieldElement {
@@ -352,36 +367,44 @@ impl XFieldElement {
         Self::new([element, zero, zero])
     }
 
+    /// The multiplicative inverse.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `self` is zero.
     #[must_use]
     pub fn inverse(&self) -> Self {
         assert!(
             !self.is_zero(),
             "Cannot invert the zero element in the extension field."
         );
-        // Neptune Vault: allocation-free inversion through the field norm.
-        // For a in F_{p^3}, the norm N(a) = a * a^p * a^{p^2} lies in F_p, so
-        // a^{-1} = a^p * a^{p^2} / N(a). The upstream implementation runs a
-        // polynomial extended GCD, which allocates several vectors per call;
-        // with wasm threads every allocation takes one global lock, and the
-        // DEEP phase of the prover inverts one element per FRI-domain point.
-        let a_p = self.mod_pow_u64(BFieldElement::P);
-        let a_p2 = a_p.mod_pow_u64(BFieldElement::P);
-        let conjugates = a_p * a_p2;
-        let norm = *self * conjugates;
-        debug_assert!(
-            norm.coefficients[1].is_zero() && norm.coefficients[2].is_zero(),
-            "the norm must lie in the base field"
-        );
-        conjugates * norm.coefficients[0].inverse()
-    }
 
-    /// The inverse as computed by the polynomial extended GCD. Kept for the
-    /// test that pins the norm-based [`inverse`](Self::inverse) to it.
-    #[cfg(test)]
-    fn inverse_via_xgcd(&self) -> Self {
-        let self_as_poly: Polynomial<BFieldElement> = self.to_owned().into();
-        let (_, a, _) = Polynomial::<BFieldElement>::xgcd(self_as_poly, Self::shah_polynomial());
-        a.into()
+        // Multiplication by a = a₀ + a₁·x + a₂·x² is a linear map on the
+        // vector space with basis (1, x, x²). Modulo the Shah polynomial
+        // x³ - x + 1, its matrix is
+        //
+        //       ⎛ a₀   -a₂     -a₁   ⎞
+        //   M = ⎜ a₁  a₀ + a₂  a₁ - a₂ ⎟.
+        //       ⎝ a₂    a₁    a₀ + a₂ ⎠
+        //
+        // The inverse of a is the first column of M⁻¹, which is the first
+        // column of the adjugate of M divided by the determinant of M. This
+        // requires only one inversion in the base field.
+        let [a0, a1, a2] = self.coefficients;
+        let a0_plus_a2 = a0 + a2;
+        let cofactor_00 = a0_plus_a2 * a0_plus_a2 - a1 * (a1 - a2);
+        let cofactor_01 = -(a0 * a1 + a2 * a2);
+        let cofactor_02 = a1 * a1 - a2 * a0_plus_a2;
+        // The remaining cofactors of the first column are the negations of
+        // the cofactors computed above: C₁₀ = -C₀₂ and C₂₀ = -C₀₁.
+        let determinant = a0 * cofactor_00 - a1 * cofactor_02 - a2 * cofactor_01;
+        let determinant_inverse = determinant.inverse();
+
+        Self::new([
+            cofactor_00 * determinant_inverse,
+            cofactor_01 * determinant_inverse,
+            cofactor_02 * determinant_inverse,
+        ])
     }
 
     pub fn unlift(&self) -> Option<BFieldElement> {
@@ -480,7 +503,10 @@ impl ConstOne for XFieldElement {
     const ONE: Self = Self::new([BFieldElement::ONE, BFieldElement::ZERO, BFieldElement::ZERO]);
 }
 
-impl FiniteField for XFieldElement {}
+impl FiniteField for XFieldElement {
+    // `XFieldElement` is `#[repr(transparent)]` over `[BFieldElement; 3]`.
+    const NUM_BFE_LIMBS: Option<usize> = Some(EXTENSION_DEGREE);
+}
 
 impl Add<XFieldElement> for XFieldElement {
     type Output = Self;
@@ -685,33 +711,12 @@ impl ModPowU32 for XFieldElement {
 #[cfg(test)]
 #[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
-    #[test]
-    fn norm_based_inverse_matches_xgcd_inverse() {
-        let mut rng = rand::rng();
-        let fixed = [
-            XFieldElement::ONE,
-            XFieldElement::new([BFieldElement::ZERO, BFieldElement::ONE, BFieldElement::ZERO]),
-            XFieldElement::new([BFieldElement::ZERO, BFieldElement::ZERO, BFieldElement::ONE]),
-            XFieldElement::new_const(BFieldElement::new(BFieldElement::P - 1)),
-            XFieldElement::new([BFieldElement::new(BFieldElement::P - 1); 3]),
-            XFieldElement::new([BFieldElement::ONE, BFieldElement::ONE, BFieldElement::ONE]),
-        ];
-        let random = (0..20_000).map(|_| rng.random::<XFieldElement>());
-        for a in fixed.into_iter().chain(random) {
-            if a.is_zero() {
-                continue;
-            }
-            let inverse = a.inverse();
-            assert_eq!(a.inverse_via_xgcd(), inverse, "inverse of {a} differs");
-            assert!((a * inverse).is_one(), "{a} times its inverse is not one");
-        }
-    }
-
     use itertools::Itertools;
     use itertools::izip;
     use num_traits::ConstOne;
     use proptest::collection::vec;
     use proptest::prelude::*;
+    use proptest_arbitrary_adapter::arb;
 
     use super::*;
     use crate::bfe;
@@ -719,7 +724,6 @@ mod tests {
     use crate::math::ntt::intt;
     use crate::math::ntt::ntt;
     use crate::math::other::random_elements;
-    use crate::proptest_arbitrary_interop::arb;
     use crate::tests::proptest;
     use crate::tests::test;
 
@@ -1311,6 +1315,49 @@ mod tests {
         let domain = root.get_cyclic_group_elements(None);
         let evaluations = poly.batch_evaluate(&domain);
         prop_assert_eq!(evaluations, rv);
+    }
+
+    /// The inverse computed through the extended Euclidean algorithm, as a
+    /// reference implementation.
+    fn inverse_by_xgcd(xfe: XFieldElement) -> XFieldElement {
+        let xfe_as_poly: Polynomial<BFieldElement> = xfe.into();
+        let (_, a, _) = Polynomial::xgcd(xfe_as_poly, XFieldElement::shah_polynomial());
+        a.into()
+    }
+
+    #[macro_rules_attr::apply(proptest)]
+    fn inverse_agrees_with_extended_euclidean_algorithm(
+        #[filter(!#xfe.is_zero())] xfe: XFieldElement,
+    ) {
+        prop_assert_eq!(inverse_by_xgcd(xfe), xfe.inverse());
+        prop_assert_eq!(XFieldElement::ONE, xfe * xfe.inverse());
+    }
+
+    #[macro_rules_attr::apply(proptest)]
+    fn inverse_of_lifted_base_field_element_is_lifted_inverse(
+        #[filter(!#bfe.is_zero())] bfe: BFieldElement,
+    ) {
+        let xfe = bfe.lift();
+        prop_assert_eq!(bfe.inverse().lift(), xfe.inverse());
+    }
+
+    #[macro_rules_attr::apply(test)]
+    fn inverse_of_elements_with_zero_coefficients() {
+        for coefficients in [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+            [1, 1, 0],
+            [1, 0, 1],
+            [0, 1, 1],
+            [BFieldElement::MAX, 0, 0],
+            [0, BFieldElement::MAX, 0],
+            [0, 0, BFieldElement::MAX],
+        ] {
+            let xfe = xfe!(coefficients);
+            assert_eq!(inverse_by_xgcd(xfe), xfe.inverse(), "{xfe}");
+            assert_eq!(XFieldElement::ONE, xfe * xfe.inverse(), "{xfe}");
+        }
     }
 
     #[macro_rules_attr::apply(test)]

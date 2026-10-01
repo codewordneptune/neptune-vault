@@ -260,9 +260,9 @@ mod tests {
 
     use itertools::Itertools;
     use proptest::prelude::*;
+    use proptest_arbitrary_adapter::arb;
 
     use super::*;
-    use crate::proptest_arbitrary_interop::arb;
     use crate::tests::proptest;
     use crate::tests::test;
     use crate::tip5::digest::tests::DigestCorruptor;
@@ -307,6 +307,15 @@ mod tests {
             };
 
             Ok(Self::new(leafs(1 << 8)?, leafs(1 << 8)?))
+        }
+
+        fn size_hint(depth: usize) -> (usize, Option<usize>) {
+            arbitrary::size_hint::and_all(&[
+                i32::size_hint(depth),
+                i32::size_hint(depth),
+                <[Digest; 1 << 8]>::size_hint(depth),
+                <[Digest; 1 << 8]>::size_hint(depth),
+            ])
         }
     }
 

@@ -12,7 +12,7 @@ use neptune_wallet::address::SpendingKey;
 use neptune_wallet::secret_key_material::SecretKeyMaterial;
 use neptune_wallet::tasm_lib::prelude::Digest;
 use neptune_wallet::wallet_entropy::WalletEntropy;
-use rand::Rng;
+use rand::RngExt;
 use serde::Deserialize;
 use serde::Serialize;
 
