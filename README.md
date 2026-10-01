@@ -87,15 +87,18 @@ choose.
 | Platform | Status |
 |---|---|
 | Android, Chrome (installed web app) | Main target. Tested on a Galaxy S24, including Mainnet sends. |
+| Android app | In testing. Test builds by GitHub Actions, tested on a Galaxy S24, including a Mainnet send. Not released or signed for release yet; see [docs/ANDROID.md](docs/ANDROID.md). |
 | iOS, Safari (installed web app) | Intended. Not tested yet. |
 | Desktop browsers | Work. Good for trying the app out. |
 | Windows desktop app | Builds and runs. Not signed yet. |
 | Linux and macOS desktop apps | Built by CI. Not tested yet. Not signed yet. |
 
-The web app and the desktop apps are the same interface. The desktop apps
-run the wallet engine and the prover as native code rather than
-WebAssembly. They store the wallet in the app's data folder rather than in
-browser storage.
+The web app and the native apps (desktop and Android) are the same
+interface. The native apps run the wallet engine and the prover as native
+code rather than WebAssembly, which is much faster: on a Galaxy S24, the
+Android app proved a Mainnet send in 19 seconds, against about 2 minutes
+14 seconds in the web app. They store the wallet in the app's data folder
+rather than in browser storage.
 
 <p align="center">
   <img src="docs/screenshots/wide-home-dark.webp" width="720" alt="Home on a wide screen, in the dark theme">
@@ -325,6 +328,7 @@ cd shells/tauri && npx --prefix ../../web tauri build
 - [docs/PRIVACY.md](docs/PRIVACY.md): what leaves the device, and who sees it
 - [docs/HOSTING.md](docs/HOSTING.md): hosting, headers and verifying a deploy
 - [docs/DESKTOP-RELEASE.md](docs/DESKTOP-RELEASE.md): building and releasing the desktop apps
+- [docs/ANDROID.md](docs/ANDROID.md): the Android app, its plan and where it stands
 - [docs/M0-BENCHMARK.md](docs/M0-BENCHMARK.md): the measured cost of proving in a browser (historical record)
 - [docs/screenshots/capture.mjs](docs/screenshots/capture.mjs): how the screenshots above are taken, and the demo wallet they show
 

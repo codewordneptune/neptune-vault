@@ -20,9 +20,10 @@ A high-trust app that needs no personal registration with Google:
 ## Where it stands
 
 - **Test builds.** `.github/workflows/android-test.yml` builds an arm64 APK
-  on each push to `cwn/android`, signed with a key made for that run and
-  thrown away. A newer test build installs only after the older one is
-  uninstalled, which deletes that app's wallet data.
+  on each push to `cwn/android`, or by hand from the Actions tab for any
+  branch, signed with a key made for that run and thrown away. A newer test
+  build installs only after the older one is uninstalled, which deletes that
+  app's wallet data.
 - **The app's own parts of the Android project.** The workflow generates the
   project on each run, then adds the camera permission for the QR scanner
   and the launcher icon from `shells/tauri/icons/android` (the web app's
@@ -35,14 +36,18 @@ A high-trust app that needs no personal registration with Google:
   several apps take such links, Android asks which one). Send is filled in
   from it as from a scanned code, after the password if the wallet is
   locked, and nothing goes out without the review.
-- **First build installed** on a Galaxy S24 (2026-09-30). Still to measure:
-  how long a send takes to prove, against the web app's (about 2 min 14 s in
-  September on the same phone).
+- **Measured** on a Galaxy S24 (Exynos 2400, 10 cores), 2026-10-01: a
+  Mainnet send proved in 19 s, against about 2 min 14 s in the web app on
+  the same phone in September. Native code multiplies the prover's 64-bit
+  numbers in one instruction where WebAssembly takes several, and keeps a
+  large table in memory that the web app has to compute again. Diagnostics
+  shows the app's peak memory during a proof from the next build on.
 
 ## Before a first release, in this order
 
 1. **Measure a send** on the phone. If native proving is not clearly faster,
-   stop here: the web app is the Android app.
+   stop here: the web app is the Android app. Done: 19 s against about
+   2 min 14 s, so the plan goes on.
 2. **Fix what the test build lacks:**
    - Backup export. The shell writes the file to the path the save dialog
      returns, and on Android that is a content URI, not a path. Write through
