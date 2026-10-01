@@ -444,5 +444,11 @@ fast natively. The check of every proof takes 0.25 s of the 74 s in the
 browser and 0.15 s natively. The prover download grows from 3.3 MB to
 5.1 MB (0.8 to 1.1 MB compressed). This CPU (Zen 3) has no AVX-512, so
 none of the new AVX-512 code ran: like a phone, it gets only the gains that
-apply everywhere. Expected on the S24, not yet measured: about 85 s in the
-browser (from 134 s) and about 11 s in the Android app (from 19 s).
+apply everywhere.
+
+Measured on the S24 the same day. In Chrome, with this benchmark: 151 s and
+955 MB with Triton VM 8, 97 s and 849 MB with Triton VM 9, 1.56 times as
+fast. The Android app's Mainnet sends: 19 s (peak 1,825 MB) with Triton VM 8
+keeping the table in memory, and 16, 23 and 17 s (peak 976 MB on the first)
+with Triton VM 9 computing it again. The first Triton VM 9 build kept the
+table, and the app disappeared mid-send (docs/ANDROID.md).
