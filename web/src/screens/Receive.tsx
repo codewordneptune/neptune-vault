@@ -51,15 +51,16 @@ const KIND_LINES: Record<KeyKind, string> = {
   ec_hybrid: 'Less private against future quantum computers.',
   viewing: 'Lets anyone who has it see the payments made to it.',
 };
-// Every payment carries its address's receiver identifier in the clear, so
-// payments to one address can be linked (neptune-wallet's own note on
-// into_announcement), though never their amounts: true of every kind.
-const LINKING_NOTE = 'Payments to the same address can be linked on the chain, though never their amounts, so give each payer a new address when that matters.';
+// A payment announced on the chain carries its address's receiver
+// identifier in the clear (message[1]; neptune-wallet calls it "a public
+// fingerprint"), the same for every payment to that address. Anyone reading
+// the chain can group them, never seeing the amounts: true of every kind.
+const LINKING_NOTE = 'Anyone reading the blockchain can see which payments went to the same address, though not the amounts, so give each payer a new address when that matters.';
 // Short's caveat is neptune-wallet's own, on KeyType::EcHybrid: an attacker
 // with a quantum computer who knows the address sees its whole history.
 // Standard's encryption is lattice-based, made to resist that.
 const KIND_NOTES: Record<KeyKind, string> = {
-  generation: `Recommended for most payments, but long: about ${showInt(3500)} characters. Its encryption is designed to resist future quantum computers, so it can be published, on a donation page for example.`,
+  generation: `Recommended for most payments, but long: about ${showInt(3500)} characters. Its encryption is designed to resist future quantum computers.`,
   ec_hybrid: 'Short enough to paste into a message. A future quantum computer that knows a Short address could see every payment made to it, though never spend them, so give each one to a single payer and never publish it.',
   viewing: 'Anyone who has it, payers included, can see every payment made to it (only to it), but never spend them. Suits a fundraiser that shows its donations.',
 };
