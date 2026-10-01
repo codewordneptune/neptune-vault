@@ -41,21 +41,17 @@ const KIND_PROTOCOL: Record<KeyKind, string> = {
 
 // What each kind is for. In the list where the kind is chosen, one line
 // each, saying only what sets it apart; "Compare address types" at the
-// list's foot opens the whole of it: first what every kind shares, then
-// each kind with the protocol's name for it. View-only's risk shows again
-// as a caution whenever that kind is chosen, right before Copy and Share,
-// so it is read before sharing: a payer needs the address to pay it, so
-// every payer can watch too.
+// list's foot opens each in full, with the protocol's name for it. What
+// every kind shares (payments to one address can be grouped) is said where
+// it is acted on, under New address. View-only's risk shows again as a
+// caution whenever that kind is chosen, right before Copy and Share, so it
+// is read before sharing: a payer needs the address to pay it, so every
+// payer can watch too.
 const KIND_LINES: Record<KeyKind, string> = {
   generation: `Recommended. About ${showInt(3500)} characters long.`,
   ec_hybrid: 'Less private against future quantum computers.',
   viewing: 'Lets anyone who has it see the payments made to it.',
 };
-// A payment announced on the chain carries its address's receiver
-// identifier in the clear (message[1]; neptune-wallet calls it "a public
-// fingerprint"), the same for every payment to that address. Anyone reading
-// the chain can group them, never seeing the amounts: true of every kind.
-const LINKING_NOTE = 'Anyone reading the blockchain can see which payments went to the same address, though not the amounts, so give each payer a new address when that matters.';
 // Short's caveat is neptune-wallet's own, on KeyType::EcHybrid: an attacker
 // with a quantum computer who knows the address sees its whole history.
 // Standard's encryption is lattice-based, made to resist that.
@@ -771,7 +767,12 @@ export function Receive() {
                         New address
                       </Text>
                       {/* Why a new one, on the row that makes it; at the limit, why
-                          there is none. View-only is for watching, not for payers. */}
+                          there is none. View-only is for watching, not for payers.
+                          A payment announced on the chain carries its address's
+                          receiver identifier in the clear (message[1]; neptune-wallet
+                          calls it "a public fingerprint"), the same for every payment
+                          to that address, so anyone reading the chain can group them,
+                          never seeing the amounts. */}
                       {!canNew ? (
                         <Text span display="block" size="xs" c="dimmed">
                           More addresses open up once one of these has received a payment.
@@ -779,7 +780,7 @@ export function Receive() {
                       ) : (
                         kind !== 'viewing' && (
                           <Text span display="block" size="xs" c="dimmed">
-                            Give each payer their own; payments to one address can be linked.
+                            Give each payer their own; anyone reading the blockchain can see which payments went to one address.
                           </Text>
                         )
                       )}
@@ -819,7 +820,6 @@ export function Receive() {
         </Modal>
         <Modal opened={comparing} onClose={() => setComparing(false)} title="Address types">
           <Stack gap="md">
-            <Text size="sm">{LINKING_NOTE}</Text>
             {(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => (
               <Stack key={k} gap={4}>
                 <Text size="sm" fw={600}>
