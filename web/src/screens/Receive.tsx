@@ -108,7 +108,7 @@ type Tab = 'address' | 'request';
 const QR_OPTIONS = { type: 'image/png' as const, width: 1200, margin: 2, errorCorrectionLevel: 'L' as const };
 
 export function Receive() {
-  const { services, account, history, utxos, checkIncoming } = useApp();
+  const { services, account, history, utxos, checkIncoming, loaded } = useApp();
   const hidden = services.settings.hideBalance ?? false;
   const [tab, setTab] = useState<Tab>('address');
   const [kind, setKind] = useState<KeyKind>('generation');
@@ -185,16 +185,21 @@ export function Receive() {
   const arrivingNau = history.filter((h) => h.kind === 'received' && h.status === 'pending' && toThis(h)).reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
   // What came to this address during this visit, on its way or confirmed:
   // rows that were not there when the screen opened. A payment already on
-  // its way then is known by its commitment when its block comes.
+  // its way then is known by its commitment when its block comes. What was
+  // there is taken once the history has been read with the wallet unlocked
+  // (loaded): taken earlier, after a reload on this screen, the history is
+  // still empty and every earlier payment would read as new. Until then,
+  // nothing counts as new.
   const atOpen = useRef<{ keys: Set<string>; pending: Set<string> } | null>(null);
-  if (atOpen.current === null && account) {
+  if (atOpen.current === null && account && loaded) {
     atOpen.current = {
       keys: new Set(history.map((h) => h.key)),
       pending: new Set(history.filter((h) => h.status === 'pending').flatMap((h) => (h.outputs ?? []).map((o) => o.commitment))),
     };
   }
   const commitmentOf = (h: (typeof history)[number]) => (utxos.find((u) => u.hash === coinKeyOfReceipt(h))?.stored as { commitment?: string } | undefined)?.commitment;
-  const visit = history.filter((h) => h.kind === 'received' && h.status !== 'failed' && toThis(h) && !atOpen.current?.keys.has(h.key) && !atOpen.current?.pending.has(commitmentOf(h) ?? ''));
+  const seen = atOpen.current;
+  const visit = seen ? history.filter((h) => h.kind === 'received' && h.status !== 'failed' && toThis(h) && !seen.keys.has(h.key) && !seen.pending.has(commitmentOf(h) ?? '')) : [];
   const sumOf = (rows: typeof history) => rows.reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
   // Of what came during this visit: still on its way, and confirmed.
   const visitPendingNau = sumOf(visit.filter((h) => h.status === 'pending'));
@@ -202,11 +207,14 @@ export function Receive() {
 
   // What changed on this screen without a click on it, said once.
   const [said, setSaid] = useState('');
-  const arrivedBefore = useRef(arrivingNau);
+  // What was already on its way, likewise counted only from the first read
+  // made unlocked: not announced as if it had just come.
+  const arrivedBefore = useRef<bigint | null>(null);
   useEffect(() => {
-    if (arrivingNau > arrivedBefore.current) setSaid(hidden ? 'A payment to this address is pending.' : `${formatNau(arrivingNau - arrivedBefore.current)} NPT to this address is pending.`);
+    if (!loaded) return;
+    if (arrivedBefore.current !== null && arrivingNau > arrivedBefore.current) setSaid(hidden ? 'A payment to this address is pending.' : `${formatNau(arrivingNau - arrivedBefore.current)} NPT to this address is pending.`);
     arrivedBefore.current = arrivingNau;
-  }, [arrivingNau, hidden]);
+  }, [arrivingNau, hidden, loaded]);
 
   // The request: amount, name and note. They belong to this visit of the
   // screen: kept while switching tabs, gone when the screen is left.

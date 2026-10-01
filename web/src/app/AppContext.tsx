@@ -238,6 +238,11 @@ export function AppProvider({ services, children }: { services: Services; childr
   // Depends on the account id, not the object: refresh replaces the object,
   // and depending on it would re-trigger refresh forever.
   const accountId = account?.id ?? null;
+  // Loaded means read with the wallet unlocked. A locked wallet reads as
+  // empty, which is not its history: a screen that keeps what was already
+  // there when it opened (Receive's notes on payments arriving) would take
+  // every earlier payment for a new one, and Home would show an empty wallet
+  // for a moment after unlocking.
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const loaded = loadedFor === accountId;
   const refresh = useCallback(async () => {
@@ -246,6 +251,7 @@ export function AppProvider({ services, children }: { services: Services; childr
       setHistory([]);
       return;
     }
+    const unlockedAtStart = services.accounts.currentAccountId === accountId;
     const record = await services.db.get('accounts', accountId);
     // Where the wallet's chain data is kept: the engine's sealed log, or,
     // on a core without one, the app's database. A locked wallet's is not
@@ -363,7 +369,8 @@ export function AppProvider({ services, children }: { services: Services; childr
     }
     setSendFailure(failure);
     setLastSend(sent);
-    setLoadedFor(accountId);
+    // Unlocked from start to end, or the read is not the wallet's history.
+    setLoadedFor(unlockedAtStart && services.accounts.currentAccountId === accountId ? accountId : null);
     // A finished send whose row has confirmed no longer needs its notice.
     setSendJob((job) => {
       if (!job?.done || !job.outcome) return job;
@@ -579,9 +586,12 @@ export function AppProvider({ services, children }: { services: Services; childr
     if (accountId) noteLastSend(accountId, null);
   }, [accountId, noteLastSend]);
 
+  // Read again whenever the wallet locks or unlocks: unlocked, its own
+  // records show at once, before the node has been asked anything (offline
+  // too); locked, what was shown goes.
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+  }, [refresh, locked]);
 
   // Incoming payments show before they are mined: the mempool is scanned
   // after every sync and on its own timer. Failures are quiet; the block
