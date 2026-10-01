@@ -106,7 +106,8 @@ $('run').onclick = async () => {
       tr.innerHTML = `<td>${data.index + 1}</td><td>${data.name}</td><td class="num">${(data.millis / 1000).toFixed(1)}</td>` +
         `<td class="num">${(data.proof_len / 1024).toFixed(0)}</td><td class="num">${mb.toFixed(0)}</td>`;
       $('rows').appendChild(tr);
-      log(`done ${data.name} in ${(data.millis / 1000).toFixed(1)} s, memory ${mb.toFixed(0)} MB`);
+      const check = data.check_millis == null ? '' : ` (check ${(data.check_millis / 1000).toFixed(2)} s)`;
+      log(`done ${data.name} in ${(data.millis / 1000).toFixed(1)} s${check}, memory ${mb.toFixed(0)} MB`);
       if (data.profile) log(data.profile);
     } else if (data.kind === 'done') {
       const secs = (performance.now() - t0) / 1000;

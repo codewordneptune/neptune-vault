@@ -31,8 +31,8 @@ async fn one_input_proof_collection_verifies_under_delta() {
 
     let mut events = vec![];
     let collection = prove_proof_collection(&witness, rule_set, LdeTrace::NoCache, profile, &mut |e| {
-        if let ProgressEvent::Finished { name, millis, profile, .. } = &e {
-            eprintln!("{name}: {:.1} s", millis / 1000.0);
+        if let ProgressEvent::Finished { name, millis, check_millis, profile, .. } = &e {
+            eprintln!("{name}: {:.1} s, check {:.2} s", millis / 1000.0, check_millis / 1000.0);
             if let Some(report) = profile {
                 eprintln!("{report}");
             }

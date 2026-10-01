@@ -47,7 +47,8 @@ Rust crates (root `Cargo.toml` workspace):
 - `crates/vault-core`: the wallet engine (keys, scanning, chain checks, send
   building, sealed store, ledger), as wasm and natively.
 - `crates/vault-prover`: ProofCollection proving with Triton VM 9, threaded
-  through wasm-bindgen-rayon in the browser.
+  through wasm-bindgen-rayon in the browser. Every proof is checked the way a
+  node checks it before it leaves the prover.
 - `crates/vault-bridge`: the engine and prover for a native shell. Holds the
   unlocked account behind a mutex, opens seed envelopes (`src/envelope.rs`),
   keeps logs as files (`src/wallet_store.rs`); knows nothing about Tauri.
