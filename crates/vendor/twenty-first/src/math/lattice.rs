@@ -455,16 +455,16 @@ impl<const N: usize> ModuleElement<N> {
 
     pub fn ntt(&self) -> Self {
         let mut copy = *self;
-        for n in 0..N {
-            coset_ntt_noswap_64(&mut copy.elements[n].coefficients);
+        for element in &mut copy.elements {
+            coset_ntt_noswap_64(&mut element.coefficients);
         }
         copy
     }
 
     pub fn intt(&self) -> Self {
         let mut copy = *self;
-        for n in 0..N {
-            coset_intt_noswap_64(&mut copy.elements[n].coefficients);
+        for element in &mut copy.elements {
+            coset_intt_noswap_64(&mut element.coefficients);
         }
         copy
     }
@@ -635,9 +635,9 @@ pub mod kem {
     use serde_derive::Serialize;
     use sha3::Digest as Sha3Digest;
     use sha3::Sha3_256;
-    use sha3::Shake256;
     use sha3::digest::ExtendableOutput;
     use sha3::digest::Update;
+    use shake::Shake256;
     use zeroize::Zeroize;
 
     use super::CYCLOTOMIC_RING_ELEMENT_SIZE_IN_BFES;
@@ -840,7 +840,7 @@ mod tests {
     use itertools::Itertools;
     use num_traits::ConstOne;
     use num_traits::Zero;
-    use rand::RngCore;
+    use rand::Rng;
     use rand::random;
     use sha3::Digest as Sha3Digest;
     use sha3::Sha3_256;

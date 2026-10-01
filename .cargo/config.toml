@@ -5,8 +5,6 @@
 # runtime or the thread pool cannot be created.
 [target.wasm32-unknown-unknown]
 rustflags = [
-    # getrandom 0.3 needs to be told to use the browser's crypto API.
-    "--cfg", "getrandom_backend=\"wasm_js\"",
     # Let the (shared) linear memory grow to the full 32-bit limit (4 GiB).
     "-C", "link-arg=--max-memory=4294967296",
     # Threads and 128-bit SIMD. Recent nightlies no longer pass

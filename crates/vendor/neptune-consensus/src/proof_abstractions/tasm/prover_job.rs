@@ -30,8 +30,6 @@ use tokio::io::AsyncWriteExt;
 use crate::macros::fn_name;
 use crate::macros::log_scope_duration;
 #[cfg(not(target_arch = "wasm32"))]
-use crate::proof_abstractions::tasm::legacy_stark_verify::proof_padded_height;
-#[cfg(not(target_arch = "wasm32"))]
 use crate::proof_abstractions::tasm::neptune_prover_job::NeptuneProverJob;
 use crate::proof_abstractions::triton_vm_env_vars::TritonVmEnvVars;
 use crate::proof_abstractions::tx_proving_capability::TxProvingCapability;
@@ -473,9 +471,9 @@ impl ProverJob {
                         let proof: Proof = bincode::deserialize(&output.stdout)?;
                         tracing::debug!(
                             "Generated proof, with padded height: {}",
-                            proof_padded_height(&self.claim, &proof)
+                            proof.padded_height()
                                 .map(|x| x.to_string())
-                                .unwrap_or_else(|| "could not get padded height from proof".to_string())
+                                .unwrap_or_else(|e| format!("could not get padded height from proof.\nGot: {e}"))
                         );
                         Ok(ProverProcessCompletion::Finished(proof))
                     }

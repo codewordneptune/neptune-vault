@@ -40,13 +40,9 @@ jobs:
 
       # The wallet core's own tests, which the web tests cannot stand in
       # for: key derivation, scanning, the chain checks held against real
-      # mainnet blocks, and sending. Then the test that guards the one change
-      # made to vendored arithmetic, the field inverse in twenty-first,
-      # whose debug assertion is compiled out of release builds.
+      # mainnet blocks, and sending.
       - name: Rust tests
-        run: |
-          cargo test --locked -p vault-core
-          cargo test --locked --manifest-path crates/vendor/twenty-first/Cargo.toml norm_based_inverse
+        run: cargo test --locked -p vault-core
 
       - name: Install wasm-pack
         run: curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh

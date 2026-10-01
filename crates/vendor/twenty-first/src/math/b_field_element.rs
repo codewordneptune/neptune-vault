@@ -23,6 +23,7 @@ use num_traits::One;
 use num_traits::Zero;
 use phf::phf_map;
 use rand::Rng;
+use rand::RngExt;
 use rand::distr::Distribution;
 use rand::distr::StandardUniform;
 use serde::Deserialize;
@@ -185,6 +186,10 @@ impl fmt::UpperHex for BFieldElement {
 impl<'a> Arbitrary<'a> for BFieldElement {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         u.arbitrary().map(BFieldElement::new)
+    }
+
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        u64::size_hint(depth)
     }
 }
 
@@ -669,7 +674,10 @@ impl Distribution<BFieldElement> for StandardUniform {
     }
 }
 
-impl FiniteField for BFieldElement {}
+impl FiniteField for BFieldElement {
+    // `BFieldElement` is `#[repr(transparent)]` over a `u64`.
+    const NUM_BFE_LIMBS: Option<usize> = Some(1);
+}
 
 impl Zero for BFieldElement {
     #[inline]
@@ -820,12 +828,12 @@ mod tests {
 
     use itertools::izip;
     use proptest::prelude::*;
+    use proptest_arbitrary_adapter::arb;
     use rand::random;
 
     use crate::math::b_field_element::*;
     use crate::math::other::random_elements;
     use crate::math::polynomial::Polynomial;
-    use crate::proptest_arbitrary_interop::arb;
     use crate::tests::proptest;
     use crate::tests::test;
 

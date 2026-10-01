@@ -46,15 +46,15 @@ Rust crates (root `Cargo.toml` workspace):
 
 - `crates/vault-core`: the wallet engine (keys, scanning, chain checks, send
   building, sealed store, ledger), as wasm and natively.
-- `crates/vault-prover`: ProofCollection proving with Triton VM 8, threaded
+- `crates/vault-prover`: ProofCollection proving with Triton VM 9, threaded
   through wasm-bindgen-rayon in the browser.
 - `crates/vault-bridge`: the engine and prover for a native shell. Holds the
   unlocked account behind a mutex, opens seed envelopes (`src/envelope.rs`),
   keeps logs as files (`src/wallet_store.rs`); knows nothing about Tauri.
 - `crates/vault-fixtures`: writes deterministic `PrimitiveWitness` fixtures
   for the prover benchmark (`web/prover-bench`).
-- `crates/vendor`: neptune-consensus 0.17.0, neptune-primitives 0.17.0,
-  twenty-first 1.1.0 and triton-vm 8.0.0, patched for wasm32 and applied
+- `crates/vendor`: neptune-consensus 0.19.0, neptune-primitives 0.19.0,
+  twenty-first 3.0.0 and triton-vm 9.0.0, patched for wasm32 and applied
   through `[patch.crates-io]` ([crates/vendor/VENDOR.md](../crates/vendor/VENDOR.md)).
 
 The native shell (`shells/tauri/src/lib.rs`) has no logic of its own: each

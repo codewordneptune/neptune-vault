@@ -10,7 +10,6 @@ use anyhow::Result;
 use itertools::Itertools;
 use neptune_consensus::consensus_rule_set::ConsensusRuleSet;
 use neptune_consensus::consensus_rule_set::TritonProofVersion;
-use neptune_consensus::proof_abstractions::tasm::legacy_stark_verify::claim_uses_legacy_proof_system;
 use neptune_consensus::proof_abstractions::SecretWitness;
 use neptune_consensus::tasm_lib::prelude::Tip5;
 use neptune_consensus::transaction::primitive_witness::PrimitiveWitness;
@@ -66,13 +65,13 @@ pub fn num_sub_proofs(witness: &PrimitiveWitness) -> usize {
     4 + witness.lock_scripts_and_witnesses.len() + witness.type_scripts_and_witnesses.len()
 }
 
-/// Prove one claim with the proof system its version selects.
+/// Prove one claim.
 ///
 /// Only the post-delta proof system (claim version 8) is shipped. Claims for
-/// earlier rule sets need the legacy Triton VM, which the browser build does
-/// not carry.
+/// earlier rule sets need the legacy Triton VM, which neither Neptune Vault
+/// nor neptune-core 0.19 carries.
 fn produce(program: Program, claim: Claim, nondeterminism: NonDeterminism) -> Result<Proof> {
-    if claim_uses_legacy_proof_system(&claim) {
+    if claim.version < triton_vm::proof::CURRENT_VERSION {
         bail!(
             "claim version {} needs the pre-delta prover, which Neptune Vault does not ship",
             claim.version

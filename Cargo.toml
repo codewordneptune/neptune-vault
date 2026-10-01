@@ -6,8 +6,8 @@ members = ["crates/vault-prover", "crates/vault-core", "crates/vault-bridge", "c
 # `cargo test` can run inside them.
 exclude = ["crates/vendor/neptune-consensus", "crates/vendor/neptune-primitives", "crates/vendor/twenty-first", "crates/vendor/triton-vm"]
 
-# Vendored copies of the published 0.17.0 crates with wasm32 gating.
-# See crates/vendor/VENDOR.md for the exact changes.
+# Vendored copies of published crates with wasm32 gating.
+# See crates/vendor/VENDOR.md for the versions and the exact changes.
 [patch.crates-io]
 neptune-consensus = { path = "crates/vendor/neptune-consensus" }
 neptune-primitives = { path = "crates/vendor/neptune-primitives" }

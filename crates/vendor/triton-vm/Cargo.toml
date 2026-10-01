@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.89"
 name = "triton-vm"
-version = "8.0.0"
+version = "9.0.0"
 authors = ["Triton Software AG"]
 build = "build.rs"
 autolib = false
@@ -52,8 +52,10 @@ wasm-opt = [
 [features]
 # Neptune Vault: profiler compiled in (phase timings from the bench page).
 # Dependents force `no_profile` on when it is a default feature, so it is
-# removed from the defaults here.
-default = []
+# removed from the defaults here. jemalloc stays: it only applies on Linux
+# and macOS, where it is upstream's choice for proving.
+default = ["jemalloc"]
+jemalloc = ["dep:tikv-jemallocator"]
 no_profile = []
 
 [lib]
@@ -116,7 +118,7 @@ path = "benches/verify_halt.rs"
 harness = false
 
 [dependencies.air]
-version = "8.0.0"
+version = "9.0.0"
 package = "triton-air"
 
 [dependencies.arbitrary]
@@ -127,11 +129,11 @@ features = ["derive"]
 version = "3.0"
 
 [dependencies.constraint-builder]
-version = "8.0.0"
+version = "9.0.0"
 package = "triton-constraint-builder"
 
 [dependencies.get-size2]
-version = "0.7"
+version = "0.9"
 features = ["derive"]
 
 [dependencies.indexmap]
@@ -139,7 +141,7 @@ version = "2.10.0"
 features = ["rayon"]
 
 [dependencies.isa]
-version = "8.0.0"
+version = "9.0.0"
 package = "triton-isa"
 
 [dependencies.itertools]
@@ -160,7 +162,7 @@ features = ["rayon"]
 version = "0.2"
 
 [dependencies.rand]
-version = "0.9.1"
+version = "0.10"
 
 [dependencies.rayon]
 version = "1.10"
@@ -177,7 +179,7 @@ features = ["derive"]
 version = "2.0"
 
 [dependencies.twenty-first]
-version = "1.1.0"
+version = "3.0.0"
 
 [dependencies.unicode-width]
 version = "0.2"
@@ -189,7 +191,7 @@ version = "1.1"
 version = "0.3"
 
 [dev-dependencies.constraint-circuit]
-version = "8.0.0"
+version = "9.0.0"
 package = "triton-constraint-circuit"
 
 [dev-dependencies.fs-err]
@@ -219,15 +221,15 @@ version = "1.0"
 version = "0.4.2"
 
 [build-dependencies.air]
-version = "8.0.0"
+version = "9.0.0"
 package = "triton-air"
 
 [build-dependencies.constraint-builder]
-version = "8.0.0"
+version = "9.0.0"
 package = "triton-constraint-builder"
 
 [build-dependencies.constraint-circuit]
-version = "8.0.0"
+version = "9.0.0"
 package = "triton-constraint-circuit"
 
 [build-dependencies.prettyplease]
@@ -238,6 +240,10 @@ version = "1.0"
 
 [build-dependencies.syn]
 version = "2.0"
+
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies.tikv-jemallocator]
+version = "0.7"
+optional = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies.criterion]
 version = "4.0"

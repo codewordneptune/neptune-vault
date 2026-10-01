@@ -77,7 +77,7 @@ mod tests {
     use std::collections::HashMap;
 
     use rand::prelude::StdRng;
-    use rand::Rng;
+    use rand::RngExt;
     use tasm_lib::memory::encode_to_memory;
     use tasm_lib::rust_shadowing_helper_functions;
     use tasm_lib::snippet_bencher::BenchmarkCase;
@@ -156,10 +156,6 @@ mod tests {
 
     #[test]
     fn rust_and_tasm_agree() {
-        ShadowedAlgorithm::new(GenerateSingleProofClaim::new(
-            ConsensusRuleSet::HardforkGamma,
-        ))
-        .test();
         ShadowedAlgorithm::new(GenerateSingleProofClaim::new(
             ConsensusRuleSet::HardforkDelta,
         ))

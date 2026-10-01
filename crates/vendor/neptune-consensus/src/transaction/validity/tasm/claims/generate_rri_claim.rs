@@ -138,7 +138,7 @@ mod tests {
     use proptest::test_runner::TestRunner;
     use rand::rngs::StdRng;
     use rand::Rng;
-    use rand::RngCore;
+    use rand::RngExt;
     use rand::SeedableRng;
     use tasm_lib::memory::encode_to_memory;
     use tasm_lib::rust_shadowing_helper_functions;
@@ -156,7 +156,6 @@ mod tests {
 
     #[test]
     fn unit_test() {
-        ShadowedFunction::new(GenerateRriClaim::new(ConsensusRuleSet::HardforkGamma)).test();
         ShadowedFunction::new(GenerateRriClaim::new(ConsensusRuleSet::HardforkDelta)).test();
     }
 

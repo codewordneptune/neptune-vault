@@ -45,7 +45,7 @@ use anyhow::Result;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
 use hkdf::Hkdf;
-use rand::Rng;
+use rand::RngExt;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;

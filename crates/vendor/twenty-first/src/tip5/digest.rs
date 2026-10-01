@@ -9,6 +9,7 @@ use num_bigint::BigUint;
 use num_traits::ConstZero;
 use num_traits::Zero;
 use rand::Rng;
+use rand::RngExt;
 use rand::distr::Distribution;
 use rand::distr::StandardUniform;
 use serde::Deserialize;
@@ -155,8 +156,10 @@ impl TryFrom<[u8; Digest::BYTES]> for Digest {
 
     fn try_from(item: [u8; Self::BYTES]) -> Result<Self, Self::Error> {
         let digest_innards: Vec<_> = item
-            .chunks_exact(BFieldElement::BYTES)
-            .map(BFieldElement::try_from)
+            .as_chunks::<{ BFieldElement::BYTES }>()
+            .0
+            .iter()
+            .map(|&bytes| BFieldElement::try_from(bytes))
             .try_collect()?;
 
         Ok(Self(digest_innards.try_into().unwrap()))
@@ -279,11 +282,11 @@ pub(crate) mod tests {
     use proptest::collection::vec;
     use proptest::prelude::Arbitrary as ProptestArbitrary;
     use proptest::prelude::*;
+    use proptest_arbitrary_adapter::arb;
 
     use super::*;
     use crate::error::ParseBFieldElementError;
     use crate::prelude::*;
-    use crate::proptest_arbitrary_interop::arb;
     use crate::tests::proptest;
     use crate::tests::test;
 
