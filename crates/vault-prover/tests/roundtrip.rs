@@ -28,9 +28,16 @@ async fn one_input_proof_collection_verifies_under_delta() {
     let rule_set = ConsensusRuleSet::HardforkDelta;
     // VAULT_PROFILE=1 prints Triton VM phase profiles (needs the profiler compiled in).
     let profile = std::env::var("VAULT_PROFILE").is_ok();
+    // VAULT_LDE_CACHE=1 keeps the low-degree-extended trace in memory, as the
+    // desktop app does; by default the test proves as the browser and Android do.
+    let lde_trace = if std::env::var("VAULT_LDE_CACHE").is_ok() {
+        LdeTrace::Cache
+    } else {
+        LdeTrace::NoCache
+    };
 
     let mut events = vec![];
-    let collection = prove_proof_collection(&witness, rule_set, LdeTrace::NoCache, profile, &mut |e| {
+    let collection = prove_proof_collection(&witness, rule_set, lde_trace, profile, &mut |e| {
         if let ProgressEvent::Finished { name, millis, check_millis, profile, .. } = &e {
             eprintln!("{name}: {:.1} s, check {:.2} s", millis / 1000.0, check_millis / 1000.0);
             if let Some(report) = profile {

@@ -39,9 +39,10 @@ A high-trust app that needs no personal registration with Google:
 - **Measured** on a Galaxy S24 (Exynos 2400, 10 cores), 2026-10-01: a
   Mainnet send proved in 19 s, against about 2 min 14 s in the web app on
   the same phone in September. Native code multiplies the prover's 64-bit
-  numbers in one instruction where WebAssembly takes several, and keeps a
-  large table in memory that the web app has to compute again. Diagnostics
-  shows the app's peak memory during a proof from the next build on.
+  numbers in one instruction where WebAssembly takes several. That build
+  also kept a large table in memory that the web app computes again (about
+  3.4 GB at the peak instead of 0.8 GB); the app now computes it again too.
+  Diagnostics shows the app's peak memory during a proof.
 
 ## Before a first release, in this order
 
