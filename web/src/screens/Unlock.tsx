@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 let promptedThisLoad = false;
 
 import { useApp } from '../app/AppContext';
+import { Logo } from '../components/Logo';
 import { isCancellation } from '../app/passkey';
 import { byCreation, walletName, type AccountRecord } from '../storage/db';
 import { UnlockCancelledError } from '../app/accounts';
@@ -94,9 +95,9 @@ export function Unlock() {
           }}
         >
           <Stack>
-            {/* The header carries the mark: the card is the wallet. */}
             <Stack gap={6} align="center">
-              <Text size="sm" c="dimmed">
+              <Logo size={36} />
+              <Text size="sm" c="dimmed" mt={10}>
                 Welcome back
               </Text>
               {account && (
