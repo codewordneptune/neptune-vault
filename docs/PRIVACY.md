@@ -1,7 +1,7 @@
-# Privacy
+# Privacy statement
 
 What this wallet keeps, what it sends and to whom, and what is public. The
-same text is shown in the app under Settings, About, Privacy; the app's copy
+same text is shown in the app under Settings, About, Privacy statement; the app's copy
 (`web/src/content/privacy.ts`) is the reference and this file mirrors it.
 Last changed 2026-10-01.
 

@@ -39,7 +39,7 @@ export function Privacy() {
   return (
     <Stack gap="md">
       <BackLink />
-      <Title order={2}>Privacy</Title>
+      <Title order={2}>Privacy statement</Title>
       <PrivacyStatement />
     </Stack>
   );

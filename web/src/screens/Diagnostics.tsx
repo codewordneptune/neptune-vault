@@ -88,7 +88,7 @@ export function DeviceDetails({ report = false }: { report?: boolean }) {
               Report on GitHub
             </Anchor>
             <Anchor href={LINKS.telegram} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-              Ask in Telegram
+              Ask on Telegram
             </Anchor>
           </Group>
         )}

@@ -379,7 +379,7 @@ export function Onboarding() {
       {step === 'welcome' && !adding && (
         <Group gap={6} justify="center">
           <Anchor component="button" type="button" size="sm" className="vault-tap-link vault-inline-link" onClick={() => navigate('/privacy')}>
-            Privacy
+            Privacy statement
           </Anchor>
           <Text span size="sm" c="dimmed" aria-hidden>
             ·

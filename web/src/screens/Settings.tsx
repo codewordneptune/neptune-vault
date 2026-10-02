@@ -5,10 +5,10 @@
 // removal.
 
 import { Anchor, Button, Checkbox, Divider, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
-import { IconChevronLeft, IconChevronRight, IconCopy, IconDownload, IconFingerprint } from '@tabler/icons-react';
+import { IconChevronLeft, IconChevronRight, IconCopy, IconDownload, IconExternalLink, IconFingerprint } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { BACKGROUND_LOCK_CHOICES_MS, backgroundLockOf, LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
@@ -62,7 +62,7 @@ const SECTION_TITLES: Record<SectionKey, string> = {
   remove: 'Remove wallet',
   diagnostics: 'Diagnostics',
   report: 'Report a problem',
-  privacy: 'Privacy',
+  privacy: 'Privacy statement',
 };
 // Pages reached from another page rather than from the list: their way
 // back is to that page, and on a wide window the list beside them marks it.
@@ -93,6 +93,57 @@ function SettingItem({ name, children, id, className }: { name?: ReactNode; chil
       {children}
     </div>
   );
+}
+
+/**
+ * A link as a row of a list, as the Settings list's rows are: a page of
+ * Settings with a chevron, a website with an arrow out of its box, and
+ * the same said in words to a screen reader.
+ */
+function LinkRow({ to, href, children }: { to?: string; href?: string; children: ReactNode }) {
+  const label = <span className="vault-settings-row-label">{children}</span>;
+  return to ? (
+    <Link to={to} className="vault-settings-row">
+      {label}
+      <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
+    </Link>
+  ) : (
+    <a href={href} target="_blank" rel="noreferrer" className="vault-settings-row">
+      {label}
+      {/* Where it goes, before it is tapped: the address itself, which is
+          what tells a real site from a look-alike. */}
+      <span className="vault-link-address">
+        <span className="vault-settings-row-value">{shownAddress(href ?? '')}</span>
+        <IconExternalLink size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
+      </span>
+      <span className="sr-only"> (opens outside the app)</span>
+    </a>
+  );
+}
+
+/** Link rows under a small label, as the Settings list groups its rows. */
+function LinkGroup({ label, children }: { label: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <div role="group" aria-labelledby={id} className="vault-settings-group">
+      <div id={id} className="vault-group-label vault-settings-group-label">
+        {label}
+      </div>
+      <Paper p={0} className="vault-link-rows">
+        {children}
+      </Paper>
+    </div>
+  );
+}
+
+/** A web address as people read it: the host and the path, without the scheme or a closing slash. */
+function shownAddress(href: string): string {
+  try {
+    const url = new URL(href);
+    return (url.host + url.pathname).replace(/\/$/, '');
+  } catch {
+    return href;
+  }
 }
 
 /** A row's label and its page's title; removal names the wallet it removes. */
@@ -709,36 +760,40 @@ function SettingsSections({ section }: { section: SectionKey }) {
         </Paper>
       )}
       {section === 'about' && (
-        <Paper>
-          <Stack>
-            <Text size="sm" c="dimmed">
-              {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Your keys stay on this device, and only the node set in Advanced learns about your wallet.
-            </Text>
-            <Group gap="md" style={{ rowGap: 24 }}>
-              {/* A page of Settings, with the details a report needs and where to send it. */}
-              <Anchor component={Link} to="/settings/report" size="sm" className="vault-tap-link">
-                Report a problem
-              </Anchor>
-              <Anchor href={LINKS.telegram} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-                Ask in Telegram
-              </Anchor>
-              <Anchor href={LINKS.forum} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-                Forum
-              </Anchor>
-              <Anchor href={LINKS.neptune} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
-                About Neptune Cash
-              </Anchor>
-              <Anchor component={Link} to="/settings/privacy" size="sm" className="vault-tap-link">
-                Privacy
-              </Anchor>
-            </Group>
-            <Text size="xs" c="dimmed">
-              Version {__APP_VERSION__} ({__APP_COMMIT__}), built {formatDate(Date.parse(__APP_BUILT_AT__))}.
-            </Text>
-            {!NATIVE && <InstallCard />}
-            {DESKTOP && <Shortcuts />}
-          </Stack>
-        </Paper>
+        <Stack gap="md">
+          <Paper>
+            <Stack gap="xs">
+              <Text size="sm" c="dimmed">
+                {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Your keys stay on this device, and only the node set in Advanced learns about your wallet.
+              </Text>
+              <Text size="xs" c="dimmed">
+                Version {__APP_VERSION__} ({__APP_COMMIT__}), built {formatDate(Date.parse(__APP_BUILT_AT__))}.
+              </Text>
+            </Stack>
+          </Paper>
+          <nav aria-label="About">
+            <Stack gap="md">
+              <LinkGroup label="Help">
+                <LinkRow to="/settings/report">Report a problem</LinkRow>
+                <LinkRow href={LINKS.telegram}>Ask on Telegram</LinkRow>
+                <LinkRow href={LINKS.forum}>Ask on the forum</LinkRow>
+              </LinkGroup>
+              <LinkGroup label="Learn more">
+                <LinkRow to="/settings/privacy">Privacy statement</LinkRow>
+                <LinkRow href={LINKS.neptune}>Official website</LinkRow>
+                <LinkRow href={LINKS.project}>Community website</LinkRow>
+              </LinkGroup>
+            </Stack>
+          </nav>
+          {(!NATIVE || DESKTOP) && (
+            <Paper>
+              <Stack>
+                {!NATIVE && <InstallCard />}
+                {DESKTOP && <Shortcuts />}
+              </Stack>
+            </Paper>
+          )}
+        </Stack>
       )}
       {section === 'remove' && <RemoveWalletCard />}
       {section === 'diagnostics' && <DeviceDetails />}

@@ -1810,6 +1810,30 @@ html {
   flex-shrink: 0;
   color: var(--v-muted);
 }
+/* About's links (Settings.tsx, LinkRow): a page's chevron goes to the end,
+   having no value before it; a website's address is never cut short, and
+   goes under its name where it does not fit beside it. */
+.vault-link-rows {
+  overflow: hidden;
+}
+.vault-link-rows .vault-settings-row {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+.vault-link-address {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-left: auto;
+}
+.vault-link-address .vault-settings-row-value {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.vault-link-rows .vault-settings-row-label + .vault-settings-row-chevron {
+  margin-left: auto;
+}
 /* The page open beside the list: its row is marked by a bar as well as a
    fill, so it does not rest on colour alone. */
 .vault-settings-row.current {
@@ -1828,8 +1852,7 @@ html {
   position: sticky;
   top: calc(80px + env(safe-area-inset-top, 0px));
 }
-/* A group of rows under a small label naming where they apply: the open
-   wallet, or the app. In line with the rows' text. */
+/* A group of rows under a small label, in line with the rows' text. */
 .vault-settings-group {
   display: flex;
   flex-direction: column;
