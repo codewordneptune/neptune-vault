@@ -286,7 +286,7 @@ export function App() {
             <Group gap={0} wrap="nowrap" className="vault-tabs">
               {TABS.map(({ to, label, Icon }, i) => (
                 <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`} {...(DESKTOP ? shortcutProps(label, i + 1) : {})}>
-                  <Icon size={20} stroke={1.8} />
+                  <Icon size={22} />
                   {label}
                 </NavLink>
               ))}

@@ -107,7 +107,7 @@ export function StartBlockPicker({
       )}
       <details className="vault-setting" open={lookup.kind === 'failed' || Boolean(error)}>
         <summary>
-          <IconChevronRight size={16} stroke={1.8} className="vault-setting-chevron" aria-hidden />
+          <IconChevronRight size={16} className="vault-setting-chevron" aria-hidden />
           Enter a block number instead
         </summary>
         <NumberInput

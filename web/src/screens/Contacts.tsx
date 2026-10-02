@@ -96,7 +96,7 @@ export function ContactsPanel() {
                     {/* Stays while the pointer moves onto it, so it can be read. */}
                     <Tooltip label="Send to this contact" interactive>
                       <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`Send to ${c.name}`} onClick={() => navigate('/send', { state: { recipient: c.address } })}>
-                        <IconArrowUpRight size={20} stroke={1.8} />
+                        <IconArrowUpRight size={20} />
                       </ActionIcon>
                     </Tooltip>
                     <Menu position="bottom-end">
@@ -111,18 +111,18 @@ export function ContactsPanel() {
                             else moreButtons.current.delete(c.key);
                           }}
                         >
-                          <IconDotsVertical size={20} stroke={1.8} />
+                          <IconDotsVertical size={20} />
                         </ActionIcon>
                       </Menu.Target>
                       <Menu.Dropdown>
                         {/* The row shows the address shortened; this copies it whole, to hand on or paste into another wallet. */}
-                        <Menu.Item leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(c.address, 'Address copied')}>
+                        <Menu.Item leftSection={<IconCopy size={16} />} onClick={() => void copyText(c.address, 'Address copied')}>
                           Copy address
                         </Menu.Item>
-                        <Menu.Item leftSection={<IconPencil size={16} stroke={1.8} />} onClick={() => setRenaming(c)}>
+                        <Menu.Item leftSection={<IconPencil size={16} />} onClick={() => setRenaming(c)}>
                           Rename
                         </Menu.Item>
-                        <Menu.Item leftSection={<IconTrash size={16} stroke={1.8} />} c="var(--v-danger-text)" onClick={() => setRemoving(c)}>
+                        <Menu.Item leftSection={<IconTrash size={16} />} c="var(--v-danger-text)" onClick={() => setRemoving(c)}>
                           Remove
                         </Menu.Item>
                       </Menu.Dropdown>
@@ -133,7 +133,7 @@ export function ContactsPanel() {
               <div className="vault-row vault-address-row">
                 <UnstyledButton ref={addRef} className="vault-address-show vault-address-new" onClick={() => setAdding(true)}>
                   <span className="vault-address-mark" aria-hidden>
-                    <IconPlus size={16} stroke={1.8} />
+                    <IconPlus size={16} />
                   </span>
                   <span className="vault-address-title">
                     <Text span display="block" size="sm" fw={600}>
@@ -339,7 +339,7 @@ export function ContactForm({
               rightSectionWidth={44}
               rightSection={
                 <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
-                  <IconScan size={20} stroke={1.8} />
+                  <IconScan size={20} />
                 </ActionIcon>
               }
             />

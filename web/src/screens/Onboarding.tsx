@@ -358,7 +358,7 @@ export function Onboarding() {
       {step === 'welcome' && developer && (
         <details className="vault-setting vault-setup-network" open={network !== 'main'}>
           <summary>
-            <IconChevronRight size={16} stroke={1.8} className="vault-setting-chevron" aria-hidden />
+            <IconChevronRight size={16} className="vault-setting-chevron" aria-hidden />
             Network: {NETWORK_LABELS[network]}
           </summary>
           <div className="vault-setting-body">
@@ -400,7 +400,7 @@ export function Onboarding() {
             {/* The button, then what copying means, beneath it at every width
                 (as a phone wraps it), not squeezed in beside it. */}
             <Stack gap={4} align="flex-start">
-              <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+              <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
                 Copy words
               </Button>
               <Text size="sm" c="dimmed">
@@ -545,7 +545,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
         <Group align="center">
           <Button
             variant="default"
-            leftSection={<IconFileUpload size={16} stroke={1.8} />}
+            leftSection={<IconFileUpload size={16} />}
             onClick={() => {
               onPicking();
               fileInput.current?.click();

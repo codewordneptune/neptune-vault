@@ -31,7 +31,7 @@ export function WordGrid({ words, blanks = [], next, onClear, only }: { words: s
                   {w}
                 </Text>
               )}
-              {blank && w && <IconX size={16} stroke={1.8} style={{ flexShrink: 0, opacity: 0.7 }} aria-hidden />}
+              {blank && w && <IconX size={16} style={{ flexShrink: 0, opacity: 0.7 }} aria-hidden />}
             </Box>
           </Group>
         );

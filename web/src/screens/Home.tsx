@@ -294,7 +294,7 @@ export function Home() {
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
   const focusRow = (key: string) => setTimeout(() => rowRefs.current.get(key)?.focus(), 0);
   const rowIconOf = (e: HistoryEntry) =>
-    e.kind === 'received' ? <IconArrowDownLeft size={20} stroke={1.8} /> : e.kind === 'self' ? <IconArrowsExchange size={20} stroke={1.8} /> : <IconArrowUpRight size={20} stroke={1.8} />;
+    e.kind === 'received' ? <IconArrowDownLeft size={20} /> : e.kind === 'self' ? <IconArrowsExchange size={20} /> : <IconArrowUpRight size={20} />;
   /** What a screen reader says for a row, list or table alike. */
   const rowLabelOf = (e: HistoryEntry) => {
     const who = whoOf(e);
@@ -416,8 +416,8 @@ export function Home() {
       <div className="vault-status">
         <span className="vault-status-text">
           <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' ? (behind ? 'warn' : 'ok') : 'busy'}`} aria-hidden />
-          {!online && <IconWifiOff size={16} stroke={1.8} />}
-          {busy && <IconRefresh size={16} stroke={1.8} className="vault-spin" />}
+          {!online && <IconWifiOff size={16} />}
+          {busy && <IconRefresh size={16} className="vault-spin" />}
           {syncText}
         </span>
         {/* The actions stay where they are while a sync runs, unavailable
@@ -455,7 +455,7 @@ export function Home() {
             <div className="vault-balance-head">
               <span className="vault-eyebrow">Balance</span>
               <ActionIcon variant="subtle" size="lg" className="vault-tap" my={-10} mr={-8} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
-                {hidden ? <IconEyeOff size={20} stroke={1.8} /> : <IconEye size={20} stroke={1.8} />}
+                {hidden ? <IconEyeOff size={20} /> : <IconEye size={20} />}
               </ActionIcon>
             </div>
             {/* The figure on screen is grouped; a screen reader is given plain digits, or "hidden". */}
@@ -478,14 +478,14 @@ export function Home() {
             {/* Money on the way and money held, as two readings; the sentence behind them is one tap away. */}
             {incomingNau > 0n && (
               <Group gap={6} wrap="nowrap">
-                <IconArrowDownLeft size={16} stroke={1.8} className="vault-balance-note-in" aria-hidden />
+                <IconArrowDownLeft size={16} className="vault-balance-note-in" aria-hidden />
                 <Text size="sm">{amount(incomingNau)} NPT pending</Text>
               </Group>
             )}
             {/* The same line as Send's, and the two figures add up to the balance above. */}
             {loaded && ownReady && onHoldNau > 0n && (
               <Group gap={6} wrap="nowrap" align="flex-start">
-                <IconHourglass size={16} stroke={1.8} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
+                <IconHourglass size={16} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
                 <Text size="sm">
                   Spendable {amount(balance.spendableNau)} NPT · {amount(onHoldNau)} NPT on hold
                 </Text>
@@ -493,7 +493,7 @@ export function Home() {
             )}
             {balance.lockedNau > 0n && (
               <Group gap={6} wrap="nowrap">
-                <IconClockPause size={16} stroke={1.8} className="vault-balance-note-held" aria-hidden />
+                <IconClockPause size={16} className="vault-balance-note-held" aria-hidden />
                 <Text size="sm">
                   {amount(balance.lockedNau)} NPT {balance.nextReleaseMs ? `spendable from ${showDate(balance.nextReleaseMs)}` : 'not spendable yet'}
                 </Text>
@@ -515,10 +515,10 @@ export function Home() {
             )}
           </Stack>
           <Group grow className="vault-balance-actions">
-            <Button leftSection={<IconArrowUpRight size={16} stroke={1.8} />} onClick={() => navigate('/send')}>
+            <Button leftSection={<IconArrowUpRight size={16} />} onClick={() => navigate('/send')}>
               Send
             </Button>
-            <Button variant="light" leftSection={<IconArrowDownLeft size={16} stroke={1.8} />} onClick={() => navigate('/receive')}>
+            <Button variant="light" leftSection={<IconArrowDownLeft size={16} />} onClick={() => navigate('/receive')}>
               Receive
             </Button>
           </Group>
@@ -759,7 +759,7 @@ export function Home() {
                     link: a line above it, the muted colour, a chevron that turns. */}
                 <UnstyledButton onClick={() => setTech((v) => !v)} className="vault-detail-section" aria-expanded={tech}>
                   <span>Technical details</span>
-                  <IconChevronRight size={16} stroke={1.8} aria-hidden className={tech ? 'vault-chevron open' : 'vault-chevron'} />
+                  <IconChevronRight size={16} aria-hidden className={tech ? 'vault-chevron open' : 'vault-chevron'} />
                 </UnstyledButton>
                 {/* What the node said at its last check: the status above already says what it means. */}
                 {tech && nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
@@ -864,12 +864,12 @@ function DetailRow({ label, value, mono, copy, href, abbreviate, isolate }: { la
           <Group gap={2} wrap="nowrap">
             {copy && (
               <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copyText(value, copy)}>
-                <IconCopy size={20} stroke={1.8} />
+                <IconCopy size={20} />
               </ActionIcon>
             )}
             {href && (
               <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="lg" className="vault-tap" aria-label={`Open ${label.toLowerCase()} in the explorer`}>
-                <IconExternalLink size={20} stroke={1.8} />
+                <IconExternalLink size={20} />
               </ActionIcon>
             )}
           </Group>

@@ -82,7 +82,7 @@ export function DesktopUpdateNotice() {
     <div className="vault-updatestrip" role="status">
       <div className="vault-updatestrip-inner">
         <div className="vault-updatestrip-body">
-          <IconCircleArrowUp size={20} stroke={1.8} />
+          <IconCircleArrowUp size={20} />
           <div style={{ minWidth: 0 }}>
             <Text size="sm" fw={600}>
               Version {newer.version} of the desktop app is out

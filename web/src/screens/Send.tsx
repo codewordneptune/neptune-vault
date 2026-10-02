@@ -133,7 +133,7 @@ export function Send() {
     const name = wanted ? contacts.find((c) => c.address === wanted)?.name : undefined;
     return name ? (
       <span className="vault-contact-match">
-        <IconAddressBook size={16} stroke={1.8} aria-hidden />
+        <IconAddressBook size={16} aria-hidden />
         <span>
           Saved contact: <b dir="auto" className="vault-bidi">{name}</b>
         </span>
@@ -156,7 +156,7 @@ export function Send() {
     contactNote(address) ??
     (requestName ? (
       <span className="vault-contact-match">
-        <IconLink size={16} stroke={1.8} aria-hidden />
+        <IconLink size={16} aria-hidden />
         <span>
           Named in the request: <b dir="auto" className="vault-bidi">{requestName}</b> (not verified)
         </span>
@@ -899,7 +899,7 @@ export function Send() {
             <Stack gap="sm">
               {hasPasskey && (
                 <>
-                  <Button leftSection={<IconFingerprint size={16} stroke={1.8} />} loading={passkeyBusy || (starting && !checking)} disabled={running || checking || ((totals.feeHigh || totals.feeLow) && !feeAgreed)} onClick={() => void confirmWithPasskey()}>
+                  <Button leftSection={<IconFingerprint size={16} />} loading={passkeyBusy || (starting && !checking)} disabled={running || checking || ((totals.feeHigh || totals.feeLow) && !feeAgreed)} onClick={() => void confirmWithPasskey()}>
                     Send with passkey
                   </Button>
                   {passkeyError && <ErrorLine>{passkeyError}</ErrorLine>}
@@ -1040,7 +1040,7 @@ export function Send() {
               {/* Offered once there is a contact to choose: in a new wallet it would open an empty list. */}
               {contacts.length > 0 && (
                 <UnstyledButton type="button" onClick={() => setPickFor(0)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={extras.length > 0 ? 'Choose a contact for recipient 1' : undefined}>
-                  <IconAddressBook size={16} stroke={1.8} aria-hidden />
+                  <IconAddressBook size={16} aria-hidden />
                   Choose contact
                 </UnstyledButton>
               )}
@@ -1070,7 +1070,7 @@ export function Send() {
                 inputWrapperOrder={['label', 'input', 'description', 'error']}
                 rightSectionWidth={80}
                 rightSection={
-                  <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanFor(0)} aria-label={extras.length > 0 ? "Scan recipient 1's address" : undefined}>
+                  <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} />} onClick={() => setScanFor(0)} aria-label={extras.length > 0 ? "Scan recipient 1's address" : undefined}>
                     Scan
                   </Button>
                 }
@@ -1126,7 +1126,7 @@ export function Send() {
                 <div className={contacts.length > 0 ? 'vault-field-action-wrap' : undefined}>
                   {contacts.length > 0 && (
                     <UnstyledButton type="button" onClick={() => setPickFor(x.id)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={`Choose a contact for recipient ${i + 2}`}>
-                      <IconAddressBook size={16} stroke={1.8} aria-hidden />
+                      <IconAddressBook size={16} aria-hidden />
                       Choose contact
                     </UnstyledButton>
                   )}
@@ -1155,7 +1155,7 @@ export function Send() {
                     inputWrapperOrder={['label', 'input', 'description', 'error']}
                     rightSectionWidth={80}
                     rightSection={
-                      <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} stroke={1.8} />} onClick={() => setScanFor(x.id)} aria-label={`Scan recipient ${i + 2}'s address`}>
+                      <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} />} onClick={() => setScanFor(x.id)} aria-label={`Scan recipient ${i + 2}'s address`}>
                         Scan
                       </Button>
                     }
@@ -1183,7 +1183,7 @@ export function Send() {
               <div className="vault-send-extras">
                 {1 + extras.length < MAX_PAYMENTS && (
                   <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-add-payee">
-                    <IconPlus size={16} stroke={1.8} aria-hidden />
+                    <IconPlus size={16} aria-hidden />
                     Add another recipient
                   </UnstyledButton>
                 )}
@@ -1198,7 +1198,7 @@ export function Send() {
                     fz="sm"
                     className="vault-tap-link vault-tap-link-start vault-add-payee"
                   >
-                    <IconPlus size={16} stroke={1.8} aria-hidden />
+                    <IconPlus size={16} aria-hidden />
                     Add a note
                   </UnstyledButton>
                 )}

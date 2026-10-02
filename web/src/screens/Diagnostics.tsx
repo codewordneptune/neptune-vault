@@ -78,7 +78,7 @@ export function DeviceDetails({ report = false }: { report?: boolean }) {
       <Stack>
         {report && <Text size="sm">Copy these details into your report.</Text>}
         <Group>
-          <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(details(), 'Details copied')}>
+          <Button leftSection={<IconCopy size={16} />} onClick={() => void copyText(details(), 'Details copied')}>
             Copy details
           </Button>
         </Group>

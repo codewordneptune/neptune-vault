@@ -37,7 +37,7 @@ export function PocNotice() {
       title={
         <span className="vault-poc-title">
           {POC_TITLE}
-          <IconChevronRight size={16} stroke={1.8} aria-hidden className={expanded ? 'vault-chevron open' : 'vault-chevron'} />
+          <IconChevronRight size={16} aria-hidden className={expanded ? 'vault-chevron open' : 'vault-chevron'} />
         </span>
       }
       className={expanded ? 'vault-poc' : 'vault-poc collapsed'}

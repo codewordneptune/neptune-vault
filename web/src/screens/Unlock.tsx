@@ -114,7 +114,7 @@ export function Unlock() {
             </Stack>
             {hasPasskey && (
               <>
-                <Button leftSection={<IconFingerprint size={16} stroke={1.8} />} loading={passkeyBusy} onClick={() => void unlockWithPasskey()}>
+                <Button leftSection={<IconFingerprint size={16} />} loading={passkeyBusy} onClick={() => void unlockWithPasskey()}>
                   Unlock with passkey
                 </Button>
                 {passkeyError && (

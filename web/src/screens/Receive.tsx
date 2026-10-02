@@ -77,7 +77,7 @@ function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => 
     <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-qr-code">
       <img src={src} alt={alt} />
       <span className="vault-qr-foot" aria-hidden>
-        <IconArrowsMaximize size={16} stroke={1.8} />
+        <IconArrowsMaximize size={16} />
         {/* The word for how this device is used: a tap on a phone, a click with a mouse. */}
         <span className="vault-qr-foot-touch">Tap to enlarge</span>
         <span className="vault-qr-foot-mouse">Click to enlarge</span>
@@ -555,11 +555,11 @@ export function Receive() {
                 <Group className="vault-receive-actions">
                   {/* One word, as Share is: the code above says what it copies, and
                       so does the note it leaves. A screen reader hears it whole. */}
-                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copy} disabled={!address} aria-label="Copy address" aria-describedby={cautionId}>
+                  <Button leftSection={<IconCopy size={16} />} onClick={copy} disabled={!address} aria-label="Copy address" aria-describedby={cautionId}>
                     Copy
                   </Button>
                   {canShare && (
-                    <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby={cautionId}>
+                    <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby={cautionId}>
                       Share
                     </Button>
                   )}
@@ -611,11 +611,11 @@ export function Receive() {
                 )}
                 {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
                 <Group className="vault-receive-actions">
-                  <Button leftSection={<IconCopy size={16} stroke={1.8} />} onClick={copyRequest} disabled={requestInvalid} aria-label="Copy request" aria-describedby={cautionId}>
+                  <Button leftSection={<IconCopy size={16} />} onClick={copyRequest} disabled={requestInvalid} aria-label="Copy request" aria-describedby={cautionId}>
                     Copy
                   </Button>
                   {canShare && (
-                    <Button variant="light" leftSection={<IconShare size={16} stroke={1.8} />} onClick={() => void shareRequest()} disabled={requestInvalid} aria-describedby={cautionId}>
+                    <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareRequest()} disabled={requestInvalid} aria-describedby={cautionId}>
                       Share
                     </Button>
                   )}
@@ -645,7 +645,7 @@ export function Receive() {
                     {/* The list goes when focus moves on (Tab), as a native select's does. */}
                     <button type="button" className="vault-picker" aria-label={`Address type, ${KIND_LABELS[kind]} addresses`} onClick={() => typeBox.toggleDropdown()} onBlur={() => typeBox.closeDropdown()}>
                       {KIND_LABELS[kind]} addresses
-                      <IconChevronDown size={16} stroke={1.8} aria-hidden />
+                      <IconChevronDown size={16} aria-hidden />
                     </button>
                   </Combobox.Target>
                   <Combobox.Dropdown>
@@ -656,7 +656,7 @@ export function Receive() {
                       {(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => (
                         <Combobox.Option key={k} value={k} active={k === kind} aria-selected={k === kind} className="vault-type-option">
                           <span className="vault-type-check" aria-hidden>
-                            {k === kind && <IconCheck size={16} stroke={1.8} />}
+                            {k === kind && <IconCheck size={16} />}
                           </span>
                           <span>
                             <Text span display="block" size="sm" fw={600}>
@@ -703,7 +703,7 @@ export function Receive() {
                         }}
                       >
                         <span className="vault-address-mark" aria-hidden>
-                          {current && <IconCheck size={16} stroke={1.8} />}
+                          {current && <IconCheck size={16} />}
                         </span>
                         <span className="vault-address-title">
                           <Text span display="block" size="sm" fw={current ? 600 : 400}>
@@ -745,17 +745,17 @@ export function Receive() {
                                   else moreButtons.current.delete(k);
                                 }}
                               >
-                                <IconDotsVertical size={20} stroke={1.8} />
+                                <IconDotsVertical size={20} />
                               </ActionIcon>
                             </Menu.Target>
                             <Menu.Dropdown>
                               {nameable && (
-                                <Menu.Item leftSection={<IconPencil size={16} stroke={1.8} />} onClick={() => setNaming({ kind, index: i })}>
+                                <Menu.Item leftSection={<IconPencil size={16} />} onClick={() => setNaming({ kind, index: i })}>
                                   Rename
                                 </Menu.Item>
                               )}
                               {/* Red, as Remove is in every other menu. */}
-                              <Menu.Item leftSection={<IconTrash size={16} stroke={1.8} />} c="var(--v-danger-text)" onClick={() => void removeName(kind, i)}>
+                              <Menu.Item leftSection={<IconTrash size={16} />} c="var(--v-danger-text)" onClick={() => void removeName(kind, i)}>
                                 Remove name
                               </Menu.Item>
                             </Menu.Dropdown>
@@ -768,7 +768,7 @@ export function Receive() {
                 <div className="vault-row vault-address-row">
                   <UnstyledButton ref={newRef} className="vault-address-show vault-address-new" onClick={nextUnused} disabled={!canNew}>
                     <span className="vault-address-mark" aria-hidden>
-                      <IconPlus size={16} stroke={1.8} />
+                      <IconPlus size={16} />
                     </span>
                     <span className="vault-address-title">
                       <Text span display="block" size="sm" fw={600}>

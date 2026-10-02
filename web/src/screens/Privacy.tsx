@@ -50,7 +50,7 @@ export function BackLink() {
   const navigate = useNavigate();
   return (
     <UnstyledButton onClick={() => navigate(-1)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
-      <IconChevronLeft size={16} stroke={1.8} aria-hidden />
+      <IconChevronLeft size={16} aria-hidden />
       Back
     </UnstyledButton>
   );

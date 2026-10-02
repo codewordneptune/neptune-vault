@@ -448,17 +448,17 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
         {!error && (torchAvailable || zoomRange || cameras.length > 1) && (
           <Group gap="xs" justify="center">
             {torchAvailable && (
-              <Button variant="light" size="compact-md" className="vault-tap" leftSection={torchOn ? <IconBulbOff size={16} stroke={1.8} /> : <IconBulb size={16} stroke={1.8} />} onClick={() => void toggleTorch()}>
+              <Button variant="light" size="compact-md" className="vault-tap" leftSection={torchOn ? <IconBulbOff size={16} /> : <IconBulb size={16} />} onClick={() => void toggleTorch()}>
                 {torchOn ? 'Torch off' : 'Torch on'}
               </Button>
             )}
             {zoomRange && (
-              <Button variant="light" size="compact-md" className="vault-tap" leftSection={zoomed ? <IconZoomOut size={16} stroke={1.8} /> : <IconZoomIn size={16} stroke={1.8} />} onClick={() => void toggleZoom()}>
+              <Button variant="light" size="compact-md" className="vault-tap" leftSection={zoomed ? <IconZoomOut size={16} /> : <IconZoomIn size={16} />} onClick={() => void toggleZoom()}>
                 {zoomed ? 'Zoom out' : 'Zoom in'}
               </Button>
             )}
             {cameras.length > 1 && (
-              <Button variant="light" size="compact-md" className="vault-tap" leftSection={<IconCameraRotate size={16} stroke={1.8} />} onClick={nextCamera}>
+              <Button variant="light" size="compact-md" className="vault-tap" leftSection={<IconCameraRotate size={16} />} onClick={nextCamera}>
                 Camera {at + 1} of {cameras.length}
               </Button>
             )}
@@ -479,7 +479,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
         <Button
           variant="subtle"
           className="vault-tap"
-          leftSection={<IconPhoto size={16} stroke={1.8} />}
+          leftSection={<IconPhoto size={16} />}
           loading={reading}
           onClick={() => {
             // A phone's picker may hide the page: the wallet must not lock under it.
@@ -513,7 +513,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
         {!error && readout && (
           <details className="vault-setting vault-scan-details">
             <summary>
-              <IconChevronRight size={16} stroke={1.8} className="vault-setting-chevron" aria-hidden />
+              <IconChevronRight size={16} className="vault-setting-chevron" aria-hidden />
               Camera details
             </summary>
             <Text size="xs" c="dimmed" className="vault-scan-status" aria-live="off" mt={8}>

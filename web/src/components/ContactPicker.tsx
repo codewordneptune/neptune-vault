@@ -49,7 +49,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
         <Button
           variant="subtle"
           mt="sm"
-          leftSection={<IconAddressBook size={16} stroke={1.8} />}
+          leftSection={<IconAddressBook size={16} />}
           onClick={() => {
             onClose();
             navigate('/settings/contacts', { state: { from: 'send' } });

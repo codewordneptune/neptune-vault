@@ -137,7 +137,7 @@ function LinkRow({ to, href, children }: { to?: string; href?: string; children:
   return to ? (
     <Link to={to} className="vault-settings-row">
       {label}
-      <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
+      <IconChevronRight size={16} aria-hidden className="vault-settings-row-chevron" />
     </Link>
   ) : (
     <a href={href} target="_blank" rel="noreferrer" className="vault-settings-row">
@@ -146,7 +146,7 @@ function LinkRow({ to, href, children }: { to?: string; href?: string; children:
           what tells a real site from a look-alike. */}
       <span className="vault-link-address">
         <span className="vault-settings-row-value">{shownAddress(href ?? '')}</span>
-        <IconExternalLink size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
+        <IconExternalLink size={16} aria-hidden className="vault-settings-row-chevron" />
       </span>
       <span className="sr-only"> (opens outside the app)</span>
     </a>
@@ -218,18 +218,18 @@ export function Settings() {
     <Stack gap="md" className="vault-settings-page">
       {cameFrom ? (
         <UnstyledButton onClick={() => navigate(-1)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
-          <IconChevronLeft size={16} stroke={1.8} aria-hidden />
+          <IconChevronLeft size={16} aria-hidden />
           {cameFrom}
         </UnstyledButton>
       ) : parent ? (
         <UnstyledButton component={Link} to={`/settings/${parent}`} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
-          <IconChevronLeft size={16} stroke={1.8} aria-hidden />
+          <IconChevronLeft size={16} aria-hidden />
           {SECTION_TITLES[parent]}
         </UnstyledButton>
       ) : (
         !wide && (
           <UnstyledButton component={Link} to="/settings" c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
-            <IconChevronLeft size={16} stroke={1.8} aria-hidden />
+            <IconChevronLeft size={16} aria-hidden />
             Settings
           </UnstyledButton>
         )
@@ -285,7 +285,7 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
           <bdi>{titleOf(key, account)}</bdi>
         </span>
         <span className={`vault-settings-row-value${tone === 'warn' ? ' warn' : ''}`}>{value}</span>
-        <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
+        <IconChevronRight size={16} aria-hidden className="vault-settings-row-chevron" />
       </Link>
     );
   };
@@ -582,7 +582,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
                   <WordGrid words={phrase} />
                   {/* The button, then what copying means, beneath it, as on the setup step. */}
                   <Stack gap={4} align="flex-start">
-                    <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} stroke={1.8} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+                    <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
                       Copy words
                     </Button>
                     <Text size="sm" c="dimmed">
@@ -605,7 +605,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               <Text size="sm" c="dimmed">
                 {lastBackup ? `Saved ${lastBackup}.` : 'None saved yet.'} Also brings back contacts and address names.
               </Text>
-              <Button variant="light" leftSection={<IconDownload size={16} stroke={1.8} />} onClick={askExport} disabled={!account} aria-label="Export backup file">
+              <Button variant="light" leftSection={<IconDownload size={16} />} onClick={askExport} disabled={!account} aria-label="Export backup file">
                 Export
               </Button>
               {message &&
@@ -992,7 +992,7 @@ function ConfirmSendsOff({ onClose }: { onClose: () => void }) {
       <Stack gap="sm" pl={32} pt="xs">
         {hasPasskey && (
           <>
-            <Button leftSection={<IconFingerprint size={16} stroke={1.8} />} loading={passkeyBusy} onClick={() => void withPasskey()}>
+            <Button leftSection={<IconFingerprint size={16} />} loading={passkeyBusy} onClick={() => void withPasskey()}>
               Turn off with passkey
             </Button>
             {passkeyError && (
