@@ -52,6 +52,9 @@
   --v-accent-soft: rgba(58, 139, 243, 0.12);
   /* A row held down: muted text keeps 5.2:1 on it. */
   --v-row-press: rgba(58, 139, 243, 0.2);
+  /* History's tiles: money in green, money out a quiet fill. */
+  --v-tile-in: rgba(63, 185, 80, 0.16);
+  --v-tile-out: var(--v-surface-2);
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
   --v-danger-text: #ff8a80;
@@ -133,6 +136,10 @@
   --v-accent-soft: rgba(43, 125, 233, 0.1);
   /* A row held down: muted text keeps 4.5:1 on it, so no stronger. */
   --v-row-press: rgba(43, 125, 233, 0.16);
+  /* History's tiles, a step stronger than the dark palette's to stay as far
+     apart: the send tile is see-through, so it shows on a row's tint too. */
+  --v-tile-in: rgba(63, 185, 80, 0.24);
+  --v-tile-out: rgba(51, 78, 110, 0.13);
   --v-ok-text: #1a7a31;
   --v-warn-text: #8a5a00;
   --v-danger-text: #c62828;
@@ -656,11 +663,11 @@ button.vault-picker {
   place-items: center;
   flex-shrink: 0;
   /* Money in: the tile agrees with the green amount beside it. */
-  background: rgba(63, 185, 80, 0.16);
+  background: var(--v-tile-in);
   color: var(--v-ok-text);
 }
 .vault-row-icon.out {
-  background: var(--v-surface-2);
+  background: var(--v-tile-out);
   color: var(--v-text-2);
 }
 
