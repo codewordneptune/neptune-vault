@@ -1,7 +1,7 @@
 // Pick a saved recipient for the Send screen.
 
 import { Button, Modal, Stack, Text, UnstyledButton } from '@mantine/core';
-import { IconAddressBook } from '@tabler/icons-react';
+import { IconUsers } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -49,7 +49,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
         <Button
           variant="subtle"
           mt="sm"
-          leftSection={<IconAddressBook size={16} />}
+          leftSection={<IconUsers size={16} />}
           onClick={() => {
             onClose();
             navigate('/settings/contacts', { state: { from: 'send' } });

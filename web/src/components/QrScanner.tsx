@@ -23,7 +23,7 @@
 // which of these a given phone grants to a web page only that phone can tell.
 
 import { Button, Group, Modal, Stack, Text } from '@mantine/core';
-import { IconBulb, IconBulbOff, IconCameraRotate, IconChevronRight, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
+import { IconBolt, IconBoltOff, IconCameraRotate, IconChevronRight, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
@@ -448,7 +448,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
         {!error && (torchAvailable || zoomRange || cameras.length > 1) && (
           <Group gap="xs" justify="center">
             {torchAvailable && (
-              <Button variant="light" size="compact-md" className="vault-tap" leftSection={torchOn ? <IconBulbOff size={16} /> : <IconBulb size={16} />} onClick={() => void toggleTorch()}>
+              <Button variant="light" size="compact-md" className="vault-tap" leftSection={torchOn ? <IconBoltOff size={16} /> : <IconBolt size={16} />} onClick={() => void toggleTorch()}>
                 {torchOn ? 'Torch off' : 'Torch on'}
               </Button>
             )}

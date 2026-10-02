@@ -5,7 +5,7 @@
 
 import { Badge, Button, Checkbox, Divider, Group, Loader, Modal, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
-import { IconAddressBook, IconFingerprint, IconLink, IconPlus, IconScan } from '@tabler/icons-react';
+import { IconFingerprint, IconLink, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -133,7 +133,7 @@ export function Send() {
     const name = wanted ? contacts.find((c) => c.address === wanted)?.name : undefined;
     return name ? (
       <span className="vault-contact-match">
-        <IconAddressBook size={16} aria-hidden />
+        <IconUsers size={16} aria-hidden />
         <span>
           Saved contact: <b dir="auto" className="vault-bidi">{name}</b>
         </span>
@@ -1040,7 +1040,7 @@ export function Send() {
               {/* Offered once there is a contact to choose: in a new wallet it would open an empty list. */}
               {contacts.length > 0 && (
                 <UnstyledButton type="button" onClick={() => setPickFor(0)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={extras.length > 0 ? 'Choose a contact for recipient 1' : undefined}>
-                  <IconAddressBook size={16} aria-hidden />
+                  <IconUsers size={16} aria-hidden />
                   Choose contact
                 </UnstyledButton>
               )}
@@ -1126,7 +1126,7 @@ export function Send() {
                 <div className={contacts.length > 0 ? 'vault-field-action-wrap' : undefined}>
                   {contacts.length > 0 && (
                     <UnstyledButton type="button" onClick={() => setPickFor(x.id)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={`Choose a contact for recipient ${i + 2}`}>
-                      <IconAddressBook size={16} aria-hidden />
+                      <IconUsers size={16} aria-hidden />
                       Choose contact
                     </UnstyledButton>
                   )}
