@@ -5,7 +5,27 @@
 // removal.
 
 import { Anchor, Button, Checkbox, Divider, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
-import { IconChevronLeft, IconChevronRight, IconCopy, IconDownload, IconExternalLink, IconFingerprint } from '@tabler/icons-react';
+import {
+  IconAdjustmentsHorizontal,
+  IconChevronLeft,
+  IconChevronRight,
+  IconCircleHalf2,
+  IconCoin,
+  IconCopy,
+  IconDownload,
+  IconExternalLink,
+  IconFingerprint,
+  IconInfoCircle,
+  IconKey,
+  IconLock,
+  IconMoon,
+  IconPencil,
+  IconShield,
+  IconSun,
+  IconTrash,
+  IconUsers,
+  type TablerIcon,
+} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
@@ -63,6 +83,18 @@ const SECTION_TITLES: Record<SectionKey, string> = {
   diagnostics: 'Diagnostics',
   report: 'Report a problem',
   privacy: 'Privacy statement',
+};
+const SECTION_ICONS: Partial<Record<SectionKey, TablerIcon>> = {
+  backup: IconKey,
+  security: IconShield,
+  contacts: IconUsers,
+  name: IconPencil,
+  autolock: IconLock,
+  appearance: IconCircleHalf2,
+  currency: IconCoin,
+  advanced: IconAdjustmentsHorizontal,
+  about: IconInfoCircle,
+  remove: IconTrash,
 };
 // Pages reached from another page rather than from the list: their way
 // back is to that page, and on a wide window the list beside them marks it.
@@ -244,15 +276,19 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
   // Every value is a current state: the node in use, not what the page holds.
   const nodeUrl = services.settings.nodeUrls[services.settings.network] ?? '';
   const node = !nodeUrl || nodeUrl === DEFAULT_NODE_URLS[services.settings.network] ? 'Default node' : nodeHost(nodeUrl);
-  const row = (key: SectionKey, value: string, tone?: 'warn' | 'danger') => (
-    <Link key={key} to={`/settings/${key}`} className={`vault-settings-row${current === key ? ' current' : ''}${tone === 'danger' ? ' danger' : ''}`} aria-current={current === key ? 'page' : undefined}>
-      <span className="vault-settings-row-label">
-        <bdi>{titleOf(key, account)}</bdi>
-      </span>
-      <span className={`vault-settings-row-value${tone === 'warn' ? ' warn' : ''}`}>{value}</span>
-      <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
-    </Link>
-  );
+  const row = (key: SectionKey, value: string, tone?: 'warn' | 'danger') => {
+    const Icon = SECTION_ICONS[key];
+    return (
+      <Link key={key} to={`/settings/${key}`} className={`vault-settings-row${current === key ? ' current' : ''}${tone === 'danger' ? ' danger' : ''}`} aria-current={current === key ? 'page' : undefined}>
+        {Icon && <Icon size={22} aria-hidden className="vault-settings-row-icon" />}
+        <span className="vault-settings-row-label">
+          <bdi>{titleOf(key, account)}</bdi>
+        </span>
+        <span className={`vault-settings-row-value${tone === 'warn' ? ' warn' : ''}`}>{value}</span>
+        <IconChevronRight size={16} stroke={1.8} aria-hidden className="vault-settings-row-chevron" />
+      </Link>
+    );
+  };
   return (
     <nav aria-label="Settings" className="vault-settings-list">
       {/* A named group, not a heading: the page's own title stays its first heading. */}
@@ -1136,12 +1172,21 @@ function AppearanceCard() {
         value={colorScheme}
         onChange={(v) => setColorScheme(v as 'auto' | 'light' | 'dark')}
         data={[
-          { value: 'auto', label: 'System' },
-          { value: 'light', label: 'Light' },
-          { value: 'dark', label: 'Dark' },
+          { value: 'auto', label: <SegmentLabel Icon={IconCircleHalf2}>System</SegmentLabel> },
+          { value: 'light', label: <SegmentLabel Icon={IconSun}>Light</SegmentLabel> },
+          { value: 'dark', label: <SegmentLabel Icon={IconMoon}>Dark</SegmentLabel> },
         ]}
       />
     </Stack>
+  );
+}
+
+function SegmentLabel({ Icon, children }: { Icon: TablerIcon; children: ReactNode }) {
+  return (
+    <span className="vault-segment-label">
+      <Icon size={16} aria-hidden />
+      {children}
+    </span>
   );
 }
 

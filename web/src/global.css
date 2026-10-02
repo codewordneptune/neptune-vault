@@ -329,6 +329,11 @@ h3.mantine-Title-root.vault-prose-heading {
   color: var(--v-text);
   font-weight: 600;
 }
+.vault-segment-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
 .mantine-Code-root {
   background: var(--v-well);
@@ -1817,6 +1822,13 @@ html {
   font-weight: 600;
 }
 .vault-settings-row.danger .vault-settings-row-label {
+  color: var(--v-danger-text);
+}
+.vault-settings-row-icon {
+  flex: none;
+  color: var(--v-text-2);
+}
+.vault-settings-row.danger .vault-settings-row-icon {
   color: var(--v-danger-text);
 }
 .vault-settings-row-value {
