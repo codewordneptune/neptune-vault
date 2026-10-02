@@ -50,6 +50,8 @@
   --v-default-button-ring: none;
   --v-segment-ring: none;
   --v-accent-soft: rgba(58, 139, 243, 0.12);
+  /* A row held down: muted text keeps 5.2:1 on it. */
+  --v-row-press: rgba(58, 139, 243, 0.2);
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
   --v-danger-text: #ff8a80;
@@ -129,6 +131,8 @@
   --v-default-button-ring: inset 0 0 0 1px rgba(21, 32, 46, 0.1);
   --v-segment-ring: inset 0 0 0 1px rgba(21, 32, 46, 0.06);
   --v-accent-soft: rgba(43, 125, 233, 0.1);
+  /* A row held down: muted text keeps 4.5:1 on it, so no stronger. */
+  --v-row-press: rgba(43, 125, 233, 0.16);
   --v-ok-text: #1a7a31;
   --v-warn-text: #8a5a00;
   --v-danger-text: #c62828;
@@ -764,9 +768,15 @@ main h2[tabindex='-1']:focus {
   padding-top: 12px;
   margin-top: -12px;
 }
-.vault-pick:hover,
-.vault-row-button:hover {
-  background: var(--v-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .vault-pick:hover,
+  .vault-row-button:hover {
+    background: var(--v-accent-soft);
+  }
+}
+.vault-pick:active,
+.vault-row-button:active {
+  background: var(--v-row-press);
 }
 /* "Your addresses" rows: a button showing the address, widened on its
    start side for the hover fill like a picker row, and the row's menu
@@ -1784,7 +1794,10 @@ html {
 }
 @media (hover: hover) and (pointer: fine) {
   .vault-settings-row:hover {
-    background: var(--v-surface-2);
+    background: var(--v-accent-soft);
+  }
+  .vault-settings-row.danger:hover {
+    background: var(--v-danger-hover);
   }
 }
 .vault-settings-row-label {
@@ -1837,8 +1850,14 @@ html {
 /* The page open beside the list: its row is marked by a bar as well as a
    fill, so it does not rest on colour alone. */
 .vault-settings-row.current {
-  background: var(--v-surface-2);
+  background: var(--v-accent-soft);
   box-shadow: inset 3px 0 0 var(--v-accent);
+}
+.vault-settings-row:active {
+  background: var(--v-row-press);
+}
+.vault-settings-row.danger:active {
+  background: var(--v-danger-hover-strong);
 }
 /* Wide windows: the list and the open page side by side. The list stays
    in view while a long page scrolls, below the sticky header. */
