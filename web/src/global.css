@@ -802,8 +802,13 @@ main h2[tabindex='-1']:focus {
   text-align: left;
   border-radius: var(--v-radius-xs);
 }
-.vault-address-show:hover:not(:disabled) {
-  background: var(--v-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .vault-address-show:hover:not(:disabled) {
+    background: var(--v-accent-soft);
+  }
+}
+.vault-address-show:active:not(:disabled) {
+  background: var(--v-row-press);
 }
 .vault-address-mark {
   flex: none;
