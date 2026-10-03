@@ -53,10 +53,16 @@ export function fiatOf(nau: bigint, nauPerCoin: bigint, price: number): number {
  * rather than showing nothing.
  */
 export function formatFiat(value: number, currency: FiatCurrency): string {
+  const { figure, code } = fiatParts(value, currency);
+  return `${figure} ${code}`;
+}
+
+/** The same in its two parts, for a line that sets the code apart from the figure. */
+export function fiatParts(value: number, currency: FiatCurrency): { figure: string; code: string } {
   const code = currency.toUpperCase();
   const decimals = new Intl.NumberFormat('en-GB', { style: 'currency', currency: code }).resolvedOptions().maximumFractionDigits ?? 2;
   const number = new Intl.NumberFormat('en-GB', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   const smallest = 10 ** -decimals;
   const text = value > 0 && value < smallest ? `< ${number.format(smallest)}` : number.format(value);
-  return `${text.replace(/,/g, NARROW_SPACE)} ${code}`;
+  return { figure: text.replace(/,/g, NARROW_SPACE), code };
 }

@@ -12,7 +12,7 @@ import { MEMPOOL_KEEPS_MS, SEND_LIFETIME_MS } from '../app/send';
 import { usePendingSends } from '../app/pending';
 import { speakNau } from '../components/Amount';
 import { useQuote } from '../app/price';
-import { fiatOf, formatFiat } from '../util/fiat';
+import { fiatOf, fiatParts } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
 import type { AccountRecord, ContactRecord, HistoryRecord } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
@@ -88,6 +88,7 @@ export function Home() {
   // What the pending sends do to the balance, as every screen counts it: gone,
   // with their change on hold until they confirm (app/pending.ts).
   const { sends: pendingSends, ready: ownReady, isOwn, toSelf, balanceNau: headlineNau, onHoldNau } = usePendingSends();
+  const fiat = quote ? fiatParts(fiatOf(headlineNau, NAU_PER_COIN, quote.price), quote.currency) : null;
 
   // One entry per transaction, with the recipient named when it is a contact.
   const entries = groupHistory(history, utxos).map((e) =>
@@ -468,9 +469,11 @@ export function Home() {
               <span className="sr-only">{loaded && ownReady ? `Balance ${spoken(headlineNau)} NPT` : 'Balance loading'}</span>
             </div>
             {/* An estimate, and said to be one: where the price is from, and how old it is. */}
-            {loaded && ownReady && quote && (
+            {loaded && ownReady && quote && fiat && (
               <div className="vault-balance-fiat">
-                <span className="vault-balance-fiat-value">≈ {hidden ? '••••' : formatFiat(fiatOf(headlineNau, NAU_PER_COIN, quote.price), quote.currency)}</span>
+                <span className="vault-balance-fiat-value">
+                  ≈ {hidden ? '••••' : <>{fiat.figure} <span className="vault-unit">{fiat.code}</span></>}
+                </span>
                 <span className="vault-balance-fiat-source">
                   {quote.source} · {ago(quote.at)}
                 </span>
@@ -480,23 +483,25 @@ export function Home() {
             {incomingNau > 0n && (
               <Group gap={6} wrap="nowrap">
                 <IconArrowDownLeft size={16} className="vault-balance-note-in" aria-hidden />
-                <Text size="sm">{amount(incomingNau)} NPT pending</Text>
+                <Text size="sm" c="dimmed">
+                  <span className="vault-figure">{amount(incomingNau)}</span> NPT pending
+                </Text>
               </Group>
             )}
             {/* The same line as Send's, and the two figures add up to the balance above. */}
             {loaded && ownReady && onHoldNau > 0n && (
               <Group gap={6} wrap="nowrap" align="flex-start">
                 <IconHourglass size={16} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
-                <Text size="sm">
-                  Spendable {amount(balance.spendableNau)} NPT · {amount(onHoldNau)} NPT on hold
+                <Text size="sm" c="dimmed">
+                  Spendable <span className="vault-figure">{amount(balance.spendableNau)}</span> NPT · <span className="vault-figure">{amount(onHoldNau)}</span> NPT on hold
                 </Text>
               </Group>
             )}
             {balance.lockedNau > 0n && (
               <Group gap={6} wrap="nowrap">
                 <IconClockPause size={16} className="vault-balance-note-held" aria-hidden />
-                <Text size="sm">
-                  {amount(balance.lockedNau)} NPT {balance.nextReleaseMs ? `spendable from ${showDate(balance.nextReleaseMs)}` : 'not spendable yet'}
+                <Text size="sm" c="dimmed">
+                  <span className="vault-figure">{amount(balance.lockedNau)}</span> NPT {balance.nextReleaseMs ? `spendable from ${showDate(balance.nextReleaseMs)}` : 'not spendable yet'}
                 </Text>
               </Group>
             )}
@@ -676,7 +681,7 @@ export function Home() {
                           <Text size="sm" fw={600} c={notSent(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
                             {notSent(e) ? '' : incoming ? '+' : '−'}
                             {amount(e.shownNau)}{' '}
-                            <span className="vault-row-unit">NPT</span>
+                            <span className="vault-unit">NPT</span>
                           </Text>
                         </div>
                       </UnstyledButton>

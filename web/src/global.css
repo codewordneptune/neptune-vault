@@ -1216,10 +1216,19 @@ html {
   text-align: right;
 }
 
-/* The unit after a history amount, quieter than the figure, as beside the balance. */
-.vault-row-unit {
+/* Where an amount is shown as a value (History's rows, the estimate under
+   the balance), its unit is quieter than the figure, as beside the
+   balance; inside a sentence it is plain text. */
+.vault-row-amount .vault-unit,
+.vault-balance-fiat-value .vault-unit {
   font-weight: 400;
   color: var(--v-muted);
+}
+
+/* The readings under the balance are grey, words and units alike; their
+   figures keep the text colour. */
+.vault-figure {
+  color: var(--v-text);
 }
 
 /* One link style, in the accent text colour (7.7:1 on the dark card, 6.0:1
