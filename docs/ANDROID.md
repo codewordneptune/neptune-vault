@@ -20,14 +20,16 @@ A high-trust app that needs no personal registration with Google:
 ## Where it stands
 
 - **Test builds.** `.github/workflows/android-test.yml` builds an arm64 APK
-  on each push to `cwn/android`, or by hand from the Actions tab for any
-  branch, signed with a key made for that run and thrown away. A newer test
-  build installs only after the older one is uninstalled, which deletes that
-  app's wallet data.
+  when run by hand from the Actions tab, on `main` or a branch made from
+  it. It also runs on a push to `cwn/android`, which was merged into `main`
+  on 2026-10-01 and has not moved since. Each APK is signed with a key made
+  for that run and thrown away, and is kept on the run's page for 14 days.
+  A newer test build installs only after the older one is uninstalled,
+  which deletes that app's wallet data.
 - **The app's own parts of the Android project.** The workflow generates the
   project on each run, then adds the camera permission for the QR scanner
   and the launcher icon from `shells/tauri/icons/android` (the web app's
-  icon, as an adaptive icon).
+  icon, as an adaptive icon). Everything else is Tauri's default.
 - **Android's own screens.** Android asks for the camera on a screen over
   the app, which pauses it and hides the page. The wallet waits for the
   answer instead of locking, as it does for a file picker.
@@ -36,38 +38,46 @@ A high-trust app that needs no personal registration with Google:
   several apps take such links, Android asks which one). Send is filled in
   from it as from a scanned code, after the password if the wallet is
   locked, and nothing goes out without the review.
-- **Measured** on a Galaxy S24 (Exynos 2400, 10 cores), 2026-10-01: with
-  Triton VM 8, a Mainnet send proved in 19 s (peak 1,825 MB), against about
-  2 min 14 s in the web app on the same phone in September. Native code
-  multiplies the prover's 64-bit numbers in one or two instructions where
-  WebAssembly takes several. With Triton VM 9 (the Neptune crates 0.19),
-  sends proved in 16 to 23 s at about 1 GB (976 MB): the app now computes a
-  large table again when it needs it, as the web app does, instead of
-  keeping it in memory. The first Triton VM 9 build kept it, and the app
-  disappeared mid-send; the cause is not known yet. Diagnostics shows the
-  time and the app's peak memory of the last proof.
+- **Measured** on a Galaxy S24 (Exynos 2400, 10 cores), 2026-10-01:
+  - Mainnet sends from the app took 16, 23 and 17 s with Triton VM 9 (the
+    Neptune crates 0.19), at a 976 MB peak on the first. The app computes
+    a large table again when it needs it, as the web app does.
+  - With Triton VM 8, which kept that table in memory, a send took 19 s at
+    a 1,825 MB peak. The first Triton VM 9 build kept it too, and the app
+    disappeared mid-send; the cause is not known yet.
+  - The benchmark page in Chrome on the same phone took 97 s (Triton VM 9)
+    and 151 s (Triton VM 8). Native code multiplies the prover's 64-bit
+    numbers in one or two instructions where WebAssembly takes several.
+  - Diagnostics shows the time and the app's peak memory of the last proof.
 
 ## Before a first release, in this order
 
 1. **Measure a send** on the phone. If native proving is not clearly faster,
-   stop here: the web app is the Android app. Done: 19 s against about
-   2 min 14 s, so the plan goes on.
-2. **Fix what the test build lacks:**
+   stop here: the web app is the Android app. Done: 16 to 23 s against 97 s
+   in Chrome on the same phone, so the plan goes on.
+2. **Fix what the test build lacks** (not done yet):
    - Backup export. The shell writes the file to the path the save dialog
      returns, and on Android that is a content URI, not a path. Write through
      the Android file plugin instead. The save dialog is one of Android's
      own screens too, so the wallet must wait for it without locking.
-   - Keep the screen on while a send is proved, from the native side.
-3. **Fingerprint unlock** in place of passkey unlock, which the Android web
-   view cannot offer (see below).
+   - Keep the screen on from the native side while a send is proved or a
+     long scan or restore runs, as the web app asks the browser to
+     (`web/src/app/wakeLock.ts`). Today the app asks only the web view.
+   - Android's own backup. The generated project leaves
+     `android:allowBackup` at its default, so Android may copy the app's
+     data (the encrypted seed phrase and the wallet's sealed logs included)
+     to the person's Google account, and to a new phone. Turn it off, or
+     limit it with backup rules, in the manifest the workflow patches.
+3. **Fingerprint unlock** (not done yet), in place of passkey unlock, which
+   the Android web view cannot offer (see below).
 4. **Release pipeline and key** (see below).
 
-## Fingerprint unlock
+## Fingerprint unlock (planned)
 
-Passkeys need WebAuthn and a website that vouches for the app; the web view
-the app runs in has neither, so Settings says passkey unlock is not
-available. The app instead uses Android's own key storage, the way native
-wallet apps do:
+Not built yet. Passkeys need WebAuthn and a website that vouches for the
+app; the web view the app runs in has neither, so Settings says passkey
+unlock is not available. The plan is to use Android's own key storage, the
+way native wallet apps do:
 
 - Turning it on (after the password): a key is made in the Android Keystore
   that only a fingerprint or face (BiometricPrompt) can use, and never
@@ -80,32 +90,45 @@ wallet apps do:
   password is asked again. The password always works, and the key is never
   in a backup file.
 - It needs a small native plugin (Kotlin) with three commands (turn on,
-  unlock, turn off), and Security shows "Fingerprint unlock" on Android.
+  unlock, turn off), and Security will show "Fingerprint unlock" on
+  Android.
 
 No website, no Google account and nothing synced is involved.
 
-## Releases
+## Releases (planned)
+
+Not built yet; today there are only test builds. The plan:
 
 - **The key.** The maintainer makes the release signing key on their own
   machine and keeps it offline, with at least two backups. It never goes
   into GitHub. Losing it means installed apps can never be updated again.
-- **Building and signing.** A tagged run builds an unsigned APK, its SHA-256
-  and a GitHub build attestation tying it to the commit and workflow. The
-  maintainer checks the attestation, signs the APK on their own machine,
-  and attaches it to the release.
-- **Checking an APK.** The key's certificate fingerprint is published in the
-  README, on the website and in every release. Reproducible builds, so that
-  anyone can rebuild an APK and compare, come later.
+- **Building and signing.** A tagged run will build an unsigned APK, its
+  SHA-256 and a GitHub build attestation tying it to the commit and
+  workflow. The maintainer checks the attestation, signs the APK on their
+  own machine, and attaches it to the release.
+- **Checking an APK.** The key's certificate fingerprint will be published
+  in the README, on the website and in every release. Reproducible builds,
+  so that anyone can rebuild an APK and compare, come later.
 - **Distribution.** GitHub Releases, with Obtainium for updates.
 
 ## Google's developer verification
 
-From 30 September 2026 in Brazil, Indonesia, Singapore and Thailand, and
-worldwide in 2027, phones with Google's services install apps normally only
-from developers verified with Google. Without registration, people can still
-install the app over ADB, or through Google's "advanced flow": a setting in
-Developer options, a restart and a one-time 24-hour wait, then "Install
-anyway" on every install and update. Phones without Google's certification,
-such as GrapheneOS, are not affected. Registering an organization rather
-than a person is the fallback, if that proves too much for the people using
-the app; the key stays with the maintainer either way.
+Since 30 September 2026 in Brazil, Indonesia, Singapore and Thailand, and
+worldwide from 2027, certified Android phones (those with Google's
+services) install apps normally only from developers verified with Google.
+Without registration, people can still install the app over ADB, or
+through Google's "advanced flow": a setting in Developer options, a
+restart, a one-time wait of one day and a confirmation with the phone's
+fingerprint, face or PIN; after that each install shows a warning with
+"Install anyway". Phones without Google's certification, such as
+GrapheneOS, are not affected.
+
+Google also offers limited distribution accounts, which share an app with
+up to 20 devices without an ID or a fee; that could cover test builds.
+Registering an organization rather than a person is the fallback, if the
+advanced flow proves too much for the people using the app; the key stays
+with the maintainer either way.
+
+Google's terms as checked on 2026-10-03:
+[the requirement](https://android-developers.googleblog.com/2026/06/android-developer-verification.html)
+and [the advanced flow](https://android-developers.googleblog.com/2026/03/android-developer-verification.html).
