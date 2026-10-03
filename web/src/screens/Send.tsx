@@ -1194,6 +1194,7 @@ export function Send() {
                 autoComplete="off"
                 spellCheck={false}
                 placeholder="Address or request"
+                classNames={{ input: 'vault-address-input' }}
                 value={recipient}
                 onFocus={() => enterField(0)}
                 onChange={(e) => {
@@ -1281,6 +1282,7 @@ export function Send() {
                     autoComplete="off"
                     spellCheck={false}
                     placeholder="Address or request"
+                    classNames={{ input: 'vault-address-input' }}
                     value={x.recipient}
                     ref={(el) => {
                       if (el && focusExtra.current === x.id) {

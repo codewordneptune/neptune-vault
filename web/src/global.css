@@ -2189,6 +2189,16 @@ html {
   word-break: break-all;
 }
 
+/* An address being typed or pasted, in the face every address is shown in.
+   At the field's 16 px: below that, an iPhone zooms in on a field it
+   focuses. The prompt in an empty field stays in the text face. */
+.vault-address-input {
+  font-family: var(--mantine-font-family-monospace);
+}
+.vault-address-input::placeholder {
+  font-family: var(--mantine-font-family);
+}
+
 /* History by day: a heading says the day once, the rows under it keep only
    their time. Sentence case and the text colour, so it reads as a day and
    not as another card title. */

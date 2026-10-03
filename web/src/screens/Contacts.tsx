@@ -325,6 +325,7 @@ export function ContactForm({
           ) : (
             <TextInput
               label="Address"
+              classNames={{ input: 'vault-address-input' }}
               autoCapitalize="none"
               autoCorrect="off"
               autoComplete="off"
