@@ -1206,6 +1206,22 @@ html {
   color: var(--v-ok-text);
 }
 
+/* A history amount takes what it needs, up to half the row: past that
+   (a long figure, large text) its unit goes under it, and the name keeps
+   the rest. */
+.vault-row-amount {
+  flex-shrink: 0;
+  max-width: 50%;
+  min-width: min-content;
+  text-align: right;
+}
+
+/* The unit after a history amount, quieter than the figure, as beside the balance. */
+.vault-row-unit {
+  font-weight: 400;
+  color: var(--v-muted);
+}
+
 /* One link style, in the accent text colour (7.7:1 on the dark card, 6.0:1
    on the light). Inside a sentence a link is always underlined, since its
    blue differs from the text around it by hue more than by lightness (1.4:1

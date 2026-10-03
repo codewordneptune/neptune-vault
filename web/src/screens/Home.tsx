@@ -671,11 +671,12 @@ export function Home() {
                             </Text>
                           </div>
                         </Group>
-                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div className="vault-row-amount">
                           {/* Nothing left the wallet: the figure is struck through, with no sign. */}
                           <Text size="sm" fw={600} c={notSent(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
                             {notSent(e) ? '' : incoming ? '+' : '−'}
-                            {amount(e.shownNau)}
+                            {amount(e.shownNau)}{' '}
+                            <span className="vault-row-unit">NPT</span>
                           </Text>
                         </div>
                       </UnstyledButton>
