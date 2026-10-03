@@ -183,7 +183,7 @@ export function Send() {
       <span className="vault-contact-match">
         <IconLink size={16} aria-hidden />
         <span>
-          Named in the request: <b dir="auto" className="vault-bidi">{requestName}</b> (not verified)
+          Name, unverified: <b dir="auto" className="vault-bidi">{requestName}</b>
         </span>
       </span>
     ) : undefined);
@@ -819,11 +819,10 @@ export function Send() {
                   {/* One name per recipient: the saved contact's, or else the request's, said to be unverified. */}
                   {!reviewName && linkMeta?.label && (
                     <Text size="sm" c="dimmed" mt={2}>
-                      Named in the request:{' '}
+                      Name, unverified:{' '}
                       <Text span inherit c="var(--v-text)" fw={600} dir="auto" className="vault-bidi">
                         {linkMeta.label}
-                      </Text>{' '}
-                      (not verified)
+                      </Text>
                     </Text>
                   )}
                   {/* A kind other than Standard, in plain words. */}
