@@ -233,6 +233,17 @@ h3.mantine-Title-root.vault-prose-heading {
 .mantine-Button-root[data-variant='subtle'] {
   color: var(--v-accent-text);
 }
+/* Text and icon buttons take the rows' tints, under a mouse and while pressed. */
+@media (hover: hover) and (pointer: fine) {
+  .mantine-Button-root[data-variant='subtle']:hover:not(:disabled):not([data-disabled]),
+  .mantine-ActionIcon-root[data-variant='subtle']:hover:not(:disabled):not([data-disabled]) {
+    background: var(--v-accent-soft);
+  }
+}
+.mantine-Button-root[data-variant='subtle']:active:not(:disabled):not([data-disabled]),
+.mantine-ActionIcon-root[data-variant='subtle']:active:not(:disabled):not([data-disabled]) {
+  background: var(--v-row-press);
+}
 /* Disabled, whatever the variant: one quiet look that stands off the card.
    Mantine 9 keeps data-variant on a disabled button, so this comes after
    the variants and names the attribute, to win over each of them; a
