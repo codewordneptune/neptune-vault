@@ -1,10 +1,11 @@
 // Pick a saved recipient for the Send screen.
 
-import { Button, Modal, Stack, Text, UnstyledButton } from '@mantine/core';
+import { Button, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconUsers } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Sheet } from './Sheet';
 import { useApp } from '../app/AppContext';
 import type { ContactRecord } from '../storage/db';
 import { abbreviateAddress, addressKindNote } from '../util/address';
@@ -21,7 +22,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
   }, [opened, services, account]);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Contacts">
+    <Sheet opened={opened} onClose={onClose} title="Contacts">
       <Stack gap={0}>
         {contacts && contacts.length === 0 && (
           <Text size="sm" c="dimmed">
@@ -52,12 +53,13 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
           leftSection={<IconUsers size={16} />}
           onClick={() => {
             onClose();
-            navigate('/settings/contacts', { state: { from: 'send' } });
+            // In place of the sheet's own history entry, so Back from Contacts returns to Send.
+            navigate('/settings/contacts', { replace: true, state: { from: 'send' } });
           }}
         >
           Manage contacts
         </Button>
       </Stack>
-    </Modal>
+    </Sheet>
   );
 }

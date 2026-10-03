@@ -3,10 +3,11 @@
 // the mark in the header, which opens the same text (the tag): a row on
 // Home every day was more than it needs, and dropping it was not honest.
 
-import { Button, Group, Modal, Stack, Text } from '@mantine/core';
+import { Button, Group, Stack, Text } from '@mantine/core';
 import { IconChevronRight } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
+import { Sheet } from './Sheet';
 import { Caution } from './Notice';
 
 const SEEN_KEY = 'neptune-vault.poc-notice-seen';
@@ -66,7 +67,7 @@ export function PocTag() {
       <button type="button" className="vault-beta" aria-haspopup="dialog" aria-label={`Beta: ${POC_TITLE}`} onClick={() => setOpen(true)}>
         <span aria-hidden>Beta</span>
       </button>
-      <Modal opened={open} onClose={() => setOpen(false)} title={POC_TITLE}>
+      <Sheet opened={open} onClose={() => setOpen(false)} title={POC_TITLE}>
         <Stack>
           <Text size="sm">{POC_TEXT}</Text>
           <Group justify="flex-end">
@@ -75,7 +76,7 @@ export function PocTag() {
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </Sheet>
     </>
   );
 }

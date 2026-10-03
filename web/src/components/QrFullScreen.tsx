@@ -8,8 +8,9 @@
 // how showing a code goes wrong in practice. Brightness is the person's to
 // raise: a web page is given no way to.
 
-import { Modal, Stack, Text } from '@mantine/core';
+import { Stack, Text } from '@mantine/core';
 
+import { Sheet } from './Sheet';
 import { useScreenWakeLock } from '../app/wakeLock';
 
 export function QrFullScreen({
@@ -31,7 +32,7 @@ export function QrFullScreen({
   useScreenWakeLock(opened);
 
   return (
-    <Modal
+    <Sheet
       opened={opened}
       onClose={onClose}
       fullScreen
@@ -59,6 +60,6 @@ export function QrFullScreen({
           Turn the screen brightness up if the code will not read.
         </Text>
       </Stack>
-    </Modal>
+    </Sheet>
   );
 }

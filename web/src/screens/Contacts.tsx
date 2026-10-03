@@ -2,11 +2,12 @@
 // remove, and start a send to one. A page of Settings (Settings.tsx), which
 // gives it its title and the way back.
 
-import { ActionIcon, Button, Group, Menu, Modal, Paper, Stack, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Button, Group, Menu, Paper, Stack, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core';
 import { IconArrowUpRight, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconScan, IconTrash } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Sheet } from '../components/Sheet';
 import { useApp } from '../app/AppContext';
 import { ownAddresses } from '../app/ownAddresses';
 import { ErrorLine } from '../components/Notice';
@@ -158,7 +159,7 @@ export function ContactsPanel() {
         }}
       />
 
-      <Modal
+      <Sheet
         opened={renaming !== null}
         onClose={() => {
           refocus(renaming?.key ?? null);
@@ -183,9 +184,9 @@ export function ContactsPanel() {
             }}
           />
         )}
-      </Modal>
+      </Sheet>
 
-      <Modal
+      <Sheet
         opened={removing !== null}
         onClose={() => {
           refocus(removing?.key ?? null);
@@ -213,7 +214,7 @@ export function ContactsPanel() {
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </Sheet>
     </>
   );
 }
@@ -299,7 +300,7 @@ export function ContactForm({
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title={fixedAddress ? 'Save recipient' : 'New contact'}>
+    <Sheet opened={opened} onClose={onClose} title={fixedAddress ? 'Save recipient' : 'New contact'}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -369,7 +370,7 @@ export function ContactForm({
           }
         }}
       />
-    </Modal>
+    </Sheet>
   );
 }
 

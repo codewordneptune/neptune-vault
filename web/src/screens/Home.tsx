@@ -1,10 +1,11 @@
 // Balance, sync status and history.
 
-import { ActionIcon, Button, Group, Modal, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Button, Group, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Sheet } from '../components/Sheet';
 import { NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../app/addressLabels';
 import { MEMPOOL_KEEPS_MS, SEND_LIFETIME_MS } from '../app/send';
@@ -701,7 +702,7 @@ export function Home() {
         </Stack>
       </Paper>
 
-      <Modal opened={detail !== null} onClose={() => setDetail(null)} title={detail ? titleOf(detail) : ''}>
+      <Sheet opened={detail !== null} onClose={() => setDetail(null)} title={detail ? titleOf(detail) : ''}>
         {detail && (
           <Stack gap="sm">
             <DetailRow label="Status" value={statusOf(detail.record)} />
@@ -794,9 +795,9 @@ export function Home() {
             )}
           </Stack>
         )}
-      </Modal>
+      </Sheet>
 
-      <Modal
+      <Sheet
         opened={givingUp !== null}
         onClose={() => {
           if (givingUp) focusRow(givingUp.key);
@@ -833,7 +834,7 @@ export function Home() {
             </Group>
           </Stack>
         )}
-      </Modal>
+      </Sheet>
     </Stack>
   );
 }

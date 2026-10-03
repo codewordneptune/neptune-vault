@@ -3,12 +3,13 @@
 // runs as a job in the app context so it survives this screen being
 // unmounted (backgrounding locks the app).
 
-import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Loader, Modal, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Loader, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
 import { IconFingerprint, IconLink, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import { Sheet } from '../components/Sheet';
 import { formatNau, NAU_PER_COIN, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { clearSendDraft, keepSendDraft, sendDraft, type ExtraPayee, type SendDraft } from '../app/sendDraft';
 import { DESKTOP } from '../app/platform';
@@ -747,7 +748,7 @@ export function Send() {
             </Button>
           )}
         </Stack>
-        <Modal opened={confirmStop} onClose={() => setConfirmStop(false)} title="Stop this send?">
+        <Sheet opened={confirmStop} onClose={() => setConfirmStop(false)} title="Stop this send?">
           <Stack>
             <Text size="sm">What it has done so far ({formatDuration(provingSeconds)}) is lost. Nothing has been sent.</Text>
             <Group grow>
@@ -766,7 +767,7 @@ export function Send() {
               </Button>
             </Group>
           </Stack>
-        </Modal>
+        </Sheet>
       </Paper>
     );
   }
@@ -978,9 +979,9 @@ export function Send() {
   return (
     <Paper>
       <Stack>
-        <Modal opened={reviewSheet !== null} onClose={() => setStep('form')} title="Review" size={560} centered fullScreen={phone}>
+        <Sheet opened={reviewSheet !== null} onClose={() => setStep('form')} title="Review" size={560} centered fullScreen={phone}>
           {reviewSheet}
-        </Modal>
+        </Sheet>
         <Title order={2} className="sr-only">
           Send
         </Title>

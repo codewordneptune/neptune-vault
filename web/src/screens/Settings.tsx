@@ -4,7 +4,7 @@
 // appearance, currency, about (with its pages: report a problem, privacy),
 // removal.
 
-import { Anchor, Button, Checkbox, Divider, Group, Kbd, Modal, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { Anchor, Button, Checkbox, Divider, Group, Kbd, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import {
   IconAdjustmentsHorizontal,
   IconChevronLeft,
@@ -31,6 +31,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
+import { Sheet } from '../components/Sheet';
 import { BACKGROUND_LOCK_CHOICES_MS, backgroundLockOf, LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, showNau, useApp } from '../app/AppContext';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
@@ -655,7 +656,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               </SettingItem>
             )}
           </div>
-            <Modal opened={exportAsking} onClose={() => setExportAsking(false)} title="Export backup file">
+            <Sheet opened={exportAsking} onClose={() => setExportAsking(false)} title="Export backup file">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -675,8 +676,8 @@ function SettingsSections({ section }: { section: SectionKey }) {
                   </Group>
                 </Stack>
               </form>
-            </Modal>
-            <Modal opened={asking} onClose={() => setAsking(false)} title="Show the seed phrase">
+            </Sheet>
+            <Sheet opened={asking} onClose={() => setAsking(false)} title="Show the seed phrase">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -696,7 +697,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
                   </Group>
                 </Stack>
               </form>
-            </Modal>
+            </Sheet>
         </Paper>
       )}
       {/* Named items, the everyday one first: unlocking, then the password,
@@ -1615,7 +1616,7 @@ function RescanCard() {
       {started && (
         <Done onClose={() => setStarted(false)} focusOnMount>Rescan started. The balance and history fill in again as it runs.</Done>
       )}
-      <Modal opened={open} onClose={() => setOpen(false)} title="Rescan">
+      <Sheet opened={open} onClose={() => setOpen(false)} title="Rescan">
         <Stack>
           <Text size="sm">
             Sends made from this device that have confirmed lose their recipient and fee, because the chain does not carry them. Your coins are not affected.
@@ -1663,7 +1664,7 @@ function RescanCard() {
           </Group>
           {rescanError && <ErrorLine>Could not start the rescan: {rescanError}</ErrorLine>}
         </Stack>
-      </Modal>
+      </Sheet>
     </SettingItem>
   );
 }

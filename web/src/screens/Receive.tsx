@@ -4,13 +4,14 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { ActionIcon, Button, Combobox, Group, Loader, Menu, Modal, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton, useCombobox } from '@mantine/core';
+import { ActionIcon, Button, Combobox, Group, Loader, Menu, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton, useCombobox } from '@mantine/core';
 import { IconArrowsMaximize, IconCheck, IconChevronDown, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconShare, IconTrash } from '@tabler/icons-react';
 import { useElementSize } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
 import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 
+import { Sheet } from '../components/Sheet';
 import { QrFullScreen } from '../components/QrFullScreen';
 import { Caution, Done, Info } from '../components/Notice';
 
@@ -800,7 +801,7 @@ export function Receive() {
           </Stack>
         </Tabs>
 
-        <Modal
+        <Sheet
           opened={naming !== null}
           onClose={() => {
             if (naming) refocus(addressKey(naming.kind, naming.index));
@@ -825,8 +826,8 @@ export function Receive() {
               }}
             />
           )}
-        </Modal>
-        <Modal opened={comparing} onClose={() => setComparing(false)} title="Address types">
+        </Sheet>
+        <Sheet opened={comparing} onClose={() => setComparing(false)} title="Address types">
           <Stack gap="md">
             {(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => (
               <Stack key={k} gap={4}>
@@ -842,7 +843,7 @@ export function Receive() {
               </Stack>
             ))}
           </Stack>
-        </Modal>
+        </Sheet>
         <QrFullScreen
           opened={enlarged !== null && Boolean(enlarged === 'request' ? requestQr : qr)}
           onClose={() => setEnlarged(null)}

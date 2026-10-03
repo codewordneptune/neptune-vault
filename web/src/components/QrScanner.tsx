@@ -22,10 +22,11 @@
 // line under Camera details says what the camera actually gave, because
 // which of these a given phone grants to a web page only that phone can tell.
 
-import { Button, Group, Modal, Stack, Text } from '@mantine/core';
+import { Button, Group, Stack, Text } from '@mantine/core';
 import { IconBolt, IconBoltOff, IconCameraRotate, IconChevronRight, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Sheet } from './Sheet';
 import { useApp } from '../app/AppContext';
 import { NATIVE } from '../app/platform';
 import { decodeQr } from '../util/qrDecode';
@@ -430,7 +431,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   const at = cameras.findIndex((c) => c.deviceId === cameraId);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md" classNames={{ body: 'vault-scan-body' }}>
+    <Sheet opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md" classNames={{ body: 'vault-scan-body' }}>
       <Stack>
         {error ? (
           <Text c="var(--v-danger-text)" size="sm" role="alert">
@@ -522,7 +523,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           </details>
         )}
       </Stack>
-    </Modal>
+    </Sheet>
   );
 }
 

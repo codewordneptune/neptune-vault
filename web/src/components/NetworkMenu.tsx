@@ -4,11 +4,12 @@
 // networks (offeredNetworks). Choosing a network locks this wallet and shows
 // that network's; choosing a wallet locks and opens that wallet.
 
-import { Button, Group, Menu, Modal, Stack, Text } from '@mantine/core';
+import { Button, Group, Menu, Stack, Text } from '@mantine/core';
 import { IconCheck, IconChevronDown, IconLock, IconPlus, IconWallet } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Sheet } from './Sheet';
 import { useApp } from '../app/AppContext';
 import { byCreation, offeredNetworks, walletName, type AccountRecord, type Network } from '../storage/db';
 import { NETWORK_LABELS } from '../util/network';
@@ -116,7 +117,7 @@ export function NetworkMenu() {
             </Menu.Item>
           ))}
       </Menu.Dropdown>
-      <Modal opened={pending !== null} onClose={cancelSwitch} returnFocus={false} title={pending ? `Switch to ${NETWORK_LABELS[pending]}?` : ''}>
+      <Sheet opened={pending !== null} onClose={cancelSwitch} returnFocus={false} title={pending ? `Switch to ${NETWORK_LABELS[pending]}?` : ''}>
         {pending && (
           <Stack>
             <Text size="sm">
@@ -138,7 +139,7 @@ export function NetworkMenu() {
             </Group>
           </Stack>
         )}
-      </Modal>
+      </Sheet>
     </Menu>
   );
 }
