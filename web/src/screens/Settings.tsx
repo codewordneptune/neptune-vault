@@ -492,7 +492,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
     }
     await services.accounts.markBackedUp(account.id, file.exportedAt);
     await refresh();
-    setMessage({ done: true, text: 'Backup file ready, encrypted with your password. If you cancelled saving it, export it again.' });
+    setMessage({ done: true, text: 'Backup file ready, encrypted with your password.' });
     const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
