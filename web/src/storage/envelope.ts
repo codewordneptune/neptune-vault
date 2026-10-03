@@ -395,8 +395,9 @@ export interface BackupSecrets {
    */
   labels?: Record<string, string>;
   /**
-   * The addresses given out (copied, shared or shown full screen), by the
-   * same keys, so a restored wallet's New address never offers one again.
+   * The addresses given out (shown by New address, copied, shared or shown
+   * full screen), by the same keys, so a restored wallet's New address
+   * never offers one again.
    * Absent in files from before they were kept.
    */
   given?: string[];

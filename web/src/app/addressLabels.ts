@@ -56,9 +56,10 @@ const ADDRESSES_GIVEN = 'addressesGiven';
 const ADDRESS_KEY = /^(generation|ec_hybrid|viewing):\d{1,9}$/;
 
 /**
- * The addresses of a wallet given out: copied, shared or shown full screen
- * on Receive, as a payment request too. New address never offers one of
- * them again, named or not, paid or not: someone may be about to pay it.
+ * The addresses of a wallet given out: shown by New address, copied, shared
+ * or shown full screen on Receive, as a payment request too. New address
+ * never offers one of them again, named or not, paid or not: someone may
+ * be about to pay it.
  * Empty for a wallet whose private notes are not kept by the engine.
  */
 export async function readGiven(core: WalletCore, engine: EngineParts, accountId: string): Promise<Set<string>> {

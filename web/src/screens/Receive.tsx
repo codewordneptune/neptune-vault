@@ -130,9 +130,9 @@ export function Receive() {
     if (!account) return;
     void readLabels(services.core, services.accounts.engine, account.id).then(setLabels, () => setLabels({}));
   }, [services, account]);
-  // Which addresses were given out (copied, shared, shown full screen, as
-  // an address or in a request), kept with the names: each stays in the
-  // list, and New address never offers one of them again.
+  // Which addresses were given out (shown by New address, copied, shared,
+  // shown full screen, as an address or in a request), kept with the names:
+  // each stays in the list, and New address never offers one of them again.
   const [given, setGiven] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!account) return;
@@ -428,8 +428,7 @@ export function Receive() {
     }
   }
   // The list, for the type showing: its main address first, then each with
-  // a name, a payment or given out, and the one showing even with none of
-  // those (a new one).
+  // a name, a payment or given out, and the one showing.
   const listed = [
     ...new Set([
       0,
@@ -442,7 +441,8 @@ export function Receive() {
   // Each new address is the first past every one in the list (named, paid
   // or given out) and past the one showing: never one someone may already
   // have. It is added to the list where it is asked for, so nothing above
-  // it moves. Once the next one would be past the last offered, New address
+  // it moves, and is given out at once: its code can be scanned from the
+  // screen. Once the next one would be past the last offered, New address
   // rests with its line, and focus goes to the row just added.
   const ofKind = (k: string) => (k.startsWith(`${kind}:`) ? Number(k.slice(kind.length + 1)) : -1);
   const takenUpTo = Math.max(0, index, ...[...Object.keys(labels), ...given, ...payments.keys()].map(ofKind).filter(Number.isSafeInteger));
@@ -451,6 +451,7 @@ export function Receive() {
   const nextUnused = () => {
     if (!canNew) return;
     setIndices({ ...indices, [kind]: nextNew });
+    giveOut(kind, nextNew);
     setSaid(`${KIND_LABELS[kind]} address ${nextNew} is showing. Payments to it arrive in this wallet like any other.`);
     if (nextNew + 1 > furthest) setTimeout(() => rowButtons.current.get(addressKey(kind, nextNew))?.focus(), 0);
   };
