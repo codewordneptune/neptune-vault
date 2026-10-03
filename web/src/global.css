@@ -1839,6 +1839,8 @@ html {
 .vault-settings-row-value {
   min-width: 0;
   margin-left: auto;
+  /* With the row's gap, at least 20 px between a name and its value. */
+  padding-left: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1892,7 +1894,7 @@ html {
    in view while a long page scrolls, below the sticky header. */
 .vault-settings-split {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 360px minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
