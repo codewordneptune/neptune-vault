@@ -33,6 +33,19 @@ const clearOfBars = {
   },
 };
 
+// A select's list opens on the side with room, as every dropdown does, then
+// takes all the room on that side up to the bars, not a fixed 220 px: a
+// phone held upright shows a dozen choices at once. The height is measured
+// each time the list is placed; the list reads it from --vault-list-room.
+// Never less than about three choices: a list that would be squeezed under
+// its field (a phone on its side) then overflows there, and opens above.
+const roomForList = {
+  padding: clearOfBars,
+  apply: ({ availableHeight, elements }: { availableHeight: number; elements: { floating: HTMLElement } }) => {
+    elements.floating.style.setProperty('--vault-list-room', `${Math.max(availableHeight, 120)}px`);
+  },
+};
+
 const dark: MantineColorsTuple = [
   '#e4ebf4', // text
   '#c9d4e2',
@@ -96,7 +109,21 @@ export const theme = createTheme({
     PasswordInput: { defaultProps: { radius: 'sm', size: 'md', visibilityToggleFocusable: true, visibilityToggleIcon: PasswordToggleIcon, visibilityToggleButtonProps: { size: 'lg', className: 'vault-tap', 'aria-label': 'Show or hide the password' } } },
     NumberInput: { defaultProps: { radius: 'sm', size: 'md' } },
     Textarea: { defaultProps: { radius: 'sm', size: 'md' } },
-    Select: { defaultProps: { radius: 'sm', size: 'md', rightSection: createElement(IconChevronDown, { size: 16 }) } },
+    // A list that still has to scroll shows its scrollbar, so choices past
+    // the edge are seen; the library showed it only while scrolling.
+    Select: {
+      defaultProps: {
+        radius: 'sm',
+        size: 'md',
+        rightSection: createElement(IconChevronDown, { size: 16 }),
+        maxDropdownHeight: 'calc(var(--vault-list-room, 236px) - var(--combobox-padding) * 2)',
+        // When neither side fits the list whole (a phone on its side), the
+        // side with more room, not the library's default of below; the side
+        // is kept while the list is open.
+        comboboxProps: { middlewares: { flip: { padding: clearOfBars, fallbackStrategy: 'bestFit' }, shift: true, size: roomForList } },
+        scrollAreaProps: { type: 'auto' },
+      },
+    },
     SegmentedControl: { defaultProps: { radius: 'sm', size: 'md' } },
     // Square, so a checkbox never reads as a radio button.
     Checkbox: { defaultProps: { radius: 'xs', icon: CheckboxTick } },
