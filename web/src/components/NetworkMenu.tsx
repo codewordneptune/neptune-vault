@@ -5,7 +5,7 @@
 // that network's; choosing a wallet locks and opens that wallet.
 
 import { Button, Group, Menu, Modal, Stack, Text } from '@mantine/core';
-import { IconCheck, IconChevronDown, IconLock, IconPlus } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconLock, IconPlus, IconWallet } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -61,9 +61,12 @@ export function NetworkMenu() {
           aria-label={`${account ? walletName(account) : ''}${account && named ? ' on ' : ''}${named ? NETWORK_LABELS[network] : ''}. ${testNets ? 'Change wallet or network' : 'Change wallet'}`}
         >
           {account && (
-            <span className="vault-network-wallet">
-              <bdi>{walletName(account)}</bdi>
-            </span>
+            <>
+              <IconWallet size={16} aria-hidden />
+              <span className="vault-network-wallet">
+                <bdi>{walletName(account)}</bdi>
+              </span>
+            </>
           )}
           {named && <span className={[account ? 'vault-network-net' : '', network !== 'main' ? 'vault-test-network' : ''].join(' ').trim() || undefined}>{NETWORK_LABELS[network]}</span>}
           <IconChevronDown size={16} />
