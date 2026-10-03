@@ -1217,10 +1217,11 @@ html {
 }
 
 /* Where an amount is shown as a value (History's rows, the estimate under
-   the balance), its unit is quieter than the figure, as beside the
-   balance; inside a sentence it is plain text. */
+   the balance, a receipt), its unit is quieter than the figure, as beside
+   the balance; inside a sentence it is plain text. */
 .vault-row-amount .vault-unit,
-.vault-balance-fiat-value .vault-unit {
+.vault-balance-fiat-value .vault-unit,
+.vault-review-row b .vault-unit {
   font-weight: 400;
   color: var(--v-muted);
 }

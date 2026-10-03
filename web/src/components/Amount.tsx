@@ -20,7 +20,12 @@ export function Amount({ nau, hidden = false, unit = true, sign }: { nau: bigint
     <>
       <span aria-hidden>
         {shown}
-        {unit && ' NPT'}
+        {unit && (
+          <>
+            {' '}
+            <span className="vault-unit">NPT</span>
+          </>
+        )}
       </span>
       <span className="sr-only">{spoken}</span>
     </>

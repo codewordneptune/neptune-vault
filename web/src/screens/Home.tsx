@@ -716,15 +716,15 @@ export function Home() {
             {/* The figures as the review showed them before the send: a
                 receipt, each on one line, the total set off beneath. */}
             <div className="vault-review">
-              {detail.kind === 'received' && <ReceiptRow label="Amount" value={`${amount(detail.shownNau)} NPT`} />}
+              {detail.kind === 'received' && <ReceiptRow label="Amount" figure={amount(detail.shownNau)} />}
               {detail.kind === 'sent' && (
-                <ReceiptRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : severalOf(detail) ? 'Amounts together' : 'Amount'} value={`${amount(BigInt(detail.record.amountNau))} NPT`} />
+                <ReceiptRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : severalOf(detail) ? 'Amounts together' : 'Amount'} figure={amount(BigInt(detail.record.amountNau))} />
               )}
-              {detail.kind === 'self' && <ReceiptRow label="Moved" value={`${amount(BigInt(detail.record.amountNau))} NPT`} />}
-              {detail.kind !== 'received' && detail.record.feeNau && <ReceiptRow label="Fee" value={`${amount(BigInt(detail.record.feeNau))} NPT`} />}
+              {detail.kind === 'self' && <ReceiptRow label="Moved" figure={amount(BigInt(detail.record.amountNau))} />}
+              {detail.kind !== 'received' && detail.record.feeNau && <ReceiptRow label="Fee" figure={amount(BigInt(detail.record.feeNau))} />}
               {/* The figure on the row, where it is made of two: what left the wallet. */}
               {/* When some of it paid this wallet's own addresses, the amounts and the fee add up to more than what left, so the row says which it is. */}
-              {detail.kind === 'sent' && detail.record.feeNau && <ReceiptRow total label={detail.ownPayments.length > 0 ? 'Left this wallet' : 'Total'} value={`${amount(detail.shownNau)} NPT`} />}
+              {detail.kind === 'sent' && detail.record.feeNau && <ReceiptRow total label={detail.ownPayments.length > 0 ? 'Left this wallet' : 'Total'} figure={amount(detail.shownNau)} />}
             </div>
             {labelOf(detail.record) && <DetailRow label="Paid to" value={`Your address for ${labelOf(detail.record)}`} isolate />}
             {lockOf(detail.record) !== null && (
@@ -846,11 +846,13 @@ export function Home() {
 }
 
 /** A figure in the detail sheet, as the review shows it: the label, and the figure at the end of the line. */
-function ReceiptRow({ label, value, total }: { label: string; value: string; total?: boolean }) {
+function ReceiptRow({ label, figure, total }: { label: string; figure: string; total?: boolean }) {
   return (
     <div className={total ? 'vault-review-row total' : 'vault-review-row'}>
       <span>{label}</span>
-      <b>{value}</b>
+      <b>
+        {figure} <span className="vault-unit">NPT</span>
+      </b>
     </div>
   );
 }
