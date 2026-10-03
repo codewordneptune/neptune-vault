@@ -21,7 +21,7 @@ import { Caution, Done, ErrorLine } from '../components/Notice';
 import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED } from '../app/words';
 import { DESKTOP, NATIVE } from '../app/platform';
 import { LINKS } from '../app/links';
-import { abbreviateAddress, shortAddress } from '../util/address';
+import { abbreviateAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
 import { dayAhead, dayKey, dayLabel, formatDate, formatDateTime, formatTime, timeAgo, whenInSentence } from '../util/time';
@@ -566,7 +566,7 @@ export function Home() {
               'yourself'
             ) : (
               <>
-                <bdi>{c ? c.name : shortAddress(lastSend.recipient)}</bdi>
+                <bdi>{c ? c.name : abbreviateAddress(lastSend.recipient)}</bdi>
                 {lastSend.others ? ` and ${lastSend.others} more` : ''}
               </>
             );
@@ -598,7 +598,7 @@ export function Home() {
       {failure && failure.accountId === account?.id && !(lastSend && lastSend.accountId === account.id && lastSend.at >= failure.at) && (
         <ErrorLine title="Not sent" onClose={dismissFailure} role="group">
           <Text size="sm">
-            {hidden ? '••••' : failure.amount} NPT to <bdi>{contactFor(failure.recipient.toLowerCase())?.name ?? shortAddress(failure.recipient)}</bdi>
+            {hidden ? '••••' : failure.amount} NPT to <bdi>{contactFor(failure.recipient.toLowerCase())?.name ?? abbreviateAddress(failure.recipient)}</bdi>
             {failure.others ? ` and ${failure.others} more` : ''}. {notSentReason(failure.message)}
           </Text>
         </ErrorLine>
@@ -611,7 +611,7 @@ export function Home() {
         <Caution title="This send is not going through">
           {/* The sentence in one element, as above, and the button on its own line. */}
           <span>
-            Giving up on your {amount(BigInt(stuck.amountNau))}&nbsp;NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? shortAddress(stuck.recipient)}</bdi> : 'a recipient'} frees {amount(reservedFor(stuck))}&nbsp;NPT now; otherwise the wallet frees it {dayAhead(expiresAt(stuck)).replace(/ (?=\S+$)/, ' ')}.
+            Giving up on your {amount(BigInt(stuck.amountNau))}&nbsp;NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? abbreviateAddress(stuck.recipient)}</bdi> : 'a recipient'} frees {amount(reservedFor(stuck))}&nbsp;NPT now; otherwise the wallet frees it {dayAhead(expiresAt(stuck)).replace(/ (?=\S+$)/, ' ')}.
           </span>
           <Group mt={4}>
             <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => setGivingUp(stuck)}>

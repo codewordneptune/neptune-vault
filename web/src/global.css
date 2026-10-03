@@ -2408,6 +2408,14 @@ html {
   flex: 1;
   min-width: 0;
 }
+/* Who it is, and Change at the end: the address under them has the card's width. */
+.vault-recipient-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
 .vault-recipient-name {
   display: flex;
   align-items: baseline;

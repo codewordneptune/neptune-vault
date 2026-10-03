@@ -3,16 +3,10 @@
 // three dots, and the last eight characters.
 
 /**
- * An address short enough for one line of a list: the prefix, four
- * characters, an ellipsis, the last four. Enough to recognise an address
- * already known, which is all a list row is for; the detail shows more.
+ * The one shortened form of an address, wherever the app shows one: a list
+ * row, a card, a sentence. Its sixteen characters (80 bits) are more than an
+ * address made to look like another can match.
  */
-export function shortAddress(address: string): string {
-  const hrpLen = address.indexOf('1');
-  if (hrpLen < 0 || address.length <= hrpLen + 1 + 4 + 4) return address;
-  return `${address.slice(0, hrpLen + 5)}…${address.slice(-4)}`;
-}
-
 export function abbreviateAddress(address: string): string {
   const hrpLen = address.indexOf('1');
   if (hrpLen < 0) return address;

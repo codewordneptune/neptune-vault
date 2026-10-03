@@ -27,7 +27,7 @@ import { MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED } from '../ap
 import { usePendingSends } from '../app/pending';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
-import { abbreviateAddress, addressKindNote, parsePaymentText, shortAddress } from '../util/address';
+import { abbreviateAddress, addressKindNote, parsePaymentText } from '../util/address';
 import { networkLabel } from '../util/network';
 import { confirmsSends, type ContactRecord } from '../storage/db';
 
@@ -86,9 +86,11 @@ function FieldActions({ contacts, onPick, onScan, who }: { contacts: boolean; on
 /**
  * A recipient once its field holds a whole address and the person has left
  * it: who it is, by the saved contact's name or a request's (said to be
- * unverified), or else the address itself, shortened; its kind when it is
- * not Standard, as on the review; and Change, which brings the field back
- * with the address selected, Choose contact and Scan beside it.
+ * unverified), or that no contact has the address, with Change at the end
+ * of that line, which brings the field back with the address selected,
+ * Choose contact and Scan beside it; under it the address, shortened as
+ * everywhere, across the card; and its kind when it is not Standard, as on
+ * the review.
  */
 function RecipientCard({ address, name, requestName, who, onChange, changeRef }: { address: string; name: string | null; requestName: string | null; who: string | null; onChange: () => void; changeRef: (el: HTMLButtonElement | null) => void }) {
   const labelId = useId();
@@ -100,21 +102,30 @@ function RecipientCard({ address, name, requestName, who, onChange, changeRef }:
         {/* The people icon marks a saved contact; a request's name says "unverified" instead. */}
         {name && <IconUsers size={20} aria-hidden className="vault-recipient-icon" />}
         <div className="vault-recipient-text">
-          {shownName && (
-            <div className="vault-recipient-name">
-              <Text span fw={600} truncate>
-                <bdi>{shownName}</bdi>
-              </Text>
-              {/* Never cut off: a link can carry any name. */}
-              {!name && (
-                <Text span size="sm" c="dimmed" style={{ flex: 'none' }}>
-                  (unverified)
+          <div className="vault-recipient-head">
+            {shownName ? (
+              <div className="vault-recipient-name">
+                <Text span fw={600} truncate>
+                  <bdi>{shownName}</bdi>
                 </Text>
-              )}
-            </div>
-          )}
+                {/* Never cut off: a link can carry any name. */}
+                {!name && (
+                  <Text span size="sm" c="dimmed" style={{ flex: 'none' }}>
+                    (unverified)
+                  </Text>
+                )}
+              </div>
+            ) : (
+              <Text span size="sm" c="dimmed">
+                Not in your contacts
+              </Text>
+            )}
+            <UnstyledButton ref={changeRef} type="button" onClick={onChange} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-label={who ? `Change ${who}` : 'Change the recipient'}>
+              Change
+            </UnstyledButton>
+          </div>
           <Text ff="monospace" size="sm" c={shownName ? 'dimmed' : undefined}>
-            {shortAddress(address)}
+            {abbreviateAddress(address)}
           </Text>
           {kind && (
             <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
@@ -122,9 +133,6 @@ function RecipientCard({ address, name, requestName, who, onChange, changeRef }:
             </Badge>
           )}
         </div>
-        <UnstyledButton ref={changeRef} type="button" onClick={onChange} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-label={who ? `Change ${who}` : 'Change the recipient'}>
-          Change
-        </UnstyledButton>
       </div>
     </Input.Wrapper>
   );
@@ -225,7 +233,7 @@ export function Send() {
     const first = request.payments[0]?.recipient.trim() ?? '';
     const others = request.payments.length - 1;
     if (!others && first && isOwn(first)) return 'yourself';
-    const name = contacts.find((c) => c.address === first.toLowerCase())?.name ?? shortAddress(first);
+    const name = contacts.find((c) => c.address === first.toLowerCase())?.name ?? abbreviateAddress(first);
     return others ? `${name} and ${others} more` : name;
   };
   // One name per recipient, under its address: a saved contact's own, or
