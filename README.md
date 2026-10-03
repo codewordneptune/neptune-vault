@@ -112,8 +112,8 @@ The web app and the native apps (desktop and Android) share one interface.
 The native apps run the wallet engine and the prover as native code rather
 than WebAssembly, which is much faster: on a Galaxy S24, the Android app
 proves a Mainnet send in 16 to 23 seconds, where the web app on the same
-phone takes over a minute. They keep the wallet in the app's own data folder
-rather than in browser storage.
+phone takes over a minute. They keep the wallet in the app's own storage
+rather than in a browser's.
 
 <p align="center">
   <img src="docs/screenshots/wide-home-dark.webp" width="720" alt="Home on a wide screen, in the dark theme">
@@ -134,8 +134,8 @@ rather than in browser storage.
   attempts in all.
 - **Choose how to restore.**
   - **Fast restore** takes seconds. The node's coin index finds your
-    payments, so the node learns which coins are yours, though not the
-    amounts.
+    payments, so the node learns which payments are yours, and can
+    recognise later ones, though not the amounts.
   - **Private restore** downloads and scans every block from a date you
     choose. From the start of Mainnet that is several gigabytes and hours of
     scanning, and the node learns nothing about your coins.
@@ -154,12 +154,15 @@ rather than in browser storage.
 - **Encryption at rest.** The seed phrase is encrypted with AES-256-GCM,
   under a key derived from your password with Argon2id. A passkey can wrap
   the same key.
-- **What the node sees.** It never gets your seed phrase, password or
-  addresses, because scanning happens on your device. It does see what the
-  wallet asks: the blocks it scans, which pending payments are yours, the
-  coins a send spends, and the sends. A fast restore tells it more, as
-  above. The app shows the full list under Settings, About, Privacy
-  statement.
+- **What the node sees.** It never gets your seed phrase or password, and
+  scanning happens on your device. It does see what the wallet asks: the
+  blocks it scans, which pending payments are yours, the coins a send
+  spends, and the sends. A fast restore, or a rebuild from the chain, also
+  gives it identifiers made from your addresses, as above. The app shows
+  the full list under Settings, About, Privacy statement.
+- **What the chain shows.** Anyone can link the payments made to one
+  address, and your own sends too, because their change returns to your
+  main address. Amounts stay hidden. Give each payer a new address.
 - **What the node is trusted for.** It cannot spend your coins or invent a
   payment without mining it, but it can hide payments or show an old chain.
   For amounts that matter, wait until History shows several blocks since a
@@ -214,10 +217,10 @@ crates/vault-prover     transaction prover, Rust to wasm with threads
 crates/vault-bridge     vault-core and the prover as native code, for the desktop and Android apps
 crates/vault-fixtures   deterministic witnesses for prover tests
 crates/vendor           neptune-consensus, neptune-primitives, triton-vm, twenty-first,
-                        patched for wasm (see crates/vendor/VENDOR.md)
+                        with small patches (see crates/vendor/VENDOR.md)
 shells/tauri            the desktop and Android apps (Tauri 2)
 fixtures/, test-vectors/  test inputs
-docs/                   design, privacy, hosting, releases
+docs/                   design, privacy, hosting, releases, Android
 ```
 
 ### Prerequisites
@@ -225,7 +228,7 @@ docs/                   design, privacy, hosting, releases
 - Node 22
 - Rust nightly, as pinned in `rust-toolchain.toml` (it pulls in `rust-src`
   and the `wasm32-unknown-unknown` target)
-- [`wasm-pack`](https://rustwasm.github.io/wasm-pack/)
+- [`wasm-pack`](https://wasm-bindgen.github.io/wasm-pack/)
 
 ### Run the web app
 
@@ -240,9 +243,9 @@ npm run dev            # http://localhost:4400
 The first wasm build is slow, because the standard library is rebuilt with
 atomics for threads. Later builds are quick.
 
-The dev server sends the cross-origin isolation headers that the threaded
-prover needs, and proxies `/regtest-node` to a regtest node at
-`127.0.0.1:9797`.
+The dev server sends the cross-origin isolation headers that the wallet
+engine and the prover need (without them the app does not start), and
+proxies `/regtest-node` to a regtest node at `127.0.0.1:9797`.
 
 ### Tests
 
@@ -253,6 +256,8 @@ cargo test -p vault-core                             # wallet engine, native
 cargo test -p vault-bridge                           # the native bridge the desktop and Android apps use
 cargo test --release -p vault-prover -- --ignored    # full proof round trip, takes minutes
 ```
+
+The web tests run the built wallet engine, so run `npm run wasm:core` first.
 
 ### Local regtest node
 
@@ -301,9 +306,9 @@ Things to know about regtest:
   off, a test network stays in that menu only while a wallet is on it. Each
   wallet belongs to one network, and a backup file restores on the network
   it was saved on.
-- You set the node in Settings, Advanced. In a browser, the node must send
-  CORS headers, because the page calls it directly; the default Mainnet
-  node does.
+- You set the node in Settings, Advanced. The node must send CORS headers,
+  because the app's page calls it directly, in the desktop and Android apps
+  too; the default Mainnet node does.
 - Every network is past the delta fork (Mainnet block 55,000), so every
   proof is in the post-fork format (claim version 8).
 
@@ -324,8 +329,10 @@ cd shells/tauri && npx --prefix ../../web tauri build
 - `tauri dev` runs the desktop app against the web dev server.
 - `tauri build` makes the installers. On Windows, keep `CARGO_TARGET_DIR`
   short (for example `C:/nvnative`), or the linker can fail on long paths.
+  It also replaces `web/dist` with the desktop page, so run `npm run build`
+  in `web` again before you deploy the web app.
 - Pushing a `desktop-v<version>` tag builds all platforms and attaches the
-  installers to a draft release.
+  installers to a draft pre-release.
 - Details, and the signing and updater keys still needed:
   [docs/DESKTOP-RELEASE.md](docs/DESKTOP-RELEASE.md).
 
