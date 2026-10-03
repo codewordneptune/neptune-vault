@@ -13,8 +13,8 @@ import { Sheet } from '../components/Sheet';
 import { formatNau, NAU_PER_COIN, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { clearSendDraft, keepSendDraft, sendDraft, type ExtraPayee, type SendDraft } from '../app/sendDraft';
 import { DESKTOP } from '../app/platform';
-import { formatAbout, formatDuration } from '../util/time';
-import { useQuote } from '../app/price';
+import { formatAbout, formatDuration, timeAgo } from '../util/time';
+import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
 import { fiatOf, fiatOfTyped, formatFiat } from '../util/fiat';
 import { cleanNote, MAX_PAYMENTS, paymentsTotalNau, SEND_NOTE_MAX, RequiresLustrationError, SendBusyError, SendUnconfirmedError } from '../app/send';
@@ -977,9 +977,11 @@ export function Send() {
                 <Amount nau={totalNau} />
               </b>
             </div>
+            {/* As under the balance: the price's age once it is getting old, its source in Settings, Currency. */}
             {quote && (
               <Text size="xs" c="dimmed" ta="right" mt={-6} style={{ fontVariantNumeric: 'tabular-nums' }}>
-                ≈ {formatFiat(fiatOf(totalNau, NAU_PER_COIN, quote.price), quote.currency)} · {quote.source}
+                ≈ {formatFiat(fiatOf(totalNau, NAU_PER_COIN, quote.price), quote.currency)}
+                {Date.now() - quote.at > QUOTE_OLD_MS && ` · price from ${timeAgo(quote.at)}`}
               </Text>
             )}
             {totals.feeNau > totals.amountNau && (
