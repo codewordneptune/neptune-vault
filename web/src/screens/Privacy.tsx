@@ -6,8 +6,24 @@ import { Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { IconChevronLeft } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 
-import { PRIVACY, PRIVACY_UPDATED } from '../content/privacy';
+import { PRIVACY, PRIVACY_SUMMARY, PRIVACY_UPDATED } from '../content/privacy';
 import { formatDate } from '../util/time';
+
+/** A paragraph, its **lead-in** in bold. */
+function Paragraph({ text }: { text: string }) {
+  const lead = /^\*\*(.+?)\*\*\s*/.exec(text);
+  return (
+    <Text size="sm">
+      {lead ? (
+        <>
+          <strong>{lead[1]}</strong> {text.slice(lead[0].length)}
+        </>
+      ) : (
+        text
+      )}
+    </Text>
+  );
+}
 
 /** The statement itself, for a page that gives it a title. */
 export function PrivacyStatement() {
@@ -17,15 +33,14 @@ export function PrivacyStatement() {
         <Text size="sm" c="dimmed">
           What this wallet keeps, what it sends and to whom, and what is public. Last changed {formatDate(Date.parse(`${PRIVACY_UPDATED}T12:00:00`))}.
         </Text>
+        <Paragraph text={PRIVACY_SUMMARY} />
         {PRIVACY.map((section) => (
           <Stack key={section.title} gap="xs">
             <Title order={3} className="vault-prose-heading">
               {section.title}
             </Title>
             {section.paragraphs.map((p, i) => (
-              <Text key={i} size="sm">
-                {p}
-              </Text>
+              <Paragraph key={i} text={p} />
             ))}
           </Stack>
         ))}
