@@ -756,7 +756,7 @@ export function Receive() {
                                 </Menu.Item>
                               )}
                               {/* Red, as Remove is in every other menu. */}
-                              <Menu.Item leftSection={<IconTrash size={16} />} c="var(--v-danger-text)" onClick={() => void removeName(kind, i)}>
+                              <Menu.Item leftSection={<IconTrash size={16} />} c="var(--v-danger-text)" className="danger" onClick={() => void removeName(kind, i)}>
                                 Remove name
                               </Menu.Item>
                             </Menu.Dropdown>

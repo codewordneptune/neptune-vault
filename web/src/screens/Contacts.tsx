@@ -123,7 +123,7 @@ export function ContactsPanel() {
                         <Menu.Item leftSection={<IconPencil size={16} />} onClick={() => setRenaming(c)}>
                           Rename
                         </Menu.Item>
-                        <Menu.Item leftSection={<IconTrash size={16} />} c="var(--v-danger-text)" onClick={() => setRemoving(c)}>
+                        <Menu.Item leftSection={<IconTrash size={16} />} c="var(--v-danger-text)" className="danger" onClick={() => setRemoving(c)}>
                           Remove
                         </Menu.Item>
                       </Menu.Dropdown>

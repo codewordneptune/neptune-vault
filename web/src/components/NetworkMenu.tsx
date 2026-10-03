@@ -5,7 +5,7 @@
 // that network's; choosing a wallet locks and opens that wallet.
 
 import { Button, Group, Menu, Stack, Text } from '@mantine/core';
-import { IconCheck, IconChevronDown, IconLock, IconPlus, IconWallet } from '@tabler/icons-react';
+import { IconChevronDown, IconLock, IconPlus, IconWallet } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -77,18 +77,14 @@ export function NetworkMenu() {
         {account && (
           <>
             <Menu.Label>{testNets ? `Wallets on ${NETWORK_LABELS[network]}` : 'Wallets'}</Menu.Label>
-            {onThisNetwork.map((a) => (
-              <Menu.Item
-                key={a.id}
-                disabled={sending}
-                onClick={() => {
-                  if (a.id !== account?.id) void switchAccount(a.id);
-                }}
-                leftSection={a.id === account?.id ? <IconCheck size={16} /> : <span style={{ width: 14 }} />}
-              >
-                <bdi>{walletName(a)}</bdi>
-              </Menu.Item>
-            ))}
+            {/* Radio items, so a screen reader hears which wallet is open, as the tick shows it. */}
+            <Menu.RadioGroup value={account.id} onChange={(id) => void switchAccount(id)}>
+              {onThisNetwork.map((a) => (
+                <Menu.RadioItem key={a.id} value={a.id} disabled={sending} closeMenuOnClick>
+                  <bdi>{walletName(a)}</bdi>
+                </Menu.RadioItem>
+              ))}
+            </Menu.RadioGroup>
             <Menu.Item disabled={sending} leftSection={<IconPlus size={16} />} onClick={() => navigate('/onboarding?add=1')}>
               Add a wallet
             </Menu.Item>
@@ -104,18 +100,15 @@ export function NetworkMenu() {
           </>
         )}
         {testNets && <Menu.Label>Network</Menu.Label>}
-        {testNets &&
-          networks.map((n) => (
-            <Menu.Item
-              key={n}
-              onClick={() => choose(n)}
-              disabled={sending}
-              leftSection={n === network ? <IconCheck size={16} /> : <span style={{ width: 14 }} />}
-              rightSection={<span className="vault-network-hint">{hint(n)}</span>}
-            >
-              {NETWORK_LABELS[n]}
-            </Menu.Item>
-          ))}
+        {testNets && (
+          <Menu.RadioGroup value={network} onChange={(n) => choose(n as Network)}>
+            {networks.map((n) => (
+              <Menu.RadioItem key={n} value={n} disabled={sending} closeMenuOnClick rightSection={<span className="vault-network-hint">{hint(n)}</span>}>
+                {NETWORK_LABELS[n]}
+              </Menu.RadioItem>
+            ))}
+          </Menu.RadioGroup>
+        )}
       </Menu.Dropdown>
       <Sheet opened={pending !== null} onClose={cancelSwitch} returnFocus={false} title={pending ? `Switch to ${NETWORK_LABELS[pending]}?` : ''}>
         {pending && (

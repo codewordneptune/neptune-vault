@@ -369,8 +369,30 @@ h3.mantine-Title-root.vault-prose-heading {
   padding: 6px;
 }
 .mantine-Menu-item {
+  --menu-item-hover: var(--v-accent-soft);
   border-radius: var(--v-radius-xs);
   font-size: var(--v-fs-sm);
+}
+/* A menu opened by a click or a tap gives its first item focus too; only
+   focus from the keyboard lights it, so the ticked item is the only one
+   marked. */
+.mantine-Menu-item:focus:not(:focus-visible, :hover, [data-menu-active]) {
+  background-color: transparent;
+}
+.mantine-Menu-item:active:not(:disabled, [data-disabled]) {
+  background-color: var(--v-row-press);
+}
+.mantine-Menu-item.danger {
+  --menu-item-hover: var(--v-danger-hover);
+}
+.mantine-Menu-item.danger:active:not(:disabled, [data-disabled]) {
+  background-color: var(--v-danger-hover-strong);
+}
+/* The tick takes the room of an item's icon, so every label starts in line. */
+.mantine-Menu-itemIndicator {
+  width: 16px;
+  height: 16px;
+  margin-inline-end: var(--mantine-spacing-xs);
 }
 .mantine-Menu-label {
   font-size: var(--v-fs-xs);

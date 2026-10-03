@@ -107,8 +107,8 @@ export const theme = createTheme({
     Code: { defaultProps: { radius: 'sm' } },
     // Opening a menu focuses its first item, as the ARIA menu pattern has it,
     // not an empty placeholder; that placeholder was also an element a menu
-    // may not hold among its items.
-    Menu: { defaultProps: { radius: 'sm', shadow: 'lg', withInitialFocusPlaceholder: false } },
+    // may not hold among its items. A chosen item shows the app's tick.
+    Menu: { defaultProps: { radius: 'sm', shadow: 'lg', withInitialFocusPlaceholder: false, checkIcon: createElement(IconCheck, { size: 16 }) } },
     // Menus and selects place their dropdowns through Popover.
     Popover: { defaultProps: { middlewares: { flip: { padding: clearOfBars }, shift: true } } },
     // A dialog's header is a <header>, which outside an article or a section
