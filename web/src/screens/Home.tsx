@@ -478,7 +478,7 @@ export function Home() {
             {loaded && ownReady && quote && fiat && (
               <div className="vault-balance-fiat">
                 <span className="vault-balance-fiat-value">
-                  ≈ {hidden ? '••••' : <>{fiat.figure} <span className="vault-unit">{fiat.code}</span></>}
+                  ≈ {hidden ? '••••' : fiat.figure} <span className="vault-unit">{fiat.code}</span>
                 </span>
                 {Date.now() - quote.at > QUOTE_OLD_MS && <span className="vault-balance-fiat-source">price from {timeAgo(quote.at)}</span>}
               </div>

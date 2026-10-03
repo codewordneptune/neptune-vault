@@ -2394,11 +2394,14 @@ html {
 
 /* The balance in another currency: the estimate as a figure of its own,
    a step below the balance, and where it comes from, quietly, beside it. */
+/* Close under the balance it converts, so the two read as one and the
+   readings below as another. */
 .vault-balance-fiat {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   column-gap: 8px;
+  margin-top: -6px;
   font-variant-numeric: tabular-nums;
 }
 .vault-balance-fiat-value {
