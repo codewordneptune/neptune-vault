@@ -10,11 +10,12 @@ import { NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../a
 import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../app/addressLabels';
 import { MEMPOOL_KEEPS_MS, SEND_LIFETIME_MS } from '../app/send';
 import { usePendingSends } from '../app/pending';
+import { readSendDetails, withSendDetails } from '../app/sendDetails';
 import { speakNau } from '../components/Amount';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { fiatOf, fiatParts } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
-import type { AccountRecord, ContactRecord, HistoryRecord } from '../storage/db';
+import type { AccountRecord, ContactRecord, HistoryRecord, SendDetails } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
 import { Caution, Done, ErrorLine } from '../components/Notice';
 import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED } from '../app/words';
@@ -84,8 +85,14 @@ export function Home() {
   const { sends: pendingSends, ready: ownReady, isOwn, toSelf, balanceNau: headlineNau, onHoldNau } = usePendingSends();
   const fiat = quote ? fiatParts(fiatOf(headlineNau, NAU_PER_COIN, quote.price), quote.currency) : null;
 
+  // What a backup file kept of the sends a restore finds only as coins that went.
+  const [sendDetails, setSendDetails] = useState<SendDetails[]>([]);
+  useEffect(() => {
+    if (!account) return;
+    void readSendDetails(services.core, services.accounts.engine, account.id).then(setSendDetails, () => setSendDetails([]));
+  }, [services, account]);
   // One entry per transaction, with the recipient named when it is a contact.
-  const entries = groupHistory(history, utxos).map((e) =>
+  const entries = groupHistory(withSendDetails(history, sendDetails), utxos).map((e) =>
     e.kind === 'sent' && e.record.status === 'pending' && toSelf(e.record) ? { ...e, kind: 'self' as const, shownNau: BigInt(e.record.feeNau ?? '0') } : e,
   );
   const [contacts, setContacts] = useState<ContactRecord[]>([]);

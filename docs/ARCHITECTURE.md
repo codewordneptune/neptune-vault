@@ -315,7 +315,7 @@ password    --Argon2id--> wrap key --AES-GCM--> file key
 file key    --AES-GCM, AAD = readable part--> content key
 content key --AES-GCM--> seed (the database's own ciphertext)
 content key --AES-GCM, AAD = all of the above--> contacts, address names,
-                                                  addresses given out
+                                                  addresses given out, sends
 ```
 
 The readable part (format, version, network, start block, export date, KDF

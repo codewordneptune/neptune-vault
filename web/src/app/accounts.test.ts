@@ -10,6 +10,7 @@ import { CHAIN_PARTS } from '../backend/types';
 import { chainView, testEngine } from '../backend/engineForTests';
 import { AccountService, clashingName, DEFAULT_LOCK_MS, lockTimeoutOf, nextWalletName, UnlockCancelledError, WalletNameTakenError } from './accounts';
 import type { PasskeyProvider } from './passkey';
+import { readSendDetails } from './sendDetails';
 
 class FakePasskeys implements PasskeyProvider {
   secretBytes = new Uint8Array(32).fill(42);
@@ -777,6 +778,40 @@ describe('account service', () => {
       expect(file.birthdayHeight).toBe(12);
       await service.lock();
       expect((await service.importFile(file, 'pw')).birthdayHeight).toBe(12);
+    } finally {
+      vault.close();
+    }
+  });
+
+  it("a backup file brings back each send's recipients, amounts, fee and note", async () => {
+    db = await openVaultDb();
+    const vault = await testEngine();
+    try {
+      const core = Object.assign(new FakeCore(), vault.store, {
+        async unlock(this: FakeCore, phrase: string[], _network?: string, contentKey?: Uint8Array) {
+          this.unlocked = phrase;
+          vault.unlock(contentKey);
+        },
+      });
+      const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+      const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+      const payments = [
+        { recipient: 'nolgar1bob', amountNau: '5' },
+        { recipient: 'nolgar1carol', amountNau: '2' },
+      ];
+      await vault.store.ledger(record.id, {
+        op: 'recordPending',
+        entry: { key: `${record.id}:sent:ab01`, accountId: record.id, kind: 'sent', status: 'pending', txid: 'ab01', amountNau: '7', feeNau: '1', timestampMs: 1, height: null, inputHashes: ['c0ffee:3'], recipient: 'nolgar1bob', payments, error: null, note: 'Rent and tea' },
+      });
+      const file = await service.exportFile(record.id, 'pw');
+      await service.lock();
+      const restored = await service.importFile(file, 'pw');
+      expect(await readSendDetails(core as unknown as WalletCore, service.engine, restored.id)).toEqual([{ inputs: ['c0ffee:3'], txid: 'ab01', payments, feeNau: '1', note: 'Rent and tea' }]);
+      // A file made from the restored wallet carries them on.
+      const again = await service.exportFile(restored.id, 'pw');
+      await service.lock();
+      const twice = await service.importFile(again, 'pw');
+      expect((await readSendDetails(core as unknown as WalletCore, service.engine, twice.id)).map((d) => d.note)).toEqual(['Rent and tea']);
     } finally {
       vault.close();
     }

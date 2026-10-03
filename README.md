@@ -186,9 +186,10 @@ rather than in a browser's.
   Neptune's 18-word seed phrases, including this app on another device.
 - **Backup file.** Export one from Settings, Backup, with your password. It
   restores the seed phrase, the network, the start block, your contacts,
-  the names you gave your addresses, and which addresses you have given out.
-  - The seed phrase, the contacts, the address names and the addresses given
-    out are encrypted.
+  the names you gave your addresses, which addresses you have given out,
+  and who each send paid, with its amounts, fee and note.
+  - The seed phrase, the contacts, the address names, the addresses given
+    out and the sends are encrypted.
   - The rest of the file is sealed, so the app refuses a file that has been
     changed, with a different message than for a wrong password.
   - Every version of the app reads backup files from earlier versions.

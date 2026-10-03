@@ -2,7 +2,7 @@
 // policy: after an idle time the person chooses (five minutes unless
 // changed, and immediately on backgrounding).
 
-import { FRESH_KEY_INDICES, walletName, type AccountRecord, type ContactRecord, type Network, type SeedEnvelope, type SendFailure, type VaultDb } from '../storage/db';
+import { FRESH_KEY_INDICES, walletName, type AccountRecord, type ContactRecord, type HistoryRecord, type Network, type SeedEnvelope, type SendDetails, type SendFailure, type VaultDb } from '../storage/db';
 
 /** The private note, in a wallet's sealed log, about its last failed send. */
 const LAST_SEND_FAILURE = 'lastSendFailure';
@@ -18,6 +18,7 @@ import { distinctNames } from './contacts';
 import type { WalletCore } from '../backend/types';
 import type { LastSend, SendStarted } from './send';
 import { givenFromFile, labelsFromFile, readGiven, readLabels, type AddressLabels } from './addressLabels';
+import { keepSendDetails, readSendDetails, sendDetailsForFile, sendDetailsFromFile } from './sendDetails';
 
 export type LockListener = (locked: boolean) => void;
 
@@ -806,6 +807,13 @@ export class AccountService {
     // so does which addresses were given out at all.
     const labels = await readLabels(this.core, this.engine, accountId).catch(() => ({}));
     const given = [...(await readGiven(this.core, this.engine, accountId).catch(() => new Set<string>()))].sort();
+    // Each send as this device knows it, and as a file restored here knew
+    // it: a restore finds a send only as coins that went.
+    const history: HistoryRecord[] = await (this.engine.where(accountId, 'history') === 'engine'
+      ? (this.core.storeRead!(accountId, 'history') as Promise<HistoryRecord[]>)
+      : this.db.getAllFromIndex('history', 'byAccount', accountId)
+    ).catch(() => []);
+    const sends = sendDetailsForFile(history, await readSendDetails(this.core, this.engine, accountId).catch(() => []));
     // Where scanning starts is the engine's once the chain has moved: the
     // first pass, a fast restore or a rescan move it, and the record keeps
     // the height it was made with. A restore from the file starts here.
@@ -813,7 +821,7 @@ export class AccountService {
     return sealBackup(
       { network: record.network, birthdayHeight: scan?.birthdayHeight ?? record.birthdayHeight, exportedAt: Date.now() },
       record.envelope,
-      { contacts: contacts.map((c) => ({ name: c.name, address: c.address })), ...(Object.keys(labels).length > 0 ? { labels } : {}), ...(given.length > 0 ? { given } : {}) },
+      { contacts: contacts.map((c) => ({ name: c.name, address: c.address })), ...(Object.keys(labels).length > 0 ? { labels } : {}), ...(given.length > 0 ? { given } : {}), ...(sends.length > 0 ? { sends } : {}) },
       password,
       this.derive,
     );
@@ -872,12 +880,14 @@ export class AccountService {
     let fromFile: unknown;
     let labels: AddressLabels = {};
     let given = new Set<string>();
+    let sends: SendDetails[] = [];
     if (file.version === 3) {
       const opened = await openBackup(file, password, this.derive);
       envelope = opened.envelope;
       fromFile = opened.secrets.contacts;
       labels = labelsFromFile(opened.secrets.labels);
       given = givenFromFile(opened.secrets.given);
+      sends = sendDetailsFromFile(opened.secrets.sends);
     } else {
       envelope = file.envelope;
       fromFile = file.contacts;
@@ -940,6 +950,7 @@ export class AccountService {
       if (this.core.storeCommit && given.size > 0 && this.engine.where(record.id, 'private') === 'engine') {
         await this.core.storeCommit(record.id, [{ op: 'putPrivate', key: 'addressesGiven', value: [...given].sort() }]);
       }
+      await keepSendDetails(this.core, this.engine, record.id, sends);
       if (epoch !== this.epoch) throw new UnlockCancelledError();
       this.setUnlocked(record.id);
       void this.strengthen(record.id, password).catch(() => undefined);

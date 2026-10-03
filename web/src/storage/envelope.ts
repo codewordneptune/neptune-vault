@@ -3,7 +3,7 @@
 // re-wraps the content key without touching the seed ciphertext (section 6 of
 // the architecture document).
 
-import type { SeedEnvelope } from './db';
+import type { SeedEnvelope, SendDetails } from './db';
 
 /** Argon2id parameters; stored in the envelope so they can change later. */
 export interface KdfParams {
@@ -401,6 +401,13 @@ export interface BackupSecrets {
    * Absent in files from before they were kept.
    */
   given?: string[];
+  /**
+   * Each send built on the device as the chain does not show it (who it
+   * paid, how much each, the fee, the note), by the coins it spent, so a
+   * restored wallet shows its sends as they were. Absent in files from
+   * before they were kept.
+   */
+  sends?: SendDetails[];
 }
 
 /**
@@ -505,6 +512,7 @@ export async function openBackup(file: SealedExportFile, password: string, deriv
         contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [],
         labels: typeof parsed.labels === 'object' && parsed.labels !== null ? parsed.labels : undefined,
         given: Array.isArray(parsed.given) ? parsed.given : undefined,
+        sends: Array.isArray(parsed.sends) ? parsed.sends : undefined,
       },
       envelope: { version: 1, kdf: e.kdf, wrappedContentKey, seed: e.seed },
     };

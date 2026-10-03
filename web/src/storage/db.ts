@@ -147,6 +147,20 @@ export interface HistoryOutput {
   role: 'recipient' | 'change';
 }
 
+/**
+ * What a send built on this device knew that the chain does not show, kept
+ * by the coins it spent: their keys, under which a restore finds them again
+ * (app/sendDetails.ts).
+ */
+export interface SendDetails {
+  inputs: string[];
+  txid: string;
+  payments: HistoryPayment[];
+  feeNau: string | null;
+  outputs?: HistoryOutput[];
+  note?: string;
+}
+
 export interface SyncStateRecord {
   accountId: string;
   /** Last height fully scanned, or birthday minus one. */
