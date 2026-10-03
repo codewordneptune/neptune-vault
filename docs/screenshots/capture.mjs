@@ -52,12 +52,15 @@ const SHOTS = [
       await go('/send');
       byText('.vault-send-head button', 'Clear')?.click();
       await sleep(400);
-      byText('button', 'Choose contact').click();
+      $('[aria-label="Choose contact"]').click();
       await sleep(1000);
       $$('[role=dialog] .vault-pick').find((row) => row.innerText.includes('Bob')).click();
       await sleep(800);
       setValue(field('Amount'), '1.5');
       await sleep(300);
+      // The fee is one line until Change opens its choices.
+      $('[aria-label="Change the fee"]')?.click();
+      await sleep(400);
       $$('.mantine-SegmentedControl-label').find((label) => label.textContent.startsWith('Medium'))?.click();
       await sleep(300);
       byText('button', 'Review').click();
