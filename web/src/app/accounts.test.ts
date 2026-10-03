@@ -227,6 +227,63 @@ describe('the engine store, as the account service drives it', () => {
     expect(service.engine.problems(record.id)).toEqual(['the sealed log did not open: the disk is full']);
   });
 
+  /** A wallet from before the sealed log: its rows in the database, its log empty. */
+  async function oldWallet(core: FakeStoreCore, service: AccountService) {
+    const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    await service.lock();
+    core.moved = [];
+    core.migrations = [];
+    await db.put('accounts', { ...(await db.get('accounts', record.id))!, address0: 'nolgar1-main' });
+    for (const id of [record.id, 'someone-else']) {
+      await db.put('contacts', { key: `${id}:1`, id: '1', accountId: id, name: 'Al', address: 'nolgar1al', kind: 'k', createdAt: 1, updatedAt: 1 });
+      await db.put('utxos', { key: `${id}:u`, accountId: id, hash: 'u:0', stored: {}, amountNau: '1', amount: '1', confirmedHeight: 2, confirmedTimestampMs: 1, releaseDateMs: null, spentHeight: null, spentTxid: null, pendingTxid: null });
+      await db.put('history', { key: `${id}:sent:t`, accountId: id, kind: 'sent', status: 'confirmed', txid: 't', amountNau: '1', feeNau: '0', timestampMs: 1, height: 2, inputHashes: [], recipient: 'nolgar1bob', error: null, note: 'rent' });
+      await db.put('blocks', { key: `${id}:2`, accountId: id, height: 2, hash: 'b', prevHash: 'a', timestampMs: 1 });
+      await db.put('syncState', { accountId: id, syncedHeight: 2, syncedHash: 'b', updatedAt: 1 });
+    }
+    return record;
+  }
+  const rowsOf = async (accountId: string) => ({
+    contacts: (await db.getAllFromIndex('contacts', 'byAccount', accountId)).length,
+    utxos: (await db.getAllFromIndex('utxos', 'byAccount', accountId)).length,
+    history: (await db.getAllFromIndex('history', 'byAccount', accountId)).length,
+    blocks: (await db.getAllFromIndex('blocks', 'byAccountHeight', IDBKeyRange.bound([accountId, 0], [accountId, Number.MAX_SAFE_INTEGER]))).length,
+    syncState: (await db.get('syncState', accountId)) ? 1 : 0,
+  });
+  const none = { contacts: 0, utxos: 0, history: 0, blocks: 0, syncState: 0 };
+  const all = { contacts: 1, utxos: 1, history: 1, blocks: 1, syncState: 1 };
+
+  it("deletes the database's copy of what the log now holds, and only this wallet's", async () => {
+    const { core, service } = await withStore();
+    const record = await oldWallet(core, service);
+    await service.unlock(record.id, 'pw');
+    // The move took what the database held, before it went.
+    expect(core.migrations.find((m) => m.parts.includes('contacts'))!.dump.contacts).toHaveLength(1);
+    expect(await rowsOf(record.id)).toEqual(none);
+    expect(await rowsOf('someone-else')).toEqual(all);
+    const kept = (await db.get('accounts', record.id))!;
+    expect('address0' in kept).toBe(false);
+    expect(kept.envelope).toBeDefined();
+  });
+
+  it('keeps the rows of a part that stays in the database, the live copy', async () => {
+    const { core, service } = await withStore();
+    const record = await oldWallet(core, service);
+    core.failMigrateOf = 'contacts';
+    await service.unlock(record.id, 'pw');
+    expect(service.engine.where(record.id, 'contacts')).toBe('database');
+    expect(await rowsOf(record.id)).toEqual({ ...none, contacts: 1 });
+  });
+
+  it('deletes the rows of a chain rebuilt from the chain too', async () => {
+    const { core, service } = await withStore();
+    const record = await oldWallet(core, service);
+    core.failMigrateOf = 'utxos';
+    await service.unlock(record.id, 'pw');
+    expect(core.rebuilt).toEqual([record.id]);
+    expect(await rowsOf(record.id)).toEqual(none);
+  });
+
   it('deleting a wallet drops its log, locked or not', async () => {
     const { core, service } = await withStore();
     const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
@@ -720,6 +777,39 @@ describe('account service', () => {
       expect(file.birthdayHeight).toBe(12);
       await service.lock();
       expect((await service.importFile(file, 'pw')).birthdayHeight).toBe(12);
+    } finally {
+      vault.close();
+    }
+  });
+
+  it("moves an old wallet into the real engine's log, then deletes the database's copy", async () => {
+    db = await openVaultDb();
+    const vault = await testEngine();
+    try {
+      const core = Object.assign(new FakeCore(), vault.store, {
+        async unlock(this: FakeCore, phrase: string[], _network?: string, contentKey?: Uint8Array) {
+          this.unlocked = phrase;
+          vault.unlock(contentKey);
+        },
+      });
+      const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+      const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+      await service.lock();
+      // As before the sealed log: no log yet, everything in the database.
+      await vault.store.storeRemove(record.id);
+      await db.put('contacts', { key: `${record.id}:1`, id: '1', accountId: record.id, name: 'Al', address: 'nolgar1al', kind: 'k', createdAt: 1, updatedAt: 1 });
+      await db.put('history', { key: `${record.id}:sent:t`, accountId: record.id, kind: 'sent', status: 'confirmed', txid: 't', amountNau: '1', feeNau: '0', timestampMs: 1, height: 2, inputHashes: [], recipient: 'nolgar1bob', error: null, note: 'rent' });
+      await db.put('blocks', { key: `${record.id}:2`, accountId: record.id, height: 2, hash: 'b', prevHash: 'a', timestampMs: 1 });
+      await db.put('syncState', { accountId: record.id, syncedHeight: 2, syncedHash: 'b', updatedAt: 1 });
+
+      await service.unlock(record.id, 'pw');
+      expect(service.engine.problems(record.id)).toEqual([]);
+      expect(((await vault.store.storeRead(record.id, 'history')) as { note?: string }[]).map((h) => h.note)).toEqual(['rent']);
+      expect(((await vault.store.storeRead(record.id, 'contacts')) as { name: string }[]).map((c) => c.name)).toEqual(['Al']);
+      expect(await db.getAllFromIndex('history', 'byAccount', record.id)).toEqual([]);
+      expect(await db.getAllFromIndex('contacts', 'byAccount', record.id)).toEqual([]);
+      expect(await db.getAllFromIndex('blocks', 'byAccountHeight', IDBKeyRange.bound([record.id, 0], [record.id, Number.MAX_SAFE_INTEGER]))).toEqual([]);
+      expect(await db.get('syncState', record.id)).toBeUndefined();
     } finally {
       vault.close();
     }

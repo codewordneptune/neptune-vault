@@ -7,8 +7,9 @@
 // database, where it always was. This is where the services ask which.
 //
 // The answer is never a guess. After a part has moved, the rows it left
-// behind in the database are a copy that is going stale, and reading them,
-// or worse writing to them, would quietly fork the wallet. So the database
+// behind in the database are a copy that is going stale until the unlock
+// deletes them, and reading them, or worse writing to them, would quietly
+// fork the wallet. So the database
 // is the answer only when it is known to be the truth: the core has no
 // store at all, or this part tried to move in this session and would not
 // come through unchanged. A wallet whose log is not open is locked, and

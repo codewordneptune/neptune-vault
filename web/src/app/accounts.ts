@@ -154,7 +154,7 @@ export class AccountService {
       } catch (e) {
         const why = e instanceof Error ? e.message : String(e);
         // The chain is the truth about coins, so a chain that will not move
-        // is rebuilt from it rather than left unreadable. Nothing is deleted.
+        // is rebuilt from it rather than left unreadable.
         if (parts.some((p) => CHAIN_PARTS.includes(p)) && this.core.storeRebuild) {
           try {
             await this.core.storeRebuild(accountId, dump);
@@ -169,7 +169,43 @@ export class AccountService {
         for (const part of parts) this.engine.stays(accountId, part, why);
       }
     }
-    this.engine.opened(accountId, await this.core.storeOpen(accountId));
+    const inLog = await this.core.storeOpen(accountId);
+    this.engine.opened(accountId, inLog);
+    await this.dropOldCopies(accountId, inLog);
+  }
+
+  /**
+   * Once the sealed log holds a part, the rows the database kept of it are
+   * an unencrypted copy that nothing reads: they go, so nothing of the
+   * wallet stays readable outside its log. A part that stayed is the live
+   * copy and is kept. The address of key 0, which older versions wrote on
+   * the account record and nothing reads, goes too. A failure here costs
+   * only the cleanup, never the unlock; the next unlock tries again.
+   */
+  private async dropOldCopies(accountId: string, inLog: WalletPart[]): Promise<void> {
+    const contacts = inLog.includes('contacts');
+    const chain = CHAIN_PARTS.every((part) => inLog.includes(part));
+    try {
+      const tx = this.db.transaction(['accounts', 'syncState', 'utxos', 'history', 'blocks', 'contacts'], 'readwrite');
+      if (contacts) {
+        for (const key of await tx.objectStore('contacts').index('byAccount').getAllKeys(accountId)) await tx.objectStore('contacts').delete(key);
+      }
+      if (chain) {
+        await tx.objectStore('syncState').delete(accountId);
+        for (const key of await tx.objectStore('utxos').index('byAccount').getAllKeys(accountId)) await tx.objectStore('utxos').delete(key);
+        for (const key of await tx.objectStore('history').index('byAccount').getAllKeys(accountId)) await tx.objectStore('history').delete(key);
+        const blockKeys = await tx.objectStore('blocks').index('byAccountHeight').getAllKeys(IDBKeyRange.bound([accountId, 0], [accountId, Number.MAX_SAFE_INTEGER]));
+        for (const key of blockKeys) await tx.objectStore('blocks').delete(key);
+      }
+      const record = await tx.objectStore('accounts').get(accountId);
+      if (record && 'address0' in record) {
+        const { address0: _gone, ...rest } = record;
+        await tx.objectStore('accounts').put(rest);
+      }
+      await tx.done;
+    } catch (e) {
+      console.warn(`The old copies of wallet ${accountId} were not deleted: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   /**

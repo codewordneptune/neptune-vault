@@ -7,9 +7,9 @@
 // under a key that never comes here.
 //
 // It is a database of its own, beside the app's old one and not inside it.
-// The old one is left exactly as it was while wallets move over, so there
-// is always something to fall back to, and so that taking this away again
-// would be deleting one database and nothing more.
+// A wallet's rows in the old one are deleted only once its log holds them
+// (AccountService.dropOldCopies); the old database keeps the account
+// records and the settings.
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 

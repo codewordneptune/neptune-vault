@@ -317,7 +317,8 @@ export interface WalletCore {
   /**
    * When the chain would not move: start the engine's copy afresh from what
    * the wallet's record says, for the sync to rebuild from the chain. `dump`
-   * is as for storeMigrate. Nothing is deleted from the app's database.
+   * is as for storeMigrate. The core deletes nothing from the app's
+   * database; the app deletes its copy once the log holds the chain.
    */
   storeRebuild?(accountId: string, dump: unknown): Promise<void>;
   /**

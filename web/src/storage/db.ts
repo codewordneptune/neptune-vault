@@ -31,7 +31,8 @@ export interface AccountRecord {
   /**
    * Address of key 0. No longer written: it tied this device to its
    * payments for anyone who could read the database, and every screen that
-   * shows an address derives it from the keys. Older records may carry it.
+   * shows an address derives it from the keys. Older records carry it until
+   * their wallet's next unlock deletes it.
    */
   address0?: string;
   /** Next unused derivation index per key kind, advanced by scanning. */

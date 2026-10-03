@@ -6,7 +6,7 @@
 //! changes that build the new state, and, going the other way, the records
 //! the new state amounts to. A migration is good when the second equals the
 //! first, record for record, and the app switches over only then. Nothing
-//! here deletes anything: the old database is left exactly as it was.
+//! here deletes anything; the app deletes its copy once the log holds it.
 //!
 //! It happens in two parts, because the new logs are sealed and the old
 //! database was not. The device part needs no secret and runs at start-up:
@@ -255,7 +255,7 @@ pub const REBUILD: &str = "rebuild";
 /// engine's copy afresh and let the sync rebuild it from the chain, which is
 /// the truth about coins. What only this device knew (notes on sends, the
 /// record of sends that failed, holds on coins of sends in flight) is not
-/// rebuilt. Nothing is deleted from the old database.
+/// rebuilt, and the app then deletes the old database's copy of it.
 ///
 /// The scan starts where the wallet's record says, with the key counters it
 /// recorded, since watching more keys can only find more. Where the record

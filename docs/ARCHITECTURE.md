@@ -177,15 +177,13 @@ IndexedDB `neptune-vault` (`web/src/storage/db.ts`) is at `DB_VERSION` 3:
 1 initial, 2 adds `contacts`, 3 re-keys coins to `hash:aocl_index`
 (`rekeyCoins`). Its live stores are `accounts` and `settings`. Five more,
 `contacts`, `utxos`, `blocks`, `history` and `syncState`, are where
-versions before the sealed log kept a wallet's data; they are read once, to
-move a wallet into its log (below), and left as they were. So a wallet made
-by such a version keeps an unsealed copy of its old coins, history and
-contacts here until it is removed from the device. Never sealed: the
-account record (name, network, creation time, start block, the envelope and
-the passkey's wrapping, `confirmSends`, backup dates; on wallets made before
-2026-09-24 also the address of key 0) and the settings (node URLs, the
-current wallet, the last proof's figures). There can be several wallets per
-device, on three networks (`main`, `testnet`, `regtest`).
+versions before the sealed log kept a wallet's data; they are read to move
+a wallet into its log, and the same unlock deletes that wallet's rows once
+the log holds them (below). Never sealed: the account record (name,
+network, creation time, start block and key counters, the envelope and the
+passkey's wrapping, `confirmSends`, backup dates) and the settings (node
+URLs, the current wallet, the last proof's figures). There can be several
+wallets per device, on three networks (`main`, `testnet`, `regtest`).
 
 A second database, `neptune-vault-log` (`web/src/storage/logStore.ts`, at
 `LOG_DB_VERSION` 1), has one store `entries` keyed `[log, seq, kind]`. It
@@ -222,10 +220,18 @@ names, the addresses given out, and a fast restore's progress.
 `prepare_migration` compares the would-be state with the dump record for
 record before writing. A part that fails stays in the database
 (`EngineParts.stays`); a chain that fails is started afresh (`storeRebuild`)
-and rebuilt from the chain. Nothing is deleted from the old database, except
-the failed-send note an older version kept in clear in the settings, which
-goes once the log holds it. The core's device log (`DEVICE_LOG`) exists but
+and rebuilt from the chain. The core's device log (`DEVICE_LOG`) exists but
 the app does not use it yet.
+
+Once the log holds a part, the same unlock deletes the database's rows of
+it (`dropOldCopies` in `accounts.ts`), so nothing of the wallet stays
+readable outside its log: the contacts with the contacts part, and the
+coins, blocks, history and sync state with the chain, a chain rebuilt from
+the chain included, whose notes and recipients on old sends then go with
+them. A part that stays is the live copy and is kept. The failed-send note
+an older version kept in clear in the settings goes once the log holds it,
+and the account record's `address0`, which nothing reads, at the next
+unlock. A failed cleanup never fails the unlock; the next one tries again.
 
 Once the chain has moved, the account record's scan fields
 (`birthdayHeight`, `nextKeyIndices`, `restore`, `restoredAt`) are a stale
