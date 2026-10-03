@@ -1289,6 +1289,11 @@ html {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* One that cannot be pressed yet (Send's Clear on an empty form) does not act like a link. */
+.vault-tap-link:disabled {
+  text-decoration: none;
+  cursor: default;
+}
 
 /* Touch targets: at least 40 px to hit, drawn no larger than before. */
 .vault-tap {

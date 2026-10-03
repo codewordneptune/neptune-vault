@@ -659,9 +659,9 @@ export function Send() {
   // Clear starts the form over: every recipient and amount, the added ones,
   // a request's name, the note, and a custom fee, back to the usual level
   // (Low, Medium and High are a setting, kept between sends). One tap and no
-  // dialog: it shows only while the form holds something, away from Review,
-  // and touches nothing sent or saved. Focus goes to the recipient, where
-  // the form starts again, and does not fall away with the button.
+  // dialog: it can be pressed only while the form holds something, away from
+  // Review, and touches nothing sent or saved. Focus goes to the recipient,
+  // where the form starts again, not to a button that can no longer be pressed.
   const recipientRef = useRef<HTMLInputElement>(null);
   const hasContent = recipient.trim() !== '' || amount.trim() !== '' || extras.length > 0 || note.trim() !== '' || feePreset === 'custom';
   const clearForm = () => {
@@ -1084,14 +1084,13 @@ export function Send() {
         <Title order={2} className="sr-only">
           Send
         </Title>
-        {/* Clear, away from Review, and there only while the form holds something to clear. */}
-        {hasContent && (
-          <div className="vault-send-head">
-            <UnstyledButton type="button" onClick={clearForm} aria-label="Clear the form" c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-              Clear
-            </UnstyledButton>
-          </div>
-        )}
+        {/* Clear, away from Review, always in its place so that nothing moves as
+            the form fills, and pressable only while it holds something to clear. */}
+        <div className="vault-send-head">
+          <UnstyledButton type="button" onClick={clearForm} disabled={!hasContent} aria-label="Clear the form" c={hasContent ? 'var(--v-accent-text)' : 'var(--v-faint)'} fz="sm" className="vault-tap-link">
+            Clear
+          </UnstyledButton>
+        </div>
         {/* How the last send ended, where the person is: focused, so it is
             read out, and dismissed here and on Home at once. */}
         {sendJob?.done && sendJob.ending && (
