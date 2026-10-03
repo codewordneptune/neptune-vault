@@ -2195,8 +2195,10 @@ html {
 .vault-history-day + .vault-history-day {
   margin-top: 16px;
 }
+/* The first row is pulled up 12 px for its hover fill (.vault-row-button:first-child);
+   6 px more keep that fill clear of the label. */
 .vault-history-day-label {
-  margin: 0 0 12px;
+  margin: 0 0 18px;
   font-size: var(--v-fs-sm);
   font-weight: 600;
   color: var(--v-text-2);
