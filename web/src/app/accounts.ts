@@ -10,7 +10,7 @@ const LAST_SEND = 'lastSend';
 /** The private note that a send has started and not yet ended: found at an unlock, it is a send the app was closed during. */
 const SEND_IN_PROGRESS = 'sendInProgress';
 import { assertEnvelope, changePassword as reWrapSeed, checkSecret, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeedKeepingKey, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
-import { CHAIN_PARTS, ENGINE_PARTS, type WalletPart } from '../backend/types';
+import { CHAIN_PARTS, ENGINE_PARTS, type ScanSettings, type WalletPart } from '../backend/types';
 import { EngineParts } from './engineParts';
 import type { PasskeyProvider } from './passkey';
 import { addressKindLabel } from '../util/address';
@@ -770,8 +770,12 @@ export class AccountService {
     // so does which addresses were given out at all.
     const labels = await readLabels(this.core, this.engine, accountId).catch(() => ({}));
     const given = [...(await readGiven(this.core, this.engine, accountId).catch(() => new Set<string>()))].sort();
+    // Where scanning starts is the engine's once the chain has moved: the
+    // first pass, a fast restore or a rescan move it, and the record keeps
+    // the height it was made with. A restore from the file starts here.
+    const scan = this.engine.where(accountId, 'scan') === 'engine' ? ((await this.core.storeRead!(accountId, 'scan')) as ScanSettings[])[0] : undefined;
     return sealBackup(
-      { network: record.network, birthdayHeight: record.birthdayHeight, exportedAt: Date.now() },
+      { network: record.network, birthdayHeight: scan?.birthdayHeight ?? record.birthdayHeight, exportedAt: Date.now() },
       record.envelope,
       { contacts: contacts.map((c) => ({ name: c.name, address: c.address })), ...(Object.keys(labels).length > 0 ? { labels } : {}), ...(given.length > 0 ? { given } : {}) },
       password,

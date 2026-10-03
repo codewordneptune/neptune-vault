@@ -701,6 +701,30 @@ describe('account service', () => {
     }
   });
 
+  it('a backup file starts where the wallet scans now, not where it was made', async () => {
+    db = await openVaultDb();
+    const vault = await testEngine();
+    try {
+      const core = Object.assign(new FakeCore(), vault.store, {
+        async unlock(this: FakeCore, phrase: string[], _network?: string, contentKey?: Uint8Array) {
+          this.unlocked = phrase;
+          vault.unlock(contentKey);
+        },
+      });
+      const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+      const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 40);
+      // Payments came before the start: rescanned from further back.
+      await service.rescanFrom(record.id, 12);
+      expect((await db.get('accounts', record.id))?.birthdayHeight).toBe(40);
+      const file = await service.exportFile(record.id, 'pw');
+      expect(file.birthdayHeight).toBe(12);
+      await service.lock();
+      expect((await service.importFile(file, 'pw')).birthdayHeight).toBe(12);
+    } finally {
+      vault.close();
+    }
+  });
+
   it('records the last backup on export and on import', async () => {
     const { service } = await setup();
     const created = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
