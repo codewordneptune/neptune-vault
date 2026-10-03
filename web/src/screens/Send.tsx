@@ -3,10 +3,10 @@
 // runs as a job in the app context so it survives this screen being
 // unmounted (backgrounding locks the app).
 
-import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Loader, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
 import { IconFingerprint, IconLink, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../components/Sheet';
@@ -61,23 +61,72 @@ const UNDER_THE_FIELD: ('label' | 'input' | 'description' | 'error')[] = ['label
  * they sit in it, as icons named for screen readers and in a tooltip.
  * Choose contact is offered once there is a contact: in a new wallet it
  * would open an empty list. `who` names the recipient when there are several.
+ * A press leaves the focus in the field: a field left holding an address
+ * turns into a card, which would take these buttons away mid-click.
  */
 function FieldActions({ contacts, onPick, onScan, who }: { contacts: boolean; onPick: () => void; onScan: () => void; who: string | null }) {
   return (
     <Group gap={4} wrap="nowrap">
       {contacts && (
         <Tooltip label="Choose contact">
-          <ActionIcon type="button" variant="subtle" size="lg" className="vault-tap" onClick={onPick} aria-label={who ? `Choose a contact for ${who}` : 'Choose contact'}>
+          <ActionIcon type="button" variant="subtle" size="lg" className="vault-tap" onMouseDown={(e) => e.preventDefault()} onClick={onPick} aria-label={who ? `Choose a contact for ${who}` : 'Choose contact'}>
             <IconUsers size={20} />
           </ActionIcon>
         </Tooltip>
       )}
       <Tooltip label="Scan">
-        <ActionIcon type="button" variant="subtle" size="lg" className="vault-tap" onClick={onScan} aria-label={who ? `Scan ${who}'s address` : 'Scan'}>
+        <ActionIcon type="button" variant="subtle" size="lg" className="vault-tap" onMouseDown={(e) => e.preventDefault()} onClick={onScan} aria-label={who ? `Scan ${who}'s address` : 'Scan'}>
           <IconScan size={20} />
         </ActionIcon>
       </Tooltip>
     </Group>
+  );
+}
+
+/**
+ * A recipient once its field holds a whole address and the person has left
+ * it: who it is, by the saved contact's name or a request's (said to be
+ * unverified), or else the address itself, shortened; its kind when it is
+ * not Standard, as on the review; and Change, which brings the field back
+ * with the address selected, Choose contact and Scan beside it.
+ */
+function RecipientCard({ address, name, requestName, who, onChange, changeRef }: { address: string; name: string | null; requestName: string | null; who: string | null; onChange: () => void; changeRef: (el: HTMLButtonElement | null) => void }) {
+  const labelId = useId();
+  const kind = addressKindNote(address);
+  const shownName = name ?? requestName;
+  return (
+    <Input.Wrapper label="Recipient address" labelElement="div" size="md" labelProps={{ id: labelId }}>
+      <div className="vault-recipient" role="group" aria-labelledby={labelId}>
+        {/* The people icon marks a saved contact; a request's name says "unverified" instead. */}
+        {name && <IconUsers size={20} aria-hidden className="vault-recipient-icon" />}
+        <div className="vault-recipient-text">
+          {shownName && (
+            <div className="vault-recipient-name">
+              <Text span fw={600} truncate>
+                <bdi>{shownName}</bdi>
+              </Text>
+              {/* Never cut off: a link can carry any name. */}
+              {!name && (
+                <Text span size="sm" c="dimmed" style={{ flex: 'none' }}>
+                  (unverified)
+                </Text>
+              )}
+            </div>
+          )}
+          <Text ff="monospace" size="sm" c={shownName ? 'dimmed' : undefined}>
+            {shortAddress(address)}
+          </Text>
+          {kind && (
+            <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
+              {kind}
+            </Badge>
+          )}
+        </div>
+        <UnstyledButton ref={changeRef} type="button" onClick={onChange} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-label={who ? `Change ${who}` : 'Change the recipient'}>
+          Change
+        </UnstyledButton>
+      </div>
+    </Input.Wrapper>
   );
 }
 
@@ -154,9 +203,13 @@ export function Send() {
     if (account) void services.contacts.list(account.id).then(setContacts);
   }, [services, account]);
   useEffect(loadContacts, [loadContacts]);
-  const contactNote = (address: string) => {
+  /** The saved contact's name for an address, or null. */
+  const contactName = (address: string): string | null => {
     const wanted = address.trim().toLowerCase();
-    const name = wanted ? contacts.find((c) => c.address === wanted)?.name : undefined;
+    return (wanted && contacts.find((c) => c.address === wanted)?.name) || null;
+  };
+  const contactNote = (address: string) => {
+    const name = contactName(address);
     return name ? (
       <span className="vault-contact-match">
         <IconUsers size={16} aria-hidden />
@@ -243,6 +296,63 @@ export function Send() {
     setExtras((all) => [...all, { id, recipient: '', amount: '', recipientError: null, amountError: null }]);
     // Max means everything to one recipient; with two it would mean nothing.
     setMaxExact(null);
+  };
+
+  // A recipient field holding a valid address shows it as a card once the
+  // person has left it. `editing`: the field they are in, 0 for the first,
+  // else an added one's id. The addresses found valid on this network are
+  // kept, lower case, so a card shows without waiting on a check it passed.
+  const [editing, setEditing] = useState<number | null>(null);
+  const [validAddresses, setValidAddresses] = useState<ReadonlySet<string>>(() => new Set());
+  const addressList = [recipient, ...extras.map((x) => x.recipient)]
+    .map((a) => a.trim().toLowerCase())
+    .filter(Boolean)
+    .join('\n');
+  useEffect(() => {
+    if (!addressList) return;
+    let live = true;
+    const all = [...new Set(addressList.split('\n'))];
+    void Promise.all(all.map(async (a) => ((await services.core.isValidAddress(a, services.networkName())) ? a : null))).then(
+      (found) => {
+        const valid = found.filter((a): a is string => a !== null);
+        if (live && valid.length > 0) setValidAddresses((known) => (valid.every((a) => known.has(a)) ? known : new Set([...known, ...valid])));
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [services, addressList]);
+  const asCard = (id: number, address: string, error: string | null) => editing !== id && error === null && validAddresses.has(address.trim().toLowerCase());
+  // Where focus goes as a field and its card trade places: into the field
+  // (Change, Clear), or to the card's Change once Choose contact or Scan
+  // filled it. Their sheet hands focus back to the field as it closes; that
+  // is not the person going back into it.
+  const focusFirst = useRef(false);
+  const focusCard = useRef<number | null>(null);
+  const justFilled = useRef<{ id: number; until: number } | null>(null);
+  const enterField = (id: number) => {
+    const filled = justFilled.current;
+    if (filled && filled.id === id && Date.now() < filled.until) return;
+    focusCard.current = null;
+    setEditing(id);
+  };
+  const leaveField = (id: number) => setEditing((f) => (f === id ? null : f));
+  const filledField = (id: number) => {
+    justFilled.current = { id, until: Date.now() + 1000 };
+    focusCard.current = id;
+    leaveField(id);
+  };
+  const changeRecipient = (id: number) => {
+    if (id === 0) focusFirst.current = true;
+    else focusExtra.current = id;
+    setEditing(id);
+  };
+  const cardChangeRef = (id: number) => (el: HTMLButtonElement | null) => {
+    if (el && focusCard.current === id) {
+      focusCard.current = null;
+      el.focus();
+    }
   };
 
   // The form as it stands, kept as this wallet's draft when the screen goes.
@@ -556,6 +666,7 @@ export function Send() {
   const onScanned = (text: string) => {
     const target = scanFor;
     setScanFor(null);
+    filledField(target ?? 0);
     if (target === null || target === 0) applyText(text);
     else applyExtraText(target, text);
     setFormSaid(target === null || target === 0 ? 'Address filled from the QR code.' : `Address of recipient ${extras.findIndex((x) => x.id === target) + 2} filled from the QR code.`);
@@ -590,7 +701,9 @@ export function Send() {
     setAskLustration(false);
     setTotals(null);
     setFormSaid('Form cleared.');
-    recipientRef.current?.focus();
+    // A card gives way to the empty field, which takes the focus as it comes.
+    if (recipientRef.current) recipientRef.current.focus();
+    else focusFirst.current = true;
   };
 
   // A payment link opened from elsewhere: the form starts over from it, as
@@ -1056,8 +1169,25 @@ export function Send() {
                 Recipient 1
               </span>
             )}
+              {asCard(0, recipient, recipientError) ? (
+                <RecipientCard
+                  address={recipient.trim()}
+                  name={contactName(recipient)}
+                  requestName={linkMeta?.label ?? null}
+                  who={extras.length > 0 ? 'recipient 1' : null}
+                  onChange={() => changeRecipient(0)}
+                  changeRef={cardChangeRef(0)}
+                />
+              ) : (
               <TextInput
-                ref={recipientRef}
+                ref={(el) => {
+                  recipientRef.current = el;
+                  if (el && focusFirst.current) {
+                    focusFirst.current = false;
+                    el.focus();
+                    el.select();
+                  }
+                }}
                 label="Recipient address"
                 autoCapitalize="none"
                 autoCorrect="off"
@@ -1065,8 +1195,10 @@ export function Send() {
                 spellCheck={false}
                 placeholder="Address or request"
                 value={recipient}
+                onFocus={() => enterField(0)}
                 onChange={(e) => {
                   const value = e.currentTarget.value;
+                  setEditing(0);
                   // A payment link arriving by any route (keyboard paste, share)
                   // is split into its fields, the same as Paste and Scan do.
                   if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyText(value);
@@ -1077,12 +1209,14 @@ export function Send() {
                   }
                 }}
                 onBlur={() => void checkRecipient(true)}
+                wrapperProps={{ onBlur: (e: FocusEvent<HTMLDivElement>) => !e.currentTarget.contains(e.relatedTarget) && leaveField(0) }}
                 error={recipientError}
                 description={nameNote(recipient, linkMeta?.label)}
                 inputWrapperOrder={['label', 'input', 'description', 'error']}
                 rightSectionWidth={contacts.length > 0 ? 84 : 48}
                 rightSection={<FieldActions contacts={contacts.length > 0} onPick={() => setPickFor(0)} onScan={() => setScanFor(0)} who={extras.length > 0 ? 'recipient 1' : null} />}
               />
+              )}
             <TextInput
               ref={(el) => {
                 if (el) amountRefs.current.set(0, el);
@@ -1130,6 +1264,16 @@ export function Send() {
                     Remove
                   </UnstyledButton>
                 </div>
+                  {asCard(x.id, x.recipient, x.recipientError) ? (
+                    <RecipientCard
+                      address={x.recipient.trim()}
+                      name={contactName(x.recipient)}
+                      requestName={null}
+                      who={`recipient ${i + 2}`}
+                      onChange={() => changeRecipient(x.id)}
+                      changeRef={cardChangeRef(x.id)}
+                    />
+                  ) : (
                   <TextInput
                     label="Recipient address"
                     autoCapitalize="none"
@@ -1142,20 +1286,25 @@ export function Send() {
                       if (el && focusExtra.current === x.id) {
                         focusExtra.current = null;
                         el.focus();
+                        el.select();
                       }
                     }}
+                    onFocus={() => enterField(x.id)}
                     onChange={(e) => {
                       const value = e.currentTarget.value;
+                      setEditing(x.id);
                       if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyExtraText(x.id, value);
                       else updateExtra(x.id, { recipient: value, recipientError: null });
                     }}
                     onBlur={() => void checkExtraRecipient(x.id, true)}
+                    wrapperProps={{ onBlur: (e: FocusEvent<HTMLDivElement>) => !e.currentTarget.contains(e.relatedTarget) && leaveField(x.id) }}
                     error={x.recipientError}
                     description={contactNote(x.recipient)}
                     inputWrapperOrder={['label', 'input', 'description', 'error']}
                     rightSectionWidth={contacts.length > 0 ? 84 : 48}
                     rightSection={<FieldActions contacts={contacts.length > 0} onPick={() => setPickFor(x.id)} onScan={() => setScanFor(x.id)} who={`recipient ${i + 2}`} />}
                   />
+                  )}
                 <TextInput
                   ref={(el) => {
                     if (el) amountRefs.current.set(x.id, el);
@@ -1309,13 +1458,25 @@ export function Send() {
           </Stack>
         </form>
       </Stack>
-      <QrScanner opened={scanFor !== null} onClose={() => setScanFor(null)} onResult={onScanned} />
+      {/* Closed without a choice, a field the sheet left as a card gets the focus back on its Change. */}
+      <QrScanner
+        opened={scanFor !== null}
+        onClose={() => {
+          focusCard.current = scanFor;
+          setScanFor(null);
+        }}
+        onResult={onScanned}
+      />
       <ContactPicker
         opened={pickFor !== null}
-        onClose={() => setPickFor(null)}
+        onClose={() => {
+          focusCard.current = pickFor;
+          setPickFor(null);
+        }}
         onPick={(c) => {
           const target = pickFor;
           setPickFor(null);
+          filledField(target ?? 0);
           if (target !== null && target !== 0) {
             updateExtra(target, { recipient: c.address, recipientError: null });
             return;

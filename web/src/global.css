@@ -2376,6 +2376,33 @@ html {
   font-weight: 600;
 }
 
+/* A recipient shown as a card once its field holds a whole address: the
+   field's own edge and ground, who it is, and Change at the end. */
+.vault-recipient {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 7px 8px 7px 14px;
+  border: 1px solid var(--v-field-border);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--v-field);
+}
+.vault-recipient-icon {
+  flex: none;
+  color: var(--v-muted);
+}
+.vault-recipient-text {
+  flex: 1;
+  min-width: 0;
+}
+.vault-recipient-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
 /* Send's first line, while there is something to clear: Clear at its end. */
 .vault-send-head {
   display: flex;
