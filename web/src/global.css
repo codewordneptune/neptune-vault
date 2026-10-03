@@ -591,9 +591,9 @@ button.vault-picker {
   box-shadow: inset 0 0 0 1px var(--v-line);
 }
 
-/* A label over a group of rows, as History's day headings read: a name as
-   it is typed, in sentence case ("Wallet 1", "App", "Recipient 1"). Spaced
-   capitals (.vault-eyebrow) stay for card titles, step counters and menus. */
+/* A label over a group of rows, as History's day headings read: in
+   sentence case ("This wallet", "App", "Recipient 1"). Spaced capitals
+   (.vault-eyebrow) stay for card titles, step counters and menus. */
 .vault-group-label {
   font-size: var(--v-fs-sm);
   font-weight: 600;

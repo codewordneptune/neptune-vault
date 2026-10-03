@@ -299,10 +299,9 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
   return (
     <nav aria-label="Settings" className="vault-settings-list">
       {/* A named group, not a heading: the page's own title stays its first heading. */}
-      {/* Group labels read as History's day headings do: the wallet's name as typed. */}
       <div role="group" aria-labelledby="settings-group-wallet" className="vault-settings-group">
         <div id="settings-group-wallet" className="vault-group-label vault-settings-group-label">
-          <bdi>{account ? walletName(account) : 'This wallet'}</bdi>
+          This wallet
         </div>
         <Paper p={0}>
           {row('backup', backup, backedUp ? undefined : 'warn')}
