@@ -50,9 +50,10 @@ import { usePendingSends } from '../app/pending';
 import { isCancellation } from '../app/passkey';
 import { copyText } from '../util/clipboard';
 import { CLIPBOARD_RISK, FAST_SCAN, INSTALL_BENEFITS, NOT_DURING_SEND } from '../app/words';
-import { FIAT_CURRENCIES, FIAT_LABELS, isFiatCurrency } from '../util/fiat';
+import { FIAT_CURRENCIES, FIAT_LABELS, formatFiat, isFiatCurrency } from '../util/fiat';
+import { useQuote } from '../app/price';
 import { NETWORK_LABELS } from '../util/network';
-import { formatDate, formatTime } from '../util/time';
+import { formatDate, formatTime, timeAgo } from '../util/time';
 import { showInt } from '../util/format';
 
 // One inline form open at a time: opening one (a new password, a passkey,
@@ -1204,6 +1205,9 @@ function FiatCard() {
   const { services } = useApp();
   const changed = useContext(SettingsChangedContext);
   const [currency, setCurrency] = useState<string>(services.settings.fiatCurrency ?? 'off');
+  // The estimate under the balance names neither its source nor, while it
+  // is fresh, its age: both are here.
+  const quote = useQuote(isFiatCurrency(currency) ? currency : undefined);
   return (
     <Stack gap="xs">
       <Select
@@ -1217,6 +1221,11 @@ function FiatCard() {
         }}
         data={[{ value: 'off', label: 'Off' }, ...FIAT_CURRENCIES.map((c) => ({ value: c, label: FIAT_LABELS[c] })).sort((a, b) => a.label.localeCompare(b.label, 'en'))]}
       />
+      {quote && (
+        <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          Last price from {quote.source}, {timeAgo(quote.at)}: <span style={{ whiteSpace: 'nowrap' }}>1 NPT ≈ {formatFiat(quote.price, quote.currency)}</span>.
+        </Text>
+      )}
       {/* What it shows and what it costs, in a sentence; which service is asked when, in Privacy. */}
       <Text size="sm" c="dimmed">
         Shows a rough estimate under your balance. While it is on, the app asks CoinGecko or CoinPaprika for the NPT price every 10 minutes: they see this device's network address, not your wallet.

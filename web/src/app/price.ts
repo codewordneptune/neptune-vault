@@ -28,6 +28,8 @@ export const QUOTE_REFRESH_MS = 10 * 60 * 1000;
 const QUOTE_RETRY_MS = 2 * 60 * 1000;
 /** A price older than this is not shown at all: no figure is better than a stale one. */
 export const QUOTE_MAX_AGE_MS = 60 * 60 * 1000;
+/** From this age the estimate under the balance says how old its price is. */
+export const QUOTE_OLD_MS = 20 * 60 * 1000;
 const TIMEOUT_MS = 10_000;
 
 type Fetch = typeof fetch;

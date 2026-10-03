@@ -108,6 +108,14 @@ export function dayAhead(ms: number, now = Date.now()): string {
   return d.getFullYear() === n.getFullYear() ? `on ${dayMonth(ms)}` : `on ${formatDate(ms)}`;
 }
 
+/** How long ago a moment was: "just now", "4 min ago", "2 h ago". */
+export function timeAgo(ms: number, now = Date.now()): string {
+  const s = Math.max(0, Math.round((now - ms) / 1000));
+  if (s < 45) return 'just now';
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  return `${Math.round(s / 3600)} h ago`;
+}
+
 /**
  * A length of time, one way everywhere: "45 s", "2 min 23 s", "1 h 5 min".
  * Seconds drop away past the hour, where nobody counts them.

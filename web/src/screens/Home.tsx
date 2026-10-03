@@ -1,7 +1,7 @@
 // Balance, sync status and history.
 
 import { ActionIcon, Button, Group, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconRefresh, IconWifiOff } from '@tabler/icons-react';
+import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,7 +11,7 @@ import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../a
 import { MEMPOOL_KEEPS_MS, SEND_LIFETIME_MS } from '../app/send';
 import { usePendingSends } from '../app/pending';
 import { speakNau } from '../components/Amount';
-import { useQuote } from '../app/price';
+import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { fiatOf, fiatParts } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
 import type { AccountRecord, ContactRecord, HistoryRecord } from '../storage/db';
@@ -23,7 +23,7 @@ import { LINKS } from '../app/links';
 import { abbreviateAddress, shortAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
-import { dayAhead, dayKey, dayLabel, formatDate, formatDateTime, formatTime, whenInSentence } from '../util/time';
+import { dayAhead, dayKey, dayLabel, formatDate, formatDateTime, formatTime, timeAgo, whenInSentence } from '../util/time';
 
 export function Home() {
   const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure, lastSend, dismissLastSend, screenAwake } = useApp();
@@ -57,12 +57,6 @@ export function Home() {
     const t = setInterval(() => setTick((n) => n + 1), 30_000);
     return () => clearInterval(t);
   }, []);
-  const ago = (ms: number) => {
-    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-    if (s < 45) return 'just now';
-    if (s < 3600) return `${Math.round(s / 60)} min ago`;
-    return `${Math.round(s / 3600)} h ago`;
-  };
   const navigate = useNavigate();
 
   // A seed phrase written down and confirmed is the backup that matters,
@@ -210,7 +204,7 @@ export function Home() {
           : sync.phase === 'done'
             ? behind
               ? `Synced to block ${showBlock(sync.tipHeight)}, but that block is ${Math.round(behindMs / 3_600_000)} h old, so the node may be behind`
-              : `Up to date · block ${showBlock(sync.syncedHeight)}${lastSyncedAt ? ` · ${ago(lastSyncedAt)}` : ''}`
+              : `Up to date · block ${showBlock(sync.syncedHeight)}${lastSyncedAt ? ` · ${timeAgo(lastSyncedAt)}` : ''}`
             : sync.message ?? 'Sync failed';
   // What the status line says is announced after the person asked for a
   // sync, and a payment arriving is announced as it arrives: once each, in
@@ -239,6 +233,17 @@ export function Home() {
     }
     incomingSeen.current = incomingNau;
   }, [incomingNau, loaded, hidden]);
+  // The sentence behind the readings under the balance opens from an ⓘ at
+  // the end of the last one. A pending send without change shows no
+  // reading; a link opens it then.
+  const readings = [incomingNau > 0n && 'incoming', loaded && ownReady && onHoldNau > 0n && 'held', balance.lockedNau > 0n && 'locked'].filter(Boolean);
+  const explained = incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n;
+  const explainAfter = (reading: string) =>
+    explained && readings[readings.length - 1] === reading ? (
+      <ActionIcon variant="transparent" size="sm" className="vault-tap vault-info" aria-label="What does this mean?" aria-expanded={why} onClick={() => setWhy((v) => !v)}>
+        <IconInfoCircle size={16} />
+      </ActionIcon>
+    ) : null;
   /** A send that failed or was given up on: nothing left the wallet. */
   const notSent = (e: HistoryEntry) => e.kind !== 'received' && e.record.status === 'failed';
   /** The payments of a send built here, when it paid more than one recipient. */
@@ -468,15 +473,14 @@ export function Home() {
               </span>
               <span className="sr-only">{loaded && ownReady ? `Balance ${spoken(headlineNau)} NPT` : 'Balance loading'}</span>
             </div>
-            {/* An estimate, and said to be one: where the price is from, and how old it is. */}
+            {/* An estimate, and said to be one. Its price says how old it is
+                once that matters; where it is from is in Settings, Currency. */}
             {loaded && ownReady && quote && fiat && (
               <div className="vault-balance-fiat">
                 <span className="vault-balance-fiat-value">
                   ≈ {hidden ? '••••' : <>{fiat.figure} <span className="vault-unit">{fiat.code}</span></>}
                 </span>
-                <span className="vault-balance-fiat-source">
-                  {quote.source} · {ago(quote.at)}
-                </span>
+                {Date.now() - quote.at > QUOTE_OLD_MS && <span className="vault-balance-fiat-source">price from {timeAgo(quote.at)}</span>}
               </div>
             )}
             {/* Money on the way and money held, as two readings; the sentence behind them is one tap away. */}
@@ -485,15 +489,17 @@ export function Home() {
                 <IconArrowDownLeft size={16} className="vault-balance-note-in" aria-hidden />
                 <Text size="sm" c="dimmed">
                   <span className="vault-figure">{amount(incomingNau)}</span> NPT pending
+                  {explainAfter('incoming')}
                 </Text>
               </Group>
             )}
-            {/* The same line as Send's, and the two figures add up to the balance above. */}
+            {/* The two figures add up to the balance above. */}
             {loaded && ownReady && onHoldNau > 0n && (
               <Group gap={6} wrap="nowrap" align="flex-start">
                 <IconHourglass size={16} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
                 <Text size="sm" c="dimmed">
                   Spendable <span className="vault-figure">{amount(balance.spendableNau)}</span> NPT · <span className="vault-figure">{amount(onHoldNau)}</span> NPT on hold
+                  {explainAfter('held')}
                 </Text>
               </Group>
             )}
@@ -502,14 +508,17 @@ export function Home() {
                 <IconClockPause size={16} className="vault-balance-note-held" aria-hidden />
                 <Text size="sm" c="dimmed">
                   <span className="vault-figure">{amount(balance.lockedNau)}</span> NPT {balance.nextReleaseMs ? `spendable from ${showDate(balance.nextReleaseMs)}` : 'not spendable yet'}
+                  {explainAfter('locked')}
                 </Text>
               </Group>
             )}
-            {(incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n) && (
+            {explained && (
               <>
-                <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start" aria-expanded={why}>
-                  {why ? 'Less' : 'What does this mean?'}
-                </UnstyledButton>
+                {readings.length === 0 && (
+                  <UnstyledButton onClick={() => setWhy((v) => !v)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start" aria-expanded={why}>
+                    {why ? 'Less' : 'What does this mean?'}
+                  </UnstyledButton>
+                )}
                 {why && (
                   <Text size="sm" c="dimmed">
                     {incomingNau > 0n && `${amount(incomingNau)} NPT is pending: it becomes spendable once a block confirms it. `}

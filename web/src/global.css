@@ -1232,6 +1232,43 @@ html {
   color: var(--v-text);
 }
 
+/* The ⓘ at the end of a reading: inline after the last word, 8 px from it,
+   its 40 px target (44 on touch) reaching past the line without making it
+   taller. Pressed or focused, a small circle shows round the icon rather
+   than a box over the lines about it; a mouse over it tints nothing, as on
+   Send's fee row. */
+.vault-info {
+  position: relative;
+  z-index: 0;
+  display: inline-flex;
+  vertical-align: middle;
+  margin: -12px -12px -12px -4px;
+}
+.vault-info::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: calc(50% - 11px);
+  border-radius: 50%;
+}
+.vault-info:active::before {
+  background: var(--v-row-press);
+}
+.vault-info.vault-info {
+  color: var(--v-accent-text);
+}
+.vault-info.vault-info:focus-visible {
+  outline: none;
+}
+.vault-info:focus-visible::before {
+  outline: 2px solid var(--v-accent);
+}
+@media (pointer: coarse) {
+  .vault-info {
+    margin: -14px -14px -14px -6px;
+  }
+}
+
 /* One link style, in the accent text colour (7.7:1 on the dark card, 6.0:1
    on the light). Inside a sentence a link is always underlined, since its
    blue differs from the text around it by hue more than by lightness (1.4:1
