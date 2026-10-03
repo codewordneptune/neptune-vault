@@ -253,7 +253,8 @@ export function Home() {
   // A send's note to self names it when no contact does, or when it paid
   // several. Without either, the title says what happened. The line under it is the
   // time, and the state only while it is not final and the title does not
-  // already say it. Block counts and the fee are in the sheet.
+  // already say it, then the note when the title is the contact's name.
+  // Block counts and the fee are in the sheet.
   const whoOf = (e: HistoryEntry): string | null => {
     if (e.kind === 'received') return labelOf(e.record);
     if (e.kind === 'self' || e.record.txid === '' || e.record.recipient === null) return null;
@@ -267,6 +268,10 @@ export function Home() {
   const rowNameOf = (e: HistoryEntry): string | null => {
     const note = noteOf(e);
     return note && (severalOf(e) || !whoOf(e)) ? note : whoOf(e);
+  };
+  const noteAfterTime = (e: HistoryEntry): string | null => {
+    const note = noteOf(e);
+    return note && rowNameOf(e) !== note ? note : null;
   };
   /** What happened, in one word: a send reads Sending until a block confirms it, or Not going through once nodes dropped it. */
   const stateTitleOf = (e: HistoryEntry): string => {
@@ -311,7 +316,8 @@ export function Home() {
     // A send says its state in its first word (Sending, Not sent); a payment in says pending.
     const pending = e.kind === 'received' && e.record.status === 'pending' ? ', pending' : '';
     const release = lockOf(e.record);
-    return `${stateTitleOf(e)}${whom}, ${money}${pending}${release !== null ? `, spendable from ${showDate(release)}` : ''}, details`;
+    const note = noteAfterTime(e);
+    return `${stateTitleOf(e)}${whom}, ${money}${pending}${release !== null ? `, spendable from ${showDate(release)}` : ''}${note ? `, note: ${note}` : ''}, details`;
   };
   /** The full title, for the detail sheet and for screen readers. */
   const titleOf = (e: HistoryEntry) => {
@@ -682,6 +688,13 @@ export function Home() {
                               {/* A time lock only waits for its date: said in the row's own colour. */}
                               {lockOf(h) !== null && ` · Spendable from ${showDate(lockOf(h) as number)}`}
                               {e.kind === 'self' && !hidden && ' · fee only'}
+                              {/* Last, so a long one is what the line cuts short. */}
+                              {noteAfterTime(e) && (
+                                <>
+                                  {' · '}
+                                  <bdi>{noteAfterTime(e)}</bdi>
+                                </>
+                              )}
                             </Text>
                           </div>
                         </Group>
