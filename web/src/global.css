@@ -1799,7 +1799,7 @@ html {
 }
 
 /* Settings as a short list (Settings.tsx): a row per page, its current
-   value on the right, in groups by how often they are used. A row is the
+   state under its name, in groups by how often they are used. A row is the
    whole width to tap, and says where it leads with a chevron. */
 .vault-settings-list {
   display: flex;
@@ -1860,6 +1860,19 @@ html {
 }
 .vault-settings-row-value.warn {
   color: var(--v-warn-text);
+}
+.vault-settings-row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vault-settings-row-text .vault-settings-row-value {
+  margin-left: 0;
+  padding-left: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .vault-settings-row-chevron {
   flex-shrink: 0;

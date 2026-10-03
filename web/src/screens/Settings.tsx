@@ -52,6 +52,7 @@ import { CLIPBOARD_RISK, FAST_SCAN, INSTALL_BENEFITS, NOT_DURING_SEND } from '..
 import { FIAT_CURRENCIES, FIAT_LABELS, isFiatCurrency } from '../util/fiat';
 import { NETWORK_LABELS } from '../util/network';
 import { formatDate, formatTime } from '../util/time';
+import { showInt } from '../util/format';
 
 // One inline form open at a time: opening one (a new password, a passkey,
 // turning send confirmation off) closes any other, so the page shows one
@@ -281,10 +282,16 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
     return (
       <Link key={key} to={`/settings/${key}`} className={`vault-settings-row${current === key ? ' current' : ''}${tone === 'danger' ? ' danger' : ''}`} aria-current={current === key ? 'page' : undefined}>
         {Icon && <Icon size={20} aria-hidden className="vault-settings-row-icon" />}
-        <span className="vault-settings-row-label">
-          <bdi>{titleOf(key, account)}</bdi>
+        <span className="vault-settings-row-text">
+          <span className="vault-settings-row-label">
+            <bdi>{titleOf(key, account)}</bdi>
+          </span>
+          {value && (
+            <span className={`vault-settings-row-value${tone === 'warn' ? ' warn' : ''}`}>
+              <bdi>{value}</bdi>
+            </span>
+          )}
         </span>
-        <span className={`vault-settings-row-value${tone === 'warn' ? ' warn' : ''}`}>{value}</span>
         <IconChevronRight size={16} aria-hidden className="vault-settings-row-chevron" />
       </Link>
     );
@@ -300,9 +307,8 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
         <Paper p={0}>
           {row('backup', backup, backedUp ? undefined : 'warn')}
           {row('security', !account || confirmsSends(account) ? 'Asked before each send' : 'Sends without asking', !account || confirmsSends(account) ? undefined : 'warn')}
-          {row('contacts', contacts === null ? '' : contacts === 0 ? 'None' : String(contacts))}
-          {/* The name is the group's label just above: no value to repeat it. */}
-          {row('name', '')}
+          {row('contacts', contacts === null ? '' : contacts === 0 ? 'None' : contacts === 1 ? '1 contact' : `${showInt(contacts)} contacts`)}
+          {row('name', account ? walletName(account) : '')}
         </Paper>
       </div>
       <div role="group" aria-labelledby="settings-group-app" className="vault-settings-group">
