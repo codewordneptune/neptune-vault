@@ -143,13 +143,13 @@ function LinkRow({ to, href, children }: { to?: string; href?: string; children:
     </Link>
   ) : (
     <a href={href} target="_blank" rel="noreferrer" className="vault-settings-row">
-      {label}
-      {/* Where it goes, before it is tapped: the address itself, which is
-          what tells a real site from a look-alike. */}
-      <span className="vault-link-address">
+      <span className="vault-settings-row-text">
+        {label}
+        {/* Where it goes, before it is tapped: the address itself, which is
+            what tells a real site from a look-alike. */}
         <span className="vault-settings-row-value">{shownAddress(href ?? '')}</span>
-        <IconExternalLink size={16} aria-hidden className="vault-settings-row-chevron" />
       </span>
+      <IconExternalLink size={16} aria-hidden className="vault-settings-row-chevron" />
       <span className="sr-only"> (opens outside the app)</span>
     </a>
   );

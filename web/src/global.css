@@ -1921,26 +1921,11 @@ html {
   flex-shrink: 0;
   color: var(--v-muted);
 }
-/* About's links (Settings.tsx, LinkRow): a page's chevron goes to the end,
-   having no value before it; a website's address is never cut short, and
-   goes under its name where it does not fit beside it. */
+/* About's links (Settings.tsx, LinkRow): a website's address goes under its
+   name, as a value does in the Settings list; a page's chevron goes to the
+   end, having no value before it. */
 .vault-link-rows {
   overflow: hidden;
-}
-.vault-link-rows .vault-settings-row {
-  flex-wrap: wrap;
-  row-gap: 0;
-}
-.vault-link-address {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  margin-left: auto;
-}
-.vault-link-address .vault-settings-row-value {
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 .vault-link-rows .vault-settings-row-label + .vault-settings-row-chevron {
   margin-left: auto;
