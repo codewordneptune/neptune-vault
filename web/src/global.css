@@ -2218,15 +2218,44 @@ html {
   }
 }
 
-/* Send's fee before it is asked for: amount and level, and Change at the end. */
+/* Send's fee before it is asked for: amount and level, and Change at the
+   end, the whole line one row to tap, its full height in the layout, so it
+   keeps clear of the links above it and of Review. The text stays in line
+   with the fields; the tint reaches 8 px past it on each side. */
 .vault-fee-line {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
+  width: calc(100% + 16px);
+  min-height: 40px;
+  margin: 4px -8px 0;
+  padding: 0 8px;
+  border-radius: var(--v-radius-xs);
+  text-align: left;
 }
-.vault-fee-line .vault-tap-link {
+.vault-fee-change {
   margin-left: auto;
-  margin-right: -4px;
+}
+@media (pointer: coarse) {
+  .vault-fee-line {
+    min-height: 44px;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .vault-fee-line:hover {
+    background: var(--v-accent-soft);
+  }
+  .vault-fee-line:hover .vault-fee-change {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+.vault-fee-line:active {
+  background: var(--v-row-press);
+}
+.vault-fee-line:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: -2px;
 }
 
 /* A send to several: each recipient after the first is a group of its own,
@@ -2260,6 +2289,9 @@ html {
   justify-content: space-between;
   column-gap: 16px;
   row-gap: 24px;
+  /* 4 px over the form's gap: their 44 px targets reach 12 px past the
+     text, and stay 8 px clear of a field above. */
+  margin-top: 4px;
 }
 .vault-review-payee {
   align-items: flex-start;

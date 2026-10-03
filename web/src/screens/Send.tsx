@@ -1204,29 +1204,31 @@ export function Send() {
               <TextInput ref={noteRef} label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
             )}
             {!feeShown ? (
-              <div className="vault-fee-line">
-                <Text size="sm" fw={600}>
+              // The whole line opens the choices, the fee being what is looked
+              // at; Change at its end says so.
+              <UnstyledButton
+                type="button"
+                className="vault-fee-line"
+                aria-label={`Fee ${fee} NPT, ${FEE_PRESETS.find((p) => p.value === feePreset)?.label}. Change the fee`}
+                onClick={() => {
+                  setFeeOpen(true);
+                  // The line goes as the choices come: focus goes to the one chosen.
+                  setTimeout(() => feeChoicesRef.current?.querySelector<HTMLInputElement>('input:checked')?.focus(), 0);
+                }}
+              >
+                <Text span size="sm" fw={600}>
                   Fee
                 </Text>
-                <Text size="sm">{fee} NPT</Text>
-                <Text size="sm" c="dimmed">
+                <Text span size="sm">
+                  {fee} NPT
+                </Text>
+                <Text span size="sm" c="dimmed">
                   {FEE_PRESETS.find((p) => p.value === feePreset)?.label}
                 </Text>
-                <UnstyledButton
-                  type="button"
-                  onClick={() => {
-                    setFeeOpen(true);
-                    // Change goes as the choices come: focus goes to the one chosen.
-                    setTimeout(() => feeChoicesRef.current?.querySelector<HTMLInputElement>('input:checked')?.focus(), 0);
-                  }}
-                  c="var(--v-accent-text)"
-                  fz="sm"
-                  className="vault-tap-link"
-                  aria-label="Change the fee"
-                >
+                <Text span size="sm" c="var(--v-accent-text)" className="vault-fee-change">
                   Change
-                </UnstyledButton>
-              </div>
+                </Text>
+              </UnstyledButton>
             ) : (
             <div>
               <Text size="sm" fw={600}>

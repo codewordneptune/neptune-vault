@@ -58,8 +58,8 @@ const SHOTS = [
       await sleep(800);
       setValue(field('Amount'), '1.5');
       await sleep(300);
-      // The fee is one line until Change opens its choices.
-      $('[aria-label="Change the fee"]')?.click();
+      // The fee is one line until a tap on it opens its choices.
+      $('.vault-fee-line')?.click();
       await sleep(400);
       $$('.mantine-SegmentedControl-label').find((label) => label.textContent.startsWith('Medium'))?.click();
       await sleep(300);
