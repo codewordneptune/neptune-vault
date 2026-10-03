@@ -1,11 +1,20 @@
 # Milestone 0: in-browser proving benchmark
 
-> **Historical record.** These measurements were made in September 2026 for
-> milestone M0, before the app existed, and are kept as the reference for
-> proving cost. The setup below describes that first run; the shipped
-> prover is threaded and optimised with wasm-opt, as the later sections
-> record. To reproduce, use the bench page described in
+> **Historical record.** Measurements from 12 September to 1 October 2026,
+> kept as the reference for proving cost. Everything up to "Levers if the
+> phone misses the budget" is the milestone M0 study, made with Triton VM 8
+> before the app existed. The app today ships the prover of the last
+> section, "Triton VM 9": threaded, built with wasm-opt, checking every
+> proof before it is sent, and not keeping the LDE trace in memory in the
+> browser or the Android app (the desktop app keeps it). To reproduce, use
+> the bench page described in
 > [web/prover-bench/README.md](../web/prover-bench/README.md).
+>
+> The desktop is a laptop with an AMD Ryzen 7 PRO 5850U (Zen 3) and 32 GB:
+> its "16 cores" are 8 cores with two threads each. The phone is a Galaxy
+> S24 with an Exynos 2400 (10 cores). The bench page's totals are wall time
+> from starting the prover, so they include loading it and starting its
+> threads, and run up to about 3 s over the sum of the rows.
 
 Goal: prove one real ProofCollection for a
 one-input, two-output transaction inside a browser, and measure time and
@@ -26,7 +35,7 @@ no server) viable on the Galaxy S24 within 10 minutes?
 
 ## Results
 
-### Desktop, Chrome 152, 16 cores, 32 GB, LDE trace cached (default)
+### Desktop, Chrome 152, 16 cores, 32 GB, LDE trace cached (Triton VM 8's default then)
 
 | # | Sub-proof | Time (s) | Proof (KB) | Wasm memory after (MB) |
 |---|-----------|---------:|-----------:|-----------------------:|
@@ -41,7 +50,7 @@ no server) viable on the Galaxy S24 within 10 minutes?
 First ever ProofCollection proven in a browser, 2026-09-12. Two conclusions:
 
 - The removal-records-integrity proof dominates both time and memory. Its
-  padded trace is the largest, and with Triton VM's default LDE-trace cache
+  padded trace is the largest, and with Triton VM 8's default LDE-trace cache
   the memory climbs to 3.4 GB. That is within the 4 GB wasm32 limit on a
   desktop, but a phone will not grant a tab that much.
 - Single-threaded wasm is roughly five to ten times slower than the native
@@ -86,18 +95,21 @@ Threads (lever 2 below) are the planned answer if it does.
 Run by the user on 2026-09-13. Chrome 152 on Android, 10 cores reported,
 page served over plain http from the PC (so not cross-origin isolated).
 
-| # | Sub-proof | Time (s) | Proof (KB) | Wasm memory after (MB) |
-|---|-----------|---------:|-----------:|-----------------------:|
+| # | Sub-proof | Time (s) | Proof (1024 elements) | Wasm memory after (MB) |
+|---|-----------|---------:|----------------------:|-----------------------:|
 | 1 | removal_records_integrity | 308.8 | 106 | 896 |
 | 2 | collect_lock_scripts | 14.6 | 83 | 896 |
 | 3 | kernel_to_outputs | 34.5 | 88 | 896 |
 | 4 | collect_type_scripts | 31.4 | 89 | 896 |
 | 5 | lock_script_0 | 3.0 | 70 | 896 |
 | 6 | type_script_0 | 62.9 | 94 | 896 |
-| | Total | 456.0 | 4252 | 896 peak |
+| | Total | 456.0 | 4252 KB | 896 peak |
 
-Inside the 10 minute budget with no optimisation at all, and only
-seven percent slower than the desktop run: the phone's big core is nearly as
+The Proof column counts units of 1024 field elements, 8 KB each (106 is
+about 850 KB); the total is the whole encoded collection in KB.
+
+Inside the 10 minute budget with no optimisation at all, and only six and a
+half percent slower than the desktop run: the phone's big core is nearly as
 fast as a laptop core on this single-threaded workload. M0 passes.
 
 Note for the threaded build: wasm threads need `crossOriginIsolated`, which
@@ -113,7 +125,7 @@ It proves the same six ProofCollection sub-proofs on the device
 (`src-tauri/src/transaction.rs`), so the gap is compilation and runtime, not
 a different protocol:
 
-- native ARM64 with rayon on all 8 cores, versus one wasm thread;
+- native ARM64 with rayon on all 10 cores, versus one wasm thread;
 - NEON, LTO and opt-level 3, versus wasm32 without SIMD or wasm-opt;
 - Triton VM's LDE cache on (memory permitting), versus off here;
 - an older proof system (triton-vm 3) whose consensus programs differ from
@@ -169,8 +181,8 @@ bottleneck is inside the prover's workload, not the thread pool.
 | 6 | type_script_0 | 26.9 | 76.0 | 3474 |
 | | Total | 242.2 | 556.9 | 3474 peak |
 
-With the cache on, the same threads give 2.1x on the largest proof and 3.5x
-on the small ones. So the parallel structure of the cached path works in
+With the cache on, the same threads give 2.1x on the largest proof and 2.8x
+to 3.5x on the small ones. So the parallel structure of the cached path works in
 wasm, and it is the no-cache path that does not scale. Unfortunately the
 no-cache path is the only one that fits a phone.
 
@@ -225,7 +237,10 @@ allocation sweeps did not trigger it because they allocated far less often.
 
 Fix: a vendored twenty-first whose inverse uses the field norm,
 `a^{-1} = a^p * a^{p^2} / N(a)`, with no allocation. Same values, pinned by
-a test against the GCD version on 20,000 random elements.
+a test against the GCD version on 20,000 random elements. (Since 2026-10-01
+the app uses twenty-first 3.0.0, whose own inverse does not allocate
+either; Vault's patch and its test were removed, see
+[crates/vendor/VENDOR.md](../crates/vendor/VENDOR.md).)
 
 Confirmation, same profiler build, 16 threads, no cache:
 
@@ -260,7 +275,9 @@ consensus verifier still accepts the collection.
 | | Total | 138.0 | 428.3 | 3.1 |
 
 Peak wasm memory 1026 MB. 3.1x from threads in the browser against 8x
-natively on the same machine with the same inverse (43 s), so there is
+natively on the same machine (345.4 s on one thread, measured before the
+inverse fix, which barely affects one thread, and 43.1 s on sixteen with
+it), so there is
 still headroom, but the phone budget question is settled with margin.
 
 Same build with 8 threads: 160.5 s total (removal records integrity
@@ -318,10 +335,12 @@ No phase is pathological any more; they all scale, but only 3x to 5x. Row
 hashing does not allocate at all and still stops at 5.1x, so the allocator
 is not the whole explanation. Two effects remain:
 
-- This laptop's CPU is hybrid, and the "16 cores" are hyperthreads plus
-  efficiency cores. The float loop used for the thread-pool sanity check
-  hides that (12x), an integer-heavy hashing kernel does not. Native on the
-  same machine reaches about 7x, so that is the realistic ceiling here.
+- This laptop's CPU (Zen 3) has 8 cores with two threads each, so the "16
+  cores" share 8 cores' execution units. The float loop used for the
+  thread-pool sanity check hides that (12x), an integer-heavy hashing kernel
+  does not. Native on the same machine reaches about 7.6x on this proof
+  (220.9 s on one thread, 29.0 s on sixteen with the inverse fix), so that
+  is the realistic ceiling here.
 - Below that ceiling, the LDE phases (2.7x to 2.9x) are the worst, and they
   are the ones allocating multi-megabyte buffers per column.
 
@@ -333,7 +352,7 @@ The "extend" step (1.3x) is small and mostly sequential by construction.
 buffer per column (as the prover's LDE does) or reusing one preallocated
 buffer per worker:
 
-| Threads | Alloc per column (ms) | Preallocated (ms) | Speed-up |
+| Threads | Alloc per column (ms) | Preallocated (ms) | Speed-up (both) |
 |--------:|----------------------:|------------------:|---------:|
 | 1 | 2021 | 2005 | 1.0 |
 | 2 | 1089 | 1045 | 1.9 |
@@ -347,7 +366,7 @@ replacing, and the LDE phases are bound by the memory system and the core
 mix, not by the code. The prover's LDE at 2.7x to 2.9x is below this 5x
 because its per-column work is larger (interpolation plus evaluation on a
 bigger domain) and streams more data. The same limits apply natively, which
-is why native also lands near 7x rather than 16x.
+is why native also lands near 8x rather than 16x.
 
 Conclusion: after the inverse fix there is no further large thread-scaling
 win in wasm on this hardware. What remains are per-thread code-quality
@@ -382,19 +401,26 @@ builds. Expected on the S24: about 120 s.
 | Threads, inverse, wasm-opt | 108 | not measured |
 | Native, 16 cores, for reference | 43 | |
 
+Measured later (2026-10-01, see "Triton VM 9" below): Triton VM 8 with
+wasm-opt took 151 s on the S24; Triton VM 9 took 74 s on this desktop and
+97 s on the S24.
+
 ## Levers if the phone misses the budget
 
 1. No LDE cache (this build). Memory first, time second.
 2. wasm threads via wasm-bindgen-rayon, cross-origin isolated page. Triton VM
-   parallelises well; an S24 has eight cores.
+   parallelises well; this S24 has ten cores.
 3. wasm SIMD for Tip5 hashing.
 4. Reduce the number of sub-proofs per send: one input per transaction is
    already the minimum; batching outputs does not change the count.
 
+## Later measurements
+
 ### Pre-fork prover and a second input (2026-09-14, desktop, 16 threads, no LDE cache)
 
-Measured with the benchmark page against the packages the app ships, while
-other builds loaded the machine (times are inflated, memory is not).
+Measured with the benchmark page against the packages the app shipped then
+(the pre-fork prover was removed on 2026-09-24), while other builds loaded
+the machine (times are inflated, memory is not).
 
 | Prover | Witness | removal_records_integrity (s) | Peak wasm memory (MB) |
 |--------|---------|------------------------------:|----------------------:|
@@ -402,14 +428,15 @@ other builds loaded the machine (times are inflated, memory is not).
 | current (claim version 8, Triton VM 8) | 2 inputs, 2 outputs | 182 | 1055 |
 
 The pre-fork prover needs the same memory as the current one, and a second
-input adds three percent, so neither explains a phone running out of memory
+input adds three percent of memory, so neither explains a phone running out of memory
 on a one-input send; the memory free on the device at the time does.
 
 ### Triton VM 9 (2026-10-01, desktop, 16 threads, no LDE cache)
 
-The prover from main (Triton VM 8, Neptune crates 0.17) against the one
-moved to Triton VM 9 and the Neptune crates 0.19, which also checks every
-proof before it is sent. Same laptop, nothing else running, the two
+The prover then on main (Triton VM 8, Neptune crates 0.17) against the
+branch that moved to Triton VM 9 and the Neptune crates 0.19 (merged the
+same day as version 0.4.0), which also checks every proof before it is
+sent. Same laptop, nothing else running, the two
 alternated, two runs each, witness `witness_1in_2out.bin`.
 
 In the browser (benchmark page, headless Chrome 154, both packages built
