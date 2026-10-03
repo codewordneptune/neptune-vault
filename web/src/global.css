@@ -1831,7 +1831,7 @@ html {
 }
 .vault-settings-row-icon {
   flex: none;
-  color: var(--v-text-2);
+  color: var(--v-muted);
 }
 .vault-settings-row.danger .vault-settings-row-icon {
   color: var(--v-danger-text);

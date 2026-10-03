@@ -280,7 +280,7 @@ function SettingsList({ current, lockMinutes, currency }: { current: SectionKey 
     const Icon = SECTION_ICONS[key];
     return (
       <Link key={key} to={`/settings/${key}`} className={`vault-settings-row${current === key ? ' current' : ''}${tone === 'danger' ? ' danger' : ''}`} aria-current={current === key ? 'page' : undefined}>
-        {Icon && <Icon size={22} aria-hidden className="vault-settings-row-icon" />}
+        {Icon && <Icon size={20} aria-hidden className="vault-settings-row-icon" />}
         <span className="vault-settings-row-label">
           <bdi>{titleOf(key, account)}</bdi>
         </span>
