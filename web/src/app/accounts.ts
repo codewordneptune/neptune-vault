@@ -46,15 +46,17 @@ export class WalletNameTakenError extends Error {
 export const WALLET_NAME_MAX = 40;
 
 /**
- * "Wallet n" for a new wallet: the lowest n no wallet in `names` uses.
- * Counting the wallets instead would repeat a name once an earlier one was
- * removed: two of two, remove Wallet 1, add one, and there were two Wallet 2s.
+ * "Wallet n" for a new wallet: one above the highest n in `names`, so the
+ * list, oldest first, reads in order and a removed wallet's name does not
+ * come back on a new one (unless it was the highest).
  */
 export function nextWalletName(names: string[]): string {
-  const taken = new Set(names.map((n) => n.trim().toLowerCase()));
-  let n = 1;
-  while (taken.has(`wallet ${n}`)) n += 1;
-  return `Wallet ${n}`;
+  let highest = 0;
+  for (const name of names) {
+    const match = /^wallet (\d{1,9})$/.exec(name.trim().toLowerCase());
+    if (match) highest = Math.max(highest, Number(match[1]));
+  }
+  return `Wallet ${highest + 1}`;
 }
 
 /** The name in `names` that `name` would repeat, ignoring case and outer spaces, or null. */

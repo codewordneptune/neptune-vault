@@ -736,12 +736,12 @@ describe('account service', () => {
 });
 
 describe('wallet names', () => {
-  it('a new wallet takes the lowest free number, whatever the count', () => {
+  it('a new wallet takes the number after the highest, whatever the count', () => {
     expect(nextWalletName([])).toBe('Wallet 1');
+    expect(nextWalletName(['Savings'])).toBe('Wallet 1');
     expect(nextWalletName(['Wallet 1', 'Wallet 2'])).toBe('Wallet 3');
-    // Wallet 1 of two was removed: the gap is filled, not a second Wallet 2 made.
-    expect(nextWalletName(['Wallet 2'])).toBe('Wallet 1');
-    expect(nextWalletName(['wallet 1 ', 'Savings', 'Wallet 3'])).toBe('Wallet 2');
+    expect(nextWalletName(['Wallet 2', 'Wallet 3'])).toBe('Wallet 4');
+    expect(nextWalletName(['wallet 1 ', 'Savings', 'Wallet 3'])).toBe('Wallet 4');
   });
 
   it('a clash ignores case and outer spaces, and names the wallet it clashes with', () => {
@@ -749,14 +749,14 @@ describe('wallet names', () => {
     expect(clashingName('Savings 2', ['Savings'])).toBeNull();
   });
 
-  it('the service fills gaps, refuses a repeated name on one network, and takes a name when a wallet is added', async () => {
+  it('the service numbers after the highest, refuses a repeated name on one network, and takes a name when a wallet is added', async () => {
     const { service } = await setup();
     const first = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
     const second = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
     await service.deleteAccount(first.id);
-    expect(await service.nextName('regtest')).toBe('Wallet 1');
+    expect(await service.nextName('regtest')).toBe('Wallet 3');
     const third = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
-    expect(third.name).toBe('Wallet 1');
+    expect(third.name).toBe('Wallet 3');
 
     await service.rename(second.id, 'Savings');
     await expect(service.rename(third.id, 'savings')).rejects.toBeInstanceOf(WalletNameTakenError);
@@ -770,8 +770,8 @@ describe('wallet names', () => {
     const named = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1, { name: '  Spending  ' });
     expect(named.name).toBe('Spending');
     await expect(service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1, { name: 'spending' })).rejects.toBeInstanceOf(WalletNameTakenError);
-    // An empty name asked for is no name: the next free number.
+    // An empty name asked for is no name: the next number.
     const blank = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1, { name: '   ' });
-    expect(blank.name).toBe('Wallet 2');
+    expect(blank.name).toBe('Wallet 4');
   });
 });
