@@ -901,6 +901,11 @@ main h2[tabindex='-1']:focus {
   background: var(--v-surface-2);
   color: var(--v-text);
 }
+/* The cross (theme.ts) at the share of its button the library's own took. */
+.mantine-CloseButton-root > svg {
+  width: var(--cb-icon-size, 70%);
+  height: var(--cb-icon-size, 70%);
+}
 .mantine-Modal-body {
   padding: 12px 20px 20px;
 }

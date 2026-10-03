@@ -8,6 +8,14 @@
 // black for text in the light palette.
 
 import { createTheme, type MantineColorsTuple } from '@mantine/core';
+import { IconCheck, IconChevronDown, IconEye, IconEyeOff, IconMinus, IconX } from '@tabler/icons-react';
+import { createElement } from 'react';
+
+// The library's own icons (the password toggle, the close cross, a select's
+// arrow, a checkbox's tick) are the app's icons, at the app's weight. The
+// tick is drawn heavier: at its 12 px a stroke of 2 is a hairline.
+const PasswordToggleIcon = ({ reveal }: { reveal: boolean }) => createElement(reveal ? IconEyeOff : IconEye, { size: 20 });
+const CheckboxTick = ({ indeterminate, className }: { indeterminate: boolean | undefined; className: string }) => createElement(indeterminate ? IconMinus : IconCheck, { className, stroke: 3 });
 
 // A dropdown (a menu, a select's list) keeps clear of the sticky header and,
 // on a phone, of the tab bar, safe areas included, and opens the other way
@@ -85,17 +93,17 @@ export const theme = createTheme({
     TextInput: { defaultProps: { radius: 'sm', size: 'md' } },
     // The show and hide button is reached with Tab like any other: a keyboard
     // user checks what they typed as anyone else does.
-    PasswordInput: { defaultProps: { radius: 'sm', size: 'md', visibilityToggleFocusable: true, visibilityToggleButtonProps: { size: 'lg', className: 'vault-tap', 'aria-label': 'Show or hide the password' } } },
+    PasswordInput: { defaultProps: { radius: 'sm', size: 'md', visibilityToggleFocusable: true, visibilityToggleIcon: PasswordToggleIcon, visibilityToggleButtonProps: { size: 'lg', className: 'vault-tap', 'aria-label': 'Show or hide the password' } } },
     NumberInput: { defaultProps: { radius: 'sm', size: 'md' } },
     Textarea: { defaultProps: { radius: 'sm', size: 'md' } },
-    Select: { defaultProps: { radius: 'sm', size: 'md' } },
+    Select: { defaultProps: { radius: 'sm', size: 'md', rightSection: createElement(IconChevronDown, { size: 16 }) } },
     SegmentedControl: { defaultProps: { radius: 'sm', size: 'md' } },
     // Square, so a checkbox never reads as a radio button.
-    Checkbox: { defaultProps: { radius: 'xs' } },
+    Checkbox: { defaultProps: { radius: 'xs', icon: CheckboxTick } },
     Alert: { defaultProps: { radius: 'sm', variant: 'light' } },
     // Every close button has a name: a banner's or a toast's said only
     // "button". A dialog's own ("Close") and a notice's still win.
-    CloseButton: { defaultProps: { 'aria-label': 'Dismiss' } },
+    CloseButton: { defaultProps: { 'aria-label': 'Dismiss', icon: createElement(IconX) } },
     Code: { defaultProps: { radius: 'sm' } },
     // Opening a menu focuses its first item, as the ARIA menu pattern has it,
     // not an empty placeholder; that placeholder was also an element a menu
