@@ -3,7 +3,7 @@
 // runs as a job in the app context so it survives this screen being
 // unmounted (backgrounding locks the app).
 
-import { Badge, Button, Checkbox, Divider, Group, Loader, Modal, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Loader, Modal, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
 import { IconFingerprint, IconLink, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -55,13 +55,38 @@ type Step = 'form' | 'review';
 // above any error, like the other notes about a field.
 const UNDER_THE_FIELD: ('label' | 'input' | 'description' | 'error')[] = ['label', 'input', 'description', 'error'];
 
+/**
+ * Choose contact and Scan inside an address field: each fills the field, so
+ * they sit in it, as icons named for screen readers and in a tooltip.
+ * Choose contact is offered once there is a contact: in a new wallet it
+ * would open an empty list. `who` names the recipient when there are several.
+ */
+function FieldActions({ contacts, onPick, onScan, who }: { contacts: boolean; onPick: () => void; onScan: () => void; who: string | null }) {
+  return (
+    <Group gap={4} wrap="nowrap">
+      {contacts && (
+        <Tooltip label="Choose contact">
+          <ActionIcon type="button" variant="subtle" size="lg" className="vault-tap" onClick={onPick} aria-label={who ? `Choose a contact for ${who}` : 'Choose contact'}>
+            <IconUsers size={20} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+      <Tooltip label="Scan">
+        <ActionIcon type="button" variant="subtle" size="lg" className="vault-tap" onClick={onScan} aria-label={who ? `Scan ${who}'s address` : 'Scan'}>
+          <IconScan size={20} />
+        </ActionIcon>
+      </Tooltip>
+    </Group>
+  );
+}
 
 export function Send() {
   const { services, account, balance, utxos, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
-  // What is on hold, as Home counts it: the change pending sends bring back.
-  const { ready: pendingReady, onHoldNau, isOwn } = usePendingSends();
+  // Whether an address is this wallet's own, so a send to it says "yourself".
+  const { isOwn } = usePendingSends();
   // Amounts hidden on Home stay hidden here, the review and its errors included.
   const hidden = services.settings.hideBalance ?? false;
+  const spendableText = `Spendable ${hidden ? '••••' : showNau(balance.spendableNau)} NPT`;
   const reducedMotion = useReducedMotion();
   // Narrow by the text's own measure (enlarged text counts): four fee choices stack.
   const stacked = useMediaQuery('(max-width: 22em)');
@@ -190,6 +215,11 @@ export function Send() {
   // throw a keyboard user out of them (the field is next in Tab order).
   const customFeeRef = useRef<HTMLInputElement>(null);
   const feeByPointer = useRef(false);
+  // The fee is one line, its level and Change, until it is asked for; a custom
+  // fee or a message about the fee keeps its choices open.
+  const [feeOpen, setFeeOpen] = useState(false);
+  const feeChoicesRef = useRef<HTMLDivElement>(null);
+  const feeShown = feeOpen || feePreset === 'custom' || feeError !== null;
   // The amount fields, by recipient (0 is the first), for where focus goes after a Remove.
   const amountRefs = useRef(new Map<number, HTMLInputElement>());
   // As reviewed: each payment in nau (the first recipient's first), their sum, and the fee.
@@ -552,6 +582,7 @@ export function Send() {
       setFeePreset(rememberedPreset);
       setFee(presetFee(rememberedPreset, undefined));
     }
+    setFeeOpen(false);
     setFeeError(null);
     setMaxExact(null);
     setFeeAgreed(false);
@@ -951,24 +982,17 @@ export function Send() {
         <Modal opened={reviewSheet !== null} onClose={() => setStep('form')} title="Review" size={560} centered fullScreen={phone}>
           {reviewSheet}
         </Modal>
-        {/* What can be spent, and at the end of its line Clear: away from
-            Review, and there only while the form holds something to clear. */}
-        <div className="vault-send-head">
-          <Title order={2} className="sr-only">
-            Send
-          </Title>
-          <Text size="sm" c="dimmed">
-            Spendable {hidden ? '••••' : showNau(balance.spendableNau)} NPT
-            {/* The same line as Home's: the change pending sends bring back, so
-                the two figures add up to the balance Home shows. */}
-            {pendingReady && onHoldNau > 0n && ` · ${hidden ? '••••' : showNau(onHoldNau)} NPT on hold`}
-          </Text>
-          {hasContent && (
+        <Title order={2} className="sr-only">
+          Send
+        </Title>
+        {/* Clear, away from Review, and there only while the form holds something to clear. */}
+        {hasContent && (
+          <div className="vault-send-head">
             <UnstyledButton type="button" onClick={clearForm} aria-label="Clear the form" c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
               Clear
             </UnstyledButton>
-          )}
-        </div>
+          </div>
+        )}
         {/* How the last send ended, where the person is: focused, so it is
             read out, and dismissed here and on Home at once. */}
         {sendJob?.done && sendJob.ending && (
@@ -1026,24 +1050,12 @@ export function Send() {
           }}
         >
           <Stack>
-            {/* A saved contact fills the recipient, as Scan does: so it sits on
-                the field's own label line, ahead of the field in the page's
-                order as on screen, and not inside the label, which would make
-                it part of the field's name. */}
             <Stack role={extras.length > 0 ? 'group' : undefined} aria-labelledby={extras.length > 0 ? 'payee-first' : undefined}>
             {extras.length > 0 && (
               <span className="vault-group-label" id="payee-first">
                 Recipient 1
               </span>
             )}
-            <div className={contacts.length > 0 ? 'vault-field-action-wrap' : undefined}>
-              {/* Offered once there is a contact to choose: in a new wallet it would open an empty list. */}
-              {contacts.length > 0 && (
-                <UnstyledButton type="button" onClick={() => setPickFor(0)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={extras.length > 0 ? 'Choose a contact for recipient 1' : undefined}>
-                  <IconUsers size={16} aria-hidden />
-                  Choose contact
-                </UnstyledButton>
-              )}
               <TextInput
                 ref={recipientRef}
                 label="Recipient address"
@@ -1068,14 +1080,9 @@ export function Send() {
                 error={recipientError}
                 description={nameNote(recipient, linkMeta?.label)}
                 inputWrapperOrder={['label', 'input', 'description', 'error']}
-                rightSectionWidth={80}
-                rightSection={
-                  <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} />} onClick={() => setScanFor(0)} aria-label={extras.length > 0 ? "Scan recipient 1's address" : undefined}>
-                    Scan
-                  </Button>
-                }
+                rightSectionWidth={contacts.length > 0 ? 84 : 48}
+                rightSection={<FieldActions contacts={contacts.length > 0} onPick={() => setPickFor(0)} onScan={() => setScanFor(0)} who={extras.length > 0 ? 'recipient 1' : null} />}
               />
-            </div>
             <TextInput
               ref={(el) => {
                 if (el) amountRefs.current.set(0, el);
@@ -1089,7 +1096,7 @@ export function Send() {
               }}
               onBlur={() => void checkAmounts(true)}
               error={amountError}
-              description={estimateOf(amount)}
+              description={[estimateOf(amount), spendableText].filter(Boolean).join(' · ')}
               inputWrapperOrder={UNDER_THE_FIELD}
               rightSectionWidth={extras.length === 0 ? 64 : undefined}
               rightSection={
@@ -1123,13 +1130,6 @@ export function Send() {
                     Remove
                   </UnstyledButton>
                 </div>
-                <div className={contacts.length > 0 ? 'vault-field-action-wrap' : undefined}>
-                  {contacts.length > 0 && (
-                    <UnstyledButton type="button" onClick={() => setPickFor(x.id)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-field-action" aria-label={`Choose a contact for recipient ${i + 2}`}>
-                      <IconUsers size={16} aria-hidden />
-                      Choose contact
-                    </UnstyledButton>
-                  )}
                   <TextInput
                     label="Recipient address"
                     autoCapitalize="none"
@@ -1153,14 +1153,9 @@ export function Send() {
                     error={x.recipientError}
                     description={contactNote(x.recipient)}
                     inputWrapperOrder={['label', 'input', 'description', 'error']}
-                    rightSectionWidth={80}
-                    rightSection={
-                      <Button variant="subtle" size="compact-sm" className="vault-tap" leftSection={<IconScan size={16} />} onClick={() => setScanFor(x.id)} aria-label={`Scan recipient ${i + 2}'s address`}>
-                        Scan
-                      </Button>
-                    }
+                    rightSectionWidth={contacts.length > 0 ? 84 : 48}
+                    rightSection={<FieldActions contacts={contacts.length > 0} onPick={() => setPickFor(x.id)} onScan={() => setScanFor(x.id)} who={`recipient ${i + 2}`} />}
                   />
-                </div>
                 <TextInput
                   ref={(el) => {
                     if (el) amountRefs.current.set(x.id, el);
@@ -1208,6 +1203,31 @@ export function Send() {
             {showNote && (
               <TextInput ref={noteRef} label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
             )}
+            {!feeShown ? (
+              <div className="vault-fee-line">
+                <Text size="sm" fw={600}>
+                  Fee
+                </Text>
+                <Text size="sm">{fee} NPT</Text>
+                <Text size="sm" c="dimmed">
+                  {FEE_PRESETS.find((p) => p.value === feePreset)?.label}
+                </Text>
+                <UnstyledButton
+                  type="button"
+                  onClick={() => {
+                    setFeeOpen(true);
+                    // Change goes as the choices come: focus goes to the one chosen.
+                    setTimeout(() => feeChoicesRef.current?.querySelector<HTMLInputElement>('input:checked')?.focus(), 0);
+                  }}
+                  c="var(--v-accent-text)"
+                  fz="sm"
+                  className="vault-tap-link"
+                  aria-label="Change the fee"
+                >
+                  Change
+                </UnstyledButton>
+              </div>
+            ) : (
             <div>
               <Text size="sm" fw={600}>
                 Fee (NPT)
@@ -1220,6 +1240,7 @@ export function Send() {
                 Higher-fee sends go first in a queue.
               </Text>
               <SegmentedControl
+                ref={feeChoicesRef}
                 fullWidth
                 orientation={stacked ? 'vertical' : 'horizontal'}
                 onPointerDown={() => (feeByPointer.current = true)}
@@ -1248,6 +1269,7 @@ export function Send() {
                 }))}
               />
             </div>
+            )}
             {feePreset === 'custom' && (
               <TextInput
                 label="Custom fee (NPT)"
