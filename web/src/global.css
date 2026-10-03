@@ -2221,7 +2221,8 @@ html {
 /* Send's fee before it is asked for: amount and level, and Change at the
    end, the whole line one row to tap, its full height in the layout, so it
    keeps clear of the links above it and of Review. The text stays in line
-   with the fields; the tint reaches 8 px past it on each side. */
+   with the fields; pressed, the tint reaches 8 px past it on each side.
+   Under a mouse only Change is underlined, as a link is: no tint. */
 .vault-fee-line {
   display: flex;
   align-items: center;
@@ -2242,9 +2243,6 @@ html {
   }
 }
 @media (hover: hover) and (pointer: fine) {
-  .vault-fee-line:hover {
-    background: var(--v-accent-soft);
-  }
   .vault-fee-line:hover .vault-fee-change {
     text-decoration: underline;
     text-underline-offset: 3px;
