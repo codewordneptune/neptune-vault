@@ -772,17 +772,22 @@ main h2[tabindex='-1']:focus {
   font-weight: 600;
 }
 
-/* Picker rows are buttons spanning the row. The hover fill needs room
-   around the text, so the row is widened by its own side padding and the
-   content stays aligned with the card. */
+/* Picker rows (the contact picker) and History's rows are buttons running
+   edge to edge across their dialog or card, as Settings' rows do: widened
+   by the container's 20 px side padding, which their content keeps, so it
+   stays aligned with the title above. */
 .vault-pick,
 .vault-row-button {
-  width: calc(100% + 24px);
-  margin-left: -12px;
-  margin-right: -12px;
-  padding: 12px;
+  width: calc(100% + 40px);
+  margin-left: -20px;
+  margin-right: -20px;
+  padding: 12px 20px;
   text-align: left;
-  border-radius: var(--v-radius-xs);
+}
+.vault-pick + .vault-pick::before,
+.vault-row-button + .vault-row-button::before {
+  left: 20px;
+  right: 20px;
 }
 /* The first row keeps its full padding for a balanced hover fill and is
    pulled up by the same amount so the list starts where it did. */
