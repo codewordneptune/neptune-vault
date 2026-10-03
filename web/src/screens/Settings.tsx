@@ -1215,7 +1215,7 @@ function FiatCard() {
           setCurrency(next);
           void services.updateSettings({ fiatCurrency: isFiatCurrency(next) ? next : undefined }).then(changed);
         }}
-        data={[{ value: 'off', label: 'Off' }, ...FIAT_CURRENCIES.map((c) => ({ value: c, label: FIAT_LABELS[c] }))]}
+        data={[{ value: 'off', label: 'Off' }, ...FIAT_CURRENCIES.map((c) => ({ value: c, label: FIAT_LABELS[c] })).sort((a, b) => a.label.localeCompare(b.label, 'en'))]}
       />
       {/* What it shows and what it costs, in a sentence; which service is asked when, in Privacy. */}
       <Text size="sm" c="dimmed">

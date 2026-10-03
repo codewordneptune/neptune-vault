@@ -10,7 +10,7 @@ export type FiatCurrency = (typeof FIAT_CURRENCIES)[number];
 export const FIAT_LABELS: Record<FiatCurrency, string> = {
   usd: 'US dollar (USD)',
   eur: 'Euro (EUR)',
-  gbp: 'Pound sterling (GBP)',
+  gbp: 'British pound (GBP)',
   chf: 'Swiss franc (CHF)',
   jpy: 'Japanese yen (JPY)',
   cny: 'Chinese yuan (CNY)',
