@@ -5,7 +5,7 @@
 
 import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
-import { IconFingerprint, IconLink, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
+import { IconFingerprint, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -216,17 +216,6 @@ export function Send() {
     const wanted = address.trim().toLowerCase();
     return (wanted && contacts.find((c) => c.address === wanted)?.name) || null;
   };
-  const contactNote = (address: string) => {
-    const name = contactName(address);
-    return name ? (
-      <span className="vault-contact-match">
-        <IconUsers size={16} aria-hidden />
-        <span>
-          Saved contact: <b dir="auto" className="vault-bidi">{name}</b>
-        </span>
-      </span>
-    ) : undefined;
-  };
   // Who a send went to, as every notice about it names them, Home's too:
   // the contact, or the address shortened, and how many more.
   const whoOf = (request: { payments: { recipient: string }[] }): string => {
@@ -236,19 +225,6 @@ export function Send() {
     const name = contacts.find((c) => c.address === first.toLowerCase())?.name ?? abbreviateAddress(first);
     return others ? `${name} and ${others} more` : name;
   };
-  // One name per recipient, under its address: a saved contact's own, or
-  // else the name a payment request gave, in the same form and said to be
-  // unverified (anyone can write any name into a request).
-  const nameNote = (address: string, requestName: string | undefined) =>
-    contactNote(address) ??
-    (requestName ? (
-      <span className="vault-contact-match">
-        <IconLink size={16} aria-hidden />
-        <span>
-          Name, unverified: <b dir="auto" className="vault-bidi">{requestName}</b>
-        </span>
-      </span>
-    ) : undefined);
 
   useEffect(() => {
     if (!account || !lastRecipient) return;
@@ -1220,7 +1196,6 @@ export function Send() {
                 onBlur={() => void checkRecipient(true)}
                 wrapperProps={{ onBlur: (e: FocusEvent<HTMLDivElement>) => !e.currentTarget.contains(e.relatedTarget) && leaveField(0) }}
                 error={recipientError}
-                description={nameNote(recipient, linkMeta?.label)}
                 inputWrapperOrder={['label', 'input', 'description', 'error']}
                 rightSectionWidth={contacts.length > 0 ? 84 : 48}
                 rightSection={<FieldActions contacts={contacts.length > 0} onPick={() => setPickFor(0)} onScan={() => setScanFor(0)} who={extras.length > 0 ? 'recipient 1' : null} />}
@@ -1309,7 +1284,6 @@ export function Send() {
                     onBlur={() => void checkExtraRecipient(x.id, true)}
                     wrapperProps={{ onBlur: (e: FocusEvent<HTMLDivElement>) => !e.currentTarget.contains(e.relatedTarget) && leaveField(x.id) }}
                     error={x.recipientError}
-                    description={contactNote(x.recipient)}
                     inputWrapperOrder={['label', 'input', 'description', 'error']}
                     rightSectionWidth={contacts.length > 0 ? 84 : 48}
                     rightSection={<FieldActions contacts={contacts.length > 0} onPick={() => setPickFor(x.id)} onScan={() => setScanFor(x.id)} who={`recipient ${i + 2}`} />}

@@ -2376,18 +2376,6 @@ html {
   flex-shrink: 0;
 }
 
-/* Under a recipient field whose address is a saved contact: the name. */
-.vault-contact-match {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--v-muted);
-}
-.vault-contact-match b {
-  color: var(--v-text);
-  font-weight: 600;
-}
-
 /* A recipient shown as a card once its field holds a whole address: the
    field's own edge and ground, who it is, and Change at the end. */
 .vault-recipient {
