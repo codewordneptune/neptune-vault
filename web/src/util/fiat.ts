@@ -4,7 +4,7 @@
 import { NARROW_SPACE } from './format';
 
 /** Offered where both price sources quote them. */
-export const FIAT_CURRENCIES = ['usd', 'eur', 'gbp', 'chf', 'jpy', 'cny', 'krw', 'inr', 'cad', 'aud', 'sek', 'nok'] as const;
+export const FIAT_CURRENCIES = ['usd', 'eur', 'gbp', 'chf', 'jpy', 'cny', 'hkd', 'twd', 'sgd', 'krw', 'inr', 'cad', 'aud', 'sek', 'nok'] as const;
 export type FiatCurrency = (typeof FIAT_CURRENCIES)[number];
 
 export const FIAT_LABELS: Record<FiatCurrency, string> = {
@@ -14,6 +14,9 @@ export const FIAT_LABELS: Record<FiatCurrency, string> = {
   chf: 'Swiss franc (CHF)',
   jpy: 'Japanese yen (JPY)',
   cny: 'Chinese yuan (CNY)',
+  hkd: 'Hong Kong dollar (HKD)',
+  twd: 'New Taiwan dollar (TWD)',
+  sgd: 'Singapore dollar (SGD)',
   krw: 'South Korean won (KRW)',
   inr: 'Indian rupee (INR)',
   cad: 'Canadian dollar (CAD)',
