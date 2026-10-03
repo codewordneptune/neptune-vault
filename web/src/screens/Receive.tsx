@@ -4,12 +4,11 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { ActionIcon, Button, Combobox, Group, Loader, Menu, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton, useCombobox } from '@mantine/core';
+import { ActionIcon, Button, Combobox, Group, Input, Loader, Menu, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton, useCombobox } from '@mantine/core';
 import { IconArrowsMaximize, IconCheck, IconChevronDown, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconShare, IconTrash } from '@tabler/icons-react';
-import { useElementSize } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
-import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ClipboardEvent } from 'react';
 
 import { Sheet } from '../components/Sheet';
 import { QrFullScreen } from '../components/QrFullScreen';
@@ -120,8 +119,9 @@ export function Receive() {
   // Which code, if any, is shown as large as the screen allows.
   const [enlarged, setEnlarged] = useState<'address' | 'request' | null>(null);
   const index = indices[kind];
-  // The address type's menu is as wide as the card, up to a comfortable measure.
-  const { ref: typeCol, width: typeColWidth } = useElementSize();
+  // The address type's field: its label names it for a screen reader too.
+  const typeLabelId = useId();
+  const typeFieldId = useId();
 
   // Who each address was given to: a name kept on this device, which History
   // then shows for what arrives through it. The one way to know who paid.
@@ -624,11 +624,14 @@ export function Receive() {
               </Stack>
             </Tabs.Panel>
 
-            {/* Which address shows, for both tabs: its type as the heading, then
-                the addresses of that type (the main one first, then each with
-                a name or a payment), then a new one. */}
+            {/* Which address shows, for both tabs: its type, a labelled field as
+                every select is, then the addresses of that type (the main one
+                first, then each with a name or a payment), then a new one. */}
             <Stack gap={6}>
-              <div ref={typeCol}>
+              <div>
+                <Input.Label id={typeLabelId} htmlFor={typeFieldId}>
+                  Address type
+                </Input.Label>
                 <Combobox
                   store={typeBox}
                   onOptionSubmit={(value) => {
@@ -637,15 +640,18 @@ export function Receive() {
                     else chooseKind(value as KeyKind);
                   }}
                   position="bottom-start"
-                  // As wide as the card, up to a comfortable measure, and lined
-                  // up with its edge (the button's padding reaches 8 px outside it).
-                  width={typeColWidth ? Math.min(typeColWidth, 440) : undefined}
-                  offset={{ mainAxis: 8, crossAxis: 8 }}
                 >
                   <Combobox.Target targetType="button" withExpandedAttribute>
                     {/* The list goes when focus moves on (Tab), as a native select's does. */}
-                    <button type="button" className="vault-picker" aria-label={`Address type, ${KIND_LABELS[kind]} addresses`} onClick={() => typeBox.toggleDropdown()} onBlur={() => typeBox.closeDropdown()}>
-                      {KIND_LABELS[kind]} addresses
+                    <button
+                      type="button"
+                      id={typeFieldId}
+                      className="vault-type-field"
+                      aria-labelledby={`${typeLabelId} ${typeFieldId}`}
+                      onClick={() => typeBox.toggleDropdown()}
+                      onBlur={() => typeBox.closeDropdown()}
+                    >
+                      {KIND_LABELS[kind]}
                       <IconChevronDown size={16} aria-hidden />
                     </button>
                   </Combobox.Target>

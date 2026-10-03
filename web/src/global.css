@@ -467,9 +467,8 @@ h3.mantine-Title-root.vault-prose-heading {
   letter-spacing: -0.01em;
 }
 /* A value that opens a menu of the others, in muted text with a chevron:
-   the header's wallet pill, and Receive's address type. */
-button.vault-network,
-button.vault-picker {
+   the header's wallet pill. */
+button.vault-network {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -485,20 +484,17 @@ button.vault-picker {
   transition: background 160ms ease, color 160ms ease;
 }
 @media (hover: hover) and (pointer: fine) {
-  button.vault-network:hover,
-  button.vault-picker:hover {
+  button.vault-network:hover {
     background: var(--v-accent-soft);
     color: var(--v-text);
   }
 }
-button.vault-network:active,
-button.vault-picker:active {
+button.vault-network:active {
   background: var(--v-row-press);
 }
 /* Focus looks as it does everywhere else in the app: the accent ring, not
    the browser's own. */
-button.vault-network:focus-visible,
-button.vault-picker:focus-visible {
+button.vault-network:focus-visible {
   outline: 2px solid var(--v-accent);
   outline-offset: 2px;
 }
@@ -506,10 +502,36 @@ button.vault-picker:focus-visible {
   font-size: var(--v-fs-xs);
   color: var(--v-muted);
 }
-/* Receive's address type: its words line up with the card's other text,
-   and it takes a line's height, its padding drawn only on hover. */
-button.vault-picker {
-  margin: -6px 0 -6px -8px;
+/* Receive's address type: a field under its label, as every select is,
+   the same height, edge and text as the others. */
+.vault-type-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--v-field-border);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--v-field);
+  color: var(--v-text);
+  font: inherit;
+  font-size: var(--mantine-font-size-md);
+  text-align: left;
+  cursor: pointer;
+}
+.vault-type-field svg {
+  flex: none;
+  color: var(--v-muted);
+}
+.vault-type-field:hover {
+  border-color: var(--v-field-border-hover);
+}
+.vault-type-field:focus-visible,
+.vault-type-field[aria-expanded='true'] {
+  outline: none;
+  border-color: var(--v-accent);
 }
 /* A select's list headed as a menu's label reads (the address type's). */
 .vault-picker-label {
@@ -1250,12 +1272,8 @@ html {
     min-height: 44px;
   }
   button.vault-network,
-  button.vault-picker,
   .vault-lock-other.vault-lock-other {
     min-height: 44px;
-  }
-  button.vault-picker {
-    margin-block: -12px;
   }
   .vault-notice-close.vault-notice-close {
     min-width: 44px;
