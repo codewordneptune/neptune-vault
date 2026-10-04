@@ -8,7 +8,6 @@ import { useEffect, useRef, useState } from 'react';
 let promptedThisLoad = false;
 
 import { useApp } from '../app/AppContext';
-import { Logo } from '../components/Logo';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { ErrorLine } from '../components/Notice';
 import { PhraseField, phraseWords } from '../components/PhraseField';
@@ -103,8 +102,7 @@ export function Unlock() {
         >
           <Stack>
             <Stack gap={6} align="center">
-              <Logo size={36} />
-              <Text size="sm" c="dimmed" mt={10}>
+              <Text size="sm" c="dimmed">
                 Welcome back
               </Text>
               {account && (
