@@ -35,7 +35,8 @@ export function Spoken({ text }: { text: string | null | undefined }): ReactNode
   }
   if (parts.length === 0) return text;
   if (last < text.length) parts.push(text.slice(last));
-  return <>{parts}</>;
+  // One element, so that in a flex row the text stays one item, its spaces kept.
+  return <span>{parts}</span>;
 }
 
 /** The same for a text that only a voice hears, such as a button's name. */
