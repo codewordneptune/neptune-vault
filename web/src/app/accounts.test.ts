@@ -825,7 +825,13 @@ describe('account service', () => {
       await view.put('history', { key: `${record.id}:recv:x`, accountId: record.id, kind: 'received', status: 'confirmed', txid: '', amountNau: '1', feeNau: null, timestampMs: 1, height: 45, inputHashes: [], recipient: null, error: null });
       await view.put('blocks', { key: `${record.id}:45`, accountId: record.id, height: 45, hash: 'b', prevHash: 'a', timestampMs: 1 });
 
+      // Not synced until a sync reaches the tip, and not again after a rescan.
+      expect((await db.get('accounts', record.id))?.synced).toBe(false);
+      await service.markSynced(record.id);
+      expect((await db.get('accounts', record.id))?.synced).toBe(true);
+
       await service.rescanFrom(record.id, 44);
+      expect((await db.get('accounts', record.id))?.synced).toBe(false);
       expect((await view.get('accounts', record.id))?.birthdayHeight).toBe(44);
       expect(await view.get('syncState', record.id)).toBeUndefined();
       expect(await view.getAllFromIndex('history')).toEqual([]);

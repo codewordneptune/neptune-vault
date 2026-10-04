@@ -58,6 +58,12 @@ export interface AccountRecord {
   restore?: 'fast' | 'rebuild';
   /** When the local view was last rebuilt through the node's coin index; absent when it was scanned from the start block. */
   restoredAt?: number;
+  /**
+   * Whether a sync has reached the chain's newest block since the wallet was
+   * made, restored or last rescanned; until then Home says it is not synced
+   * yet. Absent on wallets from before it was kept, which had synced.
+   */
+  synced?: boolean;
   /** When an export file was last saved, or the file's date for an imported account. Absent: never. */
   lastBackupAt?: number;
   /** When the Home backup reminder was last dismissed; it returns after a week. */

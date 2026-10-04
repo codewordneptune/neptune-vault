@@ -651,6 +651,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         } else if (result.phase === 'done') {
           pauseFor.current = 0;
           pauseUntil.current = 0;
+          await services.accounts.markSynced(accountId).catch(() => undefined);
         }
         await refresh();
         // A send no block can take any more has been released: said once,

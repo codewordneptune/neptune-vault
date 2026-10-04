@@ -209,6 +209,12 @@ export function Home() {
   const showDate = formatDate;
 
   const busy = sync?.phase === 'checking' || sync?.phase === 'restoring' || sync?.phase === 'scanning';
+  // A wallet no sync has brought up to the chain's newest block since it was
+  // made, restored or rescanned: its balance and History are not the whole
+  // story yet, and say so.
+  const unsynced = account?.synced === false && sync?.phase !== 'done';
+  // Why History is empty then; what went wrong in detail is on the status line above it.
+  const unsyncedReason = !online ? 'Not synced yet: you are offline.' : 'Not synced yet, so payments may be missing here.';
   const longScan = (sync?.phase === 'scanning' && sync.tipHeight - sync.syncedHeight > 100) || sync?.phase === 'restoring';
   // A node can be up to date with itself and still behind the network: its
   // newest block is then hours old, although blocks come about every ten
@@ -507,8 +513,13 @@ export function Home() {
                 {loaded && ownReady ? amount(headlineNau) : '…'}
                 <small> NPT</small>
               </span>
-              <span className="sr-only">{loaded && ownReady ? `Balance ${spoken(headlineNau)} NPT` : 'Balance loading'}</span>
+              <span className="sr-only">{loaded && ownReady ? `Balance ${spoken(headlineNau)} NPT${unsynced ? ', not synced yet' : ''}` : 'Balance loading'}</span>
             </div>
+            {loaded && unsynced && (
+              <Text size="sm" c="dimmed" aria-hidden>
+                Not synced yet
+              </Text>
+            )}
             {/* An estimate, and said to be one. Its price says how old it is
                 once that matters; where it is from is in Settings, Currency. */}
             {loaded && ownReady && quote && fiat && (
@@ -654,7 +665,22 @@ export function Home() {
             Loading…
           </Text>
         ) : entries.length === 0 ? (
-          busy ? (
+          !busy && unsynced ? (
+            // Nothing found yet because nothing has been searched: why, and the two ways on.
+            <Stack gap={6}>
+              <Text c="dimmed" size="sm">
+                {unsyncedReason}
+              </Text>
+              <Group gap="sm">
+                <UnstyledButton onClick={askSync} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+                  Try again
+                </UnstyledButton>
+                <UnstyledButton onClick={() => navigate('/settings/advanced', { state: { from: 'home' } })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+                  Node settings
+                </UnstyledButton>
+              </Group>
+            </Stack>
+          ) : busy ? (
             // Still being searched: "nothing" would be a guess, and a
             // restore of a funded wallet reading as empty is alarming. How
             // far it has got is said once, on the status line above.

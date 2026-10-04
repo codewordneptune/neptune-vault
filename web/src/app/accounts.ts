@@ -560,6 +560,7 @@ export class AccountService {
         envelope,
         seedUnlock,
         nextKeyIndices: FRESH_KEY_INDICES,
+        synced: false,
         backupConfirmed: false,
         name,
         ...(options.fastRestore ? { restore: 'fast' as const } : {}),
@@ -929,6 +930,13 @@ export class AccountService {
     const history = await (this.core.storeRead!(accountId, 'history') as Promise<HistoryRecord[]>).catch(() => []);
     await keepSendDetails(this.core, this.engine, accountId, sendDetailsForFile(history, await readSendDetails(this.core, this.engine, accountId).catch(() => [])));
     await this.core.ledger(accountId, { op: 'resetForRescan', height: Math.max(0, Math.floor(height)), fast });
+    await this.patch(accountId, (current) => ({ ...current, synced: false }));
+  }
+
+  /** A sync of this wallet reached the chain's newest block: see AccountRecord.synced. */
+  async markSynced(accountId: string): Promise<void> {
+    if ((await this.db.get('accounts', accountId))?.synced !== false) return;
+    await this.patch(accountId, (current) => ({ ...current, synced: true }));
   }
 
   /** Record that the export file was saved, for the reminder and Settings. */
@@ -1005,6 +1013,7 @@ export class AccountService {
         envelope,
         ...(seedUnlock ? { seedUnlock } : {}),
         nextKeyIndices: FRESH_KEY_INDICES,
+        synced: false,
         backupConfirmed: true,
         name,
         // The file it came from is a backup as of its export date.
