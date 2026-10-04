@@ -11,6 +11,7 @@ import { chainView, testEngine } from '../backend/engineForTests';
 import { AccountService, clashingName, DEFAULT_LOCK_MS, lockTimeoutOf, nextWalletName, NoSeedUnlockError, UnlockCancelledError, WalletNameTakenError } from './accounts';
 import type { PasskeyProvider } from './passkey';
 import { readSendDetails } from './sendDetails';
+import { readReceivedNotes, writeReceivedNote } from './receivedNotes';
 
 class FakePasskeys implements PasskeyProvider {
   secretBytes = new Uint8Array(32).fill(42);
@@ -853,6 +854,28 @@ describe('account service', () => {
       await service.rescanFrom(record.id, 44);
       expect(await view.getAllFromIndex('history')).toEqual([]);
       expect(await readSendDetails(core as unknown as WalletCore, service.engine, record.id)).toEqual([{ inputs: ['c0ffee:3'], txid: 'ab01', payments, feeNau: '1', note: 'Rent' }]);
+    } finally {
+      vault.close();
+    }
+  });
+
+  it('a backup file brings back the notes on payments received', async () => {
+    db = await openVaultDb();
+    const vault = await testEngine();
+    try {
+      const core = Object.assign(new FakeCore(), vault.store, {
+        async unlock(this: FakeCore, phrase: string[], _network?: string, contentKey?: Uint8Array) {
+          this.unlocked = phrase;
+          vault.unlock(contentKey);
+        },
+      });
+      const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+      const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+      await writeReceivedNote(core as unknown as WalletCore, service.engine, record.id, 'c0ffee:3', 'Rent for May');
+      const file = await service.exportFile(record.id, 'pw');
+      await service.lock();
+      const restored = await service.importFile(file, 'pw');
+      expect(await readReceivedNotes(core as unknown as WalletCore, service.engine, restored.id)).toEqual({ 'c0ffee:3': 'Rent for May' });
     } finally {
       vault.close();
     }

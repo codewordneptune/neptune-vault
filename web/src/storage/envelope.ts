@@ -491,6 +491,8 @@ export interface BackupSecrets {
    * before they were kept.
    */
   sends?: SendDetails[];
+  /** Notes on payments received, by the coin each brought. Absent in files from before they were kept. */
+  receivedNotes?: Record<string, string>;
 }
 
 /**
@@ -596,6 +598,7 @@ export async function openBackup(file: SealedExportFile, password: string, deriv
         labels: typeof parsed.labels === 'object' && parsed.labels !== null ? parsed.labels : undefined,
         given: Array.isArray(parsed.given) ? parsed.given : undefined,
         sends: Array.isArray(parsed.sends) ? parsed.sends : undefined,
+        receivedNotes: typeof parsed.receivedNotes === 'object' && parsed.receivedNotes !== null ? parsed.receivedNotes : undefined,
       },
       envelope: { version: 1, kdf: e.kdf, wrappedContentKey, seed: e.seed },
     };

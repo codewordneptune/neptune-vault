@@ -1,6 +1,6 @@
 // Balance, sync status and history.
 
-import { ActionIcon, Button, Group, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +8,8 @@ import { useNavigate } from 'react-router-dom';
 import { Sheet } from '../components/Sheet';
 import { NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../app/addressLabels';
-import { MEMPOOL_KEEPS_MS, SEND_LIFETIME_MS } from '../app/send';
+import { MEMPOOL_KEEPS_MS, SEND_LIFETIME_MS, SEND_NOTE_MAX } from '../app/send';
+import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNotes } from '../app/receivedNotes';
 import { usePendingSends } from '../app/pending';
 import { readSendDetails, withSendDetails } from '../app/sendDetails';
 import { speakNau } from '../components/Amount';
@@ -90,6 +91,12 @@ export function Home() {
   useEffect(() => {
     if (!account) return;
     void readSendDetails(services.core, services.accounts.engine, account.id).then(setSendDetails, () => setSendDetails([]));
+  }, [services, account]);
+  // The person's notes on payments received, by the coin each brought.
+  const [receivedNotes, setReceivedNotes] = useState<ReceivedNotes>({});
+  useEffect(() => {
+    if (!account) return;
+    void readReceivedNotes(services.core, services.accounts.engine, account.id).then(setReceivedNotes, () => setReceivedNotes({}));
   }, [services, account]);
   // One entry per transaction, with the recipient named when it is a contact.
   const entries = groupHistory(withSendDetails(history, sendDetails), utxos).map((e) =>
@@ -278,8 +285,12 @@ export function Home() {
     if (several) return `${several.length} recipients`;
     return contactFor(e.record.recipient)?.name ?? null;
   };
-  /** A send's note to self, when it has one. */
-  const noteOf = (e: HistoryEntry): string | null => (e.kind === 'sent' && e.record.note ? e.record.note : null);
+  /** A send's note to self, or the person's note on a payment received, when it has one. */
+  const noteOf = (e: HistoryEntry): string | null => {
+    if (e.kind === 'sent') return e.record.note || null;
+    const coin = e.kind === 'received' ? receivedCoinOf(e.record) : null;
+    return coin ? (receivedNotes[coin] ?? null) : null;
+  };
   /** The row's title when a name or a note gives one: the note before a count of recipients. */
   const rowNameOf = (e: HistoryEntry): string | null => {
     const note = noteOf(e);
@@ -800,6 +811,13 @@ export function Home() {
               <DetailRow label="Recipient" value="Not recorded. The send was made on another device or before a restore, so the amount above includes the fee." />
             )}
             {detail.record.note && <DetailRow label="Note" value={detail.record.note} isolate />}
+            {detail.kind === 'received' && receivedCoinOf(detail.record) && account && (
+              <ReceivedNote
+                key={detail.record.key}
+                note={noteOf(detail)}
+                onSave={async (text: string) => setReceivedNotes(await writeReceivedNote(services.core, services.accounts.engine, account.id, receivedCoinOf(detail.record)!, text))}
+              />
+            )}
             {detail.record.error && <DetailRow label="What happened" value={detail.record.error} />}
             {(outputsOf(detail).length > 0 || nodeStatusOf(detail.record) !== null || (detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n)) && (
               <>
@@ -1012,5 +1030,67 @@ function SearchedFrom({ account }: { account: AccountRecord }) {
         Rescan from an earlier date
       </UnstyledButton>
     </Text>
+  );
+}
+
+/**
+ * The person's note on a payment received, in its details: Add note, or the
+ * note with Edit; saved empty, it goes. Worded as a send's note on Send.
+ */
+function ReceivedNote({ note, onSave }: { note: string | null; onSave: (text: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(note ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await onSave(text);
+      setEditing(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!editing) {
+    return (
+      <>
+        {note && <DetailRow label="Note" value={note} isolate />}
+        <UnstyledButton
+          onClick={() => {
+            setText(note ?? '');
+            setEditing(true);
+          }}
+          c="var(--v-accent-text)"
+          fz="sm"
+          className="vault-tap-link vault-tap-link-start"
+        >
+          {note ? 'Edit note' : 'Add note'}
+        </UnstyledButton>
+      </>
+    );
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
+      <Stack gap="xs">
+        <TextInput label="Note to self" description="Only you see it, in History." placeholder="What it was for" value={text} maxLength={SEND_NOTE_MAX} onChange={(e) => setText(e.currentTarget.value)} autoFocus />
+        <Group grow>
+          <Button variant="default" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
+        </Group>
+        {error && <ErrorLine>{error}</ErrorLine>}
+      </Stack>
+    </form>
   );
 }

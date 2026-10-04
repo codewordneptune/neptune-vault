@@ -19,6 +19,7 @@ import type { WalletCore } from '../backend/types';
 import type { LastSend, SendStarted } from './send';
 import { givenFromFile, labelsFromFile, readGiven, readLabels, type AddressLabels } from './addressLabels';
 import { keepSendDetails, readSendDetails, sendDetailsForFile, sendDetailsFromFile } from './sendDetails';
+import { keepReceivedNotes, readReceivedNotes, receivedNotesFromFile, type ReceivedNotes } from './receivedNotes';
 
 export type LockListener = (locked: boolean) => void;
 
@@ -896,6 +897,7 @@ export class AccountService {
       : this.db.getAllFromIndex('history', 'byAccount', accountId)
     ).catch(() => []);
     const sends = sendDetailsForFile(history, await readSendDetails(this.core, this.engine, accountId).catch(() => []));
+    const receivedNotes = await readReceivedNotes(this.core, this.engine, accountId).catch(() => ({}));
     // Where scanning starts is the engine's once the chain has moved: the
     // first pass, a fast restore or a rescan move it, and the record keeps
     // the height it was made with. A restore from the file starts here.
@@ -903,7 +905,7 @@ export class AccountService {
     return sealBackup(
       { network: record.network, birthdayHeight: scan?.birthdayHeight ?? record.birthdayHeight, exportedAt: Date.now() },
       record.envelope,
-      { contacts: contacts.map((c) => ({ name: c.name, address: c.address })), ...(Object.keys(labels).length > 0 ? { labels } : {}), ...(given.length > 0 ? { given } : {}), ...(sends.length > 0 ? { sends } : {}) },
+      { contacts: contacts.map((c) => ({ name: c.name, address: c.address })), ...(Object.keys(labels).length > 0 ? { labels } : {}), ...(given.length > 0 ? { given } : {}), ...(sends.length > 0 ? { sends } : {}), ...(Object.keys(receivedNotes).length > 0 ? { receivedNotes } : {}) },
       password,
       this.derive,
     );
@@ -968,6 +970,7 @@ export class AccountService {
     let labels: AddressLabels = {};
     let given = new Set<string>();
     let sends: SendDetails[] = [];
+    let receivedNotes: ReceivedNotes = {};
     if (file.version === 3) {
       const opened = await openBackup(file, password, this.derive);
       envelope = opened.envelope;
@@ -975,6 +978,7 @@ export class AccountService {
       labels = labelsFromFile(opened.secrets.labels);
       given = givenFromFile(opened.secrets.given);
       sends = sendDetailsFromFile(opened.secrets.sends);
+      receivedNotes = receivedNotesFromFile(opened.secrets.receivedNotes);
     } else {
       envelope = file.envelope;
       fromFile = file.contacts;
@@ -1040,6 +1044,7 @@ export class AccountService {
         await this.core.storeCommit(record.id, [{ op: 'putPrivate', key: 'addressesGiven', value: [...given].sort() }]);
       }
       await keepSendDetails(this.core, this.engine, record.id, sends);
+      await keepReceivedNotes(this.core, this.engine, record.id, receivedNotes);
       if (epoch !== this.epoch) throw new UnlockCancelledError();
       this.setUnlocked(record.id);
       void this.strengthen(record.id, password).catch(() => undefined);

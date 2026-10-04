@@ -186,8 +186,8 @@ rescan: Fast, which is preselected, tells the node which payments are
 yours; Private downloads the blocks and tells it nothing about your coins.
 You choose what goes into a payment request. Backup files are yours:
 written where you save them and never uploaded, with the seed phrase,
-contacts, address names and who each send paid in them encrypted with your
-password.
+contacts, address names, who each send paid and your notes in them
+encrypted with your password.
 
 This statement describes the app as published under this version. If a
 later version changes what leaves the device, this page changes with it,

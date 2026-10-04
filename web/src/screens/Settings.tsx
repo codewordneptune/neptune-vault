@@ -613,7 +613,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
             </SettingItem>
             <SettingItem name="Backup file">
               <Text size="sm" c="dimmed">
-                {lastBackup ? `Saved ${lastBackup}.` : 'None saved yet.'} Also brings back contacts, address names, and who each send paid, with its note.
+                {lastBackup ? `Saved ${lastBackup}.` : 'None saved yet.'} Also brings back contacts, address names, who each send paid with its note, and your notes on payments received.
               </Text>
               <Button variant="light" leftSection={<IconDownload size={16} />} onClick={askExport} disabled={!account} aria-label="Export backup file">
                 Export
@@ -668,7 +668,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
                 }}
               >
                 <Stack>
-                  <Text size="sm">The file restores this wallet, its contacts, its address names, and who each send paid, with its note. It is encrypted with this password, which you will need to open it, and any change to it is detected. Keep it somewhere safe.</Text>
+                  <Text size="sm">The file restores this wallet, its contacts, its address names, who each send paid with its note, and your notes on payments received. It is encrypted with this password, which you will need to open it, and any change to it is detected. Keep it somewhere safe.</Text>
                   <PasswordInput label="Password" value={exportPassword} onChange={(e) => setExportPassword(e.currentTarget.value)} error={exportPasswordError} errorProps={{ role: 'alert' }} autoComplete="current-password" data-autofocus />
                   <Group grow>
                     <Button variant="default" onClick={() => setExportAsking(false)}>

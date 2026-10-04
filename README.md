@@ -187,9 +187,10 @@ rather than in a browser's.
 - **Backup file.** Export one from Settings, Backup, with your password. It
   restores the seed phrase, the network, the start block, your contacts,
   the names you gave your addresses, which addresses you have given out,
-  and who each send paid, with its amounts, fee and note.
+  who each send paid, with its amounts, fee and note, and your notes on
+  payments received.
   - The seed phrase, the contacts, the address names, the addresses given
-    out and the sends are encrypted.
+    out, the sends and the notes are encrypted.
   - The rest of the file is sealed, so the app refuses a file that has been
     changed, with a different message than for a wrong password.
   - Every version of the app reads backup files from earlier versions.

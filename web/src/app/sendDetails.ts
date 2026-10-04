@@ -57,7 +57,7 @@ export function sendDetailsForFile(history: HistoryRecord[], brought: SendDetail
 
 // A coin's key: its hash and, after a colon, its index in the chain's list of
 // coins. Sends recorded before the index was kept name their coins by hash alone.
-const COIN_KEY = /^[0-9a-f]{1,200}(:\d{1,20})?$/;
+export const COIN_KEY = /^[0-9a-f]{1,200}(:\d{1,20})?$/;
 const HEX = /^[0-9a-f]{1,200}$/;
 const NAU = /^\d{1,40}$/;
 const field = (o: unknown, name: string): unknown => (typeof o === 'object' && o !== null ? (o as Record<string, unknown>)[name] : undefined);
