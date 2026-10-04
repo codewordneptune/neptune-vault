@@ -1660,7 +1660,7 @@ function RescanCard() {
       <Sheet opened={open} onClose={() => setOpen(false)} title="Rescan">
         <Stack>
           <Text size="sm">
-            Sends made from this device that have confirmed lose their recipient and fee, because the chain does not carry them. Your coins are not affected.
+            The balance and History are rebuilt from the chain, and sends keep who they paid, their fees and their notes. Your coins are not affected.
             {waiting > 0 && ` ${waiting === 1 ? '1 send is' : `${waiting} sends are`} still pending: the rescan keeps ${waiting === 1 ? 'it' : 'them'} as ${waiting === 1 ? 'it is' : 'they are'}.`}
           </Text>
           <SegmentedControl

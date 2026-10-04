@@ -834,6 +834,30 @@ describe('account service', () => {
     }
   });
 
+  it('a rescan keeps who each send paid, its fee and its note, for History to show again', async () => {
+    db = await openVaultDb();
+    const vault = await testEngine();
+    try {
+      const core = Object.assign(new FakeCore(), vault.store, {
+        async unlock(this: FakeCore, phrase: string[], _network?: string, contentKey?: Uint8Array) {
+          this.unlocked = phrase;
+          vault.unlock(contentKey);
+        },
+      });
+      const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+      const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 40);
+      const view = chainView(vault, db, record.id);
+      const payments = [{ recipient: 'nolgar1bob', amountNau: '5' }];
+      await view.put('history', { key: `${record.id}:sent:ab01`, accountId: record.id, kind: 'sent', status: 'confirmed', txid: 'ab01', amountNau: '5', feeNau: '1', timestampMs: 1, height: 45, inputHashes: ['c0ffee:3'], recipient: 'nolgar1bob', payments, error: null, changeNau: null, note: 'Rent' });
+
+      await service.rescanFrom(record.id, 44);
+      expect(await view.getAllFromIndex('history')).toEqual([]);
+      expect(await readSendDetails(core as unknown as WalletCore, service.engine, record.id)).toEqual([{ inputs: ['c0ffee:3'], txid: 'ab01', payments, feeNau: '1', note: 'Rent' }]);
+    } finally {
+      vault.close();
+    }
+  });
+
   it('a backup file starts where the wallet scans now, not where it was made', async () => {
     db = await openVaultDb();
     const vault = await testEngine();

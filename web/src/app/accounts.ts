@@ -921,6 +921,11 @@ export class AccountService {
     if (this.engine.where(accountId, 'utxos') !== 'engine' || !this.core.ledger) {
       throw new Error('This wallet\'s coins could not be read, so there is nothing to rescan into. Unlock it again, and see Report a problem, under About in Settings.');
     }
+    // Who each send paid, its fee and its note are this device's record,
+    // not the chain's: kept first, as a backup file keeps them, so History
+    // has them back when the scan finds the sends again.
+    const history = await (this.core.storeRead!(accountId, 'history') as Promise<HistoryRecord[]>).catch(() => []);
+    await keepSendDetails(this.core, this.engine, accountId, sendDetailsForFile(history, await readSendDetails(this.core, this.engine, accountId).catch(() => [])));
     await this.core.ledger(accountId, { op: 'resetForRescan', height: Math.max(0, Math.floor(height)), fast });
   }
 
