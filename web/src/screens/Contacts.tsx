@@ -342,9 +342,11 @@ export function ContactForm({
               description={own && !addressError ? 'This is one of your own addresses.' : undefined}
               rightSectionWidth={44}
               rightSection={
-                <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
-                  <IconScan size={20} />
-                </ActionIcon>
+                <Tooltip label="Scan a QR code">
+                  <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>
+                    <IconScan size={20} />
+                  </ActionIcon>
+                </Tooltip>
               }
             />
           )}

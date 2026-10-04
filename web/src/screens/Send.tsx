@@ -92,8 +92,8 @@ function FieldActions({ contacts, onPick, onScan, who }: { contacts: boolean; on
           </ActionIcon>
         </Tooltip>
       )}
-      <Tooltip label="Scan">
-        <ActionIcon type="button" variant="subtle" size="lg" className="vault-tap" onMouseDown={(e) => e.preventDefault()} onClick={onScan} aria-label={who ? `Scan ${who}'s address` : 'Scan'}>
+      <Tooltip label="Scan a QR code">
+        <ActionIcon type="button" variant="subtle" size="lg" className="vault-tap" onMouseDown={(e) => e.preventDefault()} onClick={onScan} aria-label={who ? `Scan a QR code for ${who}` : 'Scan a QR code'}>
           <IconScan size={20} />
         </ActionIcon>
       </Tooltip>
