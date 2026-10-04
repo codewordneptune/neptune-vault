@@ -797,7 +797,9 @@ button.vault-network:focus-visible {
   color: var(--v-text-2);
 }
 
-/* Visually hidden, still read by screen readers. */
+/* Visually hidden, still read by screen readers, and never copied with
+   the text around it: a figure said plainly for a screen reader would
+   otherwise follow the figure on screen ("56 55656556"). */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -808,6 +810,7 @@ button.vault-network:focus-visible {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+  user-select: none;
 }
 /* A screen's heading takes focus when the screen opens (App.tsx) so that a
    screen reader starts there, and History's when a row it held is removed.
