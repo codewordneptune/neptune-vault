@@ -44,16 +44,17 @@ it.
 ## What leaves your device, and to whom
 
 **The node set in Settings.** Unless you chose another, this is the app's
-default node, wallet.neptunefundamentals.org. It sees your network address
-and every question the app asks it, over its JSON-RPC interface. While the
-wallet is unlocked and on screen, the app asks it about every 15 seconds
-for its newest block and the new blocks to scan here, fetches the
-transactions waiting in its mempool to scan them here too, and asks whether
-it still holds the outputs of your pending payments, in and out. It asks
-for the block of a date, or the date of a block, when a restore or rescan
-starts from a month, when a wallet was made while the node could not be
-reached, and to say when your history starts. When you send, it asks for
-the proofs of the coins the send spends, then hands it the send itself.
+default node, wallet.neptunefundamentals.org. It sees your IP address,
+which can show roughly where you are, and every question the app asks it,
+over its JSON-RPC interface. While the wallet is unlocked and on screen,
+the app asks it about every 15 seconds for its newest block and the new
+blocks to scan here, fetches the transactions waiting in its mempool to
+scan them here too, and asks whether it still holds the outputs of your
+pending payments, in and out. It asks for the block of a date, or the date
+of a block, when a restore or rescan starts from a month, when a wallet was
+made while the node could not be reached, and to say when your history
+starts. When you send, it asks for the proofs of the coins the send spends,
+then hands it the send itself.
 
 From this the node can learn roughly when your wallet started (the blocks
 you scan from), which pending payments are yours (the outputs it is asked
@@ -79,13 +80,13 @@ vault.dev.useneptune.org, hosted on Microsoft Azure. The first visit loads
 the app's files from it, and the browser keeps them. After that the app
 asks the site whether a newer version is published: when you open it,
 about every hour while it is open, and each time you come back to it. Like
-any web host, the site can log those requests, including your network
-address. It receives nothing about your wallet.
+any web host, the site can log those requests, including your IP address.
+It receives nothing about your wallet.
 
 *In the desktop app*, instead: **GitHub.** The desktop app carries its own
 files. When it starts, and every six hours while it runs, it asks GitHub
 whether a newer version has been published. Like any web host, GitHub can
-log those requests, including your network address. It receives nothing
+log those requests, including your IP address. It receives nothing
 about your wallet.
 
 *In the Android app*, instead: **Updates.** The Android app carries its own
@@ -101,13 +102,13 @@ tap.
 Settings.** While it is on, and Home, Send or Receive is on screen, the app
 asks CoinGecko, or CoinPaprika when CoinGecko does not answer, for the
 price of NPT in the currency you chose, at most every 10 minutes. They see
-your network address and that this is a Neptune Cash wallet. They receive
+your IP address and that this is a Neptune Cash wallet. They receive
 nothing about your wallet: no address, no balance. With the setting off,
 the app never contacts them.
 
 **Other links, only when you tap them.** Help, the websites under About,
 and GitHub (to report a problem, or to see what a new version changes) open
-in your browser. Those sites see your network address, but not the page
+in your browser. Those sites see your IP address, but not the page
 you came from.
 
 **Whoever you share with.** A payment request or its QR code carries your

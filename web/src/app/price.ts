@@ -1,6 +1,6 @@
 // The NPT price in an ordinary currency, for the optional line under the
 // balance. Off unless the person turns it on in Settings: asking a price
-// site tells it this device's network address and that it runs a Neptune
+// site tells it this device's IP address and that it runs a Neptune
 // Cash wallet, and the privacy statement says so.
 //
 // Two public sources that list Neptune Cash, need no key and answer a web

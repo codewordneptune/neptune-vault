@@ -1228,7 +1228,7 @@ function FiatCard() {
       )}
       {/* What it shows and what it costs, in a sentence; which service is asked when, in Privacy. */}
       <Text size="sm" c="dimmed">
-        Shows a rough estimate under your balance. While it is on, the app asks CoinGecko or CoinPaprika for the NPT price every 10 minutes: they see this device's network address, not your wallet.
+        Shows a rough estimate under your balance. While it is on, the app asks CoinGecko or CoinPaprika for the NPT price every 10 minutes: they see this device's IP address, which can show roughly where you are, but not your wallet.
       </Text>
     </Stack>
   );
