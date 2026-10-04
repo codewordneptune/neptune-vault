@@ -1132,6 +1132,16 @@ main h2[tabindex='-1']:focus {
 .vault-fee-seg small {
   font-size: var(--v-fs-xs);
   font-weight: 400;
+  white-space: nowrap;
+}
+/* The fee's four choices share the width equally, so each one's estimate
+   in another currency ("≈ 0.03 EUR") fits on one line. */
+.vault-fee-choices .mantine-SegmentedControl-control {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.vault-fee-choices .mantine-SegmentedControl-label {
+  padding-inline: 6px;
 }
 
 /* The not-yet-audited notice collapses to its title after the first visit. */

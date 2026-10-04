@@ -47,6 +47,22 @@ const FEE_PRESETS: { value: string; label: string; fee: string }[] = [
 const LOW_FEE = '0.02';
 const DEFAULT_PRESET = 'medium';
 const DEFAULT_FEE = FEE_PRESETS.find((p) => p.value === DEFAULT_PRESET)!.fee;
+
+/**
+ * The fee as a share of what it pays for, said once it is over a fifth: the
+ * default fee is 60% of a 0.5 NPT send. Figures for reading, not for money.
+ */
+function feeShareNote(feeNpt: number, amountNpt: number, several: boolean): string | null {
+  if (!(feeNpt > 0) || !(amountNpt > 0) || feeNpt <= amountNpt / 5) return null;
+  const of = several ? 'the amounts together' : 'the amount';
+  return feeNpt > amountNpt ? `The fee is larger than ${of}.` : `The fee is ${Math.round((feeNpt / amountNpt) * 100)}% of ${of}.`;
+}
+
+/** A typed amount in NPT, for reading; null when it is not one yet. */
+function typedNpt(text: string): number | null {
+  const plain = text.replace(/[\s  ]/g, '');
+  return /^(\d+(\.\d*)?|\.\d+)$/.test(plain) ? Number(plain) : null;
+}
 const presetFee = (preset: string, custom: string | undefined) =>
   preset === 'custom' ? (custom ?? '') : (FEE_PRESETS.find((p) => p.value === preset)?.fee ?? DEFAULT_FEE);
 
@@ -673,6 +689,9 @@ export function Send() {
   // Review, and touches nothing sent or saved. Focus goes to the recipient,
   // where the form starts again, not to a button that can no longer be pressed.
   const recipientRef = useRef<HTMLInputElement>(null);
+  // The fee against the amounts typed, said while its choices are open.
+  const typedAmounts = [amount, ...extras.map((x) => x.amount)].map(typedNpt);
+  const formFeeNote = typedAmounts.every((n) => n !== null) ? feeShareNote(typedNpt(fee) ?? 0, typedAmounts.reduce<number>((sum, n) => sum + (n ?? 0), 0), extras.length > 0) : null;
   const hasContent = recipient.trim() !== '' || amount.trim() !== '' || extras.length > 0 || note.trim() !== '' || feePreset === 'custom';
   const clearForm = () => {
     setRecipient('');
@@ -884,6 +903,7 @@ export function Send() {
   let reviewSheet: ReactNode = null;
   if (step === 'review' && totals) {
     const totalNau = totals.amountNau + totals.feeNau;
+    const reviewFeeNote = feeShareNote(Number(totals.feeNau), Number(totals.amountNau), extras.length > 0);
     const kind = addressKindNote(recipient);
     const reviewName = reviewNames[0] ?? null;
     const payees = [recipient, ...extras.map((x) => x.recipient)].map((address, i) => ({ address: address.trim(), name: reviewNames[i] ?? null, nau: totals.payments[i] ?? 0n }));
@@ -994,9 +1014,9 @@ export function Send() {
                 {Date.now() - quote.at > QUOTE_OLD_MS && ` · price from ${timeAgo(quote.at)}`}
               </Text>
             )}
-            {totals.feeNau > totals.amountNau && (
+            {reviewFeeNote && (
               <Text size="sm" c="var(--v-warn-text)" mt="xs">
-                {payees.length === 1 ? 'The fee is larger than the amount.' : 'The fee is larger than the amounts together.'}
+                {reviewFeeNote}
               </Text>
             )}
           </div>
@@ -1382,10 +1402,11 @@ export function Send() {
                   and pick the sends that pay them best first. A hint about a
                   choice comes before it, as under every field's name. */}
               <Text id="fee-hint" size="sm" c="dimmed" mb={6}>
-                Higher-fee sends go first in a queue.
+                A higher fee usually confirms sooner when the network is busy.
               </Text>
               <SegmentedControl
                 ref={feeChoicesRef}
+                className="vault-fee-choices"
                 fullWidth
                 orientation={stacked ? 'vertical' : 'horizontal'}
                 onPointerDown={() => (feeByPointer.current = true)}
@@ -1409,6 +1430,7 @@ export function Send() {
                     <span className="vault-fee-seg">
                       <span>{x.label}</span>
                       <small>{x.fee || 'any'}</small>
+                      {x.fee && estimateOf(x.fee) && <small>{estimateOf(x.fee)}</small>}
                     </span>
                   ),
                 }))}
@@ -1426,8 +1448,14 @@ export function Send() {
                 }}
                 onBlur={() => void (maxFollowsFee() ? sendAll() : checkAmounts(true))}
                 error={feeError}
+                description={estimateOf(fee)}
                 ref={customFeeRef}
               />
+            )}
+            {feeShown && formFeeNote && (
+              <Text size="sm" c="var(--v-warn-text)">
+                {formFeeNote}
+              </Text>
             )}
             {/* Why Review waits, one look for both reasons: a sentence, no
                 title. The node's own words are on Settings, Advanced. */}
