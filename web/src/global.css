@@ -2573,6 +2573,43 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 .vault-send-result:focus {
   outline: none;
 }
+/* A send the node took, in place of the form until Done: a tick, what went
+   where, and the two ways on. The tick settles in once; with reduced motion
+   it is simply there. */
+.vault-sent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  text-align: center;
+}
+.vault-sent-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  color: var(--v-ok-text);
+  background: var(--v-surface-2);
+  background: color-mix(in srgb, var(--v-ok-text) 14%, transparent);
+  animation: vault-sent-in 240ms ease-out;
+}
+@keyframes vault-sent-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+.vault-sent p {
+  text-wrap: balance;
+}
+.vault-sent-actions {
+  align-self: stretch;
+  margin-top: 14px;
+}
 
 /* Setup and settings (ux audit 2) */
 

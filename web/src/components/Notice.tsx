@@ -44,7 +44,7 @@ type NoticeProps = {
  * Where focus goes when a notice closes itself: the heading of the card it
  * was in, or of the screen. The close button is gone with it.
  */
-function headingNear(from: HTMLElement): HTMLElement | null {
+export function headingNear(from: HTMLElement): HTMLElement | null {
   const heading = from.closest('.mantine-Paper-root')?.querySelector<HTMLElement>('h2, h3') ?? document.querySelector<HTMLElement>('main h2');
   if (heading && !heading.hasAttribute('tabindex')) heading.tabIndex = -1;
   return heading;

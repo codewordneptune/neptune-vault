@@ -5,7 +5,7 @@
 
 import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, PasswordInput, Progress, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
-import { IconFingerprint, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
+import { IconCheck, IconFingerprint, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -24,8 +24,8 @@ import { ContactPicker } from '../components/ContactPicker';
 import { Amount } from '../components/Amount';
 import { Spoken } from '../components/Spoken';
 import { ChoiceField } from '../components/ChoiceField';
-import { Caution, ErrorLine, Info } from '../components/Notice';
-import { MAY_HAVE_GONE_OUT, notSentReason, PREPARING_SEND, sendStageText, SENDING_UNTIL_CONFIRMED, SENT_WAITING } from '../app/words';
+import { Caution, ErrorLine, headingNear, Info } from '../components/Notice';
+import { MAY_HAVE_GONE_OUT, notSentReason, PREPARING_SEND, sendStageText, WAITING_FOR_BLOCK } from '../app/words';
 import { usePendingSends } from '../app/pending';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
@@ -805,6 +805,8 @@ export function Send() {
   const maxFollowsFee = () => Boolean(maxExact && extras.length === 0 && amount === maxExact.text);
 
   const running = Boolean(sendJob && !sendJob.done);
+  // A send the node took shows on its own until Done, in place of the form.
+  const sentShown = Boolean(sendJob?.done && sendJob.ending === 'sent' && sendJob.outcome);
   const p = sendJob?.progress.proving;
   const proving = sendJob?.progress.stage === 'proving';
   // The prover reports only between sub-proofs, which take minutes, so the
@@ -1150,31 +1152,55 @@ export function Send() {
         </Title>
         {/* Clear, away from Review, always in its place so that nothing moves as
             the form fills, and pressable only while it holds something to clear. */}
-        <div className="vault-send-head">
-          <UnstyledButton type="button" onClick={clearForm} disabled={!hasContent} aria-label="Clear the form" c={hasContent ? 'var(--v-accent-text)' : 'var(--v-faint)'} fz="sm" className="vault-tap-link">
-            Clear
-          </UnstyledButton>
-        </div>
+        {!sentShown && (
+          <div className="vault-send-head">
+            <UnstyledButton type="button" onClick={clearForm} disabled={!hasContent} aria-label="Clear the form" c={hasContent ? 'var(--v-accent-text)' : 'var(--v-faint)'} fz="sm" className="vault-tap-link">
+              Clear
+            </UnstyledButton>
+          </div>
+        )}
         {/* How the last send ended, where the person is: focused, so it is
             read out, and dismissed here and on Home at once. */}
         {sendJob?.done && sendJob.ending && (
           // Focused when it appears, so it is read out once, as focus
           // arrives; its notice is not a live region as well.
           <div ref={resultRef} tabIndex={-1} className="vault-send-result" data-focus-managed>
-            {/* One sentence, in the same words as Home's notice. The proof's time is in Diagnostics. */}
-            {sendJob.ending === 'sent' && sendJob.outcome && (
-              <Info title={SENT_WAITING} onClose={dismissResult} closeLabel="Dismiss">
-                <span>
-                  <Spoken text={hidden ? '••••' : showNau(paymentsTotalNau(sendJob.request))} /> NPT to <bdi>{whoOf(sendJob.request)}</bdi>, plus a <Spoken text={hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} /> NPT fee. {SENDING_UNTIL_CONFIRMED}
+            {/* What went where, in the words History uses for the send. The proof's time is in Diagnostics. */}
+            {sentShown && (
+              <div className="vault-sent">
+                <span className="vault-sent-mark" aria-hidden>
+                  <IconCheck size={30} stroke={2.5} />
                 </span>
+                <Text component="h3" fz="xl" fw={600}>
+                  Sent
+                </Text>
+                <Text fz="md" c="var(--v-text-2)">
+                  <Amount nau={paymentsTotalNau(sendJob.request)} hidden={hidden} /> to <bdi>{whoOf(sendJob.request)}</bdi>
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Fee <Spoken text={hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} /> NPT · {WAITING_FOR_BLOCK.toLowerCase()}, usually within an hour
+                </Text>
                 {lastRecipient && !savedName && (
-                  <span>
-                    <UnstyledButton onClick={() => setSaving(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
-                      Save recipient as a contact
-                    </UnstyledButton>
-                  </span>
+                  <UnstyledButton onClick={() => setSaving(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+                    Save recipient as a contact
+                  </UnstyledButton>
                 )}
-              </Info>
+                <Group grow className="vault-sent-actions">
+                  <Button variant="light" onClick={() => navigate('/')}>
+                    See in History
+                  </Button>
+                  {/* The form comes back; focus goes to the screen's heading, as when a notice is closed. */}
+                  <Button
+                    onClick={(e) => {
+                      const heading = headingNear(e.currentTarget);
+                      dismissResult();
+                      heading?.focus({ preventScroll: true });
+                    }}
+                  >
+                    Done
+                  </Button>
+                </Group>
+              </div>
             )}
             {sendJob.ending === 'unconfirmed' && (
               <Caution title={UNANSWERED_TITLE} onClose={dismissResult} closeLabel="Dismiss">
@@ -1206,6 +1232,7 @@ export function Send() {
         </div>
         <form
           ref={formRef}
+          hidden={sentShown}
           onSubmit={(e) => {
             e.preventDefault();
             void review();
