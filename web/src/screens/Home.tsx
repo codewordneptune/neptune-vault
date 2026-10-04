@@ -471,10 +471,11 @@ export function Home() {
         <div className="vault-balance-layout">
           <Stack gap="xs">
             {/* The eye keeps its 40 px target but is pulled into the row's
-                margins, so the label sits where every other card's title does. */}
+                margins, so the label sits where every other card's title does.
+                One name, and the pressed state says whether amounts are hidden. */}
             <div className="vault-balance-head">
               <span className="vault-eyebrow">Balance</span>
-              <ActionIcon variant="subtle" size="lg" className="vault-tap" my={-10} mr={-8} aria-label={hidden ? 'Show amounts' : 'Hide amounts'} aria-pressed={hidden} onClick={toggleHidden}>
+              <ActionIcon variant="subtle" size="lg" className="vault-tap" my={-10} mr={-8} aria-label="Hide amounts" aria-pressed={hidden} onClick={toggleHidden}>
                 {hidden ? <IconEyeOff size={20} /> : <IconEye size={20} />}
               </ActionIcon>
             </div>
