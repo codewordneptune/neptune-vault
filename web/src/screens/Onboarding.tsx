@@ -1,7 +1,7 @@
 // Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, Textarea, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
+import { Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
 import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { showBlock, useApp } from '../app/AppContext';
 import { nodeFor } from '../app/services';
 import { PocNotice } from '../components/PocNotice';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
+import { PhraseField, phraseWords } from '../components/PhraseField';
 import { Caution, ErrorLine, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
@@ -723,25 +724,7 @@ function ImportStep({
   const [text, setText] = useState(initialText);
   const [phraseError, setPhraseError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  // A word is finished once something follows it. The finished ones are
-  // checked against the word list as they come, filled out to a whole
-  // phrase with a word that is on it, so the check says only which word is
-  // not a word; whether the words make a phrase waits for Continue.
-  useEffect(() => {
-    const finished = /\s$/.test(text) ? words : words.slice(0, -1);
-    if (finished.length === 0 || finished.length > 18) return;
-    const t = setTimeout(() => {
-      const padded = [...finished.map((w) => w.toLowerCase()), ...Array<string>(18 - finished.length).fill('abandon')];
-      void checkPhrase(padded).then(
-        (problem) => setPhraseError(problem && problem.startsWith('Word ') ? problem : null),
-        () => undefined,
-      );
-    }, 400);
-    return () => clearTimeout(t);
-    // The words are read from the text.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
+  const words = phraseWords(text);
 
   // How to restore, folded until asked for, and said in one line meanwhile.
   const [optionsOpen, setOptionsOpen] = useState(false);
@@ -762,10 +745,9 @@ function ImportStep({
   const startKnown = when !== 'month' || (lookup !== 'looking' && (lookup === 'found' || Number(birthday) > 1));
 
   const continueWithPhrase = async () => {
-    const lower = words.map((w) => w.toLowerCase());
     setChecking(true);
     try {
-      const problem = await checkPhrase(lower);
+      const problem = await checkPhrase(words);
       if (problem) {
         setPhraseError(problem);
         return;
@@ -781,7 +763,7 @@ function ImportStep({
           // Node unreachable: the sync clamps the height on first contact.
         }
       }
-      onPhrase(lower);
+      onPhrase(words);
     } catch (e) {
       setPhraseError((e as Error).message);
     } finally {
@@ -793,22 +775,7 @@ function ImportStep({
       <Stack>
         <span className="vault-eyebrow">Step 1 of 2</span>
         <Title order={2} tabIndex={-1} className="vault-step-title">Restore with a seed phrase</Title>
-        <Textarea
-          label="Seed phrase (18 words)"
-          description={words.length === 0 ? undefined : words.length > 18 ? '18 words needed, you have ' + words.length : words.length + ' of 18 words'}
-          autoCapitalize="none"
-          autoCorrect="off"
-          autoComplete="off"
-          spellCheck={false}
-          autosize
-          minRows={3}
-          value={text}
-          error={phraseError ?? undefined}
-          onChange={(e) => {
-            setText(e.currentTarget.value);
-            setPhraseError(null);
-          }}
-        />
+        <PhraseField text={text} onText={setText} error={phraseError} onError={setPhraseError} checkPhrase={checkPhrase} />
         {/* How to restore, as one line with its current choice: most people
             restore everything, fast, and need decide nothing. Change opens
             the question people can answer, instead of a block number. */}
