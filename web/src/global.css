@@ -488,6 +488,12 @@ h3.mantine-Title-root.vault-prose-heading {
 .vault-topbar-inner {
   padding-block: var(--mantine-spacing-sm);
 }
+/* The bar's row as tall as the wallet menu, which is there only once a
+   wallet is unlocked: the bar keeps one height on the lock screen, in
+   setup and after (33 px, 44 px on a touch screen, below). */
+.vault-topbar-inner > .mantine-Group-root {
+  min-height: 33px;
+}
 .vault-brand {
   display: flex;
   align-items: center;
@@ -1391,7 +1397,8 @@ html {
     min-height: 44px;
   }
   button.vault-network,
-  .vault-lock-other.vault-lock-other {
+  .vault-lock-other.vault-lock-other,
+  .vault-topbar-inner > .mantine-Group-root {
     min-height: 44px;
   }
   .vault-notice-close.vault-notice-close {
