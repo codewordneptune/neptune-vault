@@ -2,8 +2,9 @@
 // button instead of a blank page. Wallet data lives in IndexedDB and the
 // worker, untouched by a render failure.
 
-import { Button, Paper, Stack, Text, Title } from '@mantine/core';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+
+import { FailureScreen } from './FailureScreen';
 
 interface State {
   error: Error | null;
@@ -23,20 +24,11 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   render(): ReactNode {
     if (!this.state.error) return this.props.children;
     return (
-      <div style={{ maxWidth: 540, margin: '48px auto', padding: '0 16px' }}>
-        <Paper>
-          <Stack>
-            <Title order={2}>Something went wrong</Title>
-            <Text size="sm" c="dimmed">
-              Something went wrong showing this screen. Your wallet is safe: reload to continue. Your seed phrase and backup files are not affected.
-            </Text>
-            <Text size="xs" c="dimmed" ff="monospace" style={{ wordBreak: 'break-word' }}>
-              {this.state.error.message}
-            </Text>
-            <Button onClick={() => location.reload()}>Reload</Button>
-          </Stack>
-        </Paper>
-      </div>
+      <FailureScreen
+        title="Something went wrong"
+        said="Something went wrong showing this screen. Your wallet is safe: reload to continue. Your seed phrase and backup files are not affected."
+        error={this.state.error.message}
+      />
     );
   }
 }
