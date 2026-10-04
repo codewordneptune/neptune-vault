@@ -1139,8 +1139,8 @@ main :is(h2, h3)[tabindex='-1']:focus {
   font-weight: 400;
   white-space: nowrap;
 }
-/* The fee's four choices share the width equally, so each one's estimate
-   in another currency ("≈ 0.03 EUR") fits on one line. */
+/* The fee's four choices share the width equally, and each keeps its name
+   and amount on one line each at a phone's width. */
 .vault-fee-choices .mantine-SegmentedControl-control {
   flex: 1 1 0;
   min-width: 0;

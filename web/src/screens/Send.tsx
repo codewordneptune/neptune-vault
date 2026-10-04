@@ -88,8 +88,8 @@ function FeeLine({ fee, level }: { fee: string; level: string | undefined }) {
 
 type Step = 'form' | 'review';
 
-// Where an amount's estimate in another currency sits: under the field, and
-// above any error, like the other notes about a field.
+// Where an amount's or a fee's estimate in another currency sits: under the
+// field, and above any error, like the other notes about a field.
 const UNDER_THE_FIELD: ('label' | 'input' | 'description' | 'error')[] = ['label', 'input', 'description', 'error'];
 
 /**
@@ -297,6 +297,7 @@ export function Send() {
   const feeHeld = feePreset === 'custom' || feeError !== null;
   const feeShown = feeOpen || feeHeld;
   const feeLevel = FEE_PRESETS.find((p) => p.value === feePreset)?.label;
+  const choiceEstimate = feePreset === 'custom' ? undefined : estimateOf(fee);
   // The amount fields, by recipient (0 is the first), for where focus goes after a Remove.
   const amountRefs = useRef(new Map<number, HTMLInputElement>());
   // As reviewed: each payment in nau (the first recipient's first), their sum, and the fee.
@@ -1447,7 +1448,7 @@ export function Send() {
                     onPointerDown={() => (feeByPointer.current = true)}
                     onKeyDown={() => (feeByPointer.current = false)}
                     aria-label="Fee"
-                    aria-describedby="fee-hint"
+                    aria-describedby={choiceEstimate ? 'fee-hint fee-estimate' : 'fee-hint'}
                     value={feePreset}
                     onChange={(v) => {
                       setFeePreset(v);
@@ -1465,11 +1466,17 @@ export function Send() {
                         <span className="vault-fee-seg">
                           <span>{x.label}</span>
                           <small>{x.fee || 'any'}</small>
-                          {x.fee && estimateOf(x.fee) && <small><Spoken text={estimateOf(x.fee)} /></small>}
                         </span>
                       ),
                     }))}
                   />
+                  {/* The chosen fee in another currency, under the choices as an
+                      amount's is under its field. A custom fee's is under its own. */}
+                  {choiceEstimate && (
+                    <Text id="fee-estimate" size="sm" c="dimmed" mt={5}>
+                      <Spoken text={choiceEstimate} />
+                    </Text>
+                  )}
                 </>
               )}
             </div>
@@ -1485,6 +1492,7 @@ export function Send() {
                 onBlur={() => void (maxFollowsFee() ? sendAll() : checkAmounts(true))}
                 error={feeError && <Spoken text={feeError} />}
                 description={estimateOf(fee) && <Spoken text={estimateOf(fee)} />}
+                inputWrapperOrder={UNDER_THE_FIELD}
                 ref={customFeeRef}
               />
             )}
