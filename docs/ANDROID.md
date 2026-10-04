@@ -33,6 +33,12 @@ A high-trust app that needs no personal registration with Google:
 - **Android's own screens.** Android asks for the camera on a screen over
   the app, which pauses it and hides the page. The wallet waits for the
   answer instead of locking, as it does for a file picker.
+- **The seed phrase stays out of screen captures.** While a seed phrase is
+  shown (setup, Settings, Backup) or typed (restore, Forgot the password?),
+  the window is kept out of screenshots, screen recordings and the
+  recent-apps preview: the page asks the shell (`app_secure_screen`), which
+  sets Android's FLAG_SECURE, and clears it once the phrase is off the
+  screen. Not yet tried on a phone.
 - **Payment links.** A `neptunecash:` link tapped in another app or on a
   web page opens the app (Tauri's deep-link plugin, phones only; when
   several apps take such links, Android asks which one). Send is filled in

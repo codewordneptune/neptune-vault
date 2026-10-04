@@ -368,6 +368,37 @@ fn app_open_url(app: tauri::AppHandle, url: String) -> Result<()> {
         .map_err(|e| app_error(format!("The link could not be opened: {e}")))
 }
 
+/// Keeps the window out of screenshots, screen recordings and the
+/// recent-apps preview while `on` (Android's FLAG_SECURE): the page asks
+/// for it while a seed phrase is shown or typed. Elsewhere it does nothing.
+#[tauri::command]
+fn app_secure_screen(app: tauri::AppHandle, on: bool) -> Result<()> {
+    #[cfg(target_os = "android")]
+    {
+        // WindowManager.LayoutParams.FLAG_SECURE
+        const FLAG_SECURE: i32 = 0x2000;
+        let window = app.get_webview_window("main").ok_or_else(|| app_error("The app's window is not open."))?;
+        window
+            .with_webview(move |webview| {
+                // Runs on Android's UI thread, where a window's flags are set.
+                webview.jni_handle().exec(move |env, activity, _webview| {
+                    let set = env
+                        .call_method(activity, "getWindow", "()Landroid/view/Window;", &[])
+                        .and_then(|window| window.l())
+                        .and_then(|window| env.call_method(&window, if on { "addFlags" } else { "clearFlags" }, "(I)V", &[FLAG_SECURE.into()]));
+                    // A Java exception left pending would break the next call into Java.
+                    if set.is_err() && env.exception_check().unwrap_or(false) {
+                        let _ = env.exception_clear();
+                    }
+                });
+            })
+            .map_err(|e| app_error(format!("The screen could not be protected: {e}")))?;
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = (app, on);
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 
 /// The app. The desktop binary calls it from main.rs; Android and iOS load
@@ -440,6 +471,7 @@ pub fn run() {
             prover_cancel,
             app_save_file,
             app_open_url,
+            app_secure_screen,
         ])
         .run(tauri::generate_context!())
         .expect("the app could not start");

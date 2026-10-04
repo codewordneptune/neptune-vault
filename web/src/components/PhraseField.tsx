@@ -8,6 +8,8 @@
 import { Textarea } from '@mantine/core';
 import { useEffect } from 'react';
 
+import { useSecureScreen } from '../app/secureScreen';
+
 /** The words of what was typed, lower case. */
 export function phraseWords(text: string): string[] {
   return text
@@ -34,6 +36,7 @@ export function PhraseField({
   /** Focused when the dialog it is in opens. */
   autoFocus?: boolean;
 }) {
+  useSecureScreen();
   const words = phraseWords(text);
   useEffect(() => {
     const finished = /\s$/.test(text) ? words : words.slice(0, -1);

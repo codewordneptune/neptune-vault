@@ -624,9 +624,11 @@ Android app. The same shell, built with `tauri android` (`lib.rs` has the
 mobile entry point). What differs is gated by `NATIVE`, `MOBILE`, `DESKTOP`
 and `ANDROID` in `web/src/app/platform.ts`. Payment links (`neptunecash:`)
 open the app through Tauri's deep-link plugin, phones only, and fill in
-Send (`web/src/app/paymentLinks.ts`). There is no update notice, no close
-guard and no passkey unlock. Backup export and a native screen wake lock
-are still missing ([ANDROID.md](ANDROID.md)).
+Send (`web/src/app/paymentLinks.ts`). While a seed phrase is shown or typed,
+`app_secure_screen` keeps the window out of screenshots and the recent-apps
+preview (FLAG_SECURE, `web/src/app/secureScreen.ts`). There is no update
+notice, no close guard and no passkey unlock. Backup export and a native
+screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
 
 ## 7. Build and test
 

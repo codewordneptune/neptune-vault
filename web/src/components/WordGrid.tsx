@@ -8,9 +8,12 @@
 import { Box, Group, SimpleGrid, Text, UnstyledButton } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
 
+import { useSecureScreen } from '../app/secureScreen';
+
 // `only` shows just those places, by their numbers: the confirmation's
 // missing words, without the rest of the phrase on screen again.
 export function WordGrid({ words, blanks = [], next, onClear, only }: { words: string[]; blanks?: number[]; next?: number; onClear?: (i: number) => void; only?: number[] }) {
+  useSecureScreen();
   // A numbered list to a screen reader. The role is explicit: without
   // list markers some browsers stop announcing a list as one.
   return (

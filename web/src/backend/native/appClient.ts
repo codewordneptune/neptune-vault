@@ -17,3 +17,8 @@ export function saveFile(suggestedName: string, contents: string): Promise<strin
 export function openUrl(url: string): Promise<void> {
   return call<void>('app_open_url', { url });
 }
+
+/** On Android, keeps the window out of screenshots and the recent-apps preview while `on`. */
+export function secureScreen(on: boolean): Promise<void> {
+  return call<void>('app_secure_screen', { on });
+}
