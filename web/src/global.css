@@ -2422,11 +2422,11 @@ html {
   }
 }
 
-/* Send's fee before it is asked for: amount and level, and Change at the
-   end, the whole line one row to tap, its full height in the layout, so it
-   keeps clear of the links above it and of Review. The text stays in line
-   with the fields; pressed, the tint reaches 8 px past it on each side.
-   Under a mouse only Change is underlined, as a link is: no tint. */
+/* Send's fee: amount and level, and a chevron at the end that turns as
+   the line opens and closes the choices, the whole line one row to tap,
+   its full height in the layout, so it keeps clear of the links above it
+   and of Review. The text stays in line with the fields; pressed, the tint
+   reaches 8 px past it on each side. */
 .vault-fee-line {
   display: flex;
   align-items: center;
@@ -2438,24 +2438,20 @@ html {
   border-radius: var(--v-radius-xs);
   text-align: left;
 }
-.vault-fee-change {
+.vault-fee-chevron {
+  flex: none;
   margin-left: auto;
+  color: var(--v-muted);
 }
 @media (pointer: coarse) {
   .vault-fee-line {
     min-height: 44px;
   }
 }
-@media (hover: hover) and (pointer: fine) {
-  .vault-fee-line:hover .vault-fee-change {
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-}
-.vault-fee-line:active {
+button.vault-fee-line:active {
   background: var(--v-row-press);
 }
-.vault-fee-line:focus-visible {
+button.vault-fee-line:focus-visible {
   outline: 2px solid var(--v-accent);
   outline-offset: -2px;
 }

@@ -5,7 +5,7 @@
 
 import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, PasswordInput, Progress, SegmentedControl, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
-import { IconFingerprint, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
+import { IconChevronRight, IconFingerprint, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -66,6 +66,25 @@ function typedNpt(text: string): number | null {
 }
 const presetFee = (preset: string, custom: string | undefined) =>
   preset === 'custom' ? (custom ?? '') : (FEE_PRESETS.find((p) => p.value === preset)?.fee ?? DEFAULT_FEE);
+
+/** The fee in a line: what it is, and its level. */
+function FeeLine({ fee, level }: { fee: string; level: string | undefined }) {
+  return (
+    <>
+      <Text span size="sm" fw={600}>
+        Fee
+      </Text>
+      {fee && (
+        <Text span size="sm">
+          {fee} NPT
+        </Text>
+      )}
+      <Text span size="sm" c="dimmed">
+        {level}
+      </Text>
+    </>
+  );
+}
 
 type Step = 'form' | 'review';
 
@@ -272,11 +291,12 @@ export function Send() {
   // throw a keyboard user out of them (the field is next in Tab order).
   const customFeeRef = useRef<HTMLInputElement>(null);
   const feeByPointer = useRef(false);
-  // The fee is one line, its level and Change, until it is asked for; a custom
-  // fee or a message about the fee keeps its choices open.
+  // The fee is one line, its amount and level, that opens and closes its
+  // choices; a custom fee or a message about the fee keeps them open.
   const [feeOpen, setFeeOpen] = useState(false);
-  const feeChoicesRef = useRef<HTMLDivElement>(null);
-  const feeShown = feeOpen || feePreset === 'custom' || feeError !== null;
+  const feeHeld = feePreset === 'custom' || feeError !== null;
+  const feeShown = feeOpen || feeHeld;
+  const feeLevel = FEE_PRESETS.find((p) => p.value === feePreset)?.label;
   // The amount fields, by recipient (0 is the first), for where focus goes after a Remove.
   const amountRefs = useRef(new Map<number, HTMLInputElement>());
   // As reviewed: each payment in nau (the first recipient's first), their sum, and the fee.
@@ -1397,77 +1417,62 @@ export function Send() {
             {showNote && (
               <TextInput ref={noteRef} label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
             )}
-            {!feeShown ? (
-              // The whole line opens the choices, the fee being what is looked
-              // at; Change at its end says so.
-              <UnstyledButton
-                type="button"
-                className="vault-fee-line"
-                aria-label={`Fee ${fee} NPT, ${FEE_PRESETS.find((p) => p.value === feePreset)?.label}. Change the fee`}
-                onClick={() => {
-                  setFeeOpen(true);
-                  // The line goes as the choices come: focus goes to the one chosen.
-                  setTimeout(() => feeChoicesRef.current?.querySelector<HTMLInputElement>('input:checked')?.focus(), 0);
-                }}
-              >
-                <Text span size="sm" fw={600}>
-                  Fee
-                </Text>
-                <Text span size="sm">
-                  {fee} NPT
-                </Text>
-                <Text span size="sm" c="dimmed">
-                  {FEE_PRESETS.find((p) => p.value === feePreset)?.label}
-                </Text>
-                <Text span size="sm" c="var(--v-accent-text)" className="vault-fee-change">
-                  Change
-                </Text>
-              </UnstyledButton>
-            ) : (
             <div>
-              <Text size="sm" fw={600}>
-                Fee (NPT)
-              </Text>
-              {/* What the fee buys, which the numbers alone do not say. Proof
-                  upgraders take part of it for proving the send into a block,
-                  and pick the sends that pay them best first. A hint about a
-                  choice comes before it, as under every field's name. */}
-              <Text id="fee-hint" size="sm" c="dimmed" mb={6}>
-                A higher fee usually confirms sooner when the network is busy.
-              </Text>
-              <SegmentedControl
-                ref={feeChoicesRef}
-                className="vault-fee-choices"
-                fullWidth
-                orientation={stacked ? 'vertical' : 'horizontal'}
-                onPointerDown={() => (feeByPointer.current = true)}
-                onKeyDown={() => (feeByPointer.current = false)}
-                aria-label="Fee"
-                aria-describedby="fee-hint"
-                value={feePreset}
-                onChange={(v) => {
-                  setFeePreset(v);
-                  const preset = FEE_PRESETS.find((x) => x.value === v);
-                  if (preset && preset.fee) setFee(preset.fee);
-                  else if (v === 'custom') {
-                    setFee('');
-                    if (feeByPointer.current) setTimeout(() => customFeeRef.current?.focus(), 0);
-                  }
-                  if (v !== 'custom') void services.updateSettings({ feePreset: v });
-                }}
-                data={FEE_PRESETS.map((x) => ({
-                  value: x.value,
-                  label: (
-                    <span className="vault-fee-seg">
-                      <span>{x.label}</span>
-                      <small>{x.fee || 'any'}</small>
-                      {x.fee && estimateOf(x.fee) && <small><Spoken text={estimateOf(x.fee)} /></small>}
-                    </span>
-                  ),
-                }))}
-              />
+              {/* The whole line opens and closes the choices, as Technical
+                  details does in History; while they must stay open it is
+                  only a line. */}
+              {feeHeld ? (
+                <div className="vault-fee-line">
+                  <FeeLine fee={fee} level={feeLevel} />
+                </div>
+              ) : (
+                <UnstyledButton type="button" className="vault-fee-line" aria-label={`Fee${fee ? `, ${fee} NPT` : ''}, ${feeLevel}`} aria-expanded={feeOpen} onClick={() => setFeeOpen((open) => !open)}>
+                  <FeeLine fee={fee} level={feeLevel} />
+                  <IconChevronRight size={16} aria-hidden className={feeOpen ? 'vault-chevron open vault-fee-chevron' : 'vault-chevron vault-fee-chevron'} />
+                </UnstyledButton>
+              )}
+              {feeShown && (
+                <>
+                  {/* What the fee buys, which the numbers alone do not say. Proof
+                      upgraders take part of it for proving the send into a block,
+                      and pick the sends that pay them best first. A hint about a
+                      choice comes before it, as under every field's name. */}
+                  <Text id="fee-hint" size="sm" c="dimmed" mb={6}>
+                    A higher fee usually confirms sooner when the network is busy.
+                  </Text>
+                  <SegmentedControl
+                    className="vault-fee-choices"
+                    fullWidth
+                    orientation={stacked ? 'vertical' : 'horizontal'}
+                    onPointerDown={() => (feeByPointer.current = true)}
+                    onKeyDown={() => (feeByPointer.current = false)}
+                    aria-label="Fee"
+                    aria-describedby="fee-hint"
+                    value={feePreset}
+                    onChange={(v) => {
+                      setFeePreset(v);
+                      const preset = FEE_PRESETS.find((x) => x.value === v);
+                      if (preset && preset.fee) setFee(preset.fee);
+                      else if (v === 'custom') {
+                        setFee('');
+                        if (feeByPointer.current) setTimeout(() => customFeeRef.current?.focus(), 0);
+                      }
+                      if (v !== 'custom') void services.updateSettings({ feePreset: v });
+                    }}
+                    data={FEE_PRESETS.map((x) => ({
+                      value: x.value,
+                      label: (
+                        <span className="vault-fee-seg">
+                          <span>{x.label}</span>
+                          <small>{x.fee || 'any'}</small>
+                          {x.fee && estimateOf(x.fee) && <small><Spoken text={estimateOf(x.fee)} /></small>}
+                        </span>
+                      ),
+                    }))}
+                  />
+                </>
+              )}
             </div>
-            )}
             {feePreset === 'custom' && (
               <TextInput
                 label="Custom fee (NPT)"
