@@ -1756,9 +1756,9 @@ html {
 /* Mark, name, Beta tag, a long wallet name, a test network and chevron
    need about 478 px (measured): below 480 px the name is left to the mark,
    as in the desktop app, and stays for screen readers, so the header keeps
-   to one row. */
+   to one row. The lock screen has no wallet menu, so it keeps the name. */
 @media (max-width: 479.98px) {
-  .vault-wordmark {
+  .vault-topbar:not(.vault-topbar-locked) .vault-wordmark {
     position: absolute;
     width: 1px;
     height: 1px;

@@ -230,12 +230,13 @@ export function App() {
           Skip to navigation
         </a>
       )}
-      <header className="vault-topbar">
+      <header className={account && locked ? 'vault-topbar vault-topbar-locked' : 'vault-topbar'}>
         <Container size="xs" className="vault-topbar-inner">
           <Group justify="space-between" align="center">
             {/* The desktop app's title bar already names it: the header keeps
                 the mark. On a narrow phone the name gives way too, to leave
-                the wallet pill room (global.css, .vault-wordmark). */}
+                the wallet pill room (global.css, .vault-wordmark), except on
+                the lock screen, which has no pill. */}
             <Group gap={6} wrap="nowrap">
               <h1 className="vault-brand">
                 <Logo size={26} />
