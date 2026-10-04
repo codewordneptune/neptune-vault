@@ -91,6 +91,11 @@ function decodeMeta(value: string): string | undefined | null {
 const AMOUNT_RE = /^(0|[1-9][0-9]*)(\.[0-9]{1,32})?$/;
 const RESERVED = new Set(['address', 'reference', 'memo']);
 
+// Messages in everyday words that say what to do, which is mostly to ask
+// for the request again, not in the standard's (payload, parameter).
+const DAMAGED = 'This payment request is damaged. Ask for a new one.';
+const NOT_YET = 'This payment request uses something this wallet cannot do yet. Ask for one with a single address.';
+
 /**
  * Text scanned from a QR code or pasted, per NIP-002: a `neptunecash:`
  * payment URI (scheme case-insensitive, address literal and single-case,
@@ -99,19 +104,22 @@ const RESERVED = new Set(['address', 'reference', 'memo']);
  */
 export function parsePaymentText(text: string): PaymentText {
   const t = text.trim();
-  if (t === '') return { address: '', error: 'Nothing to read' };
-  if (/\s/.test(t)) return { address: '', error: 'The link contains whitespace; it may have been wrapped in transport' };
+  if (t === '') return { address: '', error: 'There is nothing to read.' };
   const colon = t.indexOf(':');
   const scheme = colon >= 0 ? t.slice(0, colon).toLowerCase() : null;
+  if (/\s/.test(t)) {
+    const what = scheme === 'neptunecash' || scheme === 'npt' ? 'This payment request' : 'This address';
+    return { address: '', error: `${what} has spaces or line breaks in it. Copy it again in one piece.` };
+  }
   let rest = colon >= 0 ? t.slice(colon + 1) : t;
 
   if (scheme === 'npt') {
     // Legacy wallet payload: address only, never a query.
-    if (rest.includes('?')) return { address: '', error: 'Not a payment request: an NPT: payload cannot carry parameters' };
+    if (rest.includes('?')) return { address: '', error: DAMAGED };
     return checkAddress(rest);
   }
-  if (scheme !== null && scheme !== 'neptunecash') return { address: '', error: `Unknown link type "${scheme}"` };
-  if (rest.includes('#')) return { address: '', error: 'The link is malformed' };
+  if (scheme !== null && scheme !== 'neptunecash') return { address: '', error: `This is a "${scheme}" link, not a Neptune Cash payment request.` };
+  if (rest.includes('#')) return { address: '', error: DAMAGED };
 
   let amount: string | undefined;
   let label: string | undefined;
@@ -125,18 +133,16 @@ export function parsePaymentText(text: string): PaymentText {
       const eq = part.indexOf('=');
       const name = eq >= 0 ? part.slice(0, eq) : part;
       const value = eq >= 0 ? part.slice(eq + 1) : '';
-      if (!/^[a-z0-9._~-]+$/.test(name)) return { address: '', error: `Invalid parameter "${name}"` };
-      if (seen.has(name)) return { address: '', error: `Repeated parameter "${name}"` };
+      if (!/^[a-z0-9._~-]+$/.test(name) || seen.has(name)) return { address: '', error: DAMAGED };
       seen.add(name);
-      if (RESERVED.has(name) || /^(address|amount)\.[0-9]+$/.test(name)) return { address: '', error: `Unsupported parameter "${name}"` };
-      if (name.startsWith('req-')) return { address: '', error: `This wallet does not support the required extension "${name}"` };
+      if (RESERVED.has(name) || /^(address|amount)\.[0-9]+$/.test(name) || name.startsWith('req-')) return { address: '', error: NOT_YET };
       if (name === 'amount') {
-        if (!AMOUNT_RE.test(value)) return { address: '', error: 'The requested amount is not valid' };
+        if (!AMOUNT_RE.test(value)) return { address: '', error: 'The amount in this payment request is not a valid amount. Ask for a new one.' };
         amount = value;
       }
       if (name === 'label' || name === 'message') {
         const decoded = decodeMeta(value);
-        if (decoded === null) return { address: '', error: `The ${name === 'label' ? 'name' : 'note'} in the link is malformed` };
+        if (decoded === null) return { address: '', error: `The ${name === 'label' ? 'name' : 'note'} in this payment request is damaged. Ask for a new one.` };
         // A value of only whitespace shows nothing; treat it as absent.
         const trimmed = (decoded ?? '').trim();
         if (trimmed !== '') {
@@ -152,9 +158,9 @@ export function parsePaymentText(text: string): PaymentText {
 }
 
 function checkAddress(raw: string): PaymentText {
-  if (raw === '') return { address: '', error: 'The link has no address' };
-  if (!/^[A-Za-z0-9]+$/.test(raw)) return { address: '', error: 'The address contains invalid characters' };
-  if (/[a-z]/.test(raw) && /[A-Z]/.test(raw)) return { address: '', error: 'The address mixes upper and lower case' };
+  if (raw === '') return { address: '', error: 'This payment request has no address in it. Ask for a new one.' };
+  if (!/^[A-Za-z0-9]+$/.test(raw)) return { address: '', error: 'This address has characters that no address has. Copy it again.' };
+  if (/[a-z]/.test(raw) && /[A-Z]/.test(raw)) return { address: '', error: 'This address mixes capital and small letters, which no address does. Copy it again as it was given.' };
   return { address: raw.toLowerCase() };
 }
 

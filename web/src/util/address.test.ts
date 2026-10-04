@@ -25,7 +25,7 @@ describe('parsePaymentText (NIP-002)', () => {
     expect(parsePaymentText('NEPTUNECASH:NOLGAM1ABC?amount=10&label=Dev%20Fund')).toEqual({ address: 'nolgam1abc', amount: '10', label: 'Dev Fund', message: undefined });
     expect(parsePaymentText('neptunecash:nolgam1abc?label=Caf%C3%A9&message=Invoice%2042')).toMatchObject({ label: 'Café', message: 'Invoice 42' });
     expect(parsePaymentText('neptunecash:nolgam1abc?label=a+b')).toMatchObject({ label: 'a+b' });
-    expect(parsePaymentText('neptunecash:nolgam1abc?label=%ZZ').error).toMatch(/name in the link/);
+    expect(parsePaymentText('neptunecash:nolgam1abc?label=%ZZ').error).toMatch(/name in this payment request is damaged/);
     expect(parsePaymentText('  neptunecash:nolgam1abc?amount=1  ')).toMatchObject({ address: 'nolgam1abc', amount: '1' });
     expect(parsePaymentText('neptunecash:nolgam1abc?label=a?b')).toMatchObject({ address: 'nolgam1abc', label: 'a?b' });
     expect(parsePaymentText('neptunecash:nolgam1abc?shop-order=7')).toMatchObject({ address: 'nolgam1abc', amount: undefined });
@@ -34,19 +34,22 @@ describe('parsePaymentText (NIP-002)', () => {
     expect(parsePaymentText('NPT:NOLGAM1ABC')).toEqual({ address: 'nolgam1abc' });
     expect(parsePaymentText('  nechm1xyz ')).toEqual({ address: 'nechm1xyz' });
   });
-  it('rejects what the NIP rejects', () => {
-    expect(parsePaymentText('NPT:NOLGAM1ABC?amount=1').error).toMatch(/cannot carry/);
-    expect(parsePaymentText('npt:nolgam1abc?amount=1').error).toBeTruthy();
-    expect(parsePaymentText('neptune:nolgam1abc').error).toMatch(/Unknown link type/);
-    expect(parsePaymentText('neptunecash:Nolgam1abc').error).toMatch(/mixes/);
-    expect(parsePaymentText('neptunecash:nolgam1abc?amount=01').error).toMatch(/amount/);
-    expect(parsePaymentText('neptunecash:nolgam1abc?amount=.5').error).toMatch(/amount/);
-    expect(parsePaymentText('neptunecash:nolgam1abc?Amount=1').error).toMatch(/Invalid parameter/);
-    expect(parsePaymentText('neptunecash:nolgam1abc?amount=1&amount=2').error).toMatch(/Repeated/);
-    expect(parsePaymentText('neptunecash:nolgam1abc?address=x').error).toMatch(/Unsupported/);
-    expect(parsePaymentText('neptunecash:nolgam1abc?req-x=1').error).toMatch(/required extension/);
-    expect(parsePaymentText('neptunecash:nolgam1abc#frag').error).toMatch(/malformed/);
-    expect(parsePaymentText('neptunecash:nolgam1 abc').error).toMatch(/whitespace/);
+  it('rejects what the NIP rejects, in words that say what to do', () => {
+    const damaged = /^This payment request is damaged\. Ask for a new one\.$/;
+    expect(parsePaymentText('NPT:NOLGAM1ABC?amount=1').error).toMatch(damaged);
+    expect(parsePaymentText('npt:nolgam1abc?amount=1').error).toMatch(damaged);
+    expect(parsePaymentText('neptune:nolgam1abc').error).toBe('This is a "neptune" link, not a Neptune Cash payment request.');
+    expect(parsePaymentText('neptunecash:Nolgam1abc').error).toMatch(/mixes capital and small letters/);
+    expect(parsePaymentText('neptunecash:nolgam1abc?amount=01').error).toMatch(/amount in this payment request is not a valid amount/);
+    expect(parsePaymentText('neptunecash:nolgam1abc?amount=.5').error).toMatch(/not a valid amount/);
+    expect(parsePaymentText('neptunecash:nolgam1abc?Amount=1').error).toMatch(damaged);
+    expect(parsePaymentText('neptunecash:nolgam1abc?amount=1&amount=2').error).toMatch(damaged);
+    expect(parsePaymentText('neptunecash:nolgam1abc?address=x').error).toMatch(/cannot do yet/);
+    expect(parsePaymentText('neptunecash:nolgam1abc?req-x=1').error).toMatch(/cannot do yet/);
+    expect(parsePaymentText('neptunecash:nolgam1abc#frag').error).toMatch(damaged);
+    expect(parsePaymentText('neptunecash:nolgam1 abc').error).toBe('This payment request has spaces or line breaks in it. Copy it again in one piece.');
+    expect(parsePaymentText('nolgam1ab\ncd').error).toBe('This address has spaces or line breaks in it. Copy it again in one piece.');
+    expect(parsePaymentText('neptunecash:').error).toMatch(/no address in it/);
   });
 });
 
@@ -103,7 +106,7 @@ describe('names and notes in a link', () => {
     const address = 'nolgar1' + 'q'.repeat(20);
     for (const bad of ['\u202e', '\u2066', '\u2028', '\u0085', '\u0007']) {
       const link = 'neptunecash:' + address + '?label=' + encodeURIComponent('Shop' + bad + 'pohS');
-      expect(parsePaymentText(link).error, JSON.stringify(bad)).toMatch(/name in the link is malformed/);
+      expect(parsePaymentText(link).error, JSON.stringify(bad)).toMatch(/name in this payment request is damaged/);
       expect(metaProblem('Shop' + bad)).not.toBeNull();
     }
     expect(parsePaymentText('neptunecash:' + address + '?label=' + encodeURIComponent('Café Ünïcode 店')).label).toBe('Café Ünïcode 店');

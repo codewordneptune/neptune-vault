@@ -392,8 +392,11 @@ export function Send() {
     return null;
   };
 
+  // A link left in a field because it did not read keeps its own message.
+  const linkProblem = (text: string) => (/^\s*[a-z]+:/i.test(text) ? (parsePaymentText(text).error ?? null) : null);
+
   const checkRecipient = async (leaving = false): Promise<boolean> => {
-    const message = leaving && recipient.trim() === '' ? null : await addressProblem(recipient, []);
+    const message = leaving && recipient.trim() === '' ? null : (linkProblem(recipient) ?? (await addressProblem(recipient, [])));
     setRecipientError(message);
     return message === null;
   };
@@ -403,7 +406,7 @@ export function Send() {
     if (at < 0) return true;
     const earlier = [recipient, ...extras.slice(0, at).map((x) => x.recipient)].map((a) => a.trim().toLowerCase());
     const empty = extras[at].recipient.trim() === '';
-    const message = empty ? (leaving ? null : 'Enter the address, or remove this recipient') : await addressProblem(extras[at].recipient, earlier);
+    const message = empty ? (leaving ? null : 'Enter the address, or remove this recipient') : (linkProblem(extras[at].recipient) ?? (await addressProblem(extras[at].recipient, earlier)));
     updateExtra(id, { recipientError: message });
     return message === null;
   };
@@ -605,10 +608,13 @@ export function Send() {
     await send(askLustration);
   };
 
+  // `typed`: the text came through the field itself. One that does not read
+  // stays there, with its message, to be seen and corrected.
   const applyText = useCallback(
-    (text: string) => {
+    (text: string, typed = false) => {
       const parsed = parsePaymentText(text);
       if (parsed.error) {
+        if (typed) setRecipient(text);
         setRecipientError(parsed.error);
         return;
       }
@@ -637,10 +643,10 @@ export function Send() {
 
   // A link for an added recipient gives its address and amount. The name
   // and note a link can carry are shown for the first recipient only.
-  const applyExtraText = (id: number, text: string) => {
+  const applyExtraText = (id: number, text: string, typed = false) => {
     const parsed = parsePaymentText(text);
     if (parsed.error) {
-      updateExtra(id, { recipientError: parsed.error });
+      updateExtra(id, { recipientError: parsed.error, ...(typed ? { recipient: text } : {}) });
       return;
     }
     updateExtra(id, { recipient: parsed.address, recipientError: null, ...(parsed.amount ? { amount: parsed.amount, amountError: null } : {}) });
@@ -651,9 +657,13 @@ export function Send() {
     const target = scanFor;
     setScanFor(null);
     filledField(target ?? 0);
-    if (target === null || target === 0) applyText(text);
+    const first = target === null || target === 0;
+    if (first) applyText(text);
     else applyExtraText(target, text);
-    setFormSaid(target === null || target === 0 ? 'Address filled from the QR code.' : `Address of recipient ${extras.findIndex((x) => x.id === target) + 2} filled from the QR code.`);
+    // Said as it went: a code that is not a request fills nothing.
+    const parsed = parsePaymentText(text);
+    const filled = parsed.amount ? 'Address and amount' : 'Address';
+    setFormSaid(parsed.error ? `The QR code was not used. ${parsed.error}` : first ? `${filled} filled from the QR code.` : `${filled} of recipient ${extras.findIndex((x) => x.id === target) + 2} filled from the QR code.`);
   };
 
   // Clear starts the form over: every recipient and amount, the added ones,
@@ -1187,7 +1197,7 @@ export function Send() {
                   setEditing(0);
                   // A payment link arriving by any route (keyboard paste, share)
                   // is split into its fields, the same as Paste and Scan do.
-                  if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyText(value);
+                  if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyText(value, true);
                   else {
                     setRecipient(value);
                     setRecipientError(null);
@@ -1279,7 +1289,7 @@ export function Send() {
                     onChange={(e) => {
                       const value = e.currentTarget.value;
                       setEditing(x.id);
-                      if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyExtraText(x.id, value);
+                      if (/^\s*[a-z]+:/i.test(value) && value.includes('1')) applyExtraText(x.id, value, true);
                       else updateExtra(x.id, { recipient: value, recipientError: null });
                     }}
                     onBlur={() => void checkExtraRecipient(x.id, true)}
