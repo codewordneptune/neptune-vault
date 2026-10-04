@@ -135,10 +135,27 @@ export function Home() {
 
   // Giving up on a pending send frees its reserved coins; confirmed first.
   const [givingUp, setGivingUp] = useState<HistoryRecord | null>(null);
+  const [giveUpBusy, setGiveUpBusy] = useState(false);
+  // A give-up that failed is said in its dialog, which stays open for another try.
+  const [giveUpError, setGiveUpError] = useState<string | null>(null);
+  const closeGiveUp = () => {
+    if (givingUp) focusRow(givingUp.key);
+    setGivingUp(null);
+    setGiveUpError(null);
+  };
   const giveUp = async () => {
     if (!account || !givingUp) return;
     const key = givingUp.key;
-    await services.sendService(account.id).forget(givingUp.txid);
+    setGiveUpBusy(true);
+    setGiveUpError(null);
+    try {
+      await services.sendService(account.id).forget(givingUp.txid);
+    } catch (e) {
+      setGiveUpError((e as Error).message);
+      return;
+    } finally {
+      setGiveUpBusy(false);
+    }
     setGivingUp(null);
     await refresh();
     focusRow(key);
@@ -833,15 +850,7 @@ export function Home() {
         )}
       </Sheet>
 
-      <Sheet
-        opened={givingUp !== null}
-        onClose={() => {
-          if (givingUp) focusRow(givingUp.key);
-          setGivingUp(null);
-        }}
-        returnFocus={false}
-        title="Give up on this send?"
-      >
+      <Sheet opened={givingUp !== null} onClose={closeGiveUp} returnFocus={false} title="Give up on this send?">
         {givingUp && (
           <Stack>
             <Text size="sm">
@@ -854,18 +863,13 @@ export function Home() {
             <Text size="sm" c="dimmed">
               This send: {showNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee`}. Giving up makes {showNau(reservedFor(givingUp))} NPT spendable again.
             </Text>
+            {giveUpError && <ErrorLine title="This send was not given up">{giveUpError}</ErrorLine>}
             <Group grow>
-              <Button
-                variant="default"
-                onClick={() => {
-                  focusRow(givingUp.key);
-                  setGivingUp(null);
-                }}
-              >
+              <Button variant="default" onClick={closeGiveUp}>
                 Cancel
               </Button>
-              <Button color="red" onClick={() => void giveUp()}>
-                Give up
+              <Button color="red" loading={giveUpBusy} onClick={() => void giveUp()}>
+                {giveUpError ? 'Try again' : 'Give up'}
               </Button>
             </Group>
           </Stack>
