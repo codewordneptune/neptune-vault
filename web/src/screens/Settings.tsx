@@ -39,7 +39,8 @@ import { Caution, Done, ErrorLine, Info } from '../components/Notice';
 import { DESKTOP, NATIVE } from '../app/platform';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
-import { confirmsSends, DEFAULT_NODE_URLS, offeredNetworks, requestPersistentStorage, showsTestNetworks, walletName, type AccountRecord } from '../storage/db';
+import { confirmsSends, DEFAULT_NODE_URLS, offeredNetworks, requestPersistentStorage, showsTestNetworks, walletName, type AccountRecord, type ContactRecord, type HistoryRecord } from '../storage/db';
+import { abbreviateAddress } from '../util/address';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
@@ -1466,12 +1467,28 @@ function WalletCard() {
 function RemoveWalletCard() {
   const { services, account, balance, loaded, removeAccount, sendJob } = useApp();
   // What Home shows, with pending sends counted as gone.
-  const { balanceNau, ready } = usePendingSends();
+  const { balanceNau, ready, sends, toSelf } = usePendingSends();
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [haveBackup, setHaveBackup] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Contacts, to name who the pending sends pay.
+  const [contacts, setContacts] = useState<ContactRecord[]>([]);
+  useEffect(() => {
+    if (!account || sends.length === 0) return;
+    let live = true;
+    void services.contacts.list(account.id).then((list) => live && setContacts(list), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [services, account, sends.length]);
+  const toWhom = (h: HistoryRecord) => {
+    if (toSelf(h)) return 'yourself';
+    if ((h.payments?.length ?? 0) > 1) return `${h.payments!.length} recipients`;
+    if (!h.recipient) return 'a recipient not known here';
+    return contacts.find((c) => c.address === h.recipient)?.name ?? abbreviateAddress(h.recipient);
+  };
   if (!account) return null;
   const sending = Boolean(sendJob && !sendJob.done);
   const name = walletName(account);
@@ -1511,6 +1528,18 @@ function RemoveWalletCard() {
           <Text size="sm">
             This device forgets the wallet, its history and its contacts. The coins stay on the chain, and only the seed phrase or a backup file brings them back.
           </Text>
+          {sends.length > 0 && (
+            <Caution title={sends.length === 1 ? 'A send is still pending' : `${sends.length} sends are still pending`}>
+              <ul className="vault-notice-list">
+                {sends.map((h) => (
+                  <li key={h.key}>
+                    {showNau(BigInt(h.amountNau))} NPT to <bdi>{toWhom(h)}</bdi>
+                  </li>
+                ))}
+              </ul>
+              Removing the wallet does not stop {sends.length === 1 ? 'it: it' : 'them: each'} may still go through and pay its recipient. Coins that do not go out, and the change from those that do, stay with the seed phrase, and a restore finds them.
+            </Caution>
+          )}
           <Checkbox label="I have this wallet's seed phrase or a backup file" checked={haveBackup} onChange={(e) => setHaveBackup(e.currentTarget.checked)} />
           <PasswordInput label="This wallet's password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} error={error} errorProps={{ role: 'alert' }} autoComplete="current-password" />
           <Stack gap={4} align="flex-start">

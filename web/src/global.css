@@ -2144,6 +2144,11 @@ html {
   flex-direction: column;
   gap: 4px;
 }
+/* A list inside a notice: the Remove page's pending sends. */
+.vault-notice-list {
+  margin: 2px 0 6px;
+  padding-left: 20px;
+}
 .vault-notice-title {
   font-weight: 600;
   color: var(--v-text);
