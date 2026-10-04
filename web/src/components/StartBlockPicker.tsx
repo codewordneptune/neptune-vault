@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { showBlock } from '../app/AppContext';
 import type { NodeClient } from '../node/rpc';
+import type { Network } from '../storage/db';
 import { startOfDayMs } from '../util/blockdate';
 
 export type StartLookup = 'idle' | 'looking' | 'found' | 'failed';
@@ -19,6 +20,15 @@ export type StartLookup = 'idle' | 'looking' | 'found' | 'failed';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 /** Neptune's mainnet began in 2025: no wallet received funds before. */
 const FIRST_YEAR = 2025;
+
+/** Mainnet blocks as a scan downloads them: 15 to 19 MB per 100, measured. */
+const MAINNET_MB_PER_BLOCK = 0.17;
+
+/** What scanning this many Mainnet blocks downloads, roughly. */
+export function downloadSize(blocks: number): string {
+  const mb = blocks * MAINNET_MB_PER_BLOCK;
+  return mb >= 1000 ? `${(mb / 1000).toFixed(mb >= 10_000 ? 0 : 1)} GB` : `${Math.max(1, Math.round(mb))} MB`;
+}
 
 export function StartBlockPicker({
   value,
@@ -28,6 +38,7 @@ export function StartBlockPicker({
   onMonthChange,
   onLookup,
   error,
+  network,
 }: {
   value: number | string;
   onChange: (height: number | string) => void;
@@ -40,6 +51,8 @@ export function StartBlockPicker({
   onLookup?: (state: StartLookup) => void;
   /** A problem with the block, such as one above the chain's tip. */
   error?: string | null;
+  /** The wallet's network: on Mainnet, what the scan downloads is said too. */
+  network?: Network;
 }) {
   const [ownMonth, setOwnMonth] = useState('');
   const month = givenMonth ?? ownMonth;
@@ -50,6 +63,21 @@ export function StartBlockPicker({
     onLookup?.(next.kind);
   };
   const latest = useRef(0);
+  // The chain's tip, asked once, for the download a Mainnet scan means.
+  const [tip, setTip] = useState<number | null>(null);
+  useEffect(() => {
+    if (network !== 'main') return;
+    let live = true;
+    void node().probe().then(
+      (height) => live && setTip(height),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+    // A fresh client each render: asked on the network only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [network]);
   const [year, monthNo] = month ? month.split('-') : ['', ''];
   const now = new Date();
   const years = Array.from({ length: now.getFullYear() - FIRST_YEAR + 1 }, (_, i) => String(now.getFullYear() - i));
@@ -83,6 +111,8 @@ export function StartBlockPicker({
   // With no month chosen, a block typed below (or the one the wallet
   // already starts at) is where the scan starts, and the line says so.
   const typed = Number(value) > 1 ? Number(value) : null;
+  const from = lookup.kind === 'found' ? lookup.height : typed;
+  const download = network === 'main' && tip !== null && from !== null && tip > from ? ` About ${downloadSize(tip - from)} to download.` : '';
   return (
     <Stack gap="xs">
       <Group grow>
@@ -95,13 +125,13 @@ export function StartBlockPicker({
       {lookup.kind === 'idle' ? (
         <Text size="sm" c="dimmed">
           {typed !== null
-            ? `The scan starts at block ${showBlock(typed)} and runs on this device. The node learns nothing about your coins.`
+            ? `The scan starts at block ${showBlock(typed)} and runs on this device. The node learns nothing about your coins.${download}`
             : 'Scanning starts at the first block of that month, on this device. The node learns nothing about your coins.'}
         </Text>
       ) : (
         <Text size="sm" c={lookup.kind === 'failed' ? 'var(--v-danger-text)' : 'dimmed'} role="status">
           {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
-          {lookup.kind === 'found' && `The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.`}
+          {lookup.kind === 'found' && `The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.${download}`}
           {lookup.kind === 'failed' && lookup.message}
         </Text>
       )}

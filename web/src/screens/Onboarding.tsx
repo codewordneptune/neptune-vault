@@ -495,6 +495,7 @@ export function Onboarding() {
           fast={fast}
           setFast={setFast}
           node={node}
+          network={network}
           initialText={imported ? phrase.join(' ') : ''}
           checkPhrase={(words) => services.core.phraseProblem(words)}
           onPhrase={(words) => {
@@ -706,6 +707,7 @@ function ImportStep({
   fast,
   setFast,
   node,
+  network,
   initialText,
   checkPhrase,
   onPhrase,
@@ -721,6 +723,8 @@ function ImportStep({
   fast: boolean;
   setFast: (v: boolean) => void;
   node: () => NodeClient;
+  /** The network the wallet is restored on. */
+  network: Network;
   /** The phrase typed before, when coming back from the password step. */
   initialText: string;
   /** Why the words cannot be a phrase, or null; asked before the step advances. */
@@ -834,6 +838,7 @@ function ImportStep({
               setStartError(null);
             }}
             node={node}
+            network={network}
             month={month}
             onMonthChange={setMonth}
             onLookup={setLookup}

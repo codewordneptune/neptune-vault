@@ -1690,6 +1690,7 @@ function RescanCard() {
                   setStartError(null);
                 }}
                 node={() => services.node()}
+                network={account?.network}
                 onLookup={setLookup}
                 error={startError}
               />

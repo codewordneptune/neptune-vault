@@ -25,7 +25,7 @@ import { LINKS } from '../app/links';
 import { abbreviateAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
-import { dayAhead, dayKey, dayLabel, formatDate, formatDateTime, formatTime, timeAgo, whenInSentence } from '../util/time';
+import { dayAhead, dayKey, dayLabel, formatAbout, formatDate, formatDateTime, formatTime, timeAgo, whenInSentence } from '../util/time';
 
 export function Home() {
   const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure, lastSend, dismissLastSend, screenAwake } = useApp();
@@ -221,15 +221,25 @@ export function Home() {
   // minutes. Recent payments would not show, and sends may not go through.
   const behindMs = sync?.phase === 'done' && sync.tipTimestampMs ? Date.now() - sync.tipTimestampMs : 0;
   const behind = behindMs > 60 * 60 * 1000;
+  // How far a long pass has got, and how long the rest should take at the
+  // pace measured since it was first seen here: from 15 s in, so one slow
+  // first request does not set it. A short catch-up says neither.
+  const pace = useRef<{ phase: string; at: number; done: number } | null>(null);
+  const work = (sync?.phase === 'scanning' || sync?.phase === 'restoring') && sync.work && sync.work.total >= 20 ? sync.work : null;
+  if (!work || !sync) pace.current = null;
+  else if (!pace.current || pace.current.phase !== sync.phase || work.done < pace.current.done) pace.current = { phase: sync.phase, at: Date.now(), done: work.done };
+  const elapsedMs = pace.current ? Date.now() - pace.current.at : 0;
+  const leftS = work && pace.current && elapsedMs >= 15_000 && work.done > pace.current.done ? ((work.total - work.done) * elapsedMs) / (work.done - pace.current.done) / 1000 : null;
+  const progressText = work ? ` · ${Math.min(99, Math.floor((100 * work.done) / work.total))}%${leftS !== null ? ` · ${formatAbout(leftS)} left` : ''}` : '';
   const syncText =
     sync === null
       ? 'Not synced yet'
       : sync.phase === 'checking'
         ? 'Checking the chain'
         : sync.phase === 'restoring'
-          ? (sync.message ?? 'Finding your payments')
+          ? (sync.message ?? 'Finding your payments') + progressText
           : sync.phase === 'scanning'
-          ? `Scanning block ${showBlock(sync.syncedHeight)} of ${showBlock(sync.tipHeight)}`
+          ? `Scanning block ${showBlock(sync.syncedHeight)} of ${showBlock(sync.tipHeight)}${progressText}`
           : sync.phase === 'done'
             ? behind
               ? `Synced to block ${showBlock(sync.tipHeight)}, but that block is ${Math.round(behindMs / 3_600_000)} h old, so the node may be behind`

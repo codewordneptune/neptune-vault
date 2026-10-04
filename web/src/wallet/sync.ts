@@ -29,6 +29,8 @@ export interface SyncProgress {
   slow?: boolean;
   /** Sends this pass found no block can take any more: their ids. */
   expired?: string[];
+  /** How much of the pass under way is done, in blocks: for its percentage and the time left. */
+  work?: { done: number; total: number };
 }
 
 export interface SyncOptions {
@@ -213,6 +215,7 @@ export class SyncEngine {
       if (rolledBackTo !== null) position = await this.ledger({ op: 'startPass', tipHeight: tip.height });
 
       let height = position.syncedHeight + 1;
+      const passStart = position.syncedHeight;
       // The block each batch must follow: the core refuses an answer that
       // does not link to it, so a reorganisation between the check above
       // and the fetch, or a node on another chain, cannot leave orphaned
@@ -223,7 +226,7 @@ export class SyncEngine {
       let good = 0;
       while (height <= tip.height && !this.stopRequested) {
         const to = Math.min(height + batch - 1, tip.height);
-        this.progress('scanning', height - 1, tip.height);
+        this.progress('scanning', height - 1, tip.height, undefined, { work: { done: Math.max(0, height - 1 - passStart), total: Math.max(1, tip.height - passStart) } });
         let blocksResponse: string;
         try {
           blocksResponse = await this.node.getBlocksRaw(height, to);
@@ -328,6 +331,8 @@ export class SyncEngine {
     let unsaved = 0;
     let lowest = tipHeight;
     let settled = false;
+    // One count across the rounds, so a later round does not start again at block 1.
+    let doneBefore = 0;
     for (let round = 0; round < RESTORE_ROUNDS; round++) {
       this.progress('restoring', scanned.size, tipHeight, 'Asking the node which blocks are yours');
       let heights: number[];
@@ -350,7 +355,7 @@ export class SyncEngine {
       }
       for (const [i, height] of todo.entries()) {
         if (this.stopRequested) return 'stopped';
-        this.progress('restoring', scanned.size, tipHeight, 'Finding your payments: block ' + (i + 1) + ' of ' + todo.length);
+        this.progress('restoring', scanned.size, tipHeight, 'Finding your payments: block ' + (doneBefore + i + 1) + ' of ' + (doneBefore + todo.length), { work: { done: doneBefore + i, total: doneBefore + todo.length } });
         const blocksResponse = await this.node.getBlocksRaw(height, height);
         if (this.stopRequested) return 'stopped';
         // A single block has no neighbour here to link to; the core still
@@ -369,6 +374,7 @@ export class SyncEngine {
       }
       await this.keepRestoreProgress(scanned);
       unsaved = 0;
+      doneBefore += todo.length;
     }
     if (!settled) return 'Fast restore stopped after ' + RESTORE_ROUNDS + ' rounds without finishing, so the balance may be incomplete. Rescan from a block or a date instead.';
     // Hand over a little below the tip: the ordinary scan then walks the
