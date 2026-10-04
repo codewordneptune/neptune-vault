@@ -166,21 +166,13 @@ export function Home() {
   // The headline counts a pending send as gone and its change as on hold: a
   // small send never turns the balance into 0 because its coin waits for a
   // block. What can be spent meanwhile, and what is on hold, is the line
-  // beneath, and the two add up to the headline. What the headline did with
-  // the pending sends, in words that match it, and the raw figure of the
-  // coins that pay for them, are behind "What does this mean?".
+  // beneath, and the two add up to the headline. Behind the info button, in
+  // the same two words: what the headline left out, and what on hold is.
   const pendingExplained = () => {
     const one = pendingSends.length === 1 ? pendingSends[0] : null;
-    const fee = one?.feeNau ? BigInt(one.feeNau) : null;
-    const gone = !one
-      ? `The balance above counts ${pendingSends.length} pending sends as already gone.`
-      : one.recipient === null
-        ? `The balance above counts a pending send made elsewhere as already gone: ${amount(BigInt(one.amountNau))} NPT, its recipient and fee not known here.`
-        : toSelf(one)
-        ? `The balance above counts a pending move to yourself: only its fee${fee !== null ? ` of ${amount(fee)} NPT` : ''} is gone.`
-        : `The balance above counts a pending send as already gone: ${amount(BigInt(one.amountNau))} NPT to ${(one.payments?.length ?? 1) > 1 ? 'the recipients' : 'the recipient'}${fee !== null ? ` and a ${amount(fee)} NPT fee` : ''}.`;
-    const it = pendingSends.length === 1;
-    return `${gone} Until ${it ? 'it confirms' : 'they confirm'}, the ${amount(balance.reservedNau)} NPT of coins that pay for ${it ? 'it' : 'them'} cannot be spent${onHoldNau > 0n ? `, and the ${amount(onHoldNau)} NPT on hold is the change that comes back` : ''}.`;
+    const it = one !== null;
+    const left = one && toSelf(one) ? 'Your balance already counts the pending move to yourself, less its fee.' : `Your balance already leaves out ${it ? 'the pending send' : `the ${pendingSends.length} pending sends`}.`;
+    return onHoldNau > 0n ? `${left} The ${amount(onHoldNau)} NPT on hold is the change that comes back when ${it ? 'it confirms' : 'they confirm'}.` : left;
   };
 
   // Whether the node still holds a pending send: it was seen there at the
@@ -629,7 +621,7 @@ export function Home() {
         <Caution title="This send is not going through">
           {/* The sentence in one element, as above, and the button on its own line. */}
           <span>
-            Giving up on your {amount(BigInt(stuck.amountNau))}&nbsp;NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? abbreviateAddress(stuck.recipient)}</bdi> : 'a recipient'} frees {amount(reservedFor(stuck))}&nbsp;NPT now; otherwise the wallet frees it {dayAhead(expiresAt(stuck)).replace(/ (?=\S+$)/, ' ')}.
+            Giving up on your {amount(BigInt(stuck.amountNau))}&nbsp;NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? abbreviateAddress(stuck.recipient)}</bdi> : 'a recipient'} makes {amount(reservedFor(stuck))}&nbsp;NPT spendable now; otherwise it becomes spendable {dayAhead(expiresAt(stuck)).replace(/ (?=\S+$)/, ' ')}.
           </span>
           <Group mt={4}>
             <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => setGivingUp(stuck)}>
@@ -855,10 +847,10 @@ export function Home() {
           <Stack>
             <Text size="sm">
               {nodeHolds(givingUp) === 'has'
-                ? 'The node still has this send, so it may still go through. Giving up frees its coins here, but if it confirms anyway, it shows up as Sent.'
+                ? 'The node still has this send, so it may still go through. Giving up makes its coins spendable here, but if it confirms anyway, it shows up as Sent.'
                 : nodeHolds(givingUp) === null
-                  ? 'Giving up frees the coins held for it, and the send stays in History, marked Not sent. If it confirms anyway, it still goes through and shows up as Sent.'
-                  : 'The node no longer has this send. Giving up frees the coins held for it, and the send stays in History, marked Not sent.'}
+                  ? 'Giving up makes its coins spendable, and the send stays in History, marked Not sent. If it confirms anyway, it still goes through and shows up as Sent.'
+                  : 'The node no longer has this send. Giving up makes its coins spendable, and the send stays in History, marked Not sent.'}
             </Text>
             <Text size="sm" c="dimmed">
               This send: {showNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee`}. Giving up makes {showNau(reservedFor(givingUp))} NPT spendable again.

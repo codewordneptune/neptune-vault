@@ -902,7 +902,7 @@ export function Send() {
       if (heldNau >= totalNau) break;
       heldNau += BigInt(c.amountNau);
     }
-    // What stays spendable while it is pending, and after: said only when the two differ.
+    // What stays spendable while it is pending, and the change on hold until it confirms: said only when there is change.
     const spendableWhile = balance.spendableNau - heldNau;
     const spendableAfter = balance.spendableNau - totalNau;
     reviewSheet = (
@@ -1008,11 +1008,10 @@ export function Send() {
               <bdi>{cleanNote(note)}</bdi>
             </Text>
           )}
-          {/* Only when the change of this send makes the two figures differ,
-              and never while amounts are hidden. */}
+          {/* Only when this send has change, and never while amounts are hidden. */}
           {!hidden && spendableWhile !== spendableAfter && (
             <Text size="sm" c="dimmed">
-              You can spend {showNau(spendableWhile)} NPT until it confirms, then {showNau(spendableAfter)} NPT.
+              While this send is pending, {showNau(spendableWhile)} NPT stays spendable; its change of {showNau(spendableAfter - spendableWhile)} NPT is on hold until it confirms.
             </Text>
           )}
           {askLustration && (

@@ -1561,7 +1561,7 @@ function RemoveWalletCard() {
 function RescanCard() {
   const { services, account, utxos, history, sendJob, rescan: rescanFrom } = useApp();
   const sending = Boolean(sendJob && !sendJob.done);
-  // This device's sends still waiting for a block: a rescan keeps them, with their coins held.
+  // This device's sends still waiting for a block: a rescan keeps them as they are.
   const waiting = history.filter((h) => h.kind === 'sent' && h.status === 'pending' && h.key.includes(':sent:')).length;
   const [open, setOpen] = useState(false);
   const [height, setHeight] = useState<number | string>(account?.birthdayHeight ?? 1);
@@ -1661,7 +1661,7 @@ function RescanCard() {
         <Stack>
           <Text size="sm">
             Sends made from this device that have confirmed lose their recipient and fee, because the chain does not carry them. Your coins are not affected.
-            {waiting > 0 && ` ${waiting === 1 ? '1 send is' : `${waiting} sends are`} still pending: kept, with the coins held for ${waiting === 1 ? 'it' : 'them'}.`}
+            {waiting > 0 && ` ${waiting === 1 ? '1 send is' : `${waiting} sends are`} still pending: the rescan keeps ${waiting === 1 ? 'it' : 'them'} as ${waiting === 1 ? 'it is' : 'they are'}.`}
           </Text>
           <SegmentedControl
             fullWidth
