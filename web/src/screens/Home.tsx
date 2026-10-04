@@ -490,7 +490,7 @@ export function Home() {
           while one runs, in full only when the app could not keep the screen on. */}
       {longScan && !DESKTOP && (
         <Text size="xs" c="dimmed" mt={-8}>
-          {screenAwake === 'held' ? 'Keep the app open until the scan finishes.' : 'Keep the app open with the screen on: the scan pauses when the screen turns off, and goes on at the next unlock.'}
+          {screenAwake === 'held' ? 'Keep the app open until the scan finishes. It pauses if the wallet locks, and goes on at the next unlock.' : 'Keep the app open with the screen on: the scan pauses when the screen turns off, and goes on at the next unlock.'}
         </Text>
       )}
       {/* On a phone a card, the actions under the balance; on a wide screen a

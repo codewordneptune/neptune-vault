@@ -548,6 +548,31 @@ describe('account service', () => {
     }
   });
 
+  it('a long scan holds off the idle lock, and the idle time counts again once it lets go', async () => {
+    const { core, service } = await setup(60_000);
+    const made = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const realNow = Date.now;
+    try {
+      service.holdIdleLock(true);
+      Date.now = () => realNow() + 10 * 60_000;
+      service.lockIfIdle();
+      await new Promise((r) => setTimeout(r, 5));
+      expect(service.currentAccountId).toBe(made.id);
+      // Let go after the scan: a full idle time from then, not a lock at once.
+      service.holdIdleLock(false);
+      service.lockIfIdle();
+      await new Promise((r) => setTimeout(r, 5));
+      expect(service.currentAccountId).toBe(made.id);
+      Date.now = () => realNow() + 12 * 60_000;
+      service.lockIfIdle();
+      await new Promise((r) => setTimeout(r, 5));
+      expect(core.unlocked).toBeNull();
+      expect(service.currentAccountId).toBeNull();
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
   it('a password change does not undo what the sync wrote meanwhile, and is not undone by it', async () => {
     const { core, service } = await setup();
     const made = await service.createAccount(await service.generatePhrase(), 'old-password', 'regtest', 1);

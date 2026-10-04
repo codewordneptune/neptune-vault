@@ -120,6 +120,8 @@ export class AccountService {
   // and idle locks are deferred and applied once the send finishes.
   private lockDeferred = false;
   private lockPending = false;
+  /** While set, the idle lock waits: see holdIdleLock. */
+  private idleHeld = false;
   // Counts locks. Unlocking takes seconds (the password hash), and a lock
   // can arrive in the middle: the person picks another wallet, or the app
   // goes to the background. Whatever was loading then must not end up
@@ -783,7 +785,7 @@ export class AccountService {
    * is about to. Also asked when the app comes back into view.
    */
   lockIfIdle(): void {
-    if (this.unlockedId === null) return;
+    if (this.unlockedId === null || this.idleHeld) return;
     const idle = Date.now() - this.lastActivityAt;
     if (idle >= this.lockTimeoutMs) {
       this.requestLock();
@@ -795,6 +797,17 @@ export class AccountService {
       this.warned = true;
       for (const l of this.warningListeners) l(left);
     }
+  }
+
+  /**
+   * Hold off the idle lock while a long scan runs: a restore or a rescan can
+   * take longer than the idle time, with nobody touching the screen. The
+   * background lock still applies. Let go, the idle time counts from then.
+   */
+  holdIdleLock(held: boolean): void {
+    if (this.idleHeld === held) return;
+    this.idleHeld = held;
+    if (!held) this.touch();
   }
 
   /**

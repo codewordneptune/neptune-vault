@@ -748,10 +748,12 @@ export function AppProvider({ services, children }: { services: Services; childr
 
   // The screen stays on for as long as a send runs, whichever screen is showing:
   // a phone that locks mid-proof suspends the page, and with it the proof.
-  // And during a long restore or scan: a locked screen locks the wallet and
-  // stops the scan, which then starts again on the next unlock.
+  // And during a long restore or scan, which also holds off the idle lock:
+  // a locked screen locks the wallet and stops the scan, which then starts
+  // again on the next unlock. Once a lock has stopped it, the screen is let go.
   const longScan = (sync?.phase === 'scanning' && sync.tipHeight - sync.syncedHeight > 100) || sync?.phase === 'restoring';
-  const screenAwake = useScreenWakeLock(Boolean(sendJob && !sendJob.done) || longScan);
+  useEffect(() => services.accounts.holdIdleLock(longScan && !locked), [services, longScan, locked]);
+  const screenAwake = useScreenWakeLock(Boolean(sendJob && !sendJob.done) || (longScan && !locked));
 
   const value = useMemo<AppState>(
     () => ({ services, ready, account, locked, sync, balance, history, utxos, refresh, loaded, syncNow, rescan, lastSyncedAt, online, setAccount, network, switchNetwork, switchAccount, removeAccount, pauseSync: stopSync, sendJob, screenAwake, startSend, cancelSend, awaitingApproval, approveSend, declineSend, dismissSendJob, sendFailure, dismissSendFailure, lastSend, dismissLastSend, checkIncoming: watchMempool, adoptNetwork: setNetwork }),
