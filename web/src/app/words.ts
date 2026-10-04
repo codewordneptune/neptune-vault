@@ -39,7 +39,7 @@ export function sendStageText(stage: string, onSend = false): string {
 export const SENDING_UNTIL_CONFIRMED = 'It is final once a block confirms it, usually within an hour.';
 
 /** A send the node took without answering, after "Your 0.1 NPT to Alice": what to do about it. */
-export const MAY_HAVE_GONE_OUT = 'may have gone out, so do not send it again unless you first give up on it in History.';
+export const MAY_HAVE_GONE_OUT = 'may have gone out. Before you send it again, wait until History shows it as Sent or Not sent.';
 
 /**
  * Under the title "Not sent": the reason, without saying again that nothing

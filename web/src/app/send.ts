@@ -12,7 +12,7 @@ import { NodeError, type NodeClient } from '../node/rpc';
 import { cleanText } from '../util/text';
 import type { LedgerAnswer, LedgerOp, Prover, ProveOutcome, ProveProgress } from '../backend/types';
 import type { HistoryRecord } from '../storage/db';
-import type { SendPlan, SendRequest, StoredUtxo, WalletCore } from '../backend/types';
+import type { InputPlan, SendPlan, SendRequest, StoredUtxo, WalletCore } from '../backend/types';
 
 export type SendStage = 'planning' | 'membership-proofs' | 'building' | 'proving' | 'confirming' | 'submitting' | 'done';
 
@@ -49,6 +49,36 @@ export interface SendOptions {
   approved?: Promise<boolean>;
   /** Called once the pending row is written, just before the node hears of the send. */
   onRecorded?: (txid: string) => void | Promise<void>;
+  /** Sends given up on that may still pay the same person (givenUpRivals): this send spends a coin of each. */
+  rivals?: HistoryRecord[];
+}
+
+/** Everyone a send row pays. */
+function recipientsOf(h: HistoryRecord): string[] {
+  return (h.payments?.length ? h.payments.map((p) => p.recipient) : h.recipient ? [h.recipient] : []).map((a) => a.toLowerCase());
+}
+
+/**
+ * Sends given up on that may still go through and pay one of `recipients`:
+ * given up rather than expired, stamped recently enough for a block to take
+ * them, and spending only coins that are still free here. Giving up frees a
+ * send's coins but cannot call it back, so a new send to the same person
+ * spends one of the same coins: two transactions that spend one coin cannot
+ * both confirm, and the person is not paid twice.
+ */
+export function givenUpRivals(history: HistoryRecord[], freeCoins: ReadonlySet<string>, recipients: string[], nowMs = Date.now()): HistoryRecord[] {
+  const to = new Set(recipients.map((a) => a.trim().toLowerCase()));
+  return history.filter(
+    (h) =>
+      h.kind === 'sent' &&
+      h.status === 'failed' &&
+      h.givenUp === true &&
+      !h.expired &&
+      (h.stampMs ?? h.timestampMs) + SEND_LIFETIME_MS > nowMs &&
+      h.inputHashes.length > 0 &&
+      h.inputHashes.every((coin) => freeCoins.has(coin)) &&
+      recipientsOf(h).some((a) => to.has(a)),
+  );
 }
 
 /** The most recipients one send pays: the core refuses more (`MAX_PAYMENTS` in send.rs). */
@@ -132,7 +162,7 @@ export const MEMPOOL_KEEPS_MS = 10 * 60 * 60 * 1000;
 
 /** What to do about a send that may have gone out: said wherever one is. */
 export const MAY_HAVE_GONE =
-  'It may have gone out: it shows in History, waiting for a block. Do not send it again unless you first give up on it there.';
+  'It may have gone out: it shows in History, waiting for a block. Before you send it again, wait until History shows it as Sent or Not sent.';
 
 /**
  * The transaction was handed to the node and no answer from the node came
@@ -219,6 +249,38 @@ export class SendService {
   }
 
   /**
+   * The inputs for `request`, with a coin of each send in `rivals` among
+   * them (see givenUpRivals). The core picks largest first; a rival's coin
+   * it did not pick is added, or, when that one coin pays for the send by
+   * itself, taken alone, which leaves less to prove.
+   */
+  private async planWith(spendable: StoredUtxo[], request: SendRequest, nowMs: number, rivals: HistoryRecord[]): Promise<InputPlan> {
+    const plan = await this.core.planInputs(spendable, request, nowMs);
+    const largest = (coins: StoredUtxo[]) => coins.reduce<StoredUtxo | undefined>((big, u) => (!big || BigInt(u.amount_nau) > BigInt(big.amount_nau) ? u : big), undefined);
+    const added: StoredUtxo[] = [];
+    for (const rival of rivals) {
+      const theirs = spendable.filter((u) => rival.inputHashes.includes(u.hash));
+      const covered = theirs.some((u) => plan.inputs.some((i) => i.hash === u.hash) || added.includes(u));
+      const coin = covered ? undefined : largest(theirs);
+      if (coin) added.push(coin);
+    }
+    if (added.length === 0) return plan;
+    if (added.length === 1) {
+      try {
+        return await this.core.planInputs(added, request, nowMs);
+      } catch {
+        // Not enough by itself: added to the plan below.
+      }
+    }
+    const inputs = [...plan.inputs, ...added];
+    return {
+      inputs,
+      absolute_index_sets: JSON.parse(await this.core.absoluteIndexSets(inputs)) as unknown[],
+      total_in_nau: inputs.reduce((sum, u) => sum + BigInt(u.amount_nau), 0n).toString(),
+    };
+  }
+
+  /**
    * `signal` is the person's Cancel. It is honoured up to the moment the
    * transaction is handed to the node, and checked right before that
    * moment; after it, the send goes through and says so, because a screen
@@ -229,7 +291,7 @@ export class SendService {
    * until it resolves true, and false ends the send with nothing sent.
    */
   async send(request: SendRequest, onProgress: (p: SendProgress) => void, options: SendOptions = {}): Promise<SendOutcome> {
-    const { note = null, signal, approved, onRecorded } = options;
+    const { note = null, signal, approved, onRecorded, rivals = [] } = options;
     const stopIfCancelled = () => {
       if (signal?.aborted) throw new SendCancelledError();
     };
@@ -239,7 +301,7 @@ export class SendService {
     const tip = await this.node.tipHeader();
     const first = sendStamp(Date.now(), tip.timestamp);
     if (first.clockProblem) throw new Error(first.clockProblem);
-    const plan = await this.core.planInputs(await this.spendable(first.stampMs), request, first.stampMs);
+    const plan = await this.planWith(await this.spendable(first.stampMs), request, first.stampMs, rivals);
 
     // The proof commits to the inputs as of one snapshot of the chain, and
     // blocks may be mined during the minutes of proving. Nodes from

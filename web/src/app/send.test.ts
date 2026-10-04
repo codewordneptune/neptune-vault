@@ -3,11 +3,11 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { NodeError, type NodeClient } from '../node/rpc';
-import { openVaultDb, type AccountRecord, type UtxoRecord, type VaultDb } from '../storage/db';
+import { openVaultDb, type AccountRecord, type HistoryRecord, type UtxoRecord, type VaultDb } from '../storage/db';
 import { CHAIN_PARTS, type InputPlan, type SendPlan, type SendRequest, type StoredUtxo, type WalletCore } from '../backend/types';
 import { chainView, testEngine, type TestEngine } from '../backend/engineForTests';
 import type { Prover } from '../backend/types';
-import { cleanNote, RequiresLustrationError, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
+import { cleanNote, givenUpRivals, RequiresLustrationError, SEND_LIFETIME_MS, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
 
 function stored(hash: string, amount: string, height: number): StoredUtxo {
   return { hash, amount_nau: amount, amount, key_kind: 'generation', key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
@@ -24,9 +24,26 @@ class FakeCore implements Partial<WalletCore> {
   lustration = false;
   /** The output commitments the built kernel reports, in kernel order. */
   commitments: string[] = [];
-  async planInputs(unspent: StoredUtxo[], _r: SendRequest): Promise<InputPlan> {
+  /** Pick as the real core does, largest first until amount and fee are covered, rather than everything offered. */
+  largestFirst = false;
+  async planInputs(unspent: StoredUtxo[], r: SendRequest): Promise<InputPlan> {
     this.planned = unspent;
-    return { inputs: unspent, absolute_index_sets: unspent.map((u) => ({ set: u.hash })), total_in_nau: '0' };
+    let inputs = unspent;
+    if (this.largestFirst) {
+      const target = r.payments.reduce((sum, p) => sum + BigInt(p.amount_nau ?? '0'), 0n) + BigInt(r.fee_nau ?? '0');
+      inputs = [];
+      let total = 0n;
+      for (const u of [...unspent].sort((a, b) => (BigInt(b.amount_nau) > BigInt(a.amount_nau) ? 1 : -1))) {
+        if (total >= target) break;
+        total += BigInt(u.amount_nau);
+        inputs.push(u);
+      }
+      if (total < target) throw new Error(`insufficient funds: ${total} available, ${target} needed`);
+    }
+    return { inputs, absolute_index_sets: inputs.map((u) => ({ set: u.hash })), total_in_nau: '0' };
+  }
+  async absoluteIndexSets(unspent: StoredUtxo[]): Promise<string> {
+    return JSON.stringify(unspent.map((u) => ({ set: u.hash })));
   }
   async buildSend(inputs: StoredUtxo[], _s: string, _t: string, request: SendRequest): Promise<SendPlan> {
     if (this.lustration && !request.accept_lustration) throw new Error('this send requires lustration announcements; confirm to proceed');
@@ -259,7 +276,7 @@ describe('send service', () => {
       node.failWith = failure;
       const error = (await service.send(request, () => {}).catch((e) => e)) as Error;
       expect(error).toBeInstanceOf(SendUnconfirmedError);
-      expect(error.message).toMatch(/Do not send it again unless you first give up on it there\.$/);
+      expect(error.message).toMatch(/Before you send it again, wait until History shows it as Sent or Not sent\.$/);
       if (failure instanceof NodeError && failure.code === 'http') expect(error.message).toMatch(/^The node's server answered with an error \(HTTP 504\)/);
       expect((await view.get('history', 'acc:sent:tx-abc'))?.status).toBe('pending');
       expect(await service.spendable()).toEqual([]);
@@ -445,6 +462,29 @@ describe('send service', () => {
     expect(prover.last?.blockHeight).toBe(core.askedHeights[0]);
   });
 
+  it('spends a coin of a send given up on that may still pay the same person, alone when it is enough', async () => {
+    const { core, node, service } = await setup();
+    core.largestFirst = true;
+    // Free coins a (4) and b (3); a send given up on spent b.
+    const rival = { key: 'acc:sent:old', accountId: 'acc', kind: 'sent', status: 'failed', givenUp: true, txid: 'old', amountNau: '1', feeNau: '1', timestampMs: Date.now(), height: null, inputHashes: ['b'], recipient: 'nolgar1x', error: null, changeNau: null } as HistoryRecord;
+    const small: SendRequest = { payments: [{ recipient: 'nolgar1x', amount: '2', amount_nau: '2' }], fee: '1', fee_nau: '1', accept_lustration: false };
+    // On its own the core takes a (4) for 3; b (3) is enough by itself, so b goes alone.
+    await service.send(small, () => {}, { rivals: [rival] });
+    const [submitted] = node.submitted as { kernel: number[] }[];
+    expect(submitted).toBeDefined();
+    expect((await view.get('history', 'acc:sent:tx-abc'))?.inputHashes).toEqual(['b']);
+  });
+
+  it('adds the coin of a send given up on when it is not enough by itself', async () => {
+    const { core, service } = await setup();
+    core.largestFirst = true;
+    await view.put('utxos', row(stored('c', '1', 6)));
+    const rival = { key: 'acc:sent:old', accountId: 'acc', kind: 'sent', status: 'failed', givenUp: true, txid: 'old', amountNau: '0.5', feeNau: '0.5', timestampMs: Date.now(), height: null, inputHashes: ['c'], recipient: 'nolgar1x', error: null, changeNau: null } as HistoryRecord;
+    const three: SendRequest = { payments: [{ recipient: 'nolgar1x', amount: '2', amount_nau: '2' }], fee: '1', fee_nau: '1', accept_lustration: false };
+    await service.send(three, () => {}, { rivals: [rival] });
+    expect((await view.get('history', 'acc:sent:tx-abc'))?.inputHashes).toEqual(['a', 'c']);
+  });
+
   it('forget releases the inputs of a pending send', async () => {
     const { service } = await setup();
     await service.send(request, () => {});
@@ -473,5 +513,22 @@ describe('a note to self on a send', () => {
     expect(cleanNote('a\nb')).toBe('a b');
     expect(cleanNote('x'.repeat(SEND_NOTE_MAX + 20))).toHaveLength(SEND_NOTE_MAX);
     expect(cleanNote('   ')).toBe('');
+  });
+});
+
+describe('sends given up on that may still pay', () => {
+  const base = { accountId: 'acc', kind: 'sent', status: 'failed', givenUp: true, amountNau: '1', feeNau: '1', height: null, recipient: 'nolgar1bob', error: null, changeNau: null };
+  it('are those to the same person, with coins still free, that a block can still take', () => {
+    const now = Date.now();
+    const rows = [
+      { ...base, key: 'k1', txid: 't1', timestampMs: now - 1000, inputHashes: ['a'] },
+      { ...base, key: 'k2', txid: 't2', timestampMs: now - 1000, inputHashes: ['b'], recipient: 'nolgar1carol' },
+      { ...base, key: 'k3', txid: 't3', timestampMs: now - 1000, inputHashes: ['spent'] },
+      { ...base, key: 'k4', txid: 't4', timestampMs: now - SEND_LIFETIME_MS - 1, inputHashes: ['a'] },
+      { ...base, key: 'k5', txid: 't5', timestampMs: now - 1000, inputHashes: ['a'], expired: true },
+      { ...base, key: 'k6', txid: 't6', timestampMs: now - 1000, inputHashes: ['a'], givenUp: false },
+      { ...base, key: 'k7', txid: 't7', timestampMs: now - 1000, inputHashes: ['b'], recipient: null, payments: [{ recipient: 'nolgar1carol', amountNau: '1' }, { recipient: 'nolgar1bob', amountNau: '1' }] },
+    ] as HistoryRecord[];
+    expect(givenUpRivals(rows, new Set(['a', 'b']), [' NOLGAR1BOB '], now).map((h) => h.txid)).toEqual(['t1', 't7']);
   });
 });

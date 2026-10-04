@@ -17,7 +17,7 @@ import { formatAbout, formatDuration, timeAgo } from '../util/time';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
 import { fiatOf, fiatOfTyped, formatFiat } from '../util/fiat';
-import { cleanNote, MAX_PAYMENTS, paymentsTotalNau, SEND_NOTE_MAX, RequiresLustrationError, SendBusyError, SendUnconfirmedError } from '../app/send';
+import { cleanNote, givenUpRivals, MAX_PAYMENTS, paymentsTotalNau, SEND_NOTE_MAX, RequiresLustrationError, SendBusyError, SendUnconfirmedError } from '../app/send';
 import { isCancellation } from '../app/passkey';
 import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
@@ -29,7 +29,7 @@ import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
 import { abbreviateAddress, addressKindNote, parsePaymentText } from '../util/address';
 import { networkLabel } from '../util/network';
-import { confirmsSends, type ContactRecord } from '../storage/db';
+import { confirmsSends, type ContactRecord, type HistoryRecord } from '../storage/db';
 
 // Fee presets. Every level clears the default proof-upgrader floor of
 // about 0.017 NPT; the spread is for when upgraders or composers have
@@ -155,7 +155,9 @@ function RecipientCard({ address, name, requestName, who, onChange, changeRef }:
 }
 
 export function Send() {
-  const { services, account, balance, utxos, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
+  const { services, account, balance, utxos, history, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
+  // Sends given up on that may still pay someone a send to these addresses pays (givenUpRivals).
+  const rivalsFor = (addresses: string[]) => givenUpRivals(history, new Set(utxos.filter((u) => u.spentHeight === null && u.pendingTxid === null).map((u) => u.hash)), addresses);
   // Whether an address is this wallet's own, so a send to it says "yourself".
   const { isOwn } = usePendingSends();
   // Amounts hidden on Home stay hidden here, the review and its errors included.
@@ -548,6 +550,7 @@ export function Send() {
           fee_nau: totals.feeNau.toString(),
         },
         cleanNote(note) || null,
+        { rivals: rivalsFor(addresses) },
       );
       setLastRecipient(sentTo);
       setLastLabel(sentTo && linkMeta?.label ? linkMeta.label : null);
@@ -918,10 +921,26 @@ export function Send() {
         return x === y ? a.confirmedHeight - b.confirmedHeight : y > x ? 1 : -1;
       });
     let heldNau = 0n;
+    const picked: typeof coins = [];
     for (const c of coins) {
       if (heldNau >= totalNau) break;
       heldNau += BigInt(c.amountNau);
+      picked.push(c);
     }
+    // A send given up on that may still pay the same person: this send also
+    // spends one of its coins, as SendService does, alone if it pays for all.
+    const rivals = rivalsFor(payees.map((x) => x.address));
+    const added: typeof coins = [];
+    for (const rival of rivals) {
+      const theirs = coins.filter((u) => rival.inputHashes.includes(u.hash));
+      if (theirs.length > 0 && !theirs.some((u) => picked.includes(u) || added.includes(u))) added.push(theirs[0]);
+    }
+    if (added.length === 1 && BigInt(added[0].amountNau) >= totalNau) heldNau = BigInt(added[0].amountNau);
+    else heldNau += added.reduce((sum, u) => sum + BigInt(u.amountNau), 0n);
+    const rivalTo = (rival: HistoryRecord) => {
+      const to = (rival.payments?.length ? rival.payments.map((x) => x.recipient) : [rival.recipient ?? '']).find((a) => payees.some((x) => x.address.toLowerCase() === a.toLowerCase())) ?? '';
+      return contactName(to) ?? abbreviateAddress(to);
+    };
     // What stays spendable while it is pending, and the change on hold until it confirms: said only when there is change.
     const spendableWhile = balance.spendableNau - heldNau;
     const spendableAfter = balance.spendableNau - totalNau;
@@ -1033,6 +1052,13 @@ export function Send() {
             <Text size="sm" c="dimmed">
               While this send is pending, {showNau(spendableWhile)} NPT stays spendable; its change of {showNau(spendableAfter - spendableWhile)} NPT is on hold until it confirms.
             </Text>
+          )}
+          {rivals.length > 0 && (
+            <Caution title="An earlier send may still go through">
+              {rivals.length === 1
+                ? `Your earlier ${hidden ? '' : `${showNau(BigInt(rivals[0].amountNau))} NPT `}to ${rivalTo(rivals[0])} may still go through: giving up on it did not call it back. This send spends one of the same coins, so only one of the two can go through.`
+                : `${rivals.length} earlier sends you gave up on may still go through. This send spends one coin of each, so none of them can go through along with it.`}
+            </Caution>
           )}
           {askLustration && (
             <Caution title="Part of this send will be public">

@@ -94,7 +94,7 @@ export interface AppState {
    * on this device. With `confirm`, the send waits for `approveSend`
    * before anything reaches the node; the proof runs meanwhile.
    */
-  startSend: (request: SendRequest, note?: string | null, options?: { confirm?: boolean }) => Promise<SendOutcome>;
+  startSend: (request: SendRequest, note?: string | null, options?: { confirm?: boolean; rivals?: HistoryRecord[] }) => Promise<SendOutcome>;
   cancelSend: () => void;
   /** The running send waits for the person's confirmation (a password or passkey). */
   awaitingApproval: boolean;
@@ -404,7 +404,7 @@ export function AppProvider({ services, children }: { services: Services; childr
   );
 
   const startSend = useCallback(
-    async (request: SendRequest, note: string | null = null, options: { confirm?: boolean } = {}): Promise<SendOutcome> => {
+    async (request: SendRequest, note: string | null = null, options: { confirm?: boolean; rivals?: HistoryRecord[] } = {}): Promise<SendOutcome> => {
       if (!accountId) throw new Error('no account');
       if (sending.current) throw new SendBusyError();
       sending.current = true;
@@ -466,6 +466,7 @@ export function AppProvider({ services, children }: { services: Services; childr
             note,
             signal: abort.signal,
             approved,
+            rivals: options.rivals,
             // From the moment the node may hear of it, the sealed note says
             // the send may have gone, in case the answer never comes back to
             // this app (closed, or the tab killed). Not shown meanwhile.
