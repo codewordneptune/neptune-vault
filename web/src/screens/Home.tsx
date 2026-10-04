@@ -17,8 +17,8 @@ import { fiatOf, fiatParts } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
 import type { AccountRecord, ContactRecord, HistoryRecord, SendDetails } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
-import { Caution, Done, ErrorLine } from '../components/Notice';
-import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED } from '../app/words';
+import { Caution, ErrorLine, Info } from '../components/Notice';
+import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED, SENT_WAITING, WAITING_FOR_BLOCK } from '../app/words';
 import { DESKTOP, NATIVE } from '../app/platform';
 import { LINKS } from '../app/links';
 import { abbreviateAddress } from '../util/address';
@@ -289,28 +289,30 @@ export function Home() {
     const note = noteOf(e);
     return note && rowNameOf(e) !== note ? note : null;
   };
-  /** What happened, in one word: a send reads Sending until a block confirms it, or Not going through once nodes dropped it. */
+  /** What happened, in a word or two: a send reads Sent once the node has it (with Waiting for a block beside its time until a block confirms it), or Not going through once nodes dropped it. */
   const stateTitleOf = (e: HistoryEntry): string => {
     if (notSent(e)) return 'Not sent';
     if (e.kind === 'received') return e.record.status === 'failed' ? 'Failed' : 'Received';
     if (e.kind === 'self') return e.record.status === 'pending' ? 'Moving to yourself' : 'Moved to yourself';
     if (isStuck(e.record)) return 'Not going through';
-    return e.record.status === 'pending' ? 'Sending' : 'Sent';
+    return 'Sent';
   };
   /**
    * The state beside the time, unless the title already says it: in the
-   * row's own muted colour while it simply waits for a block (Sending,
-   * Pending), amber only where something is asked of the person (Not going
-   * through), red where it did not happen.
+   * row's own muted colour while it simply waits for a block (Waiting for a
+   * block, Pending), amber only where something is asked of the person (Not
+   * going through), red where it did not happen.
    */
   const stateWordOf = (e: HistoryEntry): { word: string; tone: 'muted' | 'warn' | 'failed' } | null => {
+    // A send waiting for a block says so even where its title is the state: the title says only Sent.
+    if (e.kind === 'sent' && e.record.status === 'pending' && !notSent(e) && !isStuck(e.record)) return { word: WAITING_FOR_BLOCK, tone: 'muted' };
     const saidInTitle = !rowNameOf(e) && e.kind !== 'received';
     if (saidInTitle) return null;
     if (notSent(e)) return { word: 'Not sent', tone: 'failed' };
     if (e.record.status === 'pending') {
       if (e.kind === 'received') return { word: 'Pending', tone: 'muted' };
       if (isStuck(e.record)) return { word: 'Not going through', tone: 'warn' };
-      return { word: 'Sending', tone: 'muted' };
+      return { word: WAITING_FOR_BLOCK, tone: 'muted' };
     }
     if (e.record.status === 'failed') return { word: 'Failed', tone: 'failed' };
     return null;
@@ -329,8 +331,8 @@ export function Home() {
     const name = rowNameOf(e);
     const whom = !name ? '' : name !== who ? `, ${name}` : e.kind === 'received' ? `, ${who}'s address` : `, to ${who}`;
     const money = notSent(e) ? `${spoken(e.shownNau)} NPT, not taken from your balance` : `${e.kind === 'received' ? 'plus' : 'minus'} ${spoken(e.shownNau)} NPT`;
-    // A send says its state in its first word (Sending, Not sent); a payment in says pending.
-    const pending = e.kind === 'received' && e.record.status === 'pending' ? ', pending' : '';
+    // A send says its state in its first word (Sent, Not sent), and that it waits for a block; a payment in says pending.
+    const pending = e.record.status !== 'pending' ? '' : e.kind === 'received' ? ', pending' : stateWordOf(e)?.word === WAITING_FOR_BLOCK ? ', waiting for a block' : '';
     const release = lockOf(e.record);
     const note = noteAfterTime(e);
     return `${stateTitleOf(e)}${whom}, ${money}${pending}${release !== null ? `, spendable from ${showDate(release)}` : ''}${note ? `, note: ${note}` : ''}, details`;
@@ -398,11 +400,11 @@ export function Home() {
             : `Confirmed ${showBlock(since)} ${since === 1 ? 'block' : 'blocks'} ago (block ${showBlock(h.height)})`
         : 'Confirmed'
       : h.status === 'pending'
-        ? // The row's words: a send waiting for a block is Sending, a payment coming in Pending.
+        ? // The row's words: a send waiting for a block says so, a payment coming in is Pending.
           h.kind === 'sent'
           ? isStuck(h)
             ? 'Not going through'
-            : 'Sending'
+            : WAITING_FOR_BLOCK
           : 'Pending'
         : h.kind === 'sent'
           ? 'Not sent. Nothing left this wallet.'
@@ -595,11 +597,11 @@ export function Home() {
               </span>
             </Caution>
           ) : (
-            <Done title="Sending" onClose={dismiss} closeLabel="Dismiss" role={undefined}>
+            <Info title={SENT_WAITING} onClose={dismiss} closeLabel="Dismiss">
               <span>
                 {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee. {SENDING_UNTIL_CONFIRMED}
               </span>
-            </Done>
+            </Info>
           );
         })()
       )}

@@ -13,7 +13,7 @@ import type { Services } from './services';
 import { useScreenWakeLock, type WakeLockState } from './wakeLock';
 import { clearSendDraft } from './sendDraft';
 import { forgetOwnAddresses } from './ownAddresses';
-import { notSentReason, SENDING_UNTIL_CONFIRMED } from './words';
+import { notSentReason, SENDING_UNTIL_CONFIRMED, SENT_WAITING } from './words';
 
 /** A send in flight, or just finished; lives here so it survives the
  * Send screen unmounting when the app locks on backgrounding. */
@@ -491,7 +491,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         const seen = document.visibilityState === 'visible' && services.accounts.currentAccountId === accountId && !services.accounts.lockWaiting;
         noteLastSend(accountId, seen ? null : noteOf(outcome.txid, 'submitted'));
         if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
-          notifications.show({ color: 'green', title: 'Sending', message: `${sentText(paymentsTotalNau(request), BigInt(request.fee_nau ?? '0'), services.settings.hideBalance)} ${SENDING_UNTIL_CONFIRMED}` });
+          notifications.show({ title: SENT_WAITING, message: `${sentText(paymentsTotalNau(request), BigInt(request.fee_nau ?? '0'), services.settings.hideBalance)} ${SENDING_UNTIL_CONFIRMED}` });
         }
         await refresh();
         return outcome;

@@ -1,10 +1,41 @@
 // Sentences the app says in more than one place, written once so they
 // always read the same. One word per idea: a payment coming in and not yet
-// in a block is Pending, a send reads Sending until a block confirms it,
-// the change a pending send brings back is on hold, and only the wallet is
-// locked.
+// in a block is Pending; a send is being prepared while this device makes
+// it, and is sent, waiting for a block, once the node has it; the change a
+// pending send brings back is on hold; and only the wallet is locked.
 
-/** After a send is handed to the node: what Sending means, and for how long. */
+/** A send this device is still making: nothing has left the wallet. */
+export const PREPARING_SEND = 'Preparing your send';
+
+/** A send the node has, until a block confirms it. */
+export const SENT_WAITING = 'Sent, waiting for a block';
+
+/** The same, as History says it beside a send's time. */
+export const WAITING_FOR_BLOCK = 'Waiting for a block';
+
+/** Each step of preparing a send, in the same words on Send and in the strip under the header. */
+export function sendStageText(stage: string, onSend = false): string {
+  switch (stage) {
+    case 'planning':
+      return 'Choosing coins';
+    case 'membership-proofs':
+      return 'Checking your coins with the node';
+    case 'building':
+      return 'Building the send';
+    case 'proving':
+      return 'Proving';
+    case 'confirming':
+      return onSend ? 'Ready: confirm it' : 'Ready: confirm it on Send';
+    case 'submitting':
+      return 'Submitting to the node';
+    case 'done':
+      return SENT_WAITING;
+    default:
+      return stage;
+  }
+}
+
+/** After a send is handed to the node: when it is final. */
 export const SENDING_UNTIL_CONFIRMED = 'It is final once a block confirms it, usually within an hour.';
 
 /** A send the node took without answering, after "Your 0.1 NPT to Alice": what to do about it. */

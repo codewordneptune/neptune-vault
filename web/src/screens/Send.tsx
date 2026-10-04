@@ -22,8 +22,8 @@ import { isCancellation } from '../app/passkey';
 import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
 import { Amount } from '../components/Amount';
-import { Caution, Done, ErrorLine, Info } from '../components/Notice';
-import { MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED } from '../app/words';
+import { Caution, ErrorLine, Info } from '../components/Notice';
+import { MAY_HAVE_GONE_OUT, notSentReason, PREPARING_SEND, sendStageText, SENDING_UNTIL_CONFIRMED, SENT_WAITING } from '../app/words';
 import { usePendingSends } from '../app/pending';
 import { QrScanner } from '../components/QrScanner';
 import { ContactForm } from './Contacts';
@@ -825,7 +825,7 @@ export function Send() {
       <Paper>
         <Stack>
           <Title order={2} tabIndex={-1} ref={runningTitle}>
-            Sending
+            {PREPARING_SEND}
           </Title>
           <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
             <Amount nau={paymentsTotalNau(request)} hidden={masked} /> to <span dir="auto" className="vault-bidi">{who}</span> · fee <Amount nau={BigInt(request.fee_nau ?? '0')} hidden={masked} />
@@ -840,7 +840,7 @@ export function Send() {
             {!(proving && p) && (
               <Group gap="xs" wrap="nowrap" align="center">
                 <Loader size={14} color="var(--v-muted)" aria-hidden />
-                <Text>{sendJob.progress.stage === 'submitting' ? 'Almost done…' : 'Getting ready…'}</Text>
+                <Text>{sendStageText(sendJob.progress.stage, true)}…</Text>
               </Group>
             )}
             {/* Why the steps started over, when they did: a block arrived. */}
@@ -1128,7 +1128,7 @@ export function Send() {
           <div ref={resultRef} tabIndex={-1} className="vault-send-result" data-focus-managed>
             {/* One sentence, in the same words as Home's notice. The proof's time is in Diagnostics. */}
             {sendJob.ending === 'sent' && sendJob.outcome && (
-              <Done title="Sending" onClose={dismissResult} closeLabel="Dismiss" role={undefined}>
+              <Info title={SENT_WAITING} onClose={dismissResult} closeLabel="Dismiss">
                 <span>
                   {hidden ? '••••' : showNau(paymentsTotalNau(sendJob.request))} NPT to <bdi>{whoOf(sendJob.request)}</bdi>, plus a {hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} NPT fee. {SENDING_UNTIL_CONFIRMED}
                 </span>
@@ -1139,7 +1139,7 @@ export function Send() {
                     </UnstyledButton>
                   </span>
                 )}
-              </Done>
+              </Info>
             )}
             {sendJob.ending === 'unconfirmed' && (
               <Caution title={UNANSWERED_TITLE} onClose={dismissResult} closeLabel="Dismiss">

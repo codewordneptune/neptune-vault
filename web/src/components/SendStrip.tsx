@@ -7,22 +7,11 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
-import { Amount } from './Amount';
-import { paymentsTotalNau } from '../app/send';
+import { PREPARING_SEND, sendStageText } from '../app/words';
 import { formatDuration } from '../util/time';
 
-const STAGE_TEXT: Record<string, string> = {
-  planning: 'Choosing coins',
-  'membership-proofs': 'Checking your coins with the node',
-  building: 'Building the send',
-  proving: 'Proving',
-  confirming: 'Ready: confirm it on Send',
-  submitting: 'Submitting to the node',
-  done: 'Sending',
-};
-
 export function SendStrip() {
-  const { sendJob, locked, services, awaitingApproval } = useApp();
+  const { sendJob, locked, awaitingApproval } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const [, setNow] = useState(Date.now());
@@ -35,8 +24,8 @@ export function SendStrip() {
   if (!sendJob || sendJob.done || (!locked && location.pathname === '/send')) return null;
 
   const p = sendJob.progress.proving;
-  const stage = STAGE_TEXT[sendJob.progress.stage] ?? sendJob.progress.stage;
-  const detail = `${p && sendJob.progress.stage === 'proving' ? `step ${Math.min(p.index + 1, p.total)} of ${p.total}` : stage}${awaitingApproval && sendJob.progress.stage !== 'confirming' ? ' · confirm it on Send' : ''}`;
+  const stage = sendStageText(sendJob.progress.stage);
+  const detail = `${p && sendJob.progress.stage === 'proving' ? `${stage}, step ${Math.min(p.index + 1, p.total)} of ${p.total}` : stage}${awaitingApproval && sendJob.progress.stage !== 'confirming' ? ' · confirm it on Send' : ''}`;
   // The same clock and the same words as the Send screen: time spent
   // proving, which is where the minutes go.
   const elapsed = sendJob.provingSince ? (Date.now() - sendJob.provingSince) / 1000 : null;
@@ -48,7 +37,7 @@ export function SendStrip() {
     <UnstyledButton className="vault-sendstrip" onClick={() => !locked && navigate('/send')} disabled={locked}>
       <div className="vault-sendstrip-row">
         <Text size="sm" fw={600} truncate style={{ minWidth: 0 }} aria-live="polite">
-          Sending <Amount nau={paymentsTotalNau(sendJob.request)} hidden={locked || services.settings.hideBalance} /> · {detail}
+          {PREPARING_SEND} · {detail}
         </Text>
         {elapsed !== null && (
           <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
