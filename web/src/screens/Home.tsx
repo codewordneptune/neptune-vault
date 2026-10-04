@@ -560,14 +560,14 @@ export function Home() {
               </>
             )}
           </Stack>
-          <Group grow className="vault-balance-actions">
+          <div className="vault-balance-actions">
             <Button leftSection={<IconArrowUpRight size={16} />} onClick={() => navigate('/send')}>
               Send
             </Button>
             <Button variant="light" leftSection={<IconArrowDownLeft size={16} />} onClick={() => navigate('/receive')}>
               Receive
             </Button>
-          </Group>
+          </div>
         </div>
       </Paper>
 

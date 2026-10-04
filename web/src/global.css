@@ -206,6 +206,31 @@ h3.mantine-Title-root.vault-prose-heading {
 .mantine-Button-root {
   font-weight: 600;
 }
+/* A label longer than its button wraps, and the button grows to hold it,
+   rather than being cut ("Receiv" at a large text size). The library's
+   height is the least it takes, so a one-line button looks as before. */
+.mantine-Button-root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+  min-height: var(--button-height);
+  padding-block: 4px;
+}
+.mantine-Button-root[data-block] {
+  display: flex;
+}
+.mantine-Button-inner {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+}
+.mantine-Button-label {
+  white-space: normal;
+  height: auto;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+}
 .mantine-Button-root[data-variant='light'] {
   background: var(--v-accent-soft);
   color: var(--v-accent-text);
@@ -1835,6 +1860,13 @@ html {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+/* Send and Receive: equal halves, and a row each when the text is too
+   large for halves, as Receive's Copy and Share. */
+.vault-balance-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+  gap: var(--mantine-spacing-md);
 }
 .vault-balance-head {
   display: flex;
