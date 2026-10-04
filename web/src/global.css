@@ -2226,6 +2226,39 @@ html {
   min-height: 40px;
   margin: -12px -12px -12px 0;
 }
+/* A notice that stands on the page between cards, as Home's do, is a card
+   of its own: the cards' surface, and an edge in its colour where it has
+   one (a caution, an error, a result). One inside a card or a sheet keeps
+   its strip or its plain form: a card in a card would weigh more than
+   what it is about. */
+main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-Modal-content *) {
+  position: relative;
+  padding: 16px;
+  border: 1px solid transparent;
+  border-radius: var(--mantine-radius-md);
+  background: var(--v-surface);
+  box-shadow: var(--v-card-shadow);
+}
+main .vault-caution:not(.mantine-Paper-root *, .mantine-Modal-content *) {
+  border-color: color-mix(in srgb, var(--v-warn-text) 35%, var(--v-surface));
+}
+main .vault-done:not(.mantine-Paper-root *, .mantine-Modal-content *) {
+  border-color: color-mix(in srgb, var(--v-ok-text) 35%, var(--v-surface));
+}
+main .vault-error-line:not(.mantine-Paper-root *, .mantine-Modal-content *) {
+  border-color: color-mix(in srgb, var(--v-danger-text) 35%, var(--v-surface));
+}
+/* Its close sits in the card's corner, so the text and actions keep the
+   card's whole width; the title alone keeps clear of it. */
+main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-Modal-content *) > .vault-notice-close.vault-notice-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  margin: 0;
+}
+main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-Modal-content *):has(> .vault-notice-close) :is(.vault-notice-title, .vault-error-title) {
+  padding-right: 28px;
+}
 
 /* A code on the Receive card, like a printed one: the code is the control
    (full screen), and its white runs on into a slim footer with the hint,

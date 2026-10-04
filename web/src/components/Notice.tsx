@@ -10,6 +10,10 @@
 // - information (this Info): plain text with an icon, in the page's own
 //   colours. For what helps but asks nothing.
 //
+// Standing on the page between cards (Home's), a notice or an error line
+// is a card of its own, edged in its colour (global.css); inside a card or
+// a sheet it keeps the form above.
+//
 // The result of something the person just did (a file exported, a password
 // changed, a send submitted) is a Done: information with a check, announced,
 // placed right under the control that caused it. Events that happen on
