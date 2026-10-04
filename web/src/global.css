@@ -2331,9 +2331,6 @@ html {
   color: var(--v-text-2);
 }
 
-/* An input's description is a sentence, so it keeps the 14 px floor; the
-   library draws it at 13. It stays quieter than the label by colour and
-   weight. */
 /* The library's toasts and keys in the app's text colours and weights. */
 .mantine-Notification-title {
   color: var(--v-text);
@@ -2344,8 +2341,16 @@ html {
 .mantine-Kbd-root {
   font-weight: 600;
 }
+/* An input's description is a sentence, so it keeps the 14 px floor; the
+   library draws it at 13. It stays quieter than the label by colour and
+   weight, and its lines are spaced as every other sentence's (the library
+   packs them at 1.2), a checkbox's too. */
 .mantine-InputWrapper-description.mantine-InputWrapper-description {
   font-size: var(--v-fs-sm);
+  line-height: var(--mantine-line-height-sm);
+}
+.mantine-Checkbox-description {
+  line-height: var(--mantine-line-height-sm);
 }
 
 /* A short tag naming a network: sentence case at the 12 px label size, not
