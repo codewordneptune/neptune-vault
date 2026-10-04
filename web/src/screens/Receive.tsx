@@ -4,16 +4,17 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { ActionIcon, Button, Combobox, Group, Input, Loader, Menu, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton, useCombobox } from '@mantine/core';
-import { IconArrowsMaximize, IconCheck, IconChevronDown, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconShare, IconTrash } from '@tabler/icons-react';
+import { ActionIcon, Button, Group, Loader, Menu, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconArrowsMaximize, IconCheck, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconShare, IconTrash } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
-import { useEffect, useId, useRef, useState, type ClipboardEvent } from 'react';
+import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 
 import { Sheet } from '../components/Sheet';
 import { QrFullScreen } from '../components/QrFullScreen';
 import { Caution, Done, Info } from '../components/Notice';
 import { Spoken } from '../components/Spoken';
+import { ChoiceField } from '../components/ChoiceField';
 
 import { formatNau, showNau, useApp } from '../app/AppContext';
 import { ADDRESS_LABEL_MAX, addressKey, cleanLabel, coinAddressKey, markGiven, readGiven, readLabels, writeLabel, type AddressLabels } from '../app/addressLabels';
@@ -120,9 +121,6 @@ export function Receive() {
   // Which code, if any, is shown as large as the screen allows.
   const [enlarged, setEnlarged] = useState<'address' | 'request' | null>(null);
   const index = indices[kind];
-  // The address type's field: its label names it for a screen reader too.
-  const typeLabelId = useId();
-  const typeFieldId = useId();
 
   // Who each address was given to: a name kept on this device, which History
   // then shows for what arrives through it. The one way to know who paid.
@@ -468,15 +466,6 @@ export function Receive() {
     setKind(k);
     setSaid(`${KIND_LABELS[k]} ${indices[k] === 0 ? 'main address' : `address ${indices[k]}`} is showing.`);
   };
-  // The type is a value chosen from a list, so it is a select (a button and
-  // a list box), not a menu of commands: "Standard, selected". Opened from
-  // the keyboard, the arrows start at the type showing.
-  const typeBox = useCombobox({
-    onDropdownClose: () => typeBox.resetSelectedOption(),
-    onDropdownOpen: (source) => {
-      if (source === 'keyboard') typeBox.selectActiveOption();
-    },
-  });
   useEffect(() => {
     if (index > furthest) setIndices((all) => ({ ...all, [kind]: furthest }));
   }, [index, furthest, kind]);
@@ -639,64 +628,13 @@ export function Receive() {
                 every select is, then the addresses of that type (the main one
                 first, then each with a name or a payment), then a new one. */}
             <Stack gap={6}>
-              <div>
-                <Input.Label id={typeLabelId} htmlFor={typeFieldId}>
-                  Address type
-                </Input.Label>
-                <Combobox
-                  store={typeBox}
-                  onOptionSubmit={(value) => {
-                    typeBox.closeDropdown();
-                    if (value === 'compare') setComparing(true);
-                    else chooseKind(value as KeyKind);
-                  }}
-                  position="bottom-start"
-                >
-                  <Combobox.Target targetType="button" withExpandedAttribute>
-                    {/* The list goes when focus moves on (Tab), as a native select's does. */}
-                    <button
-                      type="button"
-                      id={typeFieldId}
-                      className="vault-type-field"
-                      aria-labelledby={`${typeLabelId} ${typeFieldId}`}
-                      onClick={() => typeBox.toggleDropdown()}
-                      onBlur={() => typeBox.closeDropdown()}
-                    >
-                      {KIND_LABELS[kind]}
-                      <IconChevronDown size={16} aria-hidden />
-                    </button>
-                  </Combobox.Target>
-                  <Combobox.Dropdown>
-                    <div className="vault-picker-label" aria-hidden>
-                      Address type
-                    </div>
-                    <Combobox.Options aria-label="Address type">
-                      {(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => (
-                        <Combobox.Option key={k} value={k} active={k === kind} aria-selected={k === kind} className="vault-type-option">
-                          <span className="vault-type-check" aria-hidden>
-                            {k === kind && <IconCheck size={16} />}
-                          </span>
-                          <span>
-                            <Text span display="block" size="sm" fw={600}>
-                              {KIND_LABELS[k]}
-                            </Text>
-                            <Text span display="block" size="xs" c="dimmed">
-                              <Spoken text={KIND_LINES[k]} />
-                            </Text>
-                          </span>
-                        </Combobox.Option>
-                      ))}
-                      {/* An option of the list, so the arrow keys reach it too; it opens the comparison rather than choosing. */}
-                      <Combobox.Option value="compare" className="vault-type-option vault-type-compare">
-                        <span className="vault-type-check" aria-hidden />
-                        <Text span size="sm">
-                          Compare address types
-                        </Text>
-                      </Combobox.Option>
-                    </Combobox.Options>
-                  </Combobox.Dropdown>
-                </Combobox>
-              </div>
+              <ChoiceField
+                label="Address type"
+                value={kind}
+                choices={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({ value: k, name: KIND_LABELS[k], note: <Spoken text={KIND_LINES[k]} /> }))}
+                onChoose={(k) => chooseKind(k as KeyKind)}
+                more={{ label: 'Compare address types', onSelect: () => setComparing(true) }}
+              />
               <div role="group" aria-label={`${KIND_LABELS[kind]} addresses`}>
                 {listed.map((i) => {
                   const k = addressKey(kind, i);
