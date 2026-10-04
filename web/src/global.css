@@ -713,6 +713,7 @@ button.vault-network:focus-visible {
 .vault-eyebrow {
   font-size: var(--v-fs-xs);
   font-weight: 600;
+  line-height: 1.5;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--v-muted);
@@ -2528,10 +2529,12 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   min-width: 0;
 }
 
-/* Send's first line, while there is something to clear: Clear at its end. */
+/* Send's first line: the card's label, and Clear at its end. */
 .vault-send-head {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 /* Copy and Share under a code on Receive: two exactly equal halves at

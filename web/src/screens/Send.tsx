@@ -1147,18 +1147,20 @@ export function Send() {
         <Sheet opened={reviewSheet !== null} onClose={() => setStep('form')} title="Review" size={560} centered fullScreen={phone}>
           {reviewSheet}
         </Sheet>
-        <Title order={2} className="sr-only">
-          Send
-        </Title>
-        {/* Clear, away from Review, always in its place so that nothing moves as
-            the form fills, and pressable only while it holds something to clear. */}
-        {!sentShown && (
-          <div className="vault-send-head">
+        {/* The card's label, as Home's cards have theirs, and the screen's
+            heading. Clear at the other end, away from Review, always in its
+            place so that nothing moves as the form fills, and pressable only
+            while it holds something to clear. */}
+        <div className="vault-send-head">
+          <Title order={2} className="vault-eyebrow">
+            Send
+          </Title>
+          {!sentShown && (
             <UnstyledButton type="button" onClick={clearForm} disabled={!hasContent} aria-label="Clear the form" c={hasContent ? 'var(--v-accent-text)' : 'var(--v-faint)'} fz="sm" className="vault-tap-link">
               Clear
             </UnstyledButton>
-          </div>
-        )}
+          )}
+        </div>
         {/* How the last send ended, where the person is: focused, so it is
             read out, and dismissed here and on Home at once. */}
         {sendJob?.done && sendJob.ending && (
