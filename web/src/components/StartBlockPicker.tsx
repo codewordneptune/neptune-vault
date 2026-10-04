@@ -121,6 +121,7 @@ export function StartBlockPicker({
             if (lookup.kind === 'found' && v !== lookup.height) setLookup({ kind: 'idle' });
           }}
           error={error}
+          errorProps={{ role: 'alert' }}
           hideControls
           inputMode="numeric"
         />

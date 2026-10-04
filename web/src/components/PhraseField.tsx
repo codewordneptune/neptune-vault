@@ -61,6 +61,7 @@ export function PhraseField({
       minRows={3}
       value={text}
       error={error ?? undefined}
+      errorProps={{ role: 'alert' }}
       data-autofocus={autoFocus || undefined}
       onChange={(e) => {
         onText(e.currentTarget.value);

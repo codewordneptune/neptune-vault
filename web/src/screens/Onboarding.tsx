@@ -671,6 +671,7 @@ function PasswordStep({
             maxLength={WALLET_NAME_MAX}
             value={name}
             error={nameError}
+            errorProps={{ role: 'alert' }}
             onChange={(e) => {
               setName(e.currentTarget.value);
               onNameEdit?.();

@@ -312,6 +312,7 @@ export function ContactForm({
             label="Name"
             value={name}
             error={nameError}
+            errorProps={{ role: 'alert' }}
             onChange={(e) => {
               setName(e.currentTarget.value);
               setNameError(null);
@@ -337,6 +338,7 @@ export function ContactForm({
               }}
               onBlur={() => void checkAddress()}
               error={addressError}
+              errorProps={{ role: 'alert' }}
               description={own && !addressError ? 'This is one of your own addresses.' : undefined}
               rightSectionWidth={44}
               rightSection={
@@ -391,6 +393,7 @@ function RenameForm({ initial, onSave, onCancel }: { initial: string; onSave: (n
           label="Name"
           value={name}
           error={nameError}
+          errorProps={{ role: 'alert' }}
           onChange={(e) => {
             setName(e.currentTarget.value);
             setNameError(null);

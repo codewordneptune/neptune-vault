@@ -1440,6 +1440,7 @@ function WalletCard() {
           value={name}
           maxLength={40}
           error={nameError}
+          errorProps={{ role: 'alert' }}
           onChange={(e) => {
             setName(e.currentTarget.value);
             setNameError(null);
