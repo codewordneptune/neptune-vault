@@ -13,6 +13,7 @@ import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNote
 import { usePendingSends } from '../app/pending';
 import { readSendDetails, withSendDetails } from '../app/sendDetails';
 import { speakNau } from '../components/Amount';
+import { Spoken, spokenText } from '../components/Spoken';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { fiatOf, fiatParts } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
@@ -363,7 +364,9 @@ export function Home() {
     const pending = e.record.status !== 'pending' ? '' : e.kind === 'received' ? ', pending' : stateWordOf(e)?.word === WAITING_FOR_BLOCK ? ', waiting for a block' : '';
     const release = lockOf(e.record);
     const note = noteAfterTime(e);
-    return `${stateTitleOf(e)}${whom}, ${money}${pending}${release !== null ? `, spendable from ${showDate(release)}` : ''}${note ? `, note: ${note}` : ''}, details`;
+    // When, as the list shows it by its day heading and the row's time: rows alike in all else are told apart.
+    const when = `${dayLabel(e.record.timestampMs)} ${formatTime(e.record.timestampMs)}`;
+    return `${stateTitleOf(e)}${whom}, ${money}${pending}${release !== null ? `, spendable from ${showDate(release)}` : ''}${note ? `, note: ${note}` : ''}, ${when}, details`;
   };
   /** The full title, for the detail sheet and for screen readers. */
   const titleOf = (e: HistoryEntry) => {
@@ -477,7 +480,7 @@ export function Home() {
           <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' ? (behind ? 'warn' : 'ok') : 'busy'}`} aria-hidden />
           {!online && <IconWifiOff size={16} />}
           {busy && <IconRefresh size={16} className="vault-spin" />}
-          {syncText}
+          <Spoken text={syncText} />
         </span>
         {/* The actions stay where they are while a sync runs, unavailable
             rather than gone, so focus on them is not dropped. */}
@@ -536,9 +539,9 @@ export function Home() {
             {loaded && ownReady && quote && fiat && (
               <div className="vault-balance-fiat">
                 <span className="vault-balance-fiat-value">
-                  ≈ {hidden ? '••••' : fiat.figure} <span className="vault-unit">{fiat.code}</span>
+                  ≈ <Spoken text={hidden ? '••••' : fiat.figure} /> <span className="vault-unit">{fiat.code}</span>
                 </span>
-                {Date.now() - quote.at > QUOTE_OLD_MS && <span className="vault-balance-fiat-source">price from {timeAgo(quote.at)}</span>}
+                {Date.now() - quote.at > QUOTE_OLD_MS && <span className="vault-balance-fiat-source">price from <Spoken text={timeAgo(quote.at)} /></span>}
               </div>
             )}
             {/* Money on the way and money held, as two readings; the sentence behind them is one tap away. */}
@@ -546,7 +549,7 @@ export function Home() {
               <Group gap={6} wrap="nowrap">
                 <IconArrowDownLeft size={16} className="vault-balance-note-in" aria-hidden />
                 <Text size="sm" c="dimmed">
-                  <span className="vault-figure">{amount(incomingNau)}</span> NPT pending
+                  <span className="vault-figure"><Spoken text={amount(incomingNau)} /></span> NPT pending
                   {explainAfter('incoming')}
                 </Text>
               </Group>
@@ -556,7 +559,7 @@ export function Home() {
               <Group gap={6} wrap="nowrap" align="flex-start">
                 <IconHourglass size={16} className="vault-balance-note-held" aria-hidden style={{ marginTop: 4 }} />
                 <Text size="sm" c="dimmed">
-                  Spendable <span className="vault-figure">{amount(balance.spendableNau)}</span> NPT · <span className="vault-figure">{amount(onHoldNau)}</span> NPT on hold
+                  Spendable <span className="vault-figure"><Spoken text={amount(balance.spendableNau)} /></span> NPT · <span className="vault-figure"><Spoken text={amount(onHoldNau)} /></span> NPT on hold
                   {explainAfter('held')}
                 </Text>
               </Group>
@@ -565,7 +568,7 @@ export function Home() {
               <Group gap={6} wrap="nowrap">
                 <IconClockPause size={16} className="vault-balance-note-held" aria-hidden />
                 <Text size="sm" c="dimmed">
-                  <span className="vault-figure">{amount(balance.lockedNau)}</span> NPT {balance.nextReleaseMs ? `spendable from ${showDate(balance.nextReleaseMs)}` : 'not spendable yet'}
+                  <span className="vault-figure"><Spoken text={amount(balance.lockedNau)} /></span> NPT {balance.nextReleaseMs ? `spendable from ${showDate(balance.nextReleaseMs)}` : 'not spendable yet'}
                   {explainAfter('locked')}
                 </Text>
               </Group>
@@ -579,9 +582,9 @@ export function Home() {
                 )}
                 {why && (
                   <Text size="sm" c="dimmed">
-                    {incomingNau > 0n && `${amount(incomingNau)} NPT is pending: it becomes spendable once a block confirms it. `}
-                    {balance.lockedNau > 0n && `${amount(balance.lockedNau)} NPT is yours, but the sender set a date before which it cannot be spent, so it is not counted as spendable. `}
-                    {balance.reservedNau > 0n && `${pendingExplained()} `}
+                    {incomingNau > 0n && <Spoken text={`${amount(incomingNau)} NPT is pending: it becomes spendable once a block confirms it. `} />}
+                    {balance.lockedNau > 0n && <Spoken text={`${amount(balance.lockedNau)} NPT is yours, but the sender set a date before which it cannot be spent, so it is not counted as spendable. `} />}
+                    {balance.reservedNau > 0n && <Spoken text={`${pendingExplained()} `} />}
                   </Text>
                 )}
               </>
@@ -626,13 +629,13 @@ export function Home() {
           return lastSend.state === 'unconfirmed' ? (
             <Caution title={UNANSWERED_TITLE} onClose={dismiss} closeLabel="Dismiss">
               <span>
-                Your {amount(BigInt(lastSend.amountNau))} NPT to {who} {MAY_HAVE_GONE_OUT}
+                Your <Spoken text={amount(BigInt(lastSend.amountNau))} /> NPT to {who} {MAY_HAVE_GONE_OUT}
               </span>
             </Caution>
           ) : (
             <Info title={SENT_WAITING} onClose={dismiss} closeLabel="Dismiss">
               <span>
-                {amount(BigInt(lastSend.amountNau))} NPT to {who}, plus a {amount(BigInt(lastSend.feeNau))} NPT fee. {SENDING_UNTIL_CONFIRMED}
+                <Spoken text={amount(BigInt(lastSend.amountNau))} /> NPT to {who}, plus a <Spoken text={amount(BigInt(lastSend.feeNau))} /> NPT fee. {SENDING_UNTIL_CONFIRMED}
               </span>
             </Info>
           );
@@ -643,7 +646,7 @@ export function Home() {
       {failure && failure.accountId === account?.id && !(lastSend && lastSend.accountId === account.id && lastSend.at >= failure.at) && (
         <ErrorLine title="Not sent" onClose={dismissFailure} role="group">
           <Text size="sm">
-            {hidden ? '••••' : failure.amount} NPT to <bdi>{contactFor(failure.recipient.toLowerCase())?.name ?? abbreviateAddress(failure.recipient)}</bdi>
+            <Spoken text={hidden ? '••••' : failure.amount} /> NPT to <bdi>{contactFor(failure.recipient.toLowerCase())?.name ?? abbreviateAddress(failure.recipient)}</bdi>
             {failure.others ? ` and ${failure.others} more` : ''}. {notSentReason(failure.message)}
           </Text>
         </ErrorLine>
@@ -656,7 +659,7 @@ export function Home() {
         <Caution title="This send is not going through">
           {/* The sentence in one element, as above, and the button on its own line. */}
           <span>
-            Giving up on your {amount(BigInt(stuck.amountNau))}&nbsp;NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? abbreviateAddress(stuck.recipient)}</bdi> : 'a recipient'} makes {amount(reservedFor(stuck))}&nbsp;NPT spendable now; otherwise it becomes spendable {dayAhead(expiresAt(stuck)).replace(/ (?=\S+$)/, ' ')}.
+            Giving up on your <Spoken text={amount(BigInt(stuck.amountNau))} />&nbsp;NPT to {stuck.recipient ? <bdi>{contactFor(stuck.recipient)?.name ?? abbreviateAddress(stuck.recipient)}</bdi> : 'a recipient'} makes <Spoken text={amount(reservedFor(stuck))} />&nbsp;NPT spendable now; otherwise it becomes spendable {dayAhead(expiresAt(stuck)).replace(/ (?=\S+$)/, ' ')}.
           </span>
           <Group mt={4}>
             <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => setGivingUp(stuck)}>
@@ -833,6 +836,7 @@ export function Home() {
                     mono
                     abbreviate
                     copy="Address copied"
+                    copyName={`Copy the address of recipient ${i + 1}`}
                   />
                 );
               })}
@@ -843,6 +847,7 @@ export function Home() {
                 mono
                 abbreviate
                 copy="Address copied"
+                copyName="Copy the recipient's address"
               />
             )}
             {detail.kind === 'sent' && !detail.record.recipient && (
@@ -878,7 +883,7 @@ export function Home() {
                 )}
                 {tech &&
                   outputsOf(detail).map((o) => (
-                    <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Identifier copied" href={explorer ? explorer + o.commitment : undefined} />
+                    <DetailRow key={o.commitment} label={o.label} value={o.commitment} mono copy="Identifier copied" copyName={`Copy the identifier of ${o.label.toLowerCase()}`} href={explorer ? explorer + o.commitment : undefined} />
                   ))}
               </>
             )}
@@ -911,7 +916,7 @@ export function Home() {
                   : 'The node no longer has this send. Giving up makes its coins spendable, and the send stays in History, marked Not sent.'}
             </Text>
             <Text size="sm" c="dimmed">
-              This send: {showNau(BigInt(givingUp.amountNau))} NPT{givingUp.feeNau && ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee`}. Giving up makes {showNau(reservedFor(givingUp))} NPT spendable again.
+              <Spoken text={`This send: ${showNau(BigInt(givingUp.amountNau))} NPT${givingUp.feeNau ? ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee` : ''}. Giving up makes ${showNau(reservedFor(givingUp))} NPT spendable again.`} />
             </Text>
             {giveUpError && <ErrorLine title="This send was not given up">{giveUpError}</ErrorLine>}
             <Group grow>
@@ -935,14 +940,14 @@ function ReceiptRow({ label, figure, total }: { label: string; figure: string; t
     <div className={total ? 'vault-review-row total' : 'vault-review-row'}>
       <span>{label}</span>
       <b>
-        {figure} <span className="vault-unit">NPT</span>
+        <Spoken text={figure} /> <span className="vault-unit">NPT</span>
       </b>
     </div>
   );
 }
 
 /** A label and its value in the detail sheet; long values wrap and can be copied. */
-function DetailRow({ label, value, mono, copy, href, abbreviate, isolate }: { label: string; value: string; mono?: boolean; copy?: string; href?: string; abbreviate?: boolean; isolate?: boolean }) {
+function DetailRow({ label, value, mono, copy, copyName, href, abbreviate, isolate }: { label: string; value: string; mono?: boolean; copy?: string; copyName?: string; href?: string; abbreviate?: boolean; isolate?: boolean }) {
   // Long values (a generation address is about 3,500 characters) show
   // abbreviated with a toggle; copying always takes the full value.
   const [full, setFull] = useState(false);
@@ -951,17 +956,17 @@ function DetailRow({ label, value, mono, copy, href, abbreviate, isolate }: { la
     <div className="vault-detail-row">
       <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
         <Text size="xs" c="dimmed" className="vault-detail-label">
-          {label}
+          <Spoken text={label} />
         </Text>
         {(copy || href) && (
           <Group gap={2} wrap="nowrap">
             {copy && (
-              <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copyText(value, copy)}>
+              <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={copyName ?? `Copy ${spokenText(label.toLowerCase())}`} onClick={() => void copyText(value, copy)}>
                 <IconCopy size={20} />
               </ActionIcon>
             )}
             {href && (
-              <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="lg" className="vault-tap" aria-label={`Open ${label.toLowerCase()} in the explorer`}>
+              <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="lg" className="vault-tap" aria-label={`Open ${spokenText(label.toLowerCase())} in the explorer`}>
                 <IconExternalLink size={20} />
               </ActionIcon>
             )}
@@ -969,7 +974,7 @@ function DetailRow({ label, value, mono, copy, href, abbreviate, isolate }: { la
         )}
       </Group>
       <Text size="sm" className={mono ? 'vault-detail-mono' : isolate ? 'vault-bidi vault-link-meta-text' : undefined} dir={isolate ? 'auto' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
-        {shown}
+        <Spoken text={shown} />
       </Text>
       {abbreviate && (
         <UnstyledButton onClick={() => setFull((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link vault-tap-link-start">
@@ -1062,7 +1067,7 @@ function SearchedFrom({ account }: { account: AccountRecord }) {
   if (from <= 1) return null;
   return (
     <Text c="dimmed" size="xs">
-      This wallet looks for payments from block {showBlock(from)}
+      This wallet looks for payments from block <Spoken text={showBlock(from)} />
       {date ? ` (${formatDate(date)})` : ''}. Expecting an older one?{' '}
       <UnstyledButton onClick={() => navigate('/settings/advanced#rescan', { state: { from: 'home' } })} fz="xs" className="vault-inline-link">
         Rescan from an earlier date

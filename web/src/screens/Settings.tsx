@@ -44,6 +44,7 @@ import { abbreviateAddress } from '../util/address';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
+import { Spoken } from '../components/Spoken';
 import { ContactsPanel } from './Contacts';
 import { DeviceDetails } from './Diagnostics';
 import { PrivacyStatement } from './Privacy';
@@ -225,17 +226,20 @@ export function Settings() {
       {cameFrom ? (
         <UnstyledButton onClick={() => navigate(-1)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
           <IconChevronLeft size={16} aria-hidden />
+          <span className="sr-only">Back to </span>
           {cameFrom}
         </UnstyledButton>
       ) : parent ? (
         <UnstyledButton component={Link} to={`/settings/${parent}`} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
           <IconChevronLeft size={16} aria-hidden />
+          <span className="sr-only">Back to </span>
           {SECTION_TITLES[parent]}
         </UnstyledButton>
       ) : (
         !wide && (
           <UnstyledButton component={Link} to="/settings" c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
             <IconChevronLeft size={16} aria-hidden />
+            <span className="sr-only">Back to </span>
             Settings
           </UnstyledButton>
         )
@@ -752,7 +756,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               />
               {/* Always there, so what the test says as it runs and ends is announced. */}
               <Text size="sm" c={shown && !shown.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status" className={shown?.text ? undefined : 'sr-only'}>
-                {shown?.text}
+                <Spoken text={shown?.text} />
                 {shown?.at && shown.text !== 'Testing…' ? ` · checked ${formatTime(shown.at)}` : ''}
               </Text>
               {(dirty || testing || (shown && !shown.ok) || offerDefault) && (
@@ -1226,7 +1230,7 @@ function FiatCard() {
       />
       {quote && (
         <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-          Last price from {quote.source}, {timeAgo(quote.at)}: <span style={{ whiteSpace: 'nowrap' }}>1 NPT ≈ {formatFiat(quote.price, quote.currency)}</span>.
+          Last price from {quote.source}, <Spoken text={timeAgo(quote.at)} />: <span style={{ whiteSpace: 'nowrap' }}>1 NPT ≈ <Spoken text={formatFiat(quote.price, quote.currency)} /></span>.
         </Text>
       )}
       {/* What it shows and what it costs, in a sentence; which service is asked when, in Privacy. */}
@@ -1522,7 +1526,7 @@ function RemoveWalletCard() {
           {loaded && ready && (
             <Text size="sm" fw={600}>
               {/* Shown even with amounts hidden: it is what the decision is about. */}
-              {name} holds {showNau(holds)} NPT.
+              {name} holds <Spoken text={showNau(holds)} /> NPT.
             </Text>
           )}
           <Text size="sm">
@@ -1533,7 +1537,7 @@ function RemoveWalletCard() {
               <ul className="vault-notice-list">
                 {sends.map((h) => (
                   <li key={h.key}>
-                    {showNau(BigInt(h.amountNau))} NPT to <bdi>{toWhom(h)}</bdi>
+                    <Spoken text={showNau(BigInt(h.amountNau))} /> NPT to <bdi>{toWhom(h)}</bdi>
                   </li>
                 ))}
               </ul>
@@ -1632,7 +1636,7 @@ function RescanCard() {
   return (
     <SettingItem name="Rescan" id="rescan" className="vault-anchored">
       <Text size="sm" c="dimmed">
-        {how}
+        <Spoken text={how} />
       </Text>
       <Group>
         <Button

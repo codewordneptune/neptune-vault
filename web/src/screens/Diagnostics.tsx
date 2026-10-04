@@ -16,6 +16,7 @@ import { ANDROID, DESKTOP, NATIVE } from '../app/platform';
 import { copyText } from '../util/clipboard';
 import { showInt } from '../util/format';
 import { formatDateTime } from '../util/time';
+import { Spoken } from '../components/Spoken';
 import { BackLink } from './Privacy';
 
 type FactRow = { label: string; value: string; state?: 'ok' | 'warn' };
@@ -137,7 +138,7 @@ function Fact({ label, value, state }: FactRow) {
       </Text>
       <Text size="sm" className={state ? `vault-fact ${state}` : undefined}>
         {state && <span className="vault-dot" aria-hidden />}
-        {value}
+        <Spoken text={value} />
       </Text>
     </div>
   );

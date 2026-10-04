@@ -23,6 +23,7 @@ import type { NodeClient } from '../node/rpc';
 import type { Network } from '../storage/db';
 import { notifications } from '@mantine/notifications';
 import { MAX_BACKUP_BYTES, parseBackupFile, WrongPasswordError } from '../storage/envelope';
+import { Spoken } from '../components/Spoken';
 
 type Step = 'welcome' | 'existing' | 'show' | 'confirm' | 'password' | 'import' | 'file';
 
@@ -795,7 +796,7 @@ function ImportStep({
         {!optionsOpen && (
           <Stack gap={2}>
             <Text size="sm" c="dimmed">
-              {restoreSummary}
+              <Spoken text={restoreSummary} />
             </Text>
             <UnstyledButton onClick={() => setOptionsOpen(true)} aria-expanded={false} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
               Change

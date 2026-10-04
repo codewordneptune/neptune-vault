@@ -13,6 +13,7 @@ import { useEffect, useId, useRef, useState, type ClipboardEvent } from 'react';
 import { Sheet } from '../components/Sheet';
 import { QrFullScreen } from '../components/QrFullScreen';
 import { Caution, Done, Info } from '../components/Notice';
+import { Spoken } from '../components/Spoken';
 
 import { formatNau, showNau, useApp } from '../app/AppContext';
 import { ADDRESS_LABEL_MAX, addressKey, cleanLabel, coinAddressKey, markGiven, readGiven, readLabels, writeLabel, type AddressLabels } from '../app/addressLabels';
@@ -513,7 +514,7 @@ export function Receive() {
             ? { done: true, text: `Paid in full: ${show(visitNau)} NPT.` }
             : { done: false, text: `${show(visitNau)} of ${showNau(requestNau)} NPT received.` };
   const noteOf = (note: { done: boolean; text: string } | null) =>
-    note === null ? null : note.done ? <Done role={undefined}>{note.text}</Done> : <Info>{note.text}</Info>;
+    note === null ? null : note.done ? <Done role={undefined}><Spoken text={note.text} /></Done> : <Info><Spoken text={note.text} /></Info>;
 
   return (
     <Paper>
@@ -581,7 +582,7 @@ export function Receive() {
                   }}
                   onBlur={() => setAmountLeft(true)}
                   error={amountLeft ? amountError : null}
-                  description={requestEstimate}
+                  description={requestEstimate && <Spoken text={requestEstimate} />}
                   inputWrapperOrder={['label', 'input', 'description', 'error']}
                 />
                 {/* All three shown from the start: a request is written before it is
@@ -671,7 +672,7 @@ export function Receive() {
                               {KIND_LABELS[k]}
                             </Text>
                             <Text span display="block" size="xs" c="dimmed">
-                              {KIND_LINES[k]}
+                              <Spoken text={KIND_LINES[k]} />
                             </Text>
                           </span>
                         </Combobox.Option>
@@ -845,7 +846,7 @@ export function Receive() {
                   </Text>
                 </Text>
                 <Text size="sm" c="dimmed">
-                  {KIND_NOTES[k]}
+                  <Spoken text={KIND_NOTES[k]} />
                 </Text>
               </Stack>
             ))}

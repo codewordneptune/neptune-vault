@@ -11,6 +11,7 @@
 import { Stack, Text } from '@mantine/core';
 
 import { Sheet } from './Sheet';
+import { Spoken } from './Spoken';
 import { useScreenWakeLock } from '../app/wakeLock';
 
 export function QrFullScreen({
@@ -54,7 +55,7 @@ export function QrFullScreen({
         </button>
         {/* 16 px: read at arm's length and compared character by character, and a monospace face looks smaller than its size. */}
         <Text fz="md" ta="center" className="vault-qr-full-caption">
-          {caption}
+          <Spoken text={caption} />
         </Text>
         <Text size="sm" ta="center" className="vault-qr-full-hint">
           Turn the screen brightness up if the code will not read.

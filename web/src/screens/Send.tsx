@@ -22,6 +22,7 @@ import { isCancellation } from '../app/passkey';
 import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
 import { Amount } from '../components/Amount';
+import { Spoken } from '../components/Spoken';
 import { Caution, ErrorLine, Info } from '../components/Notice';
 import { MAY_HAVE_GONE_OUT, notSentReason, PREPARING_SEND, sendStageText, SENDING_UNTIL_CONFIRMED, SENT_WAITING } from '../app/words';
 import { usePendingSends } from '../app/pending';
@@ -856,8 +857,8 @@ export function Send() {
           {proving && p && <Progress value={Math.round(100 * (p.work ?? p.index / p.total))} animated={!reducedMotion} aria-label="Share of the proving work done" />}
           {proving && (
             <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {estimate !== null ? `${capitalise(formatAbout(estimate))} on this device · ` : ''}
-              {formatDuration(provingSeconds)} so far
+              <Spoken text={estimate !== null ? `${capitalise(formatAbout(estimate))} on this device · ` : ''} />
+              <Spoken text={`${formatDuration(provingSeconds)} so far`} />
             </Text>
           )}
           <Text size="sm">
@@ -879,7 +880,7 @@ export function Send() {
         </Stack>
         <Sheet opened={confirmStop} onClose={() => setConfirmStop(false)} title="Stop this send?">
           <Stack>
-            <Text size="sm">What it has done so far ({formatDuration(provingSeconds)}) is lost. Nothing has been sent.</Text>
+            <Text size="sm">What it has done so far (<Spoken text={formatDuration(provingSeconds)} />) is lost. Nothing has been sent.</Text>
             <Group grow>
               <Button variant="default" onClick={() => setConfirmStop(false)}>
                 Keep going
@@ -1029,8 +1030,8 @@ export function Send() {
             {/* As under the balance: the price's age once it is getting old, its source in Settings, Currency. */}
             {quote && (
               <Text size="xs" c="dimmed" ta="right" mt={-6} style={{ fontVariantNumeric: 'tabular-nums' }}>
-                ≈ {formatFiat(fiatOf(totalNau, NAU_PER_COIN, quote.price), quote.currency)}
-                {Date.now() - quote.at > QUOTE_OLD_MS && ` · price from ${timeAgo(quote.at)}`}
+                <Spoken text={`≈ ${formatFiat(fiatOf(totalNau, NAU_PER_COIN, quote.price), quote.currency)}`} />
+                {Date.now() - quote.at > QUOTE_OLD_MS && <Spoken text={` · price from ${timeAgo(quote.at)}`} />}
               </Text>
             )}
             {reviewFeeNote && (
@@ -1050,14 +1051,18 @@ export function Send() {
           {/* Only when this send has change, and never while amounts are hidden. */}
           {!hidden && spendableWhile !== spendableAfter && (
             <Text size="sm" c="dimmed">
-              While this send is pending, {showNau(spendableWhile)} NPT stays spendable; its change of {showNau(spendableAfter - spendableWhile)} NPT is on hold until it confirms.
+              <Spoken text={`While this send is pending, ${showNau(spendableWhile)} NPT stays spendable; its change of ${showNau(spendableAfter - spendableWhile)} NPT is on hold until it confirms.`} />
             </Text>
           )}
           {rivals.length > 0 && (
             <Caution title="An earlier send may still go through">
-              {rivals.length === 1
-                ? `Your earlier ${hidden ? '' : `${showNau(BigInt(rivals[0].amountNau))} NPT `}to ${rivalTo(rivals[0])} may still go through: giving up on it did not call it back. This send spends one of the same coins, so only one of the two can go through.`
-                : `${rivals.length} earlier sends you gave up on may still go through. This send spends one coin of each, so none of them can go through along with it.`}
+              <Spoken
+                text={
+                  rivals.length === 1
+                    ? `Your earlier ${hidden ? '' : `${showNau(BigInt(rivals[0].amountNau))} NPT `}to ${rivalTo(rivals[0])} may still go through: giving up on it did not call it back. This send spends one of the same coins, so only one of the two can go through.`
+                    : `${rivals.length} earlier sends you gave up on may still go through. This send spends one coin of each, so none of them can go through along with it.`
+                }
+              />
             </Caution>
           )}
           {askLustration && (
@@ -1069,14 +1074,14 @@ export function Send() {
             <Checkbox
               checked={feeAgreed}
               onChange={(e) => setFeeAgreed(e.currentTarget.checked)}
-              label={`The fee is ${showNau(totals.feeNau)} NPT, which is unusually high. Pay it anyway.`}
+              label={<Spoken text={`The fee is ${showNau(totals.feeNau)} NPT, which is unusually high. Pay it anyway.`} />}
             />
           )}
           {totals.feeLow && (
             <Checkbox
               checked={feeAgreed}
               onChange={(e) => setFeeAgreed(e.currentTarget.checked)}
-              label={`The fee is ${showNau(totals.feeNau)} NPT. Nodes usually do not finish proving sends that pay less than about ${LOW_FEE} NPT, so this one may never confirm. Send it anyway.`}
+              label={<Spoken text={`The fee is ${showNau(totals.feeNau)} NPT. Nodes usually do not finish proving sends that pay less than about ${LOW_FEE} NPT, so this one may never confirm. Send it anyway.`} />}
             />
           )}
           {/* The password or passkey, before the send starts: the proof is made only after it. */}
@@ -1156,7 +1161,7 @@ export function Send() {
             {sendJob.ending === 'sent' && sendJob.outcome && (
               <Info title={SENT_WAITING} onClose={dismissResult} closeLabel="Dismiss">
                 <span>
-                  {hidden ? '••••' : showNau(paymentsTotalNau(sendJob.request))} NPT to <bdi>{whoOf(sendJob.request)}</bdi>, plus a {hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} NPT fee. {SENDING_UNTIL_CONFIRMED}
+                  <Spoken text={hidden ? '••••' : showNau(paymentsTotalNau(sendJob.request))} /> NPT to <bdi>{whoOf(sendJob.request)}</bdi>, plus a <Spoken text={hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} /> NPT fee. {SENDING_UNTIL_CONFIRMED}
                 </span>
                 {lastRecipient && !savedName && (
                   <span>
@@ -1170,7 +1175,7 @@ export function Send() {
             {sendJob.ending === 'unconfirmed' && (
               <Caution title={UNANSWERED_TITLE} onClose={dismissResult} closeLabel="Dismiss">
                 <span>
-                  Your {hidden ? '••••' : showNau(paymentsTotalNau(sendJob.request))} NPT to <bdi>{whoOf(sendJob.request)}</bdi> {MAY_HAVE_GONE_OUT}
+                  Your <Spoken text={hidden ? '••••' : showNau(paymentsTotalNau(sendJob.request))} /> NPT to <bdi>{whoOf(sendJob.request)}</bdi> {MAY_HAVE_GONE_OUT}
                 </span>
                 <span>
                   <UnstyledButton onClick={() => navigate('/')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
@@ -1269,8 +1274,8 @@ export function Send() {
                 setAmountError(null);
               }}
               onBlur={() => void checkAmounts(true)}
-              error={amountError}
-              description={[estimateOf(amount), spendableText].filter(Boolean).join(' · ')}
+              error={amountError && <Spoken text={amountError} />}
+              description={<Spoken text={[estimateOf(amount), spendableText].filter(Boolean).join(' · ')} />}
               inputWrapperOrder={UNDER_THE_FIELD}
               rightSectionWidth={extras.length === 0 ? 64 : undefined}
               rightSection={
@@ -1355,8 +1360,8 @@ export function Send() {
                   value={x.amount}
                   onChange={(e) => updateExtra(x.id, { amount: e.currentTarget.value, amountError: null })}
                   onBlur={() => void checkAmounts(true)}
-                  error={x.amountError}
-                  description={estimateOf(x.amount)}
+                  error={x.amountError && <Spoken text={x.amountError} />}
+                  description={estimateOf(x.amount) && <Spoken text={estimateOf(x.amount)} />}
                   inputWrapperOrder={UNDER_THE_FIELD}
                 />
               </div>
@@ -1456,7 +1461,7 @@ export function Send() {
                     <span className="vault-fee-seg">
                       <span>{x.label}</span>
                       <small>{x.fee || 'any'}</small>
-                      {x.fee && estimateOf(x.fee) && <small>{estimateOf(x.fee)}</small>}
+                      {x.fee && estimateOf(x.fee) && <small><Spoken text={estimateOf(x.fee)} /></small>}
                     </span>
                   ),
                 }))}
@@ -1473,8 +1478,8 @@ export function Send() {
                   setFeeError(null);
                 }}
                 onBlur={() => void (maxFollowsFee() ? sendAll() : checkAmounts(true))}
-                error={feeError}
-                description={estimateOf(fee)}
+                error={feeError && <Spoken text={feeError} />}
+                description={estimateOf(fee) && <Spoken text={estimateOf(fee)} />}
                 ref={customFeeRef}
               />
             )}

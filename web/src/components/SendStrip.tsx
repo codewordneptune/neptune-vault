@@ -9,6 +9,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { PREPARING_SEND, sendStageText } from '../app/words';
 import { formatDuration } from '../util/time';
+import { Spoken } from './Spoken';
 
 export function SendStrip() {
   const { sendJob, locked, awaitingApproval } = useApp();
@@ -41,7 +42,7 @@ export function SendStrip() {
         </Text>
         {elapsed !== null && (
           <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {formatDuration(elapsed)}
+            <Spoken text={formatDuration(elapsed)} />
           </Text>
         )}
       </div>

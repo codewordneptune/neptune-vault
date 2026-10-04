@@ -14,6 +14,7 @@ import { showBlock } from '../app/AppContext';
 import type { NodeClient } from '../node/rpc';
 import type { Network } from '../storage/db';
 import { startOfDayMs } from '../util/blockdate';
+import { Spoken } from './Spoken';
 
 export type StartLookup = 'idle' | 'looking' | 'found' | 'failed';
 
@@ -124,14 +125,18 @@ export function StartBlockPicker({
           shown, so each keystroke is not read out. */}
       {lookup.kind === 'idle' ? (
         <Text size="sm" c="dimmed">
-          {typed !== null
-            ? `The scan starts at block ${showBlock(typed)} and runs on this device. The node learns nothing about your coins.${download}`
-            : 'Scanning starts at the first block of that month, on this device. The node learns nothing about your coins.'}
+          <Spoken
+            text={
+              typed !== null
+                ? `The scan starts at block ${showBlock(typed)} and runs on this device. The node learns nothing about your coins.${download}`
+                : 'Scanning starts at the first block of that month, on this device. The node learns nothing about your coins.'
+            }
+          />
         </Text>
       ) : (
         <Text size="sm" c={lookup.kind === 'failed' ? 'var(--v-danger-text)' : 'dimmed'} role="status">
           {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
-          {lookup.kind === 'found' && `The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.${download}`}
+          {lookup.kind === 'found' && <Spoken text={`The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.${download}`} />}
           {lookup.kind === 'failed' && lookup.message}
         </Text>
       )}
@@ -150,7 +155,7 @@ export function StartBlockPicker({
             onChange(v);
             if (lookup.kind === 'found' && v !== lookup.height) setLookup({ kind: 'idle' });
           }}
-          error={error}
+          error={error && <Spoken text={error} />}
           errorProps={{ role: 'alert' }}
           hideControls
           inputMode="numeric"
