@@ -78,6 +78,8 @@ A self-custodial wallet for [Neptune Cash](https://neptune.cash).
   to each on the explorer.
 - A send that the node has stopped carrying is marked "Not going through",
   and you can give up on it to free its coins.
+- A send that was not sent can be removed from History once it can no
+  longer go through.
 - Hide every amount with one tap, for using the wallet where others can
   see.
 - Rescan the chain, fast or from a block or a date.

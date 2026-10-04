@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sheet } from '../components/Sheet';
 import { NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../app/addressLabels';
-import { MEMPOOL_KEEPS_MS, SEND_LIFETIME_MS, SEND_NOTE_MAX } from '../app/send';
+import { MEMPOOL_KEEPS_MS, removableFrom, SEND_LIFETIME_MS, SEND_NOTE_MAX } from '../app/send';
 import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNotes } from '../app/receivedNotes';
 import { usePendingSends } from '../app/pending';
 import { readSendDetails, withSendDetails } from '../app/sendDetails';
@@ -168,6 +168,38 @@ export function Home() {
     setGivingUp(null);
     await refresh();
     focusRow(key);
+  };
+  // A send that was not sent leaves History once it can no longer go
+  // through; confirmed first.
+  const [removing, setRemoving] = useState<HistoryRecord | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const historyTitle = useRef<HTMLHeadingElement>(null);
+  const removeFrom = detail ? removableFrom(detail.record) : null;
+  const closeRemove = () => {
+    if (removing) focusRow(removing.key);
+    setRemoving(null);
+    setRemoveError(null);
+  };
+  const remove = async () => {
+    if (!account || !removing) return;
+    // Focus goes to the row that takes its place, or else to History's heading.
+    const at = entries.findIndex((e) => e.record.key === removing.key);
+    const next = (entries[at + 1] ?? entries[at - 1])?.record.key;
+    setRemoveBusy(true);
+    setRemoveError(null);
+    try {
+      await services.sendService(account.id).remove(removing);
+    } catch (e) {
+      setRemoveError((e as Error).message);
+      return;
+    } finally {
+      setRemoveBusy(false);
+    }
+    setRemoving(null);
+    await refresh();
+    if (next && rowRefs.current.has(next)) focusRow(next);
+    else setTimeout(() => historyTitle.current?.focus(), 0);
   };
   // Exactly what giving up frees: the inputs reserved for that transaction.
   const reservedFor = (h: HistoryRecord) => utxos.filter((u) => u.pendingTxid === h.txid).reduce((sum, u) => sum + BigInt(u.amountNau), 0n);
@@ -674,7 +706,9 @@ export function Home() {
 
       <Paper>
         <Stack>
-        <Title order={3}>History</Title>
+        <Title order={3} ref={historyTitle} tabIndex={-1}>
+          History
+        </Title>
         {!loaded ? (
           <Text c="dimmed" size="sm">
             Loading…
@@ -901,6 +935,42 @@ export function Home() {
                 </Button>
               </Group>
             )}
+            {/* Once it can no longer go through, a send that was not sent can go; until then, from when. */}
+            {removeFrom !== null &&
+              (Date.now() >= removeFrom ? (
+                <Group justify="flex-end" mt="xs">
+                  <Button
+                    variant="light"
+                    onClick={() => {
+                      setRemoving(detail.record);
+                      setDetail(null);
+                    }}
+                  >
+                    Remove from History
+                  </Button>
+                </Group>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  It can be removed from History from {formatTime(removeFrom)} {dayAhead(removeFrom)}, once it can no longer go through.
+                </Text>
+              ))}
+          </Stack>
+        )}
+      </Sheet>
+
+      <Sheet opened={removing !== null} onClose={closeRemove} returnFocus={false} title="Remove from History?">
+        {removing && (
+          <Stack>
+            <Text size="sm">This send was not sent and can no longer go through, so removing it changes nothing in your balance. Its amount, recipient and note go with it.</Text>
+            {removeError && <ErrorLine title="It was not removed">{removeError}</ErrorLine>}
+            <Group grow>
+              <Button variant="default" onClick={closeRemove}>
+                Cancel
+              </Button>
+              <Button color="red" loading={removeBusy} onClick={() => void remove()}>
+                {removeError ? 'Try again' : 'Remove'}
+              </Button>
+            </Group>
           </Stack>
         )}
       </Sheet>

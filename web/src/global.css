@@ -795,8 +795,9 @@ button.vault-network:focus-visible {
   border: 0;
 }
 /* A screen's heading takes focus when the screen opens (App.tsx) so that a
-   screen reader starts there. It is not a control, so it draws no ring. */
-main h2[tabindex='-1']:focus {
+   screen reader starts there, and History's when a row it held is removed.
+   It is not a control, so it draws no ring. */
+main :is(h2, h3)[tabindex='-1']:focus {
   outline: none;
 }
 

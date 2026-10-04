@@ -7,7 +7,7 @@ import { openVaultDb, type AccountRecord, type HistoryRecord, type UtxoRecord, t
 import { CHAIN_PARTS, type InputPlan, type SendPlan, type SendRequest, type StoredUtxo, type WalletCore } from '../backend/types';
 import { chainView, testEngine, type TestEngine } from '../backend/engineForTests';
 import type { Prover } from '../backend/types';
-import { cleanNote, givenUpRivals, RequiresLustrationError, SEND_LIFETIME_MS, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
+import { cleanNote, givenUpRivals, removableFrom, RequiresLustrationError, SEND_LIFETIME_MS, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
 
 function stored(hash: string, amount: string, height: number): StoredUtxo {
   return { hash, amount_nau: amount, amount, key_kind: 'generation', key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
@@ -491,6 +491,35 @@ describe('send service', () => {
     await service.forget('tx-abc');
     expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
     expect((await view.get('history', 'acc:sent:tx-abc'))?.status).toBe('failed');
+  });
+
+  it('removes a send given up on from History only once it can no longer go through', async () => {
+    const { service } = await setup();
+    await service.send(request, () => {});
+    const pending = (await view.get('history', 'acc:sent:tx-abc')) as HistoryRecord;
+    await expect(service.remove(pending)).rejects.toThrow(/may still go through/);
+    await service.forget('tx-abc');
+    const given = (await view.get('history', 'acc:sent:tx-abc')) as HistoryRecord;
+    const from = removableFrom(given) as number;
+    await expect(service.remove(given, from - 1)).rejects.toThrow(/may still go through/);
+    expect(await view.get('history', 'acc:sent:tx-abc')).toBeDefined();
+    await service.remove(given, from);
+    expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
+    expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
+  });
+});
+
+describe('a send that was not sent', () => {
+  const base = { accountId: 'acc', key: 'k', txid: 't', kind: 'sent', status: 'failed', amountNau: '1', feeNau: '1', timestampMs: 1_000, height: null, inputHashes: ['a'], recipient: 'nolgar1bob', error: null, changeNau: null } as HistoryRecord;
+  it('may leave History once no block can take it', () => {
+    expect(removableFrom(base)).toBe(1_000 + SEND_LIFETIME_MS);
+    expect(removableFrom({ ...base, givenUp: true, stampMs: 900 })).toBe(900 + SEND_LIFETIME_MS);
+    expect(removableFrom({ ...base, expired: true })).toBe(0);
+  });
+  it('is the only row that may', () => {
+    expect(removableFrom({ ...base, status: 'pending' })).toBeNull();
+    expect(removableFrom({ ...base, status: 'confirmed' })).toBeNull();
+    expect(removableFrom({ ...base, kind: 'received' })).toBeNull();
   });
 });
 

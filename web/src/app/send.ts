@@ -81,6 +81,18 @@ export function givenUpRivals(history: HistoryRecord[], freeCoins: ReadonlySet<s
   );
 }
 
+/**
+ * From when a send that was not sent may leave History: once no block can
+ * take it, so that it can no longer go through (0 for one that expired).
+ * Until then its row is how the wallet knows it, should it go through after
+ * all, and what keeps a new send to the same person from paying twice.
+ * Null for any other row.
+ */
+export function removableFrom(h: HistoryRecord): number | null {
+  if (h.kind !== 'sent' || h.status !== 'failed') return null;
+  return h.expired ? 0 : (h.stampMs ?? h.timestampMs) + SEND_LIFETIME_MS;
+}
+
 /** The most recipients one send pays: the core refuses more (`MAX_PAYMENTS` in send.rs). */
 export const MAX_PAYMENTS = 10;
 
@@ -467,5 +479,12 @@ export class SendService {
   /** Give up on a pending send: release its inputs and mark it failed. */
   async forget(txid: string): Promise<void> {
     await this.ledger({ op: 'forgetSend', txid });
+  }
+
+  /** Take a send that was not sent out of History, once it can no longer go through (see removableFrom). */
+  async remove(record: HistoryRecord, nowMs = Date.now()): Promise<void> {
+    const from = removableFrom(record);
+    if (from === null || from > nowMs) throw new Error('This send may still go through, so it stays in History for now.');
+    await this.ledger({ op: 'dropRow', key: record.key });
   }
 }
