@@ -1357,6 +1357,22 @@ html {
     min-width: 44px;
     min-height: 44px;
   }
+  /* Compact text buttons (Copy words, Keep showing), a toast's close and a
+     dialog's close: hit at 44 px, laid out at their own size. */
+  .mantine-Button-root[data-variant='subtle'][data-size^='compact'] {
+    min-height: 44px;
+    margin-block: calc((var(--button-height) - 44px) / 2);
+  }
+  .mantine-Notification-closeButton.mantine-Notification-closeButton {
+    min-width: 44px;
+    min-height: 44px;
+    margin: -8px;
+  }
+  .mantine-Modal-close.mantine-Modal-close {
+    min-width: 44px;
+    min-height: 44px;
+    margin: -2px;
+  }
 }
 
 /* A history row title (a contact name can be long) wraps to two lines,
