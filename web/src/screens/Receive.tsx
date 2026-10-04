@@ -540,33 +540,38 @@ export function Receive() {
             <Tabs.Panel value="address">
               <Stack>
                 {noteOf(addressArrival)}
-                {qr ? <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => { giveOut(kind, index); setEnlarged('address'); }} /> : !addressError && <QrPending />}
-                {/* The address shortened, for recognising it by its start and end.
-                    Copy, Share and the code always carry it in full, and so does
-                    text copied from here; a Standard address runs to some 3,500
-                    characters, which nobody reads. */}
-                <div className="vault-address-box" onCopy={copyWhole}>
-                  <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
+                {/* On a phone on its side the code stands beside the rest, so Copy is on the first screen. */}
+                <div className="vault-receive-code">
+                  {qr ? <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => { giveOut(kind, index); setEnlarged('address'); }} /> : !addressError && <QrPending />}
+                  <Stack className="vault-receive-side">
+                    {/* The address shortened, for recognising it by its start and end.
+                        Copy, Share and the code always carry it in full, and so does
+                        text copied from here; a Standard address runs to some 3,500
+                        characters, which nobody reads. */}
+                    <div className="vault-address-box" onCopy={copyWhole}>
+                      <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
+                    </div>
+                    {addressError && (
+                      <Text size="sm" c="var(--v-danger-text)">
+                        Could not derive this address: {addressError}
+                      </Text>
+                    )}
+                    {/* Its exposure cannot be taken back: read right before sharing. */}
+                    {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
+                    <Group className="vault-receive-actions">
+                      {/* One word, as Share is: the code says what it copies, and
+                          so does the note it leaves. A screen reader hears it whole. */}
+                      <Button leftSection={<IconCopy size={16} />} onClick={copy} disabled={!address} aria-label="Copy address" aria-describedby={cautionId}>
+                        Copy
+                      </Button>
+                      {canShare && (
+                        <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby={cautionId}>
+                          Share
+                        </Button>
+                      )}
+                    </Group>
+                  </Stack>
                 </div>
-                {addressError && (
-                  <Text size="sm" c="var(--v-danger-text)">
-                    Could not derive this address: {addressError}
-                  </Text>
-                )}
-                {/* Its exposure cannot be taken back: read right before sharing. */}
-                {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
-                <Group className="vault-receive-actions">
-                  {/* One word, as Share is: the code above says what it copies, and
-                      so does the note it leaves. A screen reader hears it whole. */}
-                  <Button leftSection={<IconCopy size={16} />} onClick={copy} disabled={!address} aria-label="Copy address" aria-describedby={cautionId}>
-                    Copy
-                  </Button>
-                  {canShare && (
-                    <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby={cautionId}>
-                      Share
-                    </Button>
-                  )}
-                </Group>
               </Stack>
             </Tabs.Panel>
 
@@ -606,23 +611,27 @@ export function Receive() {
                 {noteOf(requestArrival)}
                 {/* The code, then what to do with it: the same order as the Address
                     tab. While the amount is unfinished the code keeps its place. */}
-                {requestInvalid ? <QrPending waiting={false} /> : requestQr ? <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => { giveOut(kind, index); setEnlarged('request'); }} /> : <QrPending />}
-                {requestQrNote && !requestInvalid && (
-                  <Text size="sm" c="dimmed">
-                    {requestQrNote}
-                  </Text>
-                )}
-                {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
-                <Group className="vault-receive-actions">
-                  <Button leftSection={<IconCopy size={16} />} onClick={copyRequest} disabled={requestInvalid} aria-label="Copy request" aria-describedby={cautionId}>
-                    Copy
-                  </Button>
-                  {canShare && (
-                    <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareRequest()} disabled={requestInvalid} aria-describedby={cautionId}>
-                      Share
-                    </Button>
-                  )}
-                </Group>
+                <div className="vault-receive-code">
+                  {requestInvalid ? <QrPending waiting={false} /> : requestQr ? <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => { giveOut(kind, index); setEnlarged('request'); }} /> : <QrPending />}
+                  <Stack className="vault-receive-side">
+                    {requestQrNote && !requestInvalid && (
+                      <Text size="sm" c="dimmed">
+                        {requestQrNote}
+                      </Text>
+                    )}
+                    {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
+                    <Group className="vault-receive-actions">
+                      <Button leftSection={<IconCopy size={16} />} onClick={copyRequest} disabled={requestInvalid} aria-label="Copy request" aria-describedby={cautionId}>
+                        Copy
+                      </Button>
+                      {canShare && (
+                        <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareRequest()} disabled={requestInvalid} aria-describedby={cautionId}>
+                          Share
+                        </Button>
+                      )}
+                    </Group>
+                  </Stack>
+                </div>
               </Stack>
             </Tabs.Panel>
 

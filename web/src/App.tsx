@@ -231,7 +231,7 @@ export function App() {
         </a>
       )}
       <header className="vault-topbar">
-        <Container size="xs" py="sm" className="vault-topbar-inner">
+        <Container size="xs" className="vault-topbar-inner">
           <Group justify="space-between" align="center">
             {/* The desktop app's title bar already names it: the header keeps
                 the mark. On a narrow phone the name gives way too, to leave

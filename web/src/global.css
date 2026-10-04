@@ -83,11 +83,12 @@
      the library's --mantine-font-family-monospace. */
   --v-fs-mono: var(--v-fs-sm);
   /* The content column's width, padding included: Mantine's xs container
-     (540 px) on a phone or a narrow window, 720 px from 900 px up (below).
+     (540 px) on a phone or a narrow window, 720 px from 900 px up (below),
+     and on a phone on its side, which takes the rail too.
      The send and update strips under the header line up with it. */
   --v-content-width: 540px;
 }
-@media (min-width: 900px) {
+@media (min-width: 900px), (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
   :root {
     --v-content-width: 720px;
   }
@@ -483,6 +484,9 @@ h3.mantine-Title-root.vault-prose-heading {
   padding-top: env(safe-area-inset-top);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+}
+.vault-topbar-inner {
+  padding-block: var(--mantine-spacing-sm);
 }
 .vault-brand {
   display: flex;
@@ -1858,8 +1862,9 @@ html {
    setting, which only Chromium reads and which changes how every screen
    meets the keyboard; here Safari and Firefox behave the same, and without
    :has() the bar simply stays. Checkboxes, radios and read-only fields (a
-   Select) bring up no keyboard, so they leave it. */
-@media (pointer: coarse) and (max-width: 899.98px) {
+   Select) bring up no keyboard, so they leave it. A phone on its side has
+   the rail at the side instead, beside the fields, and it stays. */
+@media (pointer: coarse) and (max-width: 559.98px), (pointer: coarse) and (max-width: 899.98px) and (min-height: 500.02px), (pointer: coarse) and (max-width: 899.98px) and (max-aspect-ratio: 1599/1000) {
   body:has(:is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='button'], [type='submit'], [readonly]), textarea:not([readonly])):focus) .vault-tabbar {
     display: none;
   }
@@ -1887,8 +1892,11 @@ html {
 
 /* A wide window is not a big phone: from 900 px the tabs become a rail on
    the left, the header spans the window, and every screen shares one
-   centred width, with Home's balance as a band over the history. */
-@media (min-width: 900px) {
+   centred width, with Home's balance as a band over the history. A phone
+   on its side (a screen at most 500 px high and at least 16:10) takes the
+   same layout: along its foot the tab bar and the header took a third of
+   the height. */
+@media (min-width: 900px), (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
   /* The rail is 88 px plus, on an iPhone in landscape, the notch's inset:
      its tabs keep their width clear of the notch, and the content column
      keeps clear of an inset on the right. */
@@ -1968,7 +1976,17 @@ html {
   .vault-main.vault-main {
     max-width: var(--v-content-width);
   }
-  /* The balance as a band: the figures on the left, the actions on the right. */
+  /* Receive's code at a size to scan from a monitor, centred like a
+     picture; everything else on the card spans its width, as on Send. */
+  .vault-qr-code.vault-qr-code {
+    max-width: 420px;
+    margin-inline: auto;
+  }
+}
+/* The balance as a band: the figures on the left, the actions on the
+   right, where the column holds both (on a phone on its side, from 700 px;
+   below that the figures were squeezed to a few words a line). */
+@media (min-width: 900px), (max-height: 500px) and (min-width: 700px) and (min-aspect-ratio: 16/10) {
   .vault-main-home .vault-balance-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 280px;
@@ -1978,11 +1996,22 @@ html {
   .vault-main-home .vault-balance-head {
     justify-content: flex-start;
   }
-  /* Receive's code at a size to scan from a monitor, centred like a
-     picture; everything else on the card spans its width, as on Send. */
-  .vault-qr-code.vault-qr-code {
-    max-width: 420px;
-    margin-inline: auto;
+}
+/* On a phone on its side the header and the rail's tabs are compact, and
+   the rail scrolls should its tabs not fit, as with the keyboard open. */
+@media (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
+  .vault-topbar-inner.vault-topbar-inner {
+    padding-block: 4px;
+  }
+  .vault-tabbar {
+    padding-top: calc(56px + env(safe-area-inset-top));
+    overflow-y: auto;
+  }
+  .vault-tabs.vault-tabs {
+    gap: 2px;
+  }
+  .vault-tab {
+    padding-block: 6px;
   }
 }
 /* Settings' list beside its open page needs more than one column's width. */
@@ -2222,6 +2251,28 @@ html {
   width: 100%;
   height: auto;
 }
+/* The code, then the address and its buttons; on a phone on its side the
+   code stands at their left, at a size that leaves Copy on the screen. */
+.vault-receive-code {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-md);
+}
+@media (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
+  .vault-receive-code {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .vault-receive-code > .vault-qr-code.vault-qr-code {
+    flex: none;
+    width: min(240px, 40%);
+    margin-inline: 0;
+  }
+  .vault-receive-side {
+    flex: 1;
+    min-width: 0;
+  }
+}
 .vault-qr-code:focus-visible {
   outline: 2px solid var(--v-accent);
   outline-offset: 3px;
@@ -2317,7 +2368,7 @@ html {
 
 /* On a wide screen a sentence stops at a readable length (about 70
    characters) instead of running the full width of the card. */
-@media (min-width: 900px) {
+@media (min-width: 900px), (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
   main p.mantine-Text-root,
   main .vault-notice-text {
     max-width: 68ch;
@@ -2644,15 +2695,24 @@ html {
   scroll-padding-top: calc(70px + env(safe-area-inset-top, 0px));
   scroll-padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
 }
-@media (min-width: 900px) {
+@media (min-width: 900px), (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
   html {
     scroll-padding-bottom: 0;
   }
 }
+@media (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
+  html {
+    scroll-padding-top: calc(56px + env(safe-area-inset-top, 0px));
+  }
+}
 /* So little height (a laptop at 400% zoom) that the two bars would cover
-   most of it: they scroll with the page instead. */
+   most of it: they scroll with the page instead. A rail at the side stays. */
 @media (max-height: 300px) {
-  .vault-topbar.vault-topbar,
+  .vault-topbar.vault-topbar {
+    position: static;
+  }
+}
+@media (max-height: 300px) and (max-width: 559.98px) {
   .vault-tabbar.vault-tabbar {
     position: static;
   }
