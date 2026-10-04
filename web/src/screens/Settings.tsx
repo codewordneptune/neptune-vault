@@ -862,7 +862,7 @@ function AutoLockSetting() {
   const [ms, setMs] = useState(lockTimeoutOf(services.settings.lockTimeoutMs));
   const [background, setBackground] = useState(backgroundLockOf(services.settings.backgroundLockMs));
   return (
-    <Stack gap={6}>
+    <Stack>
       <Select
         label="Lock after"
         data={LOCK_CHOICES_MS.map((choice) => ({ value: String(choice), label: `${choice / 60_000} ${choice === 60_000 ? 'minute' : 'minutes'} idle` }))}
@@ -876,24 +876,26 @@ function AutoLockSetting() {
           void services.updateSettings({ lockTimeoutMs: next }).then(changed);
         }}
       />
-      <Select
-        label={DESKTOP ? 'When the window is minimized' : 'When the app goes to the background'}
-        data={BACKGROUND_LOCK_CHOICES_MS.map((choice) => ({ value: String(choice), label: choice === 0 ? 'Lock at once' : choice < 60_000 ? `Lock after ${choice / 1000} seconds` : `Lock after ${choice / 60_000} minutes` }))}
-        value={String(background)}
-        allowDeselect={false}
-        onChange={(v) => {
-          if (!v) return;
-          const next = Number(v);
-          setBackground(next);
-          services.accounts.setBackgroundLock(next);
-          void services.updateSettings({ backgroundLockMs: next });
-        }}
-      />
-      <Text size="sm" c="dimmed">
-        {background === 0
-          ? 'Locking at once is the safest. A short wait lets you copy an address into another app and come back without unlocking again.'
-          : 'While it waits, anyone who picks up the unlocked device can use the wallet. A send still asks for the password or passkey unless you turned that off.'}
-      </Text>
+      <Stack gap={6}>
+        <Select
+          label={DESKTOP ? 'When the window is minimized' : 'When the app goes to the background'}
+          data={BACKGROUND_LOCK_CHOICES_MS.map((choice) => ({ value: String(choice), label: choice === 0 ? 'Lock at once' : choice < 60_000 ? `Lock after ${choice / 1000} seconds` : `Lock after ${choice / 60_000} minutes` }))}
+          value={String(background)}
+          allowDeselect={false}
+          onChange={(v) => {
+            if (!v) return;
+            const next = Number(v);
+            setBackground(next);
+            services.accounts.setBackgroundLock(next);
+            void services.updateSettings({ backgroundLockMs: next });
+          }}
+        />
+        <Text size="sm" c="dimmed">
+          {background === 0
+            ? 'Locking at once is the safest. A short wait lets you copy an address into another app and come back without unlocking again.'
+            : 'While it waits, anyone who picks up the unlocked device can use the wallet. A send still asks for the password or passkey unless you turned that off.'}
+        </Text>
+      </Stack>
     </Stack>
   );
 }
@@ -1124,7 +1126,7 @@ function ChangePassword() {
             Cancel
           </Button>
           <Button type="submit" loading={busy} disabled={!account || !current || !newPasswordOk(next, again)}>
-            Save new password
+            Save
           </Button>
         </Group>
         {error && <ErrorLine onClose={() => setError(null)}>{error}</ErrorLine>}
@@ -1206,8 +1208,8 @@ function SegmentLabel({ Icon, children }: { Icon: TablerIcon; children: ReactNod
 
 // The balance in an ordinary currency, off unless asked for: turning it on
 // means asking a price site, which learns this device's address and that it
-// runs a Neptune Cash wallet. The sentence under the choice says so, and
-// that the figure is rough.
+// runs a Neptune Cash wallet. The field's description says so, and that the
+// figure is rough; which service is asked when is in Privacy.
 function FiatCard() {
   const { services } = useApp();
   const changed = useContext(SettingsChangedContext);
@@ -1216,9 +1218,10 @@ function FiatCard() {
   // is fresh, its age: both are here.
   const quote = useQuote(isFiatCurrency(currency) ? currency : undefined);
   return (
-    <Stack gap="xs">
+    <Stack gap={6}>
       <Select
         label="Value in another currency"
+        description="Shows a rough estimate under your balance. While it is on, the app asks CoinGecko or CoinPaprika for the NPT price every 10 minutes: they see this device's IP address, which can show roughly where you are, but not your wallet."
         allowDeselect={false}
         value={currency}
         onChange={(v) => {
@@ -1233,10 +1236,6 @@ function FiatCard() {
           Last price from {quote.source}, <Spoken text={timeAgo(quote.at)} />: <span style={{ whiteSpace: 'nowrap' }}>1 NPT ≈ <Spoken text={formatFiat(quote.price, quote.currency)} /></span>.
         </Text>
       )}
-      {/* What it shows and what it costs, in a sentence; which service is asked when, in Privacy. */}
-      <Text size="sm" c="dimmed">
-        Shows a rough estimate under your balance. While it is on, the app asks CoinGecko or CoinPaprika for the NPT price every 10 minutes: they see this device's IP address, which can show roughly where you are, but not your wallet.
-      </Text>
     </Stack>
   );
 }
@@ -1667,26 +1666,24 @@ function RescanCard() {
             The balance and History are rebuilt from the chain, and sends keep who they paid, their fees and their notes. Your coins are not affected.
             {waiting > 0 && ` ${waiting === 1 ? '1 send is' : `${waiting} sends are`} still pending: the rescan keeps ${waiting === 1 ? 'it' : 'them'} as ${waiting === 1 ? 'it is' : 'they are'}.`}
           </Text>
-          <SegmentedControl
-            fullWidth
-            aria-label="How to rescan"
-            value={fast ? 'fast' : 'private'}
-            onChange={(v) => setFast(v === 'fast')}
-            data={[
-              { value: 'fast', label: 'Fast rescan' },
-              { value: 'private', label: 'Private rescan' },
-            ]}
-          />
-          {fast ? (
+          <Stack gap={6}>
+            <SegmentedControl
+              fullWidth
+              aria-label="How to rescan"
+              value={fast ? 'fast' : 'private'}
+              onChange={(v) => setFast(v === 'fast')}
+              data={[
+                { value: 'fast', label: 'Fast rescan' },
+                { value: 'private', label: 'Private rescan' },
+              ]}
+            />
+            {/* For a private rescan, the same question as a private restore: the month, with the block number behind a disclosure. */}
             <Text size="sm" c="dimmed">
-              {FAST_SCAN}
+              {fast ? FAST_SCAN : 'When did this wallet first receive a payment? Every block from then is downloaded and scanned here, so an earlier month takes longer.'}
             </Text>
-          ) : (
+          </Stack>
+          {!fast && (
             <>
-              {/* The same question as a private restore: the month, with the block number behind a disclosure. */}
-              <Text size="sm" c="dimmed">
-                When did this wallet first receive a payment? Every block from then is downloaded and scanned here, so an earlier month takes longer.
-              </Text>
               <StartBlockPicker
                 value={height}
                 onChange={(v) => {

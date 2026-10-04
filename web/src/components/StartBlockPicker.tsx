@@ -115,31 +115,34 @@ export function StartBlockPicker({
   const from = lookup.kind === 'found' ? lookup.height : typed;
   const download = network === 'main' && tip !== null && from !== null && tip > from ? ` About ${downloadSize(tip - from)} to download.` : '';
   return (
-    <Stack gap="xs">
-      <Group grow>
-        <Select label="Month" placeholder="Month" data={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, '0'), label: name }))} value={monthNo || null} onChange={(v) => setPart(year, v ?? '')} />
-        <Select label="Year" placeholder="Year" data={years} value={year || null} onChange={(v) => setPart(v ?? '', monthNo)} />
-      </Group>
-      {/* The lookup's answers are announced: it takes a few seconds, and they
-          appear on their own. What follows from a typed block number is only
-          shown, so each keystroke is not read out. */}
-      {lookup.kind === 'idle' ? (
-        <Text size="sm" c="dimmed">
-          <Spoken
-            text={
-              typed !== null
-                ? `The scan starts at block ${showBlock(typed)} and runs on this device. The node learns nothing about your coins.${download}`
-                : 'Scanning starts at the first block of that month, on this device. The node learns nothing about your coins.'
-            }
-          />
-        </Text>
-      ) : (
-        <Text size="sm" c={lookup.kind === 'failed' ? 'var(--v-danger-text)' : 'dimmed'} role="status">
-          {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
-          {lookup.kind === 'found' && <Spoken text={`The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.${download}`} />}
-          {lookup.kind === 'failed' && lookup.message}
-        </Text>
-      )}
+    <Stack>
+      {/* The month and year, and under them, as a field's own note, where the scan starts. */}
+      <Stack gap={6}>
+        <Group grow>
+          <Select label="Month" placeholder="Month" data={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, '0'), label: name }))} value={monthNo || null} onChange={(v) => setPart(year, v ?? '')} />
+          <Select label="Year" placeholder="Year" data={years} value={year || null} onChange={(v) => setPart(v ?? '', monthNo)} />
+        </Group>
+        {/* The lookup's answers are announced: it takes a few seconds, and they
+            appear on their own. What follows from a typed block number is only
+            shown, so each keystroke is not read out. */}
+        {lookup.kind === 'idle' ? (
+          <Text size="sm" c="dimmed">
+            <Spoken
+              text={
+                typed !== null
+                  ? `The scan starts at block ${showBlock(typed)} and runs on this device. The node learns nothing about your coins.${download}`
+                  : 'Scanning starts at the first block of that month, on this device. The node learns nothing about your coins.'
+              }
+            />
+          </Text>
+        ) : (
+          <Text size="sm" c={lookup.kind === 'failed' ? 'var(--v-danger-text)' : 'dimmed'} role="status">
+            {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
+            {lookup.kind === 'found' && <Spoken text={`The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.${download}`} />}
+            {lookup.kind === 'failed' && lookup.message}
+          </Text>
+        )}
+      </Stack>
       <details className="vault-setting" open={lookup.kind === 'failed' || Boolean(error)}>
         <summary>
           <IconChevronRight size={16} className="vault-setting-chevron" aria-hidden />

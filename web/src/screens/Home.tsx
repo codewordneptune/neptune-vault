@@ -923,7 +923,7 @@ export function Home() {
             )}
             {/* Calm, as on Home's notice: the dialog it opens says why and holds the red button. */}
             {detail.kind !== 'received' && detail.record.status === 'pending' && (
-              <Group justify="flex-end" mt="xs">
+              <Group justify="flex-end" mt={4}>
                 <Button
                   variant="light"
                   onClick={() => {
@@ -938,7 +938,7 @@ export function Home() {
             {/* Once it can no longer go through, a send that was not sent can go; until then, from when. */}
             {removeFrom !== null &&
               (Date.now() >= removeFrom ? (
-                <Group justify="flex-end" mt="xs">
+                <Group justify="flex-end" mt={4}>
                   <Button
                     variant="light"
                     onClick={() => {

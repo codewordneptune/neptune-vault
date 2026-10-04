@@ -571,13 +571,8 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
             )}
           </Text>
         </Group>
-        <Stack gap={4}>
-          <PasswordInput label="Backup file password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
-          {/* The restored wallet keeps the file's password: said here, so an old password does not surprise at the next unlock. */}
-          <Text size="sm" c="dimmed">
-            It also unlocks the wallet after restoring.
-          </Text>
-        </Stack>
+        {/* The restored wallet keeps the file's password: said here, so an old password does not surprise at the next unlock. */}
+        <PasswordInput label="Backup file password" description="It also unlocks the wallet after restoring." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
         {/* How to restore, as one line with its choice; Change opens the choice. */}
         {optionsOpen ? (
           <>
