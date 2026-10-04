@@ -3,7 +3,7 @@
 // re-wraps the content key without touching the seed ciphertext (section 6 of
 // the architecture document).
 
-import type { SeedEnvelope, SendDetails } from './db';
+import type { SeedEnvelope, SeedUnlock, SendDetails } from './db';
 
 /** Argon2id parameters; stored in the envelope so they can change later. */
 export interface KdfParams {
@@ -288,6 +288,104 @@ export async function openSeedWithSecretKeepingKey(
   }
 }
 
+// The seed phrase's own way to the content key, for setting a new password
+// when the old one is forgotten. A phrase carries 192 bits, so HKDF is
+// enough where a password needs Argon2id. The words are taken lower case,
+// one space apart, as the envelope keeps them. vault-core's kdf.rs derives
+// the same key for the shells, held to this by the shared test vector.
+const SEED_UNLOCK_INFO = te.encode('neptune-vault seed unlock key v1');
+
+function phraseText(phrase: string[]): string {
+  return phrase
+    .map((w) => w.trim().toLowerCase())
+    .filter((w) => w !== '')
+    .join(' ');
+}
+
+/** The key the seed phrase wraps the content key under. Zero it when done. */
+export async function seedUnlockKey(phrase: string[], salt: Uint8Array): Promise<Uint8Array> {
+  const ikm = await subtle().importKey('raw', ab(te.encode(phraseText(phrase))), 'HKDF', false, ['deriveBits']);
+  const bits = await subtle().deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: ab(salt), info: ab(SEED_UNLOCK_INFO) }, ikm, 256);
+  return new Uint8Array(bits);
+}
+
+/** Wrap the content key under the seed phrase, with a fresh salt. */
+export async function sealSeedUnlock(phrase: string[], contentRaw: Uint8Array): Promise<SeedUnlock> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await seedUnlockKey(phrase, salt);
+  try {
+    return { salt: toB64(salt), wrappedContentKey: await wrapContentKey(contentRaw, key) };
+  } finally {
+    key.fill(0);
+  }
+}
+
+/** Everything about a seed phrase's wrapping that can be checked without the phrase; see assertEnvelope. */
+export function assertSeedUnlock(seedUnlock: unknown): asserts seedUnlock is SeedUnlock {
+  const u = seedUnlock as Partial<SeedUnlock> | null;
+  if (typeof u !== 'object' || u === null) throw new Error('This wallet data is malformed (seed phrase key).');
+  const salt = bytesOf(u.salt, 'seed phrase key').length;
+  const wrapped = boxLengths(u.wrappedContentKey, 'seed phrase key');
+  if (salt < 16 || salt > 64 || wrapped.iv !== 12 || wrapped.ciphertext !== 48) throw new Error('This wallet data is malformed (seed phrase key).');
+}
+
+export class WrongPhraseError extends Error {
+  constructor() {
+    super('wrong seed phrase');
+    this.name = 'WrongPhraseError';
+  }
+}
+
+/**
+ * The content key and the key that opened it, from the seed phrase. The
+ * phrase is this wallet's when it opens the wrapping and the content key
+ * then opens a seed that is the same phrase. Throws WrongPhraseError. Zero
+ * both when done.
+ */
+export async function openWithPhrase(envelope: SeedEnvelope, seedUnlock: SeedUnlock, phrase: string[]): Promise<{ contentKey: Uint8Array; secret: Uint8Array }> {
+  assertEnvelope(envelope);
+  assertSeedUnlock(seedUnlock);
+  const secret = await seedUnlockKey(phrase, fromB64(seedUnlock.salt));
+  let contentRaw: Uint8Array;
+  try {
+    contentRaw = await aesDecrypt(await importAesKey(secret, ['decrypt']), seedUnlock.wrappedContentKey);
+  } catch {
+    secret.fill(0);
+    throw new WrongPhraseError();
+  }
+  let seed: string | null = null;
+  try {
+    seed = td.decode(await aesDecrypt(await importAesKey(contentRaw, ['decrypt']), envelope.seed));
+  } catch {
+    // A seed that does not open is not this phrase either.
+  }
+  if (seed === null || phraseText(seed.split(' ')) !== phraseText(phrase)) {
+    contentRaw.fill(0);
+    secret.fill(0);
+    throw new Error('The seed phrase is right, but the stored wallet is damaged or has been changed, so it cannot be opened. Restore it from your seed phrase or a backup file.');
+  }
+  return { contentKey: contentRaw, secret };
+}
+
+/** The envelope with the content key wrapped under a new password; the seed ciphertext stays. */
+export async function withNewPassword(
+  envelope: SeedEnvelope,
+  contentRaw: Uint8Array,
+  newPassword: string,
+  deriveKey: DeriveKey,
+  kdf: KdfParams = DEFAULT_KDF,
+): Promise<SeedEnvelope> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const newRaw = await deriveKey(te.encode(newPassword), salt, kdf.mKib, kdf.tCost, kdf.pCost);
+  const newKey = await importAesKey(newRaw, ['encrypt']);
+  newRaw.fill(0);
+  return {
+    ...envelope,
+    kdf: { name: 'argon2id', mKib: kdf.mKib, tCost: kdf.tCost, pCost: kdf.pCost, salt: toB64(salt) },
+    wrappedContentKey: await aesEncrypt(newKey, contentRaw),
+  };
+}
+
 /** Re-wrap the content key under a new password; the seed ciphertext stays. */
 export async function changePassword(
   envelope: SeedEnvelope,
@@ -296,27 +394,12 @@ export async function changePassword(
   deriveKey: DeriveKey,
   kdf: KdfParams = DEFAULT_KDF,
 ): Promise<SeedEnvelope> {
-  assertEnvelope(envelope);
-  const oldRaw = await deriveKey(te.encode(oldPassword), fromB64(envelope.kdf.salt), envelope.kdf.mKib, envelope.kdf.tCost, envelope.kdf.pCost);
-  const oldKey = await importAesKey(oldRaw, ['decrypt']);
-  oldRaw.fill(0);
-  let contentRaw: Uint8Array;
+  const contentRaw = await extractContentKey(envelope, oldPassword, deriveKey);
   try {
-    contentRaw = await aesDecrypt(oldKey, envelope.wrappedContentKey);
-  } catch {
-    throw new WrongPasswordError();
+    return await withNewPassword(envelope, contentRaw, newPassword, deriveKey, kdf);
+  } finally {
+    contentRaw.fill(0);
   }
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const newRaw = await deriveKey(te.encode(newPassword), salt, kdf.mKib, kdf.tCost, kdf.pCost);
-  const newKey = await importAesKey(newRaw, ['encrypt']);
-  const wrappedContentKey = await aesEncrypt(newKey, contentRaw);
-  newRaw.fill(0);
-  contentRaw.fill(0);
-  return {
-    ...envelope,
-    kdf: { name: 'argon2id', mKib: kdf.mKib, tCost: kdf.tCost, pCost: kdf.pCost, salt: toB64(salt) },
-    wrappedContentKey,
-  };
 }
 
 /**

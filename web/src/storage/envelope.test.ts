@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { assertEnvelope, changePassword, isWeakerThanDefault, DEFAULT_KDF, KDF_CEILING, MAX_BACKUP_BYTES, openSeed, parseBackupFile, sealSeed, WrongPasswordError, type DeriveKey } from './envelope';
+import { assertEnvelope, assertSeedUnlock, changePassword, extractContentKey, isWeakerThanDefault, DEFAULT_KDF, KDF_CEILING, MAX_BACKUP_BYTES, openSeed, openWithPhrase, parseBackupFile, sealSeed, sealSeedUnlock, withNewPassword, WrongPasswordError, WrongPhraseError, type DeriveKey } from './envelope';
 
 // Stand-in for the wasm Argon2id: deterministic, salted, 32 bytes. The real
 // function is exercised by the Rust tests; here only the envelope logic is.
@@ -52,6 +52,44 @@ describe('passkey wrapping', () => {
     expect(await openSeedWithSecret(env, wrapped, secret)).toEqual(phrase);
     await expect(openSeedWithSecret(env, wrapped, new Uint8Array(32).fill(8))).rejects.toThrow('no longer matches');
     await expect(extractContentKey(env, 'nope', fakeDerive)).rejects.toThrow(WrongPasswordError);
+  });
+});
+
+describe('seed phrase wrapping', () => {
+  it('opens with the phrase as typed, sets a new password, and keeps the seed', async () => {
+    const env = await sealSeed(phrase, 'forgotten', fakeDerive, { mKib: 8, tCost: 1, pCost: 1 });
+    const contentRaw = await extractContentKey(env, 'forgotten', fakeDerive);
+    const seedUnlock = await sealSeedUnlock(phrase, contentRaw);
+    expect(() => assertSeedUnlock(seedUnlock)).not.toThrow();
+
+    const typed = phrase.map((w, i) => (i === 0 ? ` ${w.toUpperCase()} ` : w));
+    const opened = await openWithPhrase(env, seedUnlock, typed);
+    expect(opened.contentKey).toEqual(contentRaw);
+    const next = await withNewPassword(env, opened.contentKey, 'remembered', fakeDerive, { mKib: 8, tCost: 1, pCost: 1 });
+    expect(next.seed).toEqual(env.seed);
+    await expect(openSeed(next, 'remembered', fakeDerive)).resolves.toEqual(phrase);
+    await expect(openSeed(next, 'forgotten', fakeDerive)).rejects.toBeInstanceOf(WrongPasswordError);
+  });
+
+  it('refuses another phrase, and a wrapping that does not belong to the envelope', async () => {
+    const env = await sealSeed(phrase, 'pw', fakeDerive, { mKib: 8, tCost: 1, pCost: 1 });
+    const seedUnlock = await sealSeedUnlock(phrase, await extractContentKey(env, 'pw', fakeDerive));
+    const swapped = [phrase[1], phrase[0], ...phrase.slice(2)];
+    await expect(openWithPhrase(env, seedUnlock, swapped)).rejects.toBeInstanceOf(WrongPhraseError);
+
+    // The phrase opens a content key, but not one that opens this seed.
+    const other = await sealSeed(phrase, 'pw', fakeDerive, { mKib: 8, tCost: 1, pCost: 1 });
+    await expect(openWithPhrase(other, seedUnlock, phrase)).rejects.toThrow(/damaged or has been changed/);
+
+    const b64 = (n: number) => btoa(String.fromCharCode(...new Uint8Array(n)));
+    for (const bad of [{ ...seedUnlock, salt: b64(8) }, { ...seedUnlock, wrappedContentKey: { ...seedUnlock.wrappedContentKey, ciphertext: b64(64) } }, null]) {
+      expect(() => assertSeedUnlock(bad)).toThrow(/malformed/);
+    }
+  });
+
+  it('uses a fresh salt every time', async () => {
+    const contentRaw = new Uint8Array(32).fill(3);
+    expect((await sealSeedUnlock(phrase, contentRaw)).salt).not.toBe((await sealSeedUnlock(phrase, contentRaw)).salt);
   });
 });
 

@@ -92,6 +92,10 @@ pub struct WalletHeader {
     /// Passkey unlock: the content key wrapped under the passkey's secret.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub passkey: Option<Value>,
+    /// The content key wrapped under the seed phrase, which lets the phrase
+    /// set a new password.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed_unlock: Option<Value>,
 }
 
 /// Per device, not per wallet: node addresses, the lock timeout, the theme.

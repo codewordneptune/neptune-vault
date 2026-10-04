@@ -13,7 +13,7 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use tauri::Manager;
 use tauri::State;
-use vault_bridge::envelope::{SealedBox, SeedEnvelope};
+use vault_bridge::envelope::{SealedBox, SeedEnvelope, SeedUnlock};
 use vault_bridge::{BridgeError, Prover, ProveEvent, ProveOutcome, SendPlan, Vault};
 
 /// What the app holds for as long as it is running: one wallet, one prover.
@@ -97,8 +97,9 @@ fn wallet_unlock_envelope(
     envelope: SeedEnvelope,
     password: String,
     network: String,
-) -> Result<()> {
-    app.vault.unlock_envelope(&envelope, &password, &network)
+    seed_unlock: bool,
+) -> Result<Option<SeedUnlock>> {
+    app.vault.unlock_envelope(&envelope, &password, &network, seed_unlock)
 }
 
 #[tauri::command]
@@ -108,10 +109,11 @@ fn wallet_unlock_envelope_with_secret(
     wrapped: SealedBox,
     secret: String,
     network: String,
-) -> Result<()> {
-    let secret = bytes("the passkey secret", &secret)?;
+    seed_unlock: bool,
+) -> Result<Option<SeedUnlock>> {
+    let secret = bytes("the secret", &secret)?;
     app.vault
-        .unlock_envelope_with_secret(&envelope, &wrapped, &secret, &network)
+        .unlock_envelope_with_secret(&envelope, &wrapped, &secret, &network, seed_unlock)
 }
 
 #[tauri::command]

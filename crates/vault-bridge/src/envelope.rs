@@ -12,15 +12,20 @@
 //!
 //! The middle layer is what lets a passkey open the same envelope: the
 //! content key is wrapped a second time under the passkey's secret, and
-//! that box is stored beside the envelope rather than in it.
+//! that box is stored beside the envelope rather than in it. A third time,
+//! under a key from the seed phrase, lets the phrase set a new password
+//! (`SeedUnlock`); this side only makes that box, at an unlock, since the
+//! page opens it with the phrase it was typed into.
 //!
 //! Only the AES layering is written twice, once here and once in
 //! TypeScript. Argon2id is not: both sides call `vault_core::kdf`, one
 //! through wasm and one directly, so the expensive half of the format
-//! cannot drift. The layering is held to the other implementation by
+//! cannot drift. The layering, and the seed phrase's key, which the web
+//! app derives with WebCrypto, are held to the other implementation by
 //! `test-vectors/seed-envelope.json`, which both test suites read.
 
-use aes_gcm::aead::{Aead, KeyInit, Payload};
+use aes_gcm::aead::rand_core::RngCore;
+use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
@@ -204,6 +209,41 @@ pub fn open_seed(envelope: &SeedEnvelope, password: &str) -> Result<Vec<String>>
     phrase_from_content_key(envelope, &content)
 }
 
+/// The content key wrapped under the seed phrase, stored on the account
+/// record beside the envelope as `seedUnlock`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeedUnlock {
+    /// base64, HKDF's salt.
+    pub salt: String,
+    pub wrapped_content_key: SealedBox,
+}
+
+/// Seal one box under a 32-byte key, with a fresh IV.
+fn seal_box(key: &[u8], plaintext: &[u8], what: &str) -> Result<SealedBox> {
+    let key: [u8; 32] = key.try_into().map_err(|_| malformed(what))?;
+    let cipher = Aes256Gcm::new(&key.into());
+    let iv = Aes256Gcm::generate_nonce(&mut OsRng);
+    let ciphertext = cipher
+        .encrypt(&iv, plaintext)
+        .map_err(|_| BridgeError::plain(format!("The {what} could not be sealed.")))?;
+    Ok(SealedBox {
+        iv: BASE64.encode(iv),
+        ciphertext: BASE64.encode(ciphertext),
+    })
+}
+
+/// Wrap the content key under the seed phrase, with a fresh salt.
+pub fn seal_seed_unlock(phrase: &[String], content_key: &[u8]) -> Result<SeedUnlock> {
+    let mut salt = [0u8; 16];
+    OsRng.fill_bytes(&mut salt);
+    let key = vault_core::kdf::seed_unlock_key(phrase, &salt)?;
+    Ok(SeedUnlock {
+        salt: BASE64.encode(salt),
+        wrapped_content_key: seal_box(key.as_slice(), content_key, "seed phrase key")?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,6 +261,15 @@ mod tests {
         /// The content key wrapped under a passkey secret, and that secret.
         passkey_wrapped: SealedBox,
         passkey_secret: String,
+        /// The content key wrapped under the phrase's key.
+        seed_unlock: SeedUnlock,
+    }
+
+    /// The content key, as the seed phrase opens it.
+    fn content_key_from_phrase(unlock: &SeedUnlock, phrase: &[String]) -> Result<Zeroizing<Vec<u8>>> {
+        let salt = BASE64.decode(&unlock.salt).unwrap();
+        let key = vault_core::kdf::seed_unlock_key(phrase, &salt).unwrap();
+        open_box(key.as_slice(), &unlock.wrapped_content_key, "seed phrase key")
     }
 
     fn vector() -> Vector {
@@ -247,6 +296,26 @@ mod tests {
         let secret = BASE64.decode(&v.passkey_secret).unwrap();
         let content = content_key_from_secret(&v.passkey_wrapped, &secret).unwrap();
         assert_eq!(phrase_from_content_key(&v.envelope, &content).unwrap(), v.phrase);
+    }
+
+    #[test]
+    fn opens_the_shared_vector_through_the_seed_phrase() {
+        let v = vector();
+        let content = content_key_from_phrase(&v.seed_unlock, &v.phrase).unwrap();
+        assert_eq!(phrase_from_content_key(&v.envelope, &content).unwrap(), v.phrase);
+        let mut other = v.phrase.clone();
+        other.swap(0, 1);
+        assert!(content_key_from_phrase(&v.seed_unlock, &other).is_err());
+    }
+
+    #[test]
+    fn the_seed_phrase_opens_the_box_made_for_it() {
+        let v = vector();
+        let wrap = BASE64.decode(&v.wrap_key).unwrap();
+        let content = open_box(&wrap, &v.envelope.wrapped_content_key, "wrapped key").unwrap();
+        let made = seal_seed_unlock(&v.phrase, &content).unwrap();
+        assert_eq!(*content_key_from_phrase(&made, &v.phrase).unwrap(), *content);
+        assert_ne!(seal_seed_unlock(&v.phrase, &content).unwrap().salt, made.salt);
     }
 
     #[test]

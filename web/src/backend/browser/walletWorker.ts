@@ -8,8 +8,8 @@
 // unlock. It reaches the page only when it has to be seen: once when a new
 // wallet's words are written down, and when the person asks to see them.
 
-import { openSeed, openSeedKeepingKey, openSeedWithSecretKeepingKey, WrongPasswordError, type DeriveKey } from '../../storage/envelope';
-import type { SeedEnvelope } from '../../storage/db';
+import { openSeed, openSeedKeepingKey, openSeedWithSecretKeepingKey, sealSeedUnlock, WrongPasswordError, type DeriveKey } from '../../storage/envelope';
+import type { SeedEnvelope, SeedUnlock } from '../../storage/db';
 import { LogStore } from '../../storage/logStore';
 import type { LedgerOp, WalletPart } from '../types';
 import { EngineHost } from './engineHost';
@@ -63,6 +63,16 @@ function ensureReady(): Promise<CoreModule> {
   return p;
 }
 
+/** The seed phrase's wrapping of the content key, made while both are here. An unlock never fails for want of it. */
+async function spareSeedUnlock(phrase: string[], contentKey: Uint8Array): Promise<SeedUnlock | null> {
+  try {
+    return await sealSeedUnlock(phrase, contentKey);
+  } catch (e) {
+    console.warn(`The seed phrase's wrapping was not made: ${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  }
+}
+
 function requireAccount(): Account {
   if (!account) throw new Error('wallet is locked');
   return account;
@@ -99,25 +109,27 @@ async function handle(op: string, args: unknown[]): Promise<{ result: unknown; t
       return { result: null };
     }
     case 'unlockEnvelope': {
-      const [envelope, password, network] = args as [SeedEnvelope, string, string];
+      const [envelope, password, network, seedUnlock] = args as [SeedEnvelope, string, string, boolean | undefined];
       const derive: DeriveKey = (pw, salt, mKib, tCost, pCost) => m.derive_key(pw, salt, mKib, tCost, pCost);
       const opened = await openSeedKeepingKey(envelope, password, derive);
+      const made = seedUnlock ? await spareSeedUnlock(opened.phrase, opened.contentKey) : null;
       account?.free();
       account = new m.Account(opened.phrase, network);
       engine(m).keep(opened.contentKey);
-      return { result: null };
+      return { result: made };
     }
     case 'unlockEnvelopeWithSecret': {
-      const [envelope, wrapped, secret, network] = args as [SeedEnvelope, { iv: string; ciphertext: string }, Uint8Array, string];
+      const [envelope, wrapped, secret, network, seedUnlock] = args as [SeedEnvelope, { iv: string; ciphertext: string }, Uint8Array, string, boolean | undefined];
       try {
         const opened = await openSeedWithSecretKeepingKey(envelope, wrapped, secret);
+        const made = seedUnlock ? await spareSeedUnlock(opened.phrase, opened.contentKey) : null;
         account?.free();
         account = new m.Account(opened.phrase, network);
         engine(m).keep(opened.contentKey);
+        return { result: made };
       } finally {
         secret.fill(0);
       }
-      return { result: null };
     }
     case 'storeOpen':
       return { result: await engine(m).open(args[0] as string) };

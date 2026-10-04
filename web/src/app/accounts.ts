@@ -2,14 +2,14 @@
 // policy: after an idle time the person chooses (five minutes unless
 // changed, and immediately on backgrounding).
 
-import { FRESH_KEY_INDICES, walletName, type AccountRecord, type ContactRecord, type HistoryRecord, type Network, type SeedEnvelope, type SendDetails, type SendFailure, type VaultDb } from '../storage/db';
+import { FRESH_KEY_INDICES, walletName, type AccountRecord, type ContactRecord, type HistoryRecord, type Network, type SeedEnvelope, type SeedUnlock, type SendDetails, type SendFailure, type VaultDb } from '../storage/db';
 
 /** The private note, in a wallet's sealed log, about its last failed send. */
 const LAST_SEND_FAILURE = 'lastSendFailure';
 const LAST_SEND = 'lastSend';
 /** The private note that a send has started and not yet ended: found at an unlock, it is a send the app was closed during. */
 const SEND_IN_PROGRESS = 'sendInProgress';
-import { assertEnvelope, changePassword as reWrapSeed, checkSecret, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, sealBackup, sealSeedKeepingKey, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
+import { assertEnvelope, changePassword as reWrapSeed, checkSecret, DEFAULT_KDF, extractContentKey, isWeakerThanDefault, openBackup, openSeed, openSeedWithSecret, openWithPhrase, sealBackup, sealSeedKeepingKey, sealSeedUnlock, withNewPassword, wrapContentKey, type DeriveKey, type ExportFile } from '../storage/envelope';
 import { CHAIN_PARTS, ENGINE_PARTS, type ScanSettings, type WalletPart } from '../backend/types';
 import { EngineParts } from './engineParts';
 import type { PasskeyProvider } from './passkey';
@@ -27,6 +27,14 @@ export class UnlockCancelledError extends Error {
   constructor() {
     super('Interrupted: the app went to the background, or another wallet was picked. Try again.');
     this.name = 'UnlockCancelledError';
+  }
+}
+
+/** A wallet last unlocked by a version that did not wrap the content key under the seed phrase (AccountRecord.seedUnlock). */
+export class NoSeedUnlockError extends Error {
+  constructor() {
+    super('This wallet was last unlocked by an older version of the app, so its seed phrase cannot unlock it here.');
+    this.name = 'NoSeedUnlockError';
   }
 }
 
@@ -297,16 +305,18 @@ export class AccountService {
     if (!record?.passkey) throw new Error('No passkey is set up for this wallet');
     const secret = await this.passkeys.secret(record.passkey.credentialId, record.passkey.prfSalt);
     const wrapped = record.passkey.wrappedContentKey;
-    await this.load(epoch, async () => {
+    const made = await this.load(epoch, async () => {
       try {
-        if (this.core.unlockEnvelopeWithSecret) await this.core.unlockEnvelopeWithSecret(record.envelope, wrapped, new Uint8Array(secret), record.network);
-        else await this.core.unlock(await openSeedWithSecret(record.envelope, wrapped, secret), record.network);
+        if (this.core.unlockEnvelopeWithSecret) return await this.core.unlockEnvelopeWithSecret(record.envelope, wrapped, new Uint8Array(secret), record.network, !record.seedUnlock);
+        await this.core.unlock(await openSeedWithSecret(record.envelope, wrapped, secret), record.network);
+        return null;
       } finally {
         secret.fill(0);
       }
     });
     await this.openStore(accountId);
     if (epoch !== this.epoch) throw new UnlockCancelledError();
+    await this.keepSeedUnlock(accountId, made);
     this.setUnlocked(accountId);
   }
 
@@ -314,10 +324,11 @@ export class AccountService {
    * Load the keys into the core with `into`, unless a lock arrived since
    * `epoch` was read or the page is hidden; then nothing stays loaded.
    */
-  private async load(epoch: number, into: () => Promise<void>): Promise<void> {
+  private async load<T>(epoch: number, into: () => Promise<T>): Promise<T> {
     if (epoch !== this.epoch) throw new UnlockCancelledError();
+    let loaded: T;
     try {
-      await into();
+      loaded = await into();
     } catch (e) {
       // A lock ends the worker, and the call it was busy with fails: that is the lock, not an error.
       if (epoch !== this.epoch) throw new UnlockCancelledError();
@@ -328,6 +339,17 @@ export class AccountService {
       await this.forget();
       throw new UnlockCancelledError();
     }
+    return loaded;
+  }
+
+  /**
+   * Keep the seed phrase's wrapping an unlock made, on a wallet that has
+   * none yet. Housekeeping: a failure costs only this, and the next unlock
+   * makes it again.
+   */
+  private async keepSeedUnlock(accountId: string, made: SeedUnlock | null): Promise<void> {
+    if (!made) return;
+    await this.patch(accountId, (current) => (current.seedUnlock ? current : { ...current, seedUnlock: made })).catch(() => undefined);
   }
 
   /** Drop whatever the core holds: end its worker where it has one. */
@@ -523,6 +545,8 @@ export class AccountService {
     // The new wallet's log is keyed from the content key, which is made here
     // with the envelope and handed to the core once, along with the phrase.
     const { envelope, contentKey } = await sealSeedKeepingKey(phrase, password, this.derive, DEFAULT_KDF);
+    // Before the core has the content key, which zeroes it on the way.
+    const seedUnlock = await sealSeedUnlock(phrase, contentKey);
     await this.load(epoch, () => this.core.unlock(phrase, network, contentKey));
     // From here the keys are in the core. Whatever fails below, they must
     // not stay there with no lock armed.
@@ -533,6 +557,7 @@ export class AccountService {
         createdAt: Date.now(),
         birthdayHeight: Math.max(0, birthdayHeight),
         envelope,
+        seedUnlock,
         nextKeyIndices: FRESH_KEY_INDICES,
         backupConfirmed: false,
         name,
@@ -554,15 +579,72 @@ export class AccountService {
     const epoch = this.epoch;
     const record = await this.db.get('accounts', accountId);
     if (!record) throw new Error('account not found');
-    await this.load(epoch, async () => {
-      if (this.core.unlockEnvelope) await this.core.unlockEnvelope(record.envelope, password, record.network);
-      else await this.core.unlock(await openSeed(record.envelope, password, this.derive), record.network);
+    const made = await this.load(epoch, async () => {
+      if (this.core.unlockEnvelope) return this.core.unlockEnvelope(record.envelope, password, record.network, !record.seedUnlock);
+      await this.core.unlock(await openSeed(record.envelope, password, this.derive), record.network);
+      return null;
     });
     await this.openStore(accountId);
     if (epoch !== this.epoch) throw new UnlockCancelledError();
+    await this.keepSeedUnlock(accountId, made);
     this.setUnlocked(accountId);
     // Not awaited: the wallet is open, and this is housekeeping.
     void this.strengthen(accountId, password).catch(() => undefined);
+  }
+
+  /**
+   * Whether the seed phrase is this wallet's, before a new password is
+   * asked for. Nothing stays open. Throws WrongPhraseError, or
+   * NoSeedUnlockError for a wallet whose phrase cannot open it yet.
+   */
+  async checkSeedPhrase(accountId: string, phrase: string[]): Promise<void> {
+    const record = await this.db.get('accounts', accountId);
+    if (!record) throw new Error('account not found');
+    if (!record.seedUnlock) throw new NoSeedUnlockError();
+    const opened = await openWithPhrase(record.envelope, record.seedUnlock, phrase);
+    opened.contentKey.fill(0);
+    opened.secret.fill(0);
+  }
+
+  /**
+   * For a forgotten password: the seed phrase sets a new one, and the
+   * wallet unlocks. The phrase opens the content key it wraps, which proves
+   * it is this wallet's, and the content key is wrapped under the new
+   * password as a password change would. The seed's ciphertext, a passkey
+   * and the wallet's data stay as they are. Throws WrongPhraseError, or
+   * NoSeedUnlockError.
+   */
+  async resetPassword(accountId: string, phrase: string[], newPassword: string): Promise<void> {
+    // Read before the first await: a lock that arrives at any point after this cancels what follows.
+    const epoch = this.epoch;
+    if (newPassword.length < 8) throw new Error('The new password must be at least 8 characters');
+    const record = await this.db.get('accounts', accountId);
+    if (!record) throw new Error('account not found');
+    const seedUnlock = record.seedUnlock;
+    if (!seedUnlock) throw new NoSeedUnlockError();
+    const { contentKey, secret } = await openWithPhrase(record.envelope, seedUnlock, phrase);
+    try {
+      const envelope = await withNewPassword(record.envelope, contentKey, newPassword, this.derive, DEFAULT_KDF);
+      let replaced = false;
+      await this.patch(accountId, (current) => {
+        // Only the envelope that was read may be replaced.
+        if (current.envelope.kdf.salt !== record.envelope.kdf.salt) return current;
+        replaced = true;
+        return { ...current, envelope };
+      });
+      if (!replaced) throw new Error('The password was changed elsewhere in the meantime. Nothing was changed here; try again.');
+      // The new password is set from here: an unlock overtaken by a lock leaves it set, and the wallet locked.
+      await this.load(epoch, async () => {
+        if (this.core.unlockEnvelopeWithSecret) await this.core.unlockEnvelopeWithSecret(envelope, seedUnlock.wrappedContentKey, new Uint8Array(secret), record.network);
+        else await this.core.unlock(phrase, record.network, new Uint8Array(contentKey));
+      });
+    } finally {
+      contentKey.fill(0);
+      secret.fill(0);
+    }
+    await this.openStore(accountId);
+    if (epoch !== this.epoch) throw new UnlockCancelledError();
+    this.setUnlocked(accountId);
   }
 
   /**
@@ -899,9 +981,10 @@ export class AccountService {
       .filter((c) => c.name !== '' && c.address.length <= 8000);
 
     const name = await this.nextName(network);
-    await this.load(epoch, async () => {
-      if (this.core.unlockEnvelope) await this.core.unlockEnvelope(envelope, password, network);
-      else await this.core.unlock(await openSeed(envelope, password, this.derive), network);
+    const seedUnlock = await this.load(epoch, async () => {
+      if (this.core.unlockEnvelope) return this.core.unlockEnvelope(envelope, password, network, true);
+      await this.core.unlock(await openSeed(envelope, password, this.derive), network);
+      return null;
     });
     let recordId: string | null = null;
     try {
@@ -911,6 +994,7 @@ export class AccountService {
         createdAt: Date.now(),
         birthdayHeight: Math.max(1, birthday),
         envelope,
+        ...(seedUnlock ? { seedUnlock } : {}),
         nextKeyIndices: FRESH_KEY_INDICES,
         backupConfirmed: true,
         name,

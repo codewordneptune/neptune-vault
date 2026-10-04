@@ -4,11 +4,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { confirmsSends, openVaultDb, type VaultDb } from '../storage/db';
 import type { SeedEnvelope } from '../storage/db';
-import { openSeed, WrongPasswordError } from '../storage/envelope';
+import { openSeed, openSeedKeepingKey, openSeedWithSecretKeepingKey, sealSeedUnlock, WrongPasswordError, WrongPhraseError } from '../storage/envelope';
 import type { WalletCore } from '../backend/types';
 import { CHAIN_PARTS } from '../backend/types';
 import { chainView, testEngine } from '../backend/engineForTests';
-import { AccountService, clashingName, DEFAULT_LOCK_MS, lockTimeoutOf, nextWalletName, UnlockCancelledError, WalletNameTakenError } from './accounts';
+import { AccountService, clashingName, DEFAULT_LOCK_MS, lockTimeoutOf, nextWalletName, NoSeedUnlockError, UnlockCancelledError, WalletNameTakenError } from './accounts';
 import type { PasskeyProvider } from './passkey';
 import { readSendDetails } from './sendDetails';
 
@@ -59,12 +59,22 @@ class FakeWorkerCore extends FakeCore {
     this.phrasesFromThePage += 1;
     this.unlocked = phrase;
   }
-  async unlockEnvelope(envelope: SeedEnvelope, password: string) {
-    const phrase = await new Promise<string[]>((resolve, reject) => {
+  async unlockEnvelope(envelope: SeedEnvelope, password: string, _network?: string, seedUnlock?: boolean) {
+    const opened = await new Promise<{ phrase: string[]; contentKey: Uint8Array }>((resolve, reject) => {
       this.inFlight.push(reject);
-      openSeed(envelope, password, (pw, salt) => this.deriveKey(pw, salt)).then(resolve, reject);
+      openSeedKeepingKey(envelope, password, (pw, salt) => this.deriveKey(pw, salt)).then(resolve, reject);
     });
-    this.unlocked = phrase;
+    this.unlocked = opened.phrase;
+    return seedUnlock ? sealSeedUnlock(opened.phrase, opened.contentKey) : null;
+  }
+  async unlockEnvelopeWithSecret(envelope: SeedEnvelope, wrapped: { iv: string; ciphertext: string }, secret: Uint8Array, _network?: string, seedUnlock?: boolean) {
+    try {
+      const opened = await openSeedWithSecretKeepingKey(envelope, wrapped, secret);
+      this.unlocked = opened.phrase;
+      return seedUnlock ? sealSeedUnlock(opened.phrase, opened.contentKey) : null;
+    } finally {
+      secret.fill(0);
+    }
   }
   async openEnvelope(envelope: SeedEnvelope, password: string, wantPhrase: boolean) {
     const phrase = await openSeed(envelope, password, (pw, salt) => this.deriveKey(pw, salt));
@@ -437,6 +447,71 @@ describe('account service', () => {
     await expect(service.unlock(made.id, 'nope')).rejects.toBeInstanceOf(WrongPasswordError);
     await service.verifyPassword(made.id, 'pw');
     expect(await service.revealPhrase(made.id, 'pw')).toEqual(words);
+  });
+
+  it('the seed phrase sets a new password and unlocks, and the passkey still works', async () => {
+    db = await openVaultDb();
+    const core = new FakeWorkerCore();
+    const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000, new FakePasskeys());
+    const words = await service.generatePhrase();
+    const made = await service.createAccount(words, 'pw-forgotten', 'regtest', 1);
+    expect(made.seedUnlock).toBeDefined();
+    await service.enablePasskey(made.id, 'pw-forgotten');
+    await service.lock();
+
+    const swapped = [words[1], words[0], ...words.slice(2)];
+    await expect(service.checkSeedPhrase(made.id, swapped)).rejects.toBeInstanceOf(WrongPhraseError);
+    await expect(service.resetPassword(made.id, swapped, 'pw-new-one')).rejects.toBeInstanceOf(WrongPhraseError);
+    expect((await db.get('accounts', made.id))?.envelope).toEqual(made.envelope);
+    expect(service.currentAccountId).toBeNull();
+
+    await service.checkSeedPhrase(made.id, words);
+    const handedOver = core.phrasesFromThePage;
+    await service.resetPassword(made.id, words.map((w) => w.toUpperCase()), 'pw-new-one');
+    expect(service.currentAccountId).toBe(made.id);
+    expect(core.unlocked).toEqual(words);
+    // The worker opened the envelope with the phrase's key: the phrase was not handed over.
+    expect(core.phrasesFromThePage).toBe(handedOver);
+
+    await service.lock();
+    await expect(service.unlock(made.id, 'pw-forgotten')).rejects.toBeInstanceOf(WrongPasswordError);
+    await service.unlock(made.id, 'pw-new-one');
+    await service.lock();
+    await service.unlockWithPasskey(made.id);
+    expect(service.currentAccountId).toBe(made.id);
+  });
+
+  it('a wallet without the seed phrase wrapping gets it at its next unlock, once', async () => {
+    db = await openVaultDb();
+    const core = new FakeWorkerCore();
+    const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+    const words = await service.generatePhrase();
+    const made = await service.createAccount(words, 'pw-one-long', 'regtest', 1);
+    // As a version before the wrapping left it.
+    const { seedUnlock: _none, ...older } = (await db.get('accounts', made.id))!;
+    await db.put('accounts', older);
+    await service.lock();
+    await expect(service.checkSeedPhrase(made.id, words)).rejects.toBeInstanceOf(NoSeedUnlockError);
+    await expect(service.resetPassword(made.id, words, 'pw-two-long')).rejects.toBeInstanceOf(NoSeedUnlockError);
+
+    await service.unlock(made.id, 'pw-one-long');
+    const kept = (await db.get('accounts', made.id))?.seedUnlock;
+    expect(kept).toBeDefined();
+    await service.lock();
+    await service.unlock(made.id, 'pw-one-long');
+    expect((await db.get('accounts', made.id))?.seedUnlock).toEqual(kept);
+    await service.lock();
+    await service.resetPassword(made.id, words, 'pw-two-long');
+    expect(service.currentAccountId).toBe(made.id);
+
+    // A wallet restored from a backup file has one from the start.
+    const file = await service.exportFile(made.id, 'pw-two-long');
+    await service.lock();
+    const restored = await service.importFile(file, 'pw-two-long');
+    expect(restored.seedUnlock).toBeDefined();
+    await service.lock();
+    await service.resetPassword(restored.id, words, 'pw-three-long');
+    expect(service.currentAccountId).toBe(restored.id);
   });
 
   it('a lock that ends the worker mid-unlock reads as cancelled, not as a failure', async () => {

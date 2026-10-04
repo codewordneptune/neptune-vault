@@ -2,7 +2,7 @@
 // one request per call and resolving on the matching reply.
 
 import type { InputPlan, KeyKind, LedgerAnswer, LedgerOp, NextKeyIndices, ScanExpectation, ScanResult, SendPlan, SendRequest, StoredUtxo, WalletChange, WalletCore, WalletPart, MempoolScan } from '../types';
-import type { SeedEnvelope } from '../../storage/db';
+import type { SeedEnvelope, SeedUnlock } from '../../storage/db';
 import { WrongPasswordError } from '../../storage/envelope';
 import type { WorkerRequest, WorkerResponse } from './walletWorker';
 
@@ -78,11 +78,11 @@ export class WalletWorkerClient implements WalletCore {
     this.pending.clear();
   }
 
-  unlockEnvelope(envelope: SeedEnvelope, password: string, network: string) {
-    return this.call<void>('unlockEnvelope', [envelope, password, network]);
+  unlockEnvelope(envelope: SeedEnvelope, password: string, network: string, seedUnlock = false) {
+    return this.call<SeedUnlock | null>('unlockEnvelope', [envelope, password, network, seedUnlock]);
   }
-  unlockEnvelopeWithSecret(envelope: SeedEnvelope, wrapped: { iv: string; ciphertext: string }, secret: Uint8Array, network: string) {
-    return this.call<void>('unlockEnvelopeWithSecret', [envelope, wrapped, secret, network]);
+  unlockEnvelopeWithSecret(envelope: SeedEnvelope, wrapped: { iv: string; ciphertext: string }, secret: Uint8Array, network: string, seedUnlock = false) {
+    return this.call<SeedUnlock | null>('unlockEnvelopeWithSecret', [envelope, wrapped, secret, network, seedUnlock]);
   }
   openEnvelope(envelope: SeedEnvelope, password: string, wantPhrase: boolean) {
     return this.call<string[] | null>('openEnvelope', [envelope, password, wantPhrase]);

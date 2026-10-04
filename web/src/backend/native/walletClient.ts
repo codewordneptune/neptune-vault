@@ -5,7 +5,7 @@
 // reaches this side of the boundary, and locking still means the account is
 // dropped where it lives rather than where it is displayed.
 
-import type { SeedEnvelope } from '../../storage/db';
+import type { SeedEnvelope, SeedUnlock } from '../../storage/db';
 import type {
   InputPlan,
   KeyKind,
@@ -117,8 +117,8 @@ export class NativeWalletClient implements WalletCore {
     return call('wallet_ledger', { accountId, op });
   }
 
-  unlockEnvelope(envelope: SeedEnvelope, password: string, network: string): Promise<void> {
-    return call('wallet_unlock_envelope', { envelope, password, network });
+  unlockEnvelope(envelope: SeedEnvelope, password: string, network: string, seedUnlock = false): Promise<SeedUnlock | null> {
+    return call('wallet_unlock_envelope', { envelope, password, network, seedUnlock });
   }
 
   unlockEnvelopeWithSecret(
@@ -126,12 +126,14 @@ export class NativeWalletClient implements WalletCore {
     wrapped: { iv: string; ciphertext: string },
     secret: Uint8Array,
     network: string,
-  ): Promise<void> {
+    seedUnlock = false,
+  ): Promise<SeedUnlock | null> {
     return call('wallet_unlock_envelope_with_secret', {
       envelope,
       wrapped,
       secret: toBase64(secret),
       network,
+      seedUnlock,
     });
   }
 

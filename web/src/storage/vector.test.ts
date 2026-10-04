@@ -9,8 +9,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import type { SeedEnvelope } from './db';
-import { openSeed, openSeedWithSecret, type DeriveKey } from './envelope';
+import type { SeedEnvelope, SeedUnlock } from './db';
+import { openSeed, openSeedWithSecret, openWithPhrase, WrongPhraseError, type DeriveKey } from './envelope';
 
 interface Vector {
   wrap_key: string;
@@ -18,6 +18,7 @@ interface Vector {
   phrase: string[];
   passkey_wrapped: { iv: string; ciphertext: string };
   passkey_secret: string;
+  seed_unlock: SeedUnlock;
 }
 
 const vector: Vector = JSON.parse(
@@ -40,5 +41,12 @@ describe('the shared envelope vector', () => {
       bytes(vector.passkey_secret),
     );
     expect(phrase).toEqual(vector.phrase);
+  });
+
+  it('opens with the seed phrase, and with no other', async () => {
+    const opened = await openWithPhrase(vector.envelope, vector.seed_unlock, vector.phrase);
+    expect(await openSeedWithSecret(vector.envelope, vector.seed_unlock.wrappedContentKey, opened.secret)).toEqual(vector.phrase);
+    const other = [vector.phrase[1], vector.phrase[0], ...vector.phrase.slice(2)];
+    await expect(openWithPhrase(vector.envelope, vector.seed_unlock, other)).rejects.toBeInstanceOf(WrongPhraseError);
   });
 });

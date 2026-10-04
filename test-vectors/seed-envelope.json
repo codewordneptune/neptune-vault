@@ -42,5 +42,12 @@
     "iv": "xNc4h0T3LwBzJzQG",
     "ciphertext": "IxNKzE2QpqHPXzNdlDlgYsm5owj6pNL1oemX53hxtC3lbUyFDBDGK/phB/UTQloN"
   },
-  "passkey_secret": "BRAbJjE8R1JdaHN+iZSfqrXAy9bh7PcCDRgjLjlET1o="
+  "passkey_secret": "BRAbJjE8R1JdaHN+iZSfqrXAy9bh7PcCDRgjLjlET1o=",
+  "seed_unlock": {
+    "salt": "TMVOTxIqANTwE7Gk2NAvFQ==",
+    "wrappedContentKey": {
+      "iv": "TTu1+THRdeiYM7Ia",
+      "ciphertext": "LKJpRkImJ+sr5Rcp2JzImNZcwaPAi1ZxjLUuYFxM3jRM0Mtz3on+0n2pjA1Z2jyD"
+    }
+  }
 }

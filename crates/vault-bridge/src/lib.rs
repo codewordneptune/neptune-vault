@@ -194,6 +194,15 @@ pub struct SendPlan {
     pub summary: Value,
 }
 
+/// The seed phrase's wrapping of the content key, when asked for. An unlock
+/// never fails for want of it: the next unlock makes it again.
+fn spare_seed_unlock(wanted: bool, phrase: &[String], content_key: &[u8]) -> Option<envelope::SeedUnlock> {
+    if !wanted {
+        return None;
+    }
+    envelope::seal_seed_unlock(phrase, content_key).ok()
+}
+
 /// The wallet as the shell holds it: an account, or none while locked, and
 /// the engine's store of its data.
 ///
@@ -264,33 +273,41 @@ impl Vault {
     }
 
     /// Open the envelope and load the account, so the phrase is never
-    /// handed out. The expensive Argon2id step happens here.
+    /// handed out. The expensive Argon2id step happens here. With
+    /// `seed_unlock`, also wraps the content key under the seed phrase and
+    /// answers that: only here are the two at hand together.
     pub fn unlock_envelope(
         &self,
         env: &envelope::SeedEnvelope,
         password: &str,
         network: &str,
-    ) -> Result<()> {
+        seed_unlock: bool,
+    ) -> Result<Option<envelope::SeedUnlock>> {
         let content = envelope::content_key(env, password)?;
         let phrase = envelope::phrase_from_content_key(env, &content)?;
+        let made = spare_seed_unlock(seed_unlock, &phrase, &content);
         self.unlock(&phrase, network)?;
-        self.keep(Some(content))
+        self.keep(Some(content))?;
+        Ok(made)
     }
 
-    /// The same through a passkey's secret, which unwraps the content key
-    /// directly and so skips Argon2id.
+    /// The same through a secret (a passkey's, or the seed phrase's), which
+    /// unwraps the content key directly and so skips Argon2id.
     pub fn unlock_envelope_with_secret(
         &self,
         env: &envelope::SeedEnvelope,
         wrapped: &envelope::SealedBox,
         secret: &[u8],
         network: &str,
-    ) -> Result<()> {
+        seed_unlock: bool,
+    ) -> Result<Option<envelope::SeedUnlock>> {
         envelope::assert_envelope(env)?;
         let content = envelope::content_key_from_secret(wrapped, secret)?;
         let phrase = envelope::phrase_from_content_key(env, &content)?;
+        let made = spare_seed_unlock(seed_unlock, &phrase, &content);
         self.unlock(&phrase, network)?;
-        self.keep(Some(content))
+        self.keep(Some(content))?;
+        Ok(made)
     }
 
     /// Check the password and, when `want_phrase`, give the words back for

@@ -20,6 +20,14 @@ export interface SeedEnvelope {
   seed: { iv: string; ciphertext: string };
 }
 
+/** See AccountRecord.seedUnlock. */
+export interface SeedUnlock {
+  /** HKDF-SHA256's salt, 16 random bytes. */
+  salt: string;
+  /** AES-256-GCM over the 32-byte content key, keyed by HKDF over the seed phrase. */
+  wrappedContentKey: { iv: string; ciphertext: string };
+}
+
 export interface AccountRecord {
   id: string;
   network: Network;
@@ -56,6 +64,12 @@ export interface AccountRecord {
   backupNudgeDismissedAt?: number;
   /** Passkey unlock: the content key wrapped under the passkey's PRF secret. */
   passkey?: { credentialId: string; prfSalt: string; wrappedContentKey: { iv: string; ciphertext: string } };
+  /**
+   * The content key wrapped under the seed phrase, so the phrase can set a
+   * new password when the old one is forgotten. Made when the wallet is
+   * created or restored, or at its first unlock by a version that makes it.
+   */
+  seedUnlock?: SeedUnlock;
   /**
    * Each send waits for the password or passkey before it goes out. On
    * unless turned off (absent: on), and turning it off takes the password

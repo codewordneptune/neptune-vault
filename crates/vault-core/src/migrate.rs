@@ -49,7 +49,7 @@ pub const LAST_SEND_FAILURE: &str = "lastSendFailure";
 
 /// The fields of the app's account record that a lock screen needs. The
 /// rest of the record is the wallet's own business and is sealed with it.
-const HEADER_FIELDS: [&str; 6] = ["id", "network", "createdAt", "envelope", "name", "passkey"];
+const HEADER_FIELDS: [&str; 7] = ["id", "network", "createdAt", "envelope", "name", "passkey", "seedUnlock"];
 
 /// The fields of the account record that say how the wallet is scanned.
 /// They move with the coins, as the scan state, and not with the details.
@@ -469,7 +469,8 @@ mod tests {
                   "envelope": { "version": 1, "kdf": { "name": "argon2id" } }, "address0": "nolgam1mine",
                   "nextKeyIndices": { "generation": 3, "ec_hybrid": 1, "viewing": 0 }, "backupConfirmed": true,
                   "name": "Savings", "lastBackupAt": 1700000001000u64,
-                  "passkey": { "credentialId": "c", "prfSalt": "s", "wrappedContentKey": { "iv": "i", "ciphertext": "x" } } },
+                  "passkey": { "credentialId": "c", "prfSalt": "s", "wrappedContentKey": { "iv": "i", "ciphertext": "x" } },
+                  "seedUnlock": { "salt": "s", "wrappedContentKey": { "iv": "i", "ciphertext": "y" } } },
                 { "id": "old", "network": "main", "createdAt": 1690000000000u64, "birthdayHeight": 0,
                   "envelope": { "version": 1 }, "address0": "nolgam1first", "nextKeyIndex": 7 }
             ],
@@ -549,8 +550,11 @@ mod tests {
         let header = serde_json::to_value(&device.wallets["a"]).unwrap();
         assert_eq!(header["name"], json!("Savings"));
         assert!(header.get("passkey").is_some() && header.get("envelope").is_some());
+        assert!(header.get("seedUnlock").is_some());
         assert!(header.get("address0").is_none() && header.get("birthdayHeight").is_none());
-        assert_eq!(wallet.details.unwrap().address0, "nolgam1mine");
+        let details = wallet.details.unwrap();
+        assert_eq!(details.address0, "nolgam1mine");
+        assert!(!details.extra.contains_key("seedUnlock"));
     }
 
     #[test]

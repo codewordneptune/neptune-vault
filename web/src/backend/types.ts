@@ -2,7 +2,7 @@
 // package so the sync engine and the UI can be tested with a fake, and so
 // the real one can live in a Web Worker.
 
-import type { ContactRecord, HistoryRecord, SeedEnvelope } from '../storage/db';
+import type { ContactRecord, HistoryRecord, SeedEnvelope, SeedUnlock } from '../storage/db';
 
 export interface ScannedBlock {
   height: number;
@@ -267,12 +267,14 @@ export interface WalletCore {
   unlock(phrase: string[], network: string, contentKey?: Uint8Array): Promise<void>;
   /**
    * Open the envelope and load the account inside the core, so the phrase
-   * never reaches the page. Throws WrongPasswordError. Optional: a core
-   * without it is given the phrase through `unlock`.
+   * never reaches the page. Throws WrongPasswordError. With `seedUnlock`,
+   * also wraps the content key under the seed phrase and answers that
+   * (AccountRecord.seedUnlock): only here are the two at hand together.
+   * Optional: a core without it is given the phrase through `unlock`.
    */
-  unlockEnvelope?(envelope: SeedEnvelope, password: string, network: string): Promise<void>;
-  /** The same through a passkey's secret, which is zeroed once used. */
-  unlockEnvelopeWithSecret?(envelope: SeedEnvelope, wrapped: { iv: string; ciphertext: string }, secret: Uint8Array, network: string): Promise<void>;
+  unlockEnvelope?(envelope: SeedEnvelope, password: string, network: string, seedUnlock?: boolean): Promise<SeedUnlock | null>;
+  /** The same through a secret (a passkey's, or the seed phrase's), which is zeroed once used. */
+  unlockEnvelopeWithSecret?(envelope: SeedEnvelope, wrapped: { iv: string; ciphertext: string }, secret: Uint8Array, network: string, seedUnlock?: boolean): Promise<SeedUnlock | null>;
   /** Check the password and, when `wantPhrase`, give the words back for showing. */
   openEnvelope?(envelope: SeedEnvelope, password: string, wantPhrase: boolean): Promise<string[] | null>;
   /** End the core's worker and everything in its memory. Optional: a core without it is asked to `lock`. */
