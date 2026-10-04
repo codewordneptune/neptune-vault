@@ -204,6 +204,8 @@ export interface SettingsRecord {
   fiatCurrency?: FiatCurrency;
   /** When the Home install notice was last dismissed; it returns after two weeks. Per device, not per wallet. */
   installNudgeDismissedAt?: number;
+  /** When the Home warning that the browser may delete the wallet was dismissed; it does not come back. */
+  storageNoticeDismissedAt?: number;
   /**
    * Where older versions kept the note about a failed send, in the clear. It
    * now lives in the wallet's sealed log (`SendFailure`); one found here

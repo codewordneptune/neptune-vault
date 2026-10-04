@@ -18,6 +18,7 @@ import { fiatOf, fiatParts } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
 import type { AccountRecord, ContactRecord, HistoryRecord, SendDetails } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
+import { StorageNotice } from '../components/StorageNotice';
 import { Caution, ErrorLine, Info } from '../components/Notice';
 import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED, SENT_WAITING, WAITING_FOR_BLOCK } from '../app/words';
 import { DESKTOP, NATIVE } from '../app/platform';
@@ -664,8 +665,9 @@ export function Home() {
           </Group>
         </Caution>
       )}
-      {/* One notice at a time: while the backup warning above shows, the install offer waits. */}
+      {/* One notice at a time: while the backup warning above shows, the install offer waits, and the storage warning shows only where there is no install offer. */}
       {!showBackupNudge && <InstallNudge />}
+      {!showBackupNudge && <StorageNotice />}
 
       <Paper>
         <Stack>
