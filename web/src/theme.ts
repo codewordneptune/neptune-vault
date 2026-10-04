@@ -53,7 +53,7 @@ const dark: MantineColorsTuple = [
   '#5f7390',
   '#2a3646', // line (only where Mantine insists on one)
   '#202b39',
-  '#161f2b', // panel
+  '#1a2433', // panel (global.css's --v-surface)
   '#111923', // page
   '#0d131c',
   '#090e15',

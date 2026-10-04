@@ -8,8 +8,10 @@
 :root {
   --v-page: #111923;
   --v-page-end: #0d131c;
-  --v-surface: #161f2b;
-  --v-surface-2: #1c2734;
+  /* Cards stand off the page by their fill: 1.13:1 on the page, 1.19:1 at
+     its foot, and 1.11:1, lighter, against the glow at its brightest. */
+  --v-surface: #1a2433;
+  --v-surface-2: #212c3b;
   --v-field: #0f151d;
   /* Read-only wells (the address, seed words, code): a field's colour in the
      dark palette, a deeper tint in the light one, where fields are almost white. */
@@ -31,26 +33,26 @@
      fills: in the dark palette they share a colour, in the light one they
      cannot, since a fill pale enough to sit behind text is too pale to draw
      an edge. The edges below are the light palette's; dark needs none. */
-  --v-line: #1c2734;
+  --v-line: #212c3b;
   --v-card-shadow: none;
   --v-rail-tile-shadow: none;
   /* The rail's other tabs' labels, on the page's glow at its strongest. */
   --v-rail-label: var(--v-muted);
-  /* A field's edge is the one exception: the field's fill is 1.1:1 off the
+  /* A field's edge is the one exception: the field's fill is 1.2:1 off the
      card, so an empty field was all but invisible. A quiet edge, 1.8:1 on
-     the card (#161f2b), marks it without outlining every form: the
+     the card (#1a2433), marks it without outlining every form: the
      field's darker fill and the label above do the rest, and under the
-     pointer the edge rises to 3.4:1. */
-  --v-field-border: #3a485d;
+     pointer the edge rises to 3.2:1. */
+  --v-field-border: #3e4d63;
   --v-field-border-hover: var(--v-faint);
   /* An unchecked box or radio has nothing but its edge to show it is
-     there, so that edge keeps 3:1: 3.4:1 on the card. */
+     there, so that edge keeps 3:1: 3.2:1 on the card. */
   --v-control-edge: var(--v-faint);
   --v-light-button-ring: none;
   --v-default-button-ring: none;
   --v-segment-ring: none;
   --v-accent-soft: rgba(58, 139, 243, 0.12);
-  /* A row held down: muted text keeps 5.2:1 on it. */
+  /* A row held down: muted text keeps 4.9:1 on it. */
   --v-row-press: rgba(58, 139, 243, 0.2);
   /* History's tiles: money in green, money out a quiet fill. */
   --v-tile-in: rgba(63, 185, 80, 0.16);
@@ -58,9 +60,9 @@
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
   --v-danger-text: #ff8a80;
-  /* 8% red over the card: the danger text keeps 6.6:1 on it. */
+  /* 8% red over the card: the danger text keeps 6.2:1 on it. */
   --v-danger-hover: rgba(255, 107, 107, 0.08);
-  /* A light red button's hover, a step stronger: the text keeps 6.0:1. */
+  /* A light red button's hover, a step stronger: the text keeps 5.6:1. */
   --v-danger-hover-strong: rgba(255, 107, 107, 0.14);
   --v-danger-ring: none;
   --v-disabled-bg: rgba(255, 255, 255, 0.05);
@@ -180,7 +182,7 @@ h3.mantine-Title-root {
 /* Long-form pages (Privacy) have headings that are sentences, like "What
    leaves your device, and to whom": as 12 px spaced capitals they were hard
    to read. They are prose headings instead, 15 px semibold in sentence case
-   and the text colour (13.8:1 on the dark card, 16.4:1 on the light). */
+   and the text colour (13.0:1 on the dark card, 16.4:1 on the light). */
 h3.mantine-Title-root.vault-prose-heading {
   font-size: var(--v-fs-md);
   font-weight: 600;
@@ -342,7 +344,7 @@ h3.mantine-Title-root.vault-prose-heading {
   color: var(--v-muted);
   font-weight: 600;
 }
-/* The chosen pill stands only 1.2:1 off its track, and a colour change of
+/* The chosen pill stands only 1.3:1 off its track, and a colour change of
    the label alone is a cue by colour only: the label is semibold as well,
    as the side rail's current tab is bold. */
 .mantine-SegmentedControl-label[data-active] {
@@ -405,7 +407,7 @@ h3.mantine-Title-root.vault-prose-heading {
    Year) are the same surface as the header's menu: the second surface, no
    hairline (the library's was 1.4:1 on the dark card), the menu's radius,
    shadow and inset, rows with a chip's radius at 14 px, and the menu's
-   hover. Text is 12.6:1 on this surface in the dark palette, 13.7:1 in
+   hover. Text is 11.8:1 on this surface in the dark palette, 13.7:1 in
    the light. */
 .mantine-Select-dropdown,
 .mantine-Combobox-dropdown,
@@ -1284,7 +1286,7 @@ html {
   }
 }
 
-/* One link style, in the accent text colour (7.7:1 on the dark card, 6.0:1
+/* One link style, in the accent text colour (7.2:1 on the dark card, 6.0:1
    on the light). Inside a sentence a link is always underlined, since its
    blue differs from the text around it by hue more than by lightness (1.4:1
    against the dark theme's second text colour), and colour alone does not
@@ -2533,7 +2535,7 @@ html {
 
 /* UX audit 3: accessibility */
 
-/* Field errors in the app's own danger colour, 7.3:1 on the dark card and
+/* Field errors in the app's own danger colour, 6.8:1 on the dark card and
    5.6:1 on white; the library's red was 3.7:1 and 3.3:1. Placeholders in the
    muted text colour, for the same reason (3.8:1 and 2:1 before). Doubled so
    they outrank the variables the library writes at run time. */
