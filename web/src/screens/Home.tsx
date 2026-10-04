@@ -247,7 +247,7 @@ export function Home() {
   const explained = incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n;
   const explainAfter = (reading: string) =>
     explained && readings[readings.length - 1] === reading ? (
-      <ActionIcon variant="transparent" size="sm" className="vault-tap vault-info" aria-label="What does this mean?" aria-expanded={why} onClick={() => setWhy((v) => !v)}>
+      <ActionIcon variant="transparent" size="sm" className="vault-tap vault-info-button" aria-label="What does this mean?" aria-expanded={why} onClick={() => setWhy((v) => !v)}>
         <IconInfoCircle size={16} />
       </ActionIcon>
     ) : null;
