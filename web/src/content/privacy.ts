@@ -21,7 +21,7 @@ export const PRIVACY: PrivacySection[] = [
   {
     title: 'What this wallet keeps on your device',
     paragraphs: [
-      "Your seed phrase, encrypted with your password (and, if you turn it on, wrapped for your passkey). The coins found by scanning, your history and its notes, your contacts, the names you gave your addresses and which of them you have given out, all encrypted too, so they cannot be read while the wallet is locked. Kept without encryption: each wallet's name, network, creation time, start block and address count, and the settings, such as the node's address, the lock times and a record of the last proof. All of it lives in " +
+      "Your seed phrase, encrypted with your password (and, if you turn it on, wrapped for your passkey). The coins found by scanning, your history and its notes, your contacts, the names you gave your addresses and which of them you have given out, all encrypted too, so they cannot be read while the wallet is locked. Your seed phrase can open all of it too, so that it can set a new password if you forget yours. Kept without encryption: each wallet's name, network, creation time, start block and address count, and the settings, such as the node's address, the lock times and a record of the last proof. All of it lives in " +
         (NATIVE ? "the app's own storage" : "this browser's storage") +
         ' on this device. Nothing is kept anywhere else by this app.',
       'While you set up a new wallet, its new seed phrase is kept without encryption, so a reload does not lose it, until the wallet is made, you leave setup or ' +

@@ -660,7 +660,7 @@ function PasswordStep({
         <span className="vault-eyebrow">{stepLabel}</span>
         <Title order={2} tabIndex={-1} className="vault-step-title">Choose a password</Title>
         <Text size="sm" c="dimmed">
-          You will use it to unlock this wallet. If you forget it, restore your seed phrase on another device or browser, or clear this app's data first, which deletes the locked wallet here.
+          You will use it to unlock this wallet. If you forget it, your seed phrase can set a new one.
         </Text>
         {/* A second wallet is told apart by its name; the first needs none yet. */}
         {defaultName !== undefined && (

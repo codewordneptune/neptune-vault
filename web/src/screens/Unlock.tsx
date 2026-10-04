@@ -1,4 +1,5 @@
-import { Badge, Button, Divider, Menu, Paper, PasswordInput, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { Badge, Button, Divider, Group, Menu, Paper, PasswordInput, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { IconFingerprint } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -8,10 +9,15 @@ let promptedThisLoad = false;
 
 import { useApp } from '../app/AppContext';
 import { Logo } from '../components/Logo';
+import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
+import { ErrorLine } from '../components/Notice';
+import { PhraseField, phraseWords } from '../components/PhraseField';
+import { Sheet } from '../components/Sheet';
 import { isCancellation } from '../app/passkey';
+import { NATIVE } from '../app/platform';
 import { byCreation, walletName, type AccountRecord } from '../storage/db';
 import { UnlockCancelledError } from '../app/accounts';
-import { WrongPasswordError } from '../storage/envelope';
+import { WrongPasswordError, WrongPhraseError } from '../storage/envelope';
 import { NETWORK_LABELS } from '../util/network';
 
 export function Unlock() {
@@ -32,6 +38,7 @@ export function Unlock() {
   // A passkey that failed is said under its button: it is not the password field's error.
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
   const hasPasskey = Boolean(account?.passkey);
+  const [forgot, setForgot] = useState(false);
 
   const unlockWithPasskey = async () => {
     if (!account) return;
@@ -142,24 +149,166 @@ export function Unlock() {
             <Button type="submit" variant={hasPasskey ? 'light' : 'filled'} loading={busy} disabled={!password}>
               Unlock
             </Button>
-            {others.length > 0 && !sending && (
-              <Menu position="bottom" width={240}>
-                <Menu.Target>
-                  <UnstyledButton className="vault-lock-other">Not this wallet?</UnstyledButton>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  <Menu.Label>{account && account.network !== 'main' ? `Other wallets on ${NETWORK_LABELS[account.network]}` : 'Other wallets'}</Menu.Label>
-                  {others.map((a) => (
-                    <Menu.Item key={a.id} onClick={() => void switchAccount(a.id)}>
-                      <bdi>{walletName(a)}</bdi>
-                    </Menu.Item>
-                  ))}
-                </Menu.Dropdown>
-              </Menu>
-            )}
+            <Stack gap={4}>
+              {account && (
+                <UnstyledButton className="vault-lock-other" onClick={() => setForgot(true)}>
+                  Forgot the password?
+                </UnstyledButton>
+              )}
+              {others.length > 0 && !sending && (
+                <Menu position="bottom" width={240}>
+                  <Menu.Target>
+                    <UnstyledButton className="vault-lock-other">Not this wallet?</UnstyledButton>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Label>{account && account.network !== 'main' ? `Other wallets on ${NETWORK_LABELS[account.network]}` : 'Other wallets'}</Menu.Label>
+                    {others.map((a) => (
+                      <Menu.Item key={a.id} onClick={() => void switchAccount(a.id)}>
+                        <bdi>{walletName(a)}</bdi>
+                      </Menu.Item>
+                    ))}
+                  </Menu.Dropdown>
+                </Menu>
+              )}
+            </Stack>
           </Stack>
         </form>
       </Paper>
+      {account && <ForgotPassword key={account.id} account={account} opened={forgot} onClose={() => setForgot(false)} />}
     </div>
+  );
+}
+
+// For a forgotten password: the seed phrase proves the wallet is this
+// person's, and a new password replaces the old one. The wallet's data, its
+// passkey and its settings stay as they are.
+function ForgotPassword({ account, opened, onClose }: { account: AccountRecord; opened: boolean; onClose: () => void }) {
+  const { services } = useApp();
+  // Read from the database, not taken from the record on screen: that may
+  // be from before the unlock that wrapped the content key under the phrase.
+  const [canReset, setCanReset] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    void services.db.get('accounts', account.id).then(
+      (record) => live && setCanReset(Boolean(record?.seedUnlock)),
+      () => live && setCanReset(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, [services, account.id, opened]);
+  const [step, setStep] = useState<'phrase' | 'password'>('phrase');
+  const [text, setText] = useState('');
+  const [phraseError, setPhraseError] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
+  const [again, setAgain] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const words = phraseWords(text);
+
+  // Closing forgets what was typed, the words above all.
+  const close = () => {
+    onClose();
+    setStep('phrase');
+    setText('');
+    setPhraseError(null);
+    setPassword('');
+    setAgain('');
+    setError(null);
+  };
+
+  const checkPhrase = async () => {
+    setBusy(true);
+    try {
+      const problem = await services.core.phraseProblem(words);
+      if (problem) {
+        setPhraseError(problem);
+        return;
+      }
+      await services.accounts.checkSeedPhrase(account.id, words);
+      setStep('password');
+    } catch (e) {
+      setPhraseError(e instanceof WrongPhraseError ? "These words are not this wallet's seed phrase." : (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reset = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await services.accounts.resetPassword(account.id, words, password);
+      notifications.show({ message: 'Password changed. An older backup file still opens with the old password, so export a new one if you keep one.', autoClose: 10_000 });
+      close();
+    } catch (e) {
+      // Overtaken by a lock after the new password was set: it stays set, and the wallet locked.
+      if (e instanceof UnlockCancelledError) {
+        notifications.show({ message: 'Password changed. Unlock with the new one.', autoClose: 10_000 });
+        close();
+      } else setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet opened={opened} onClose={close} title={canReset === false ? 'Forgot the password?' : 'Set a new password'}>
+      {canReset === false && (
+        <Stack>
+          <Text size="sm">This wallet was last unlocked by an older version of the app, so its seed phrase cannot unlock it here.</Text>
+          {account.passkey && <Text size="sm">Unlock it with the passkey instead. From then on, the seed phrase can set a new password here.</Text>}
+          <Text size="sm">Your money is not lost: restore the seed phrase {NATIVE ? 'in the web app or on another device' : 'in another browser or on another device'} to reach it.</Text>
+          <Button onClick={close}>Close</Button>
+        </Stack>
+      )}
+      {canReset && step === 'phrase' && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void checkPhrase();
+          }}
+        >
+          <Stack>
+            <Text size="sm" c="dimmed">
+              Enter this wallet's seed phrase to choose a new password. Everything else stays as it is.
+            </Text>
+            <PhraseField text={text} onText={setText} error={phraseError} onError={setPhraseError} checkPhrase={(w) => services.core.phraseProblem(w)} autoFocus />
+            <Group grow>
+              <Button variant="default" onClick={close}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={busy} disabled={words.length !== 18}>
+                Continue
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      )}
+      {canReset && step === 'password' && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void reset();
+          }}
+        >
+          <Stack>
+            <Text size="sm" c="dimmed">
+              Seed phrase confirmed. Choose a new password for this wallet.
+            </Text>
+            <NewPasswordFields password={password} onPassword={setPassword} again={again} onAgain={setAgain} label="New password (at least 8 characters)" repeatLabel="Repeat new password" autoFocus />
+            <Group grow>
+              <Button variant="default" onClick={close}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={busy} disabled={!newPasswordOk(password, again)}>
+                Save
+              </Button>
+            </Group>
+            {error && <ErrorLine onClose={() => setError(null)}>{error}</ErrorLine>}
+          </Stack>
+        </form>
+      )}
+    </Sheet>
   );
 }

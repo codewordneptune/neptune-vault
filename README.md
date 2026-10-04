@@ -140,10 +140,9 @@ rather than in a browser's.
     choose. From the start of Mainnet that is several gigabytes and hours of
     scanning, and the node learns nothing about your coins.
 - **Your seed phrase is the only real backup.** Your password protects the
-  wallet on this device and cannot be recovered. If you forget it, restore
-  your seed phrase on another device or browser, or clear this app's data
-  first, which deletes the locked wallet here. If you lose the seed phrase,
-  you lose the funds.
+  wallet on this device. If you forget it, choose Forgot the password? when
+  unlocking, and the seed phrase sets a new one. If you lose the seed
+  phrase, you lose the funds.
 
 ## Security and privacy
 
@@ -153,7 +152,8 @@ rather than in a browser's.
   neptune-core produces.
 - **Encryption at rest.** The seed phrase is encrypted with AES-256-GCM,
   under a key derived from your password with Argon2id. A passkey can wrap
-  the same key.
+  the same key, and a key derived from the seed phrase wraps it too, so the
+  phrase can set a new password.
 - **What the node sees.** It never gets your seed phrase or password, and
   scanning happens on your device. It does see what the wallet asks: the
   blocks it scans, which pending payments are yours, the coins a send
@@ -193,9 +193,12 @@ rather than in a browser's.
   - The rest of the file is sealed, so the app refuses a file that has been
     changed, with a different message than for a wrong password.
   - Every version of the app reads backup files from earlier versions.
-- **Password.** Cannot be recovered. If you forget it, restore your seed
-  phrase on another device or browser, or clear this app's data first,
-  which deletes the locked wallet here, and choose a new password.
+- **Password.** If you forget it, choose Forgot the password? when
+  unlocking: the seed phrase sets a new one, and everything on this device
+  stays. A wallet that an older version of the app last unlocked needs one
+  more unlock with its password first; without that password, restore the
+  seed phrase in another browser or on another device. A backup file made
+  earlier still opens only with the password it was made with.
 
 ## Getting help
 

@@ -180,10 +180,11 @@ IndexedDB `neptune-vault` (`web/src/storage/db.ts`) is at `DB_VERSION` 3:
 versions before the sealed log kept a wallet's data; they are read to move
 a wallet into its log, and the same unlock deletes that wallet's rows once
 the log holds them (below). Never sealed: the account record (name,
-network, creation time, start block and key counters, the envelope and the
-passkey's wrapping, `confirmSends`, backup dates) and the settings (node
-URLs, the current wallet, the last proof's figures). There can be several
-wallets per device, on three networks (`main`, `testnet`, `regtest`).
+network, creation time, start block and key counters, the envelope, the
+passkey's and the seed phrase's wrappings, `confirmSends`, backup dates)
+and the settings (node URLs, the current wallet, the last proof's figures).
+There can be several wallets per device, on three networks (`main`,
+`testnet`, `regtest`).
 
 A second database, `neptune-vault-log` (`web/src/storage/logStore.ts`, at
 `LOG_DB_VERSION` 1), has one store `entries` keyed `[log, seq, kind]`. It
@@ -285,9 +286,9 @@ Where secrets go:
 - The content key does reach the page. Envelopes are sealed and re-wrapped
   in TypeScript on the page, on every platform, so the content key is there
   while a wallet is made, a passkey is set up or confirms a send, the
-  password is changed or strengthened, and a backup file is written or
-  restored. For these the core's `derive_key` returns the wrap key to the
-  page.
+  password is changed or strengthened or set with the seed phrase, and a
+  backup file is written or restored. For these the core's `derive_key`
+  returns the wrap key to the page.
 - The seed phrase reaches the page when a new one is shown to be written
   down, when one is typed in, and when the person asks to see it (password
   again).
@@ -304,6 +305,21 @@ only in this device's account record and never in a backup, so the passkey
 opens the wallet only here, even if the platform syncs the passkey. Setting
 one up takes the password, and it can also confirm sends. The password
 always works.
+
+The seed phrase (`seedUnlock` on the account record). The content key is
+wrapped a third time, under HKDF-SHA256 of the phrase (lower case, one
+space apart) with a random 16-byte salt and the info
+`neptune-vault seed unlock key v1`. A phrase carries 192 bits, so no
+password hash is needed. The wrapping is made where the phrase and the
+content key are both at hand: on the page when a wallet is made, and in the
+wallet worker or the shell when a wallet is restored from a file or
+unlocked without one (`unlockEnvelope`'s `seedUnlock` flag). Forgot the
+password? on the lock screen takes the phrase: it must open the wrapping,
+and the content key must then open a seed equal to it. The content key is
+then wrapped under a new password, and the wallet unlocks through the
+wrapping as through a passkey's. Never in a backup. HKDF exists twice
+(WebCrypto, and `seed_unlock_key` in `kdf.rs` for the shell), pinned by
+the same test vector.
 
 ### Backup file
 

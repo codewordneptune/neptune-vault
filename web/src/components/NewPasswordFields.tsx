@@ -41,6 +41,7 @@ export function NewPasswordFields({
   onAgain,
   label = 'Password (at least 8 characters)',
   repeatLabel = 'Repeat',
+  autoFocus,
 }: {
   password: string;
   onPassword: (value: string) => void;
@@ -48,11 +49,13 @@ export function NewPasswordFields({
   onAgain: (value: string) => void;
   label?: string;
   repeatLabel?: string;
+  autoFocus?: boolean;
 }) {
   const level = passwordStrength(password);
   return (
     <Stack>
       <PasswordInput
+        autoFocus={autoFocus}
         label={label}
         description={
           level ? (
