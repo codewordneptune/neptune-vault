@@ -115,13 +115,15 @@ function nodeHost(url: string): string {
 /**
  * One item of a Settings page: its name, then its sentence and its own
  * button, 6 px apart, so each button is plainly the one its sentence
- * explains. Items are set apart by the list's hairline (global.css).
+ * explains. Items are set apart by the list's hairline (global.css). The
+ * name is a heading under the page's, so a screen reader can move from
+ * item to item.
  */
 function SettingItem({ name, children, id, className }: { name?: ReactNode; children: ReactNode; id?: string; className?: string }) {
   return (
     <div className={className ? `vault-setting-item ${className}` : 'vault-setting-item'} id={id}>
       {name && (
-        <Text size="sm" fw={600}>
+        <Text component="h3" size="sm" fw={600}>
           {name}
         </Text>
       )}

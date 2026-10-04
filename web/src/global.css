@@ -630,7 +630,12 @@ button.vault-network:focus-visible {
   border-radius: var(--v-radius-xs);
 }
 
-/* Seed word cells. */
+/* Seed word cells, in an ordered list numbered by the cells themselves. */
+.vault-word-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 .vault-word {
   flex: 1;
   min-height: 36px;
@@ -2491,6 +2496,13 @@ html {
    would only look like something to press. */
 .vault-step-title:focus {
   outline: none;
+}
+/* A step's count ("Step 1 of 3") is part of its heading, so a screen reader
+   hears it with the title; it still reads as a line of its own above it. */
+.vault-step-count {
+  display: block;
+  margin-bottom: var(--mantine-spacing-md);
+  line-height: 1.5;
 }
 
 /* A card reached by a link (Settings, Backup) clears the sticky header. */

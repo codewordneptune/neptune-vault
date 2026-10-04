@@ -11,8 +11,10 @@ import { IconX } from '@tabler/icons-react';
 // `only` shows just those places, by their numbers: the confirmation's
 // missing words, without the rest of the phrase on screen again.
 export function WordGrid({ words, blanks = [], next, onClear, only }: { words: string[]; blanks?: number[]; next?: number; onClear?: (i: number) => void; only?: number[] }) {
+  // A numbered list to a screen reader. The role is explicit: without
+  // list markers some browsers stop announcing a list as one.
   return (
-    <SimpleGrid cols={{ base: 2, xs: 3 }} spacing="xs">
+    <SimpleGrid component="ol" role="list" className="vault-word-list" cols={{ base: 2, xs: 3 }} spacing="xs">
       {(only ?? words.map((_, i) => i)).map((i) => {
         const w = words[i] ?? '';
         const blank = blanks.includes(i);
@@ -35,12 +37,16 @@ export function WordGrid({ words, blanks = [], next, onClear, only }: { words: s
             </Box>
           </Group>
         );
-        return blank && w && onClear ? (
-          <UnstyledButton key={i} className="vault-word-slot" onClick={() => onClear(i)} aria-label={`Word ${i + 1}: ${w}. Remove`} w="100%">
-            {cell}
-          </UnstyledButton>
-        ) : (
-          <Box key={i}>{cell}</Box>
+        return (
+          <Box component="li" key={i}>
+            {blank && w && onClear ? (
+              <UnstyledButton className="vault-word-slot" onClick={() => onClear(i)} aria-label={`Word ${i + 1}: ${w}. Remove`} w="100%">
+                {cell}
+              </UnstyledButton>
+            ) : (
+              cell
+            )}
+          </Box>
         );
       })}
     </SimpleGrid>

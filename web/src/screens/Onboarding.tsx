@@ -394,8 +394,10 @@ export function Onboarding() {
       {step === 'show' && (
         <Paper>
           <Stack>
-            <span className="vault-eyebrow">Step 1 of 3</span>
-            <Title order={2} tabIndex={-1} className="vault-step-title">Write down these 18 words</Title>
+            <Title order={2} tabIndex={-1} className="vault-step-title">
+              <span className="vault-eyebrow vault-step-count">Step 1 of 3</span>{' '}
+              Write down these 18 words
+            </Title>
             <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your coins. {NATIVE ? 'If this device is lost, only what you write down brings the wallet back.' : 'Clearing the browser deletes everything except what you write down.'}</Text>
             <WordGrid words={phrase} />
             {/* The button, then what copying means, beneath it at every width
@@ -419,8 +421,10 @@ export function Onboarding() {
       {step === 'confirm' && (
         <Paper>
           <Stack>
-            <span className="vault-eyebrow">Step 2 of 3</span>
-            <Title order={2} tabIndex={-1} className="vault-step-title">Confirm your seed phrase</Title>
+            <Title order={2} tabIndex={-1} className="vault-step-title">
+              <span className="vault-eyebrow vault-step-count">Step 2 of 3</span>{' '}
+              Confirm your seed phrase
+            </Title>
             <Text size="sm" c="dimmed">
               {nextSlot === undefined
                 ? 'Tap a word in the grid to take it out again.'
@@ -657,8 +661,10 @@ function PasswordStep({
   return (
     <Paper>
       <Stack>
-        <span className="vault-eyebrow">{stepLabel}</span>
-        <Title order={2} tabIndex={-1} className="vault-step-title">Choose a password</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">
+          <span className="vault-eyebrow vault-step-count">{stepLabel}</span>{' '}
+          Choose a password
+        </Title>
         <Text size="sm" c="dimmed">
           You will use it to unlock this wallet. If you forget it, your seed phrase can set a new one.
         </Text>
@@ -774,8 +780,10 @@ function ImportStep({
   return (
     <Paper>
       <Stack>
-        <span className="vault-eyebrow">Step 1 of 2</span>
-        <Title order={2} tabIndex={-1} className="vault-step-title">Restore with a seed phrase</Title>
+        <Title order={2} tabIndex={-1} className="vault-step-title">
+          <span className="vault-eyebrow vault-step-count">Step 1 of 2</span>{' '}
+          Restore with a seed phrase
+        </Title>
         <PhraseField text={text} onText={setText} error={phraseError} onError={setPhraseError} checkPhrase={checkPhrase} />
         {/* How to restore, as one line with its current choice: most people
             restore everything, fast, and need decide nothing. Change opens
