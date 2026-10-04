@@ -998,9 +998,19 @@ main h2[tabindex='-1']:focus {
 .vault-spin {
   animation: vault-spin 1s linear infinite;
 }
+
+/* Less motion, when the system asks for it: every transition and animation
+   ends at once, the library's own included (the theme's
+   respectReducedMotion covers what it moves from script). A spinner stands
+   still; the busy state is in the words beside it. */
 @media (prefers-reduced-motion: reduce) {
-  .vault-spin {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -1502,11 +1512,6 @@ html {
 .vault-chevron.open {
   rotate: 90deg;
 }
-@media (prefers-reduced-motion: reduce) {
-  .vault-chevron {
-    transition: none;
-  }
-}
 
 /* The scanner: the camera preview with a square guide over it. What lies
    inside the square is what gets read, so filling it is all there is to aim. */
@@ -1775,11 +1780,6 @@ html {
 }
 .vault-setting[open] .vault-setting-chevron {
   rotate: 90deg;
-}
-@media (prefers-reduced-motion: reduce) {
-  .vault-setting-chevron {
-    transition: none;
-  }
 }
 .vault-setting-body {
   margin-top: 8px;

@@ -75,6 +75,9 @@ const neptune: MantineColorsTuple = [
 
 export const theme = createTheme({
   colors: { dark, neptune },
+  // Dialogs, menus and lists open without moving when the system asks for
+  // less motion; global.css stops the rest.
+  respectReducedMotion: true,
   primaryColor: 'neptune',
   primaryShade: { light: 6, dark: 6 },
   // The system's own face everywhere: nothing is bundled, so a named web font
