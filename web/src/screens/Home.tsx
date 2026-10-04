@@ -1106,12 +1106,14 @@ function RebuildNotice({ accountId, why }: { accountId: string; why: string }) {
  * Under an empty history: where this wallet looks for payments from. A
  * restore aimed at too late a date shows nothing, and this says how to look
  * further back. After a fast restore, which asks about the whole chain, it
- * says that instead.
+ * says that instead. A wallet that starts on the day it was made, as one
+ * from a new seed phrase does, has nothing older to look for: nothing.
  */
 function SearchedFrom({ account }: { account: AccountRecord }) {
   const { services } = useApp();
   const navigate = useNavigate();
-  const [date, setDate] = useState<number | null>(null);
+  // The start block's date: undefined while the node is asked, null when it cannot say.
+  const [date, setDate] = useState<number | null | undefined>(undefined);
   const from = account.birthdayHeight;
   useEffect(() => {
     if (account.restoredAt || from <= 1) return;
@@ -1121,7 +1123,7 @@ function SearchedFrom({ account }: { account: AccountRecord }) {
       .blockHeaderAt(from)
       .then(
         (h) => live && setDate(h?.timestamp ?? null),
-        () => undefined,
+        () => live && setDate(null),
       );
     return () => {
       live = false;
@@ -1134,7 +1136,8 @@ function SearchedFrom({ account }: { account: AccountRecord }) {
       </Text>
     );
   }
-  if (from <= 1) return null;
+  if (from <= 1 || date === undefined) return null;
+  if (date !== null && dayKey(date) === dayKey(account.createdAt)) return null;
   return (
     <Text c="dimmed" size="xs">
       This wallet looks for payments from block <Spoken text={showBlock(from)} />
