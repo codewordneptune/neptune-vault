@@ -11,11 +11,9 @@ import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../a
 import { MEMPOOL_KEEPS_MS, removableFrom, SEND_LIFETIME_MS, SEND_NOTE_MAX } from '../app/send';
 import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNotes } from '../app/receivedNotes';
 import { usePendingSends } from '../app/pending';
-import { balanceLine } from '../app/balanceLine';
 import { readSendDetails, withSendDetails } from '../app/sendDetails';
 import { Figure, speakNau } from '../components/Amount';
 import { Avatar } from '../components/Avatar';
-import { BalanceLine } from '../components/BalanceLine';
 import { Spoken, spokenText } from '../components/Spoken';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { fiatOf, fiatParts } from '../util/fiat';
@@ -107,19 +105,6 @@ export function Home() {
   const entries = groupHistory(withSendDetails(history, sendDetails), utxos).map((e) =>
     e.kind === 'sent' && e.record.status === 'pending' && toSelf(e.record) ? { ...e, kind: 'self' as const, shownNau: BigInt(e.record.feeNau ?? '0') } : e,
   );
-  // The balance over the last 30 days, from History on this device: drawn
-  // only while amounts are shown and when it moved.
-  const line = (() => {
-    if (!loaded || !ownReady || hidden) return null;
-    const nau = balanceLine(
-      headlineNau,
-      entries.map((e) => ({ netNau: e.netNau, timestampMs: e.record.timestampMs, counts: e.record.status === 'confirmed' || (e.kind !== 'received' && e.record.status === 'pending') })),
-      Date.now(),
-    );
-    if (nau.every((v) => v === nau[0])) return null;
-    const step = NAU_PER_COIN / 100_000_000n;
-    return { points: nau.map((v) => Number(v / step)), from: spoken(nau[0]), to: spoken(nau[nau.length - 1]) };
-  })();
   const [contacts, setContacts] = useState<ContactRecord[]>([]);
   useEffect(() => {
     if (!account) return;
@@ -655,7 +640,6 @@ export function Home() {
                 )}
               </>
             )}
-            {line && <BalanceLine points={line.points} from={line.from} to={line.to} />}
           </Stack>
           <div className="vault-balance-actions">
             <Button

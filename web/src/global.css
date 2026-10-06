@@ -2113,23 +2113,7 @@ html {
   height: 96px;
   color: var(--v-accent);
 }
-/* The last 30 days under the figure: the line, its two ends named below it. */
-.vault-balance-line {
-  margin-top: 6px;
-  color: var(--v-accent-text);
-}
-.vault-balance-line svg {
-  display: block;
-  width: 100%;
-  height: 44px;
-}
-.vault-balance-line-cap {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 2px;
-  font-size: var(--v-fs-xs);
-  color: var(--v-muted);
-}
+
 
 /* A wide window is not a big phone: from 900 px the tabs become a rail on
    the left, the header spans the window, and every screen shares one
