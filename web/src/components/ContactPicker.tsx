@@ -1,10 +1,11 @@
 // Pick a saved recipient for the Send screen.
 
-import { Button, Stack, Text, UnstyledButton } from '@mantine/core';
+import { Button, Group, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconUsers } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Avatar } from './Avatar';
 import { Sheet } from './Sheet';
 import { useApp } from '../app/AppContext';
 import type { ContactRecord } from '../storage/db';
@@ -31,14 +32,17 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
         )}
         {(contacts ?? []).map((c) => (
           <UnstyledButton key={c.key} className="vault-row vault-pick" onClick={() => onPick(c)}>
-            <div style={{ minWidth: 0 }}>
-              <Text size="sm" fw={600}>
-                <bdi>{c.name}</bdi>
-              </Text>
-              <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
-                {abbreviateAddress(c.address)}
-              </Text>
-            </div>
+            <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+              <Avatar name={c.name} address={c.address} />
+              <div style={{ minWidth: 0 }}>
+                <Text size="sm" fw={600}>
+                  <bdi>{c.name}</bdi>
+                </Text>
+                <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
+                  {abbreviateAddress(c.address)}
+                </Text>
+              </div>
+            </Group>
             {/* The kind only when it is not Standard. */}
             {addressKindNote(c.address) && (
               <Text size="xs" c="dimmed">

@@ -13,6 +13,7 @@ import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNote
 import { usePendingSends } from '../app/pending';
 import { readSendDetails, withSendDetails } from '../app/sendDetails';
 import { Figure, speakNau } from '../components/Amount';
+import { Avatar } from '../components/Avatar';
 import { Spoken, spokenText } from '../components/Spoken';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { fiatOf, fiatParts } from '../util/fiat';
@@ -389,6 +390,12 @@ export function Home() {
   const focusRow = (key: string) => setTimeout(() => rowRefs.current.get(key)?.focus(), 0);
   const rowIconOf = (e: HistoryEntry) =>
     e.kind === 'received' ? <IconArrowDownLeft size={20} /> : e.kind === 'self' ? <IconArrowsExchange size={20} /> : <IconArrowUpRight size={20} />;
+  /** A send to a contact starts with the contact's circle, the direction as its badge; any other row with its direction in a plain circle. */
+  const rowAvatarOf = (e: HistoryEntry) => {
+    const contact = e.kind === 'sent' && !severalOf(e) && e.record.recipient ? contactFor(e.record.recipient) : undefined;
+    if (contact) return <Avatar name={contact.name} address={contact.address} badge={<IconArrowUpRight size={16} />} />;
+    return <span className={`vault-row-icon${e.kind === 'received' ? '' : ' out'}`}>{rowIconOf(e)}</span>;
+  };
   /** What a screen reader says for a row, list or table alike. */
   const rowLabelOf = (e: HistoryEntry) => {
     const who = whoOf(e);
@@ -786,7 +793,7 @@ export function Home() {
                         }}
                       >
                         <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                          <span className={`vault-row-icon${incoming ? '' : ' out'}`}>{rowIconOf(e)}</span>
+                          {rowAvatarOf(e)}
                           <div style={{ minWidth: 0 }}>
                             {/* A send not going through says so in its title when nothing else names it, in the caution colour. */}
                             <Text size="sm" fw={600} className={!rowNameOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>

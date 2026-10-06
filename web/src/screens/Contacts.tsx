@@ -7,6 +7,7 @@ import { IconArrowUpRight, IconCopy, IconDotsVertical, IconPencil, IconPlus, Ico
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Avatar } from '../components/Avatar';
 import { Sheet } from '../components/Sheet';
 import { useApp } from '../app/AppContext';
 import { ownAddresses } from '../app/ownAddresses';
@@ -79,20 +80,23 @@ export function ContactsPanel() {
             <div>
               {contacts.map((c) => (
                 <div className="vault-row" key={c.key}>
-                  <div style={{ minWidth: 0 }}>
-                    <Text size="sm" fw={600} className="vault-row-title">
-                      <bdi>{c.name}</bdi>
-                    </Text>
-                    <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
-                      {abbreviateAddress(c.address)}
-                    </Text>
-                    {/* The kind in plain words, and only when it is not Standard. */}
-                    {addressKindNote(c.address) && (
-                      <Text size="xs" c="dimmed">
-                        {addressKindNote(c.address)}
+                  <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+                    <Avatar name={c.name} address={c.address} />
+                    <div style={{ minWidth: 0 }}>
+                      <Text size="sm" fw={600} className="vault-row-title">
+                        <bdi>{c.name}</bdi>
                       </Text>
-                    )}
-                  </div>
+                      <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
+                        {abbreviateAddress(c.address)}
+                      </Text>
+                      {/* The kind in plain words, and only when it is not Standard. */}
+                      {addressKindNote(c.address) && (
+                        <Text size="xs" c="dimmed">
+                          {addressKindNote(c.address)}
+                        </Text>
+                      )}
+                    </div>
+                  </Group>
                   <Group gap={4} wrap="nowrap">
                     {/* Stays while the pointer moves onto it, so it can be read. */}
                     <Tooltip label="Send to this contact" interactive>

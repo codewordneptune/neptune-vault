@@ -5,7 +5,7 @@
 
 import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, PasswordInput, Progress, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
-import { IconCheck, IconFingerprint, IconPlus, IconScan, IconUsers } from '@tabler/icons-react';
+import { IconCheck, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -22,6 +22,7 @@ import { isCancellation } from '../app/passkey';
 import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
 import { Amount } from '../components/Amount';
+import { Avatar } from '../components/Avatar';
 import { Spoken } from '../components/Spoken';
 import { ChoiceField } from '../components/ChoiceField';
 import { Caution, ErrorLine, headingNear, Info } from '../components/Notice';
@@ -117,8 +118,15 @@ function RecipientCard({ address, name, requestName, who, onChange, changeRef }:
   return (
     <Input.Wrapper label="Recipient address" labelElement="div" size="md" labelProps={{ id: labelId }}>
       <div className="vault-recipient" role="group" aria-labelledby={labelId}>
-        {/* The people icon marks a saved contact; a request's name says "unverified" instead. */}
-        {name && <IconUsers size={20} aria-hidden className="vault-recipient-icon" />}
+        {/* A saved contact shows as their circle; any other address as a plain
+            one, and a name that came with a request says "unverified". */}
+        {name ? (
+          <Avatar name={name} address={address} />
+        ) : (
+          <span className="vault-row-icon out" aria-hidden>
+            <IconUser size={20} />
+          </span>
+        )}
         <div className="vault-recipient-text">
           <div className="vault-recipient-head">
             {shownName ? (

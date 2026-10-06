@@ -76,6 +76,18 @@
   /* History's tiles: money in green, money out a quiet fill. */
   --v-tile-in: rgba(63, 185, 80, 0.16);
   --v-tile-out: var(--v-surface-2);
+  /* A contact's colour (Avatar): teal, sky, violet, rose and indigo, none
+     of them the green, amber or red that carry meaning. */
+  --v-hue-0-bg: rgba(45, 212, 191, 0.16);
+  --v-hue-0-fg: #6ee7d6;
+  --v-hue-1-bg: rgba(56, 189, 248, 0.16);
+  --v-hue-1-fg: #7dd3fc;
+  --v-hue-2-bg: rgba(167, 139, 250, 0.18);
+  --v-hue-2-fg: #c4b5fd;
+  --v-hue-3-bg: rgba(251, 113, 133, 0.16);
+  --v-hue-3-fg: #fda4af;
+  --v-hue-4-bg: rgba(129, 140, 248, 0.18);
+  --v-hue-4-fg: #a5b4fc;
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
   --v-danger-text: #ff8a80;
@@ -162,6 +174,16 @@
      apart: the send tile is see-through, so it shows on a row's tint too. */
   --v-tile-in: rgba(63, 185, 80, 0.24);
   --v-tile-out: rgba(51, 78, 110, 0.13);
+  --v-hue-0-bg: rgba(13, 148, 136, 0.14);
+  --v-hue-0-fg: #0f766e;
+  --v-hue-1-bg: rgba(2, 132, 199, 0.13);
+  --v-hue-1-fg: #0369a1;
+  --v-hue-2-bg: rgba(124, 58, 237, 0.12);
+  --v-hue-2-fg: #6d28d9;
+  --v-hue-3-bg: rgba(225, 29, 72, 0.11);
+  --v-hue-3-fg: #be123c;
+  --v-hue-4-bg: rgba(79, 70, 229, 0.12);
+  --v-hue-4-fg: #4338ca;
   --v-ok-text: #1a7a31;
   --v-warn-text: #8a5a00;
   --v-danger-text: #c62828;
@@ -809,7 +831,7 @@ button.vault-network:focus-visible {
 .vault-row-icon {
   width: 36px;
   height: 36px;
-  border-radius: var(--v-radius-xs);
+  border-radius: 50%;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -820,6 +842,58 @@ button.vault-network:focus-visible {
 .vault-row-icon.out {
   background: var(--v-tile-out);
   color: var(--v-text-2);
+}
+/* A contact's circle (Avatar): the initial on its address's colour, the
+   size of a row's icon, with an optional badge at its corner. */
+.vault-avatar {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1;
+}
+.vault-avatar.big {
+  width: 56px;
+  height: 56px;
+  font-size: 22px;
+}
+.vault-avatar[data-hue='0'] {
+  background: var(--v-hue-0-bg);
+  color: var(--v-hue-0-fg);
+}
+.vault-avatar[data-hue='1'] {
+  background: var(--v-hue-1-bg);
+  color: var(--v-hue-1-fg);
+}
+.vault-avatar[data-hue='2'] {
+  background: var(--v-hue-2-bg);
+  color: var(--v-hue-2-fg);
+}
+.vault-avatar[data-hue='3'] {
+  background: var(--v-hue-3-bg);
+  color: var(--v-hue-3-fg);
+}
+.vault-avatar[data-hue='4'] {
+  background: var(--v-hue-4-bg);
+  color: var(--v-hue-4-fg);
+}
+.vault-avatar-badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--v-surface);
+  color: var(--v-text-2);
+  box-shadow: 0 0 0 2px var(--v-surface);
 }
 
 /* Visually hidden, still read by screen readers, and never copied with
@@ -2618,10 +2692,6 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   border: 1px solid var(--v-field-border);
   border-radius: var(--mantine-radius-sm);
   background: var(--v-field);
-}
-.vault-recipient-icon {
-  flex: none;
-  color: var(--v-muted);
 }
 .vault-recipient-text {
   flex: 1;
