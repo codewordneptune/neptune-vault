@@ -992,6 +992,59 @@ main :is(h2, h3)[tabindex='-1']:focus {
 .vault-review-row.total b {
   font-weight: 600;
 }
+/* With one recipient the review is a receipt: who and how much, centred
+   and large, then the fee and the total in an inset under them. */
+.vault-receipt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  text-align: center;
+}
+.vault-receipt > .vault-avatar,
+.vault-receipt > .vault-row-icon {
+  margin-bottom: 4px;
+}
+.vault-receipt > .vault-row-icon {
+  width: 56px;
+  height: 56px;
+}
+/* 42 px where there is room; on a small phone it scales with the width,
+   and a figure that still does not fit breaks rather than run out. */
+.vault-receipt-amount {
+  margin-top: 6px;
+  font-size: clamp(1.75rem, 10.5vw, 2.625rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.vault-receipt-amount .vault-unit {
+  font-size: var(--v-fs-md);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--v-muted);
+}
+.vault-receipt-sums {
+  background: var(--v-well);
+  border-radius: var(--v-radius-sm);
+  padding: 12px 16px;
+}
+.vault-receipt-sums > .vault-review-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.vault-receipt-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.vault-receipt-warn > svg {
+  flex: none;
+  margin-top: 2px;
+}
 
 /* Picker rows (the contact picker) and History's rows are buttons running
    edge to edge across their dialog or card, as Settings' rows do: widened
@@ -2111,6 +2164,47 @@ html {
   border-radius: 3px;
   background: var(--v-field-border);
 }
+/* A sheet that is a step of a task (Sheet's `back`): the way back is a link
+   at the header's start where the cross was, and the title is centred. */
+.vault-sheet-backed .mantine-Modal-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+.vault-sheet-backed .mantine-Modal-title {
+  grid-area: 1 / 2;
+  text-align: center;
+}
+.vault-sheet-backed .mantine-Modal-close.vault-sheet-back {
+  grid-area: 1 / 1;
+  justify-self: start;
+  gap: 2px;
+  width: auto;
+  height: auto;
+  min-width: 40px;
+  min-height: 40px;
+  margin: -10px 0 -10px -6px;
+  padding: 0 4px 0 2px;
+  background: none;
+  color: var(--v-accent-text);
+  font-size: var(--v-fs-sm);
+  font-weight: 600;
+}
+.vault-sheet-backed .mantine-Modal-close.vault-sheet-back:hover {
+  background: none;
+  color: var(--v-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.vault-sheet-back > svg {
+  width: 16px;
+  height: 16px;
+}
+@media (pointer: coarse) {
+  .vault-sheet-backed .mantine-Modal-close.vault-sheet-back {
+    min-height: 44px;
+    margin-block: -12px;
+  }
+}
 /* Send and Receive as pills. */
 .vault-balance-actions .vault-pill {
   border-radius: 999px;
@@ -2738,7 +2832,7 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   margin-top: 4px;
 }
 .vault-review-payee {
-  align-items: flex-start;
+  align-items: center;
 }
 .vault-review-payee b {
   flex-shrink: 0;

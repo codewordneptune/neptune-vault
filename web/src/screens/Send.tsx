@@ -5,7 +5,7 @@
 
 import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, PasswordInput, Progress, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
-import { IconCheck, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCheck, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -216,8 +216,7 @@ export function Send() {
   const showNote = noteOpen || note !== '';
   // The name a request gave, offered for the contact after the send.
   const [lastLabel, setLastLabel] = useState<string | null>(null);
-  // The review is a dialog like every other: centred on a wide screen, the
-  // whole screen on a phone.
+  // The review's password field takes the focus on opening only on a wider screen.
   const phone = useMediaQuery('(max-width: 36em)');
   const [saving, setSaving] = useState(false);
 
@@ -961,74 +960,86 @@ export function Send() {
     const spendableAfter = balance.spendableNau - totalNau;
     reviewSheet = (
         <Stack>
-          {/* One line before the payment: what cannot be undone, and how long it takes. */}
-          <Text size="sm" c="dimmed">
-            This send cannot be changed once it starts, and {estimate !== null ? `takes ${formatAbout(estimate)} on this device` : 'can take a few minutes'}.
-          </Text>
-          <div className="vault-review">
-            {payees.length === 1 ? (
-              <>
-                <div>
-                  <span className="vault-review-label">To</span>
-                  {reviewName && (
-                    <Text size="md" fw={600}>
-                      <bdi>{reviewName}</bdi>
-                    </Text>
-                  )}
-                  <Text ff="monospace" size="sm" c={reviewName ? 'dimmed' : undefined}>
-                    {abbreviateAddress(recipient)}
+          {payees.length === 1 ? (
+            // One recipient: a receipt, with who and how much first and large.
+            <div className="vault-receipt">
+              {reviewName ? (
+                <Avatar big name={reviewName} address={recipient} />
+              ) : (
+                <span className="vault-row-icon out big" aria-hidden>
+                  <IconUser size={20} />
+                </span>
+              )}
+              {reviewName && (
+                <Text size="md" fw={600}>
+                  <bdi>{reviewName}</bdi>
+                </Text>
+              )}
+              <Text ff="monospace" size="sm" c={reviewName ? 'dimmed' : undefined}>
+                {abbreviateAddress(recipient)}
+              </Text>
+              {/* One name per recipient: the saved contact's, or else the request's, said to be unverified. */}
+              {!reviewName && linkMeta?.label && (
+                <Text size="sm" c="dimmed">
+                  Name, unverified:{' '}
+                  <Text span inherit c="var(--v-text)" fw={600} dir="auto" className="vault-bidi">
+                    {linkMeta.label}
                   </Text>
-                  {/* One name per recipient: the saved contact's, or else the request's, said to be unverified. */}
-                  {!reviewName && linkMeta?.label && (
-                    <Text size="sm" c="dimmed" mt={2}>
-                      Name, unverified:{' '}
-                      <Text span inherit c="var(--v-text)" fw={600} dir="auto" className="vault-bidi">
-                        {linkMeta.label}
+                </Text>
+              )}
+              {/* A kind other than Standard, in plain words. */}
+              {kind && (
+                <Badge size="sm" variant="outline" color="gray" className="vault-kind">
+                  {kind}
+                </Badge>
+              )}
+              <div className="vault-receipt-amount">
+                <Amount nau={totals.amountNau} />
+              </div>
+              {/* As under the balance: the price's age once it is getting old, its source in Settings, Currency. */}
+              {quote && (
+                <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  <Spoken text={`≈ ${formatFiat(fiatOf(totals.amountNau, NAU_PER_COIN, quote.price), quote.currency)}`} />
+                  {Date.now() - quote.at > QUOTE_OLD_MS && <Spoken text={` · price from ${timeAgo(quote.at)}`} />}
+                </Text>
+              )}
+            </div>
+          ) : (
+            <div className="vault-review">
+              {/* Several recipients: each with what it gets, in the order sent. */}
+              <span className="vault-review-label">To {payees.length} recipients</span>
+              {payees.map((p, i) => (
+                <div className="vault-review-row vault-review-payee" key={i}>
+                  {p.name ? (
+                    <Avatar name={p.name} address={p.address} />
+                  ) : (
+                    <span className="vault-row-icon out" aria-hidden>
+                      <IconUser size={20} />
+                    </span>
+                  )}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    {p.name && (
+                      <Text size="md" fw={600}>
+                        <bdi>{p.name}</bdi>
                       </Text>
+                    )}
+                    <Text ff="monospace" size="sm" c={p.name ? 'dimmed' : undefined}>
+                      {abbreviateAddress(p.address)}
                     </Text>
-                  )}
-                  {/* A kind other than Standard, in plain words. */}
-                  {kind && (
-                    <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
-                      {kind}
-                    </Badge>
-                  )}
-                </div>
-                <div className="vault-review-row">
-                  <span>Amount</span>
+                    {addressKindNote(p.address) && (
+                      <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
+                        {addressKindNote(p.address)}
+                      </Badge>
+                    )}
+                  </div>
                   <b>
-                    <Amount nau={totals.amountNau} figure />
+                    <Amount nau={p.nau} figure />
                   </b>
                 </div>
-              </>
-            ) : (
-              <>
-                {/* Several recipients: each with what it gets, in the order sent. */}
-                <span className="vault-review-label">To {payees.length} recipients</span>
-                {payees.map((p, i) => (
-                  <div className="vault-review-row vault-review-payee" key={i}>
-                    <div style={{ minWidth: 0 }}>
-                      {p.name && (
-                        <Text size="md" fw={600}>
-                          <bdi>{p.name}</bdi>
-                        </Text>
-                      )}
-                      <Text ff="monospace" size="sm" c={p.name ? 'dimmed' : undefined}>
-                        {abbreviateAddress(p.address)}
-                      </Text>
-                      {addressKindNote(p.address) && (
-                        <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
-                          {addressKindNote(p.address)}
-                        </Badge>
-                      )}
-                    </div>
-                    <b>
-                      <Amount nau={p.nau} figure />
-                    </b>
-                  </div>
-                ))}
-              </>
-            )}
+              ))}
+            </div>
+          )}
+          <div className="vault-review vault-receipt-sums">
             <div className="vault-review-row">
               <span>Fee</span>
               <b>
@@ -1041,19 +1052,19 @@ export function Send() {
                 <Amount nau={totalNau} figure />
               </b>
             </div>
-            {/* As under the balance: the price's age once it is getting old, its source in Settings, Currency. */}
-            {quote && (
+            {payees.length > 1 && quote && (
               <Text size="xs" c="dimmed" ta="right" mt={-6} style={{ fontVariantNumeric: 'tabular-nums' }}>
                 <Spoken text={`≈ ${formatFiat(fiatOf(totalNau, NAU_PER_COIN, quote.price), quote.currency)}`} />
                 {Date.now() - quote.at > QUOTE_OLD_MS && <Spoken text={` · price from ${timeAgo(quote.at)}`} />}
               </Text>
             )}
-            {reviewFeeNote && (
-              <Text size="sm" c="var(--v-warn-text)" mt="xs">
-                {reviewFeeNote}
-              </Text>
-            )}
           </div>
+          {reviewFeeNote && (
+            <Text size="sm" c="var(--v-warn-text)" className="vault-receipt-warn">
+              <IconAlertTriangle size={16} aria-hidden />
+              <span>{reviewFeeNote}</span>
+            </Text>
+          )}
           {cleanNote(note) && (
             <Text size="sm">
               <Text span inherit c="dimmed">
@@ -1062,6 +1073,10 @@ export function Send() {
               <bdi>{cleanNote(note)}</bdi>
             </Text>
           )}
+          {/* What pressing Send starts: what cannot be undone, and how long it takes. */}
+          <Text size="sm" c="dimmed">
+            This send cannot be changed once it starts, and {estimate !== null ? `takes ${formatAbout(estimate)} on this device` : 'can take a few minutes'}.
+          </Text>
           {/* Only when this send has change, and never while amounts are hidden. */}
           {!hidden && spendableWhile !== spendableAfter && (
             <Text size="sm" c="dimmed">
@@ -1131,20 +1146,16 @@ export function Send() {
               />
             </Stack>
           )}
-          <Group grow>
-            <Button variant="default" onClick={() => setStep('form')}>
-              Edit
-            </Button>
-            <Button
-              variant={needsApproval && hasPasskey ? 'light' : 'filled'}
-              onClick={() => void (needsApproval ? confirmWithPassword() : send(askLustration))}
-              loading={checking || (starting && !passkeyBusy)}
-              disabled={running || passkeyBusy || ((totals.feeHigh || totals.feeLow) && !feeAgreed) || (needsApproval && !password)}
-            >
-              {/* The password above says what confirms it; the button says what it does. */}
-              {askLustration ? 'Send anyway' : 'Send'}
-            </Button>
-          </Group>
+          {/* The button says what it does; Edit, at the sheet's top, goes back to the form. */}
+          <Button
+            fullWidth
+            variant={needsApproval && hasPasskey ? 'light' : 'filled'}
+            onClick={() => void (needsApproval ? confirmWithPassword() : send(askLustration))}
+            loading={checking || (starting && !passkeyBusy)}
+            disabled={running || passkeyBusy || ((totals.feeHigh || totals.feeLow) && !feeAgreed) || (needsApproval && !password)}
+          >
+            <Spoken text={`Send ${showNau(totalNau)} NPT${askLustration ? ' anyway' : ''}`} />
+          </Button>
         </Stack>
     );
   }
@@ -1152,7 +1163,7 @@ export function Send() {
   return (
     <Paper>
       <Stack>
-        <Sheet opened={reviewSheet !== null} onClose={() => setStep('form')} title="Review" size={560} centered fullScreen={phone}>
+        <Sheet opened={reviewSheet !== null} onClose={() => setStep('form')} title="Review" back="Edit" size={560} centered>
           {reviewSheet}
         </Sheet>
         {/* The card's label, as Home's cards have theirs, and the screen's

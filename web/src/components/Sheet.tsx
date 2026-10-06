@@ -1,5 +1,6 @@
 import { Modal, type ModalProps } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
+import { IconChevronLeft } from '@tabler/icons-react';
 import { useRef, type PointerEvent } from 'react';
 
 import { useBackCloses } from '../app/backCloses';
@@ -15,11 +16,21 @@ const CLOSE_FASTER_THAN = 0.6; // px per ms
  * thumb is, with a handle at its top: a swipe down from there closes it.
  * One asked to fill the screen (the scanner, a code shown full size) does
  * that instead, and a wider screen keeps a dialog in the middle.
+ *
+ * Closing one that is a step of a task (Send's review) goes back a step:
+ * `back` names that step, at the header's start in place of the cross.
  */
-export function Sheet(props: ModalProps) {
-  useBackCloses(props.opened, props.onClose);
+export function Sheet({ back, ...given }: ModalProps & { back?: string }) {
+  useBackCloses(given.opened, given.onClose);
   const phone = useMediaQuery('(max-width: 36em)', undefined, { getInitialValueInEffect: false });
   const drag = useRef<{ y: number; at: number; sheet: HTMLElement; pointer: number } | null>(null);
+  const props: ModalProps = !back
+    ? given
+    : {
+        ...given,
+        className: [given.className, 'vault-sheet-backed'].filter(Boolean).join(' '),
+        closeButtonProps: { ...given.closeButtonProps, icon: <IconChevronLeft size={16} />, children: back, 'aria-label': back, className: 'vault-sheet-back' },
+      };
   if (!phone || props.fullScreen) return <Modal {...props} />;
 
   const down = (e: PointerEvent<HTMLElement>) => {
@@ -51,14 +62,14 @@ export function Sheet(props: ModalProps) {
     if (dy > CLOSE_AFTER_PX || flick) props.onClose();
   };
 
-  const given: Record<string, string | undefined> = typeof props.classNames === 'object' && props.classNames ? (props.classNames as Record<string, string | undefined>) : {};
-  const join = (part: string, own: string) => [own, given[part]].filter(Boolean).join(' ');
+  const named: Record<string, string | undefined> = typeof props.classNames === 'object' && props.classNames ? (props.classNames as Record<string, string | undefined>) : {};
+  const join = (part: string, own: string) => [own, named[part]].filter(Boolean).join(' ');
   return (
     <Modal
       {...props}
       centered={false}
       size="100%"
-      classNames={{ ...given, inner: join('inner', 'vault-sheet-inner'), content: join('content', 'vault-sheet'), header: join('header', 'vault-sheet-header') }}
+      classNames={{ ...named, inner: join('inner', 'vault-sheet-inner'), content: join('content', 'vault-sheet'), header: join('header', 'vault-sheet-header') }}
       transitionProps={{ transition: 'slide-up', duration: 220, ...props.transitionProps }}
       attributes={{ header: { role: 'none', onPointerDown: down, onPointerMove: move, onPointerUp: up, onPointerCancel: up } }}
     />
