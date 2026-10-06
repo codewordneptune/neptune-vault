@@ -80,9 +80,9 @@ export const theme = createTheme({
   respectReducedMotion: true,
   primaryColor: 'neptune',
   primaryShade: { light: 6, dark: 6 },
-  // The system's own face everywhere: nothing is bundled, so a named web font
-  // (Inter led the stack) only ever showed where someone had installed it.
-  fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  // Inter, served by the app itself (assets/fonts, global.css), so text and
+  // figures look the same on every device; the system's face while it loads.
+  fontFamily: '"Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   // The one monospace stack; global.css reads it as --mantine-font-family-monospace.
   fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   fontSizes: { xs: '0.75rem', sm: '0.875rem', md: '1rem', lg: '1.25rem', xl: '1.25rem' },

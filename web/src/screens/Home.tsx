@@ -12,7 +12,7 @@ import { MEMPOOL_KEEPS_MS, removableFrom, SEND_LIFETIME_MS, SEND_NOTE_MAX } from
 import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNotes } from '../app/receivedNotes';
 import { usePendingSends } from '../app/pending';
 import { readSendDetails, withSendDetails } from '../app/sendDetails';
-import { speakNau } from '../components/Amount';
+import { Figure, speakNau } from '../components/Amount';
 import { Spoken, spokenText } from '../components/Spoken';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { fiatOf, fiatParts } from '../util/fiat';
@@ -556,7 +556,7 @@ export function Home() {
             {/* The figure on screen is grouped; a screen reader is given plain digits, or "hidden". */}
             <div className="vault-balance">
               <span aria-hidden>
-                {loaded && ownReady ? amount(headlineNau) : '…'}
+                {loaded && ownReady ? <Figure text={amount(headlineNau)} /> : '…'}
                 <small> NPT</small>
               </span>
               <span className="sr-only">{loaded && ownReady ? `Balance ${spoken(headlineNau)} NPT${unsynced ? ', not synced yet' : ''}` : 'Balance loading'}</span>
@@ -807,7 +807,7 @@ export function Home() {
                           {/* Nothing left the wallet: the figure is struck through, with no sign. */}
                           <Text size="sm" fw={600} c={notSent(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
                             {notSent(e) ? '' : incoming ? '+' : '−'}
-                            {amount(e.shownNau)}{' '}
+                            <Figure text={amount(e.shownNau)} />{' '}
                             <span className="vault-unit">NPT</span>
                           </Text>
                         </div>

@@ -13,13 +13,29 @@ export function speakNau(nau: bigint, hidden = false): string {
   return hidden ? 'hidden' : formatNau(nau);
 }
 
-export function Amount({ nau, hidden = false, unit = true, sign }: { nau: bigint; hidden?: boolean; unit?: boolean; sign?: '+' | '−' }) {
+/**
+ * A figure shown as a value (the balance, a History row, a receipt): the
+ * whole part, then its decimals a step quieter. Inside a sentence an amount
+ * stays plain.
+ */
+export function Figure({ text }: { text: string }) {
+  const dot = text.indexOf('.');
+  if (dot < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, dot)}
+      <span className="vault-dec">{text.slice(dot)}</span>
+    </>
+  );
+}
+
+export function Amount({ nau, hidden = false, unit = true, sign, figure = false }: { nau: bigint; hidden?: boolean; unit?: boolean; sign?: '+' | '−'; figure?: boolean }) {
   const shown = `${sign ?? ''}${hidden ? '••••' : showNau(nau)}`;
   const spoken = `${sign === '+' ? 'plus ' : sign === '−' ? 'minus ' : ''}${speakNau(nau, hidden)}${unit ? ' NPT' : ''}`;
   return (
     <>
       <span aria-hidden>
-        {shown}
+        {figure ? <Figure text={shown} /> : shown}
         {unit && (
           <>
             {' '}

@@ -989,7 +989,7 @@ export function Send() {
                 <div className="vault-review-row">
                   <span>Amount</span>
                   <b>
-                    <Amount nau={totals.amountNau} />
+                    <Amount nau={totals.amountNau} figure />
                   </b>
                 </div>
               </>
@@ -1015,7 +1015,7 @@ export function Send() {
                       )}
                     </div>
                     <b>
-                      <Amount nau={p.nau} />
+                      <Amount nau={p.nau} figure />
                     </b>
                   </div>
                 ))}
@@ -1024,13 +1024,13 @@ export function Send() {
             <div className="vault-review-row">
               <span>Fee</span>
               <b>
-                <Amount nau={totals.feeNau} />
+                <Amount nau={totals.feeNau} figure />
               </b>
             </div>
             <div className="vault-review-row total">
               <span>Total</span>
               <b>
-                <Amount nau={totalNau} />
+                <Amount nau={totalNau} figure />
               </b>
             </div>
             {/* As under the balance: the price's age once it is getting old, its source in Settings, Currency. */}
@@ -1177,7 +1177,7 @@ export function Send() {
                   Sent
                 </Text>
                 <Text fz="md" c="var(--v-text-2)">
-                  <Amount nau={paymentsTotalNau(sendJob.request)} hidden={hidden} /> to <bdi>{whoOf(sendJob.request)}</bdi>
+                  <Amount nau={paymentsTotalNau(sendJob.request)} hidden={hidden} figure /> to <bdi>{whoOf(sendJob.request)}</bdi>
                 </Text>
                 <Text size="sm" c="dimmed">
                   Fee <Spoken text={hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} /> NPT · {WAITING_FOR_BLOCK.toLowerCase()}, usually within an hour

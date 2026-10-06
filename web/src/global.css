@@ -2,6 +2,25 @@
    Mantine does not cover. Everything below reads from these variables so
    colours, sizes and radii stay consistent across screens. */
 
+/* Inter (SIL Open Font License, assets/fonts/Inter-LICENSE.txt), one variable
+   file per script range, so a page in Latin loads the 48 KB one alone. */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('./assets/fonts/inter-latin-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('./assets/fonts/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* Spacing steps: 2, 4, 6, 8, 10, 12, 16, 20 and 24 px, which include the
    component library's own (10, 12, 16, 20). Anything else is a structural
    size (a bar's height, a target's 40 px), not spacing. */
@@ -725,13 +744,13 @@ button.vault-network:focus-visible {
   color: var(--v-muted);
 }
 /* 36 px where there is room; on a small phone it scales with the width
-   (9vw is 29 px at 320 px), so "12 345.12345678", about 300 px wide at
-   36 px, comes to about 240 and fits the card's 248. Should a figure still
-   not fit, it breaks rather than run out of the card. */
+   (8.6vw is 27.5 px at 320 px), so "12 345.12345678", about 317 px wide at
+   36 px in Inter, comes to about 243 and fits the card's 248. Should a
+   figure still not fit, it breaks rather than run out of the card. */
 .vault-balance {
-  font-size: clamp(1.5rem, 9vw, 2.25rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.5rem, 8.6vw, 2.25rem);
+  font-weight: 650;
+  letter-spacing: -0.025em;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -1281,6 +1300,13 @@ html {
 .vault-review-row b .vault-unit {
   font-weight: 400;
   color: var(--v-muted);
+}
+
+/* A figure's decimals, a step quieter than its whole part, in whatever
+   colour the figure has (Figure in components/Amount.tsx). */
+.vault-dec {
+  opacity: 0.72;
+  font-weight: 500;
 }
 
 /* The readings under the balance are grey, words and units alike; their
