@@ -11,6 +11,7 @@ import { NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../a
 import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../app/addressLabels';
 import { MEMPOOL_KEEPS_MS, removableFrom, SEND_LIFETIME_MS, SEND_NOTE_MAX } from '../app/send';
 import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNotes } from '../app/receivedNotes';
+import { readSentNotes, sentCoinOf, sentNoteOf, writeSentNote, type SentNotes } from '../app/sentNotes';
 import { usePendingSends } from '../app/pending';
 import { readSendDetails, withSendDetails } from '../app/sendDetails';
 import { fixedNau, useCountUp } from '../app/countUp';
@@ -107,6 +108,12 @@ export function Home() {
   useEffect(() => {
     if (!account) return;
     void readReceivedNotes(services.core, services.accounts.engine, account.id).then(setReceivedNotes, () => setReceivedNotes({}));
+  }, [services, account]);
+  // And on sends, as changed here after the send.
+  const [sentNotes, setSentNotes] = useState<SentNotes>({});
+  useEffect(() => {
+    if (!account) return;
+    void readSentNotes(services.core, services.accounts.engine, account.id).then(setSentNotes, () => setSentNotes({}));
   }, [services, account]);
   // One entry per transaction, with the recipient named when it is a contact.
   const entries = groupHistory(withSendDetails(history, sendDetails), utxos).map((e) =>
@@ -364,8 +371,8 @@ export function Home() {
   };
   /** A send's note to self, or the person's note on a payment received, when it has one. */
   const noteOf = (e: HistoryEntry): string | null => {
-    if (e.kind === 'sent') return e.record.note || null;
-    const coin = e.kind === 'received' ? receivedCoinOf(e.record) : null;
+    if (e.kind !== 'received') return sentNoteOf(e.record, sentNotes);
+    const coin = receivedCoinOf(e.record);
     return coin ? (receivedNotes[coin] ?? null) : null;
   };
   /** The row's title when a name or a note gives one: the note before a count of recipients. */
@@ -937,13 +944,17 @@ export function Home() {
             {detail.kind === 'sent' && !detail.record.recipient && (
               <DetailRow label="Recipient" value="Not recorded. The send was made on another device or before a restore, so the amount above includes the fee." />
             )}
-            {detail.record.note && <DetailRow label="Note" value={detail.record.note} isolate />}
-            {detail.kind === 'received' && receivedCoinOf(detail.record) && account && (
-              <ReceivedNote
+            {/* A note can be added or changed once the payment's coin is known; until then it is only shown. */}
+            {account && detail.kind === 'received' && receivedCoinOf(detail.record) ? (
+              <NoteEditor
                 key={detail.record.key}
                 note={noteOf(detail)}
                 onSave={async (text: string) => setReceivedNotes(await writeReceivedNote(services.core, services.accounts.engine, account.id, receivedCoinOf(detail.record)!, text))}
               />
+            ) : account && detail.kind !== 'received' && sentCoinOf(detail.record) ? (
+              <NoteEditor key={detail.record.key} note={noteOf(detail)} onSave={async (text: string) => setSentNotes(await writeSentNote(services.core, services.accounts.engine, account.id, detail.record, text))} />
+            ) : (
+              noteOf(detail) && <DetailRow label="Note" value={noteOf(detail) as string} isolate />
             )}
             {detail.record.error && <DetailRow label="What happened" value={detail.record.error} />}
             {(outputsOf(detail).length > 0 || nodeStatusOf(detail.record) !== null || (detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n)) && (
@@ -1200,10 +1211,10 @@ function SearchedFrom({ account }: { account: AccountRecord }) {
 }
 
 /**
- * The person's note on a payment received, in its details: Add note, or the
- * note with Edit; saved empty, it goes. Worded as a send's note on Send.
+ * The person's note on a payment, in its details: Add note, or the note
+ * with Edit; saved empty, it goes. Worded as a send's note on Send.
  */
-function ReceivedNote({ note, onSave }: { note: string | null; onSave: (text: string) => Promise<void> }) {
+function NoteEditor({ note, onSave }: { note: string | null; onSave: (text: string) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(note ?? '');
   const [busy, setBusy] = useState(false);

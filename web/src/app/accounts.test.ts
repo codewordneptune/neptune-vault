@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { confirmsSends, openVaultDb, type VaultDb } from '../storage/db';
-import type { SeedEnvelope } from '../storage/db';
+import type { HistoryRecord, SeedEnvelope } from '../storage/db';
 import { openSeed, openSeedKeepingKey, openSeedWithSecretKeepingKey, sealSeedUnlock, WrongPasswordError, WrongPhraseError } from '../storage/envelope';
 import type { WalletCore } from '../backend/types';
 import { CHAIN_PARTS } from '../backend/types';
@@ -12,6 +12,7 @@ import { AccountService, clashingName, DEFAULT_LOCK_MS, lockTimeoutOf, nextWalle
 import type { PasskeyProvider } from './passkey';
 import { readSendDetails } from './sendDetails';
 import { readReceivedNotes, writeReceivedNote } from './receivedNotes';
+import { readSentNotes, writeSentNote } from './sentNotes';
 
 class FakePasskeys implements PasskeyProvider {
   secretBytes = new Uint8Array(32).fill(42);
@@ -907,6 +908,33 @@ describe('account service', () => {
       await service.lock();
       const restored = await service.importFile(file, 'pw');
       expect(await readReceivedNotes(core as unknown as WalletCore, service.engine, restored.id)).toEqual({ 'c0ffee:3': 'Rent for May' });
+    } finally {
+      vault.close();
+    }
+  });
+
+  it('a backup file brings back the notes on sends, a cleared one too', async () => {
+    db = await openVaultDb();
+    const vault = await testEngine();
+    try {
+      const core = Object.assign(new FakeCore(), vault.store, {
+        async unlock(this: FakeCore, phrase: string[], _network?: string, contentKey?: Uint8Array) {
+          this.unlocked = phrase;
+          vault.unlock(contentKey);
+        },
+      });
+      const service = new AccountService(db, core as unknown as WalletCore, 5 * 60 * 1000);
+      const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+      const send = (inputHashes: string[], note: string | null): HistoryRecord =>
+        ({ key: `${record.id}:sent:ab01`, accountId: record.id, kind: 'sent', status: 'confirmed', txid: 'ab01', amountNau: '5', feeNau: '1', timestampMs: 0, height: 3, inputHashes, recipient: null, error: null, note }) as HistoryRecord;
+      await writeSentNote(core as unknown as WalletCore, service.engine, record.id, send(['c0ffee:3'], null), 'Rent for May');
+      await writeSentNote(core as unknown as WalletCore, service.engine, record.id, send(['beef:9'], 'Lunch'), '');
+      // Back to the note typed on Send: no entry is needed.
+      await writeSentNote(core as unknown as WalletCore, service.engine, record.id, send(['dad:1'], 'Gift'), 'Gift');
+      const file = await service.exportFile(record.id, 'pw');
+      await service.lock();
+      const restored = await service.importFile(file, 'pw');
+      expect(await readSentNotes(core as unknown as WalletCore, service.engine, restored.id)).toEqual({ 'c0ffee:3': 'Rent for May', 'beef:9': '' });
     } finally {
       vault.close();
     }

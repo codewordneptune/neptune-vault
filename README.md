@@ -76,6 +76,8 @@ A self-custodial wallet for [Neptune Cash](https://neptune.cash).
 
 - Payments by day, each with its details: the coins, and on Mainnet a link
   to each on the explorer.
+- A note of your own on any payment, sent or received, added or changed in
+  its details.
 - A send that the node has stopped carrying is marked "Not going through",
   and you can give up on it to free its coins.
 - A send that was not sent can be removed from History once it can no
@@ -189,8 +191,8 @@ rather than in a browser's.
 - **Backup file.** Export one from Settings, Backup, with your password. It
   restores the seed phrase, the network, the start block, your contacts,
   the names you gave your addresses, which addresses you have given out,
-  who each send paid, with its amounts, fee and note, and your notes on
-  payments received.
+  who each send paid, with its amounts and fee, and your notes on sends and
+  on payments received.
   - The seed phrase, the contacts, the address names, the addresses given
     out, the sends and the notes are encrypted.
   - The rest of the file is sealed, so the app refuses a file that has been
