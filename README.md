@@ -71,27 +71,31 @@ A self-custodial wallet for [Neptune Cash](https://neptune.cash).
   and add a note for yourself that History keeps.
 - Scan a QR code with the camera, or from an image you choose or paste. In
   the Android app, a `neptunecash:` payment link opens Send, filled in.
+- On a phone, a send to one person starts with the amount, large. The
+  review reads like a receipt, and its button says what it sends.
 
 **History**
 
 - Payments by day, each with its details: the coins, and on Mainnet a link
   to each on the explorer.
-- A note of your own on any payment, sent or received, added or changed in
-  its details.
-- A send that the node has stopped carrying is marked "Not going through",
-  and you can give up on it to free its coins.
+- A note of your own on any send, and on any payment received once a block
+  confirms it, added or changed in its details.
+- A send that the node has stopped carrying is marked "Not going through".
+  You can give up on a pending send to free its coins. It may still go
+  through, so a new send to the same person spends one of the same coins,
+  and only one of the two can.
 - A send that was not sent can be removed from History once it can no
   longer go through.
-- Hide every amount with one tap, for using the wallet where others can
-  see.
-- Rescan the chain, fast or from a block or a date.
+- Hide amounts with one tap, for using the wallet where others can see. The
+  review before a send still shows what it sends.
+- Rescan the chain, fast, or privately from a month or a block you choose.
 
 **Security and settings**
 
 - Passkey unlock where the browser supports it.
-- The wallet locks after 1 to 30 minutes idle, when it goes to the
-  background (at once, or after 30 seconds or 2 minutes), and from the
-  header menu.
+- The wallet locks after 1 to 30 minutes idle (not while a send or a long
+  scan runs), when it goes to the background (at once, or after 30 seconds
+  or 2 minutes), and from the header menu.
 - Change your password, and export encrypted backup files.
 - Light and dark themes, following the system or your choice.
 - Optionally, an estimate of the balance in another currency. It is off by
@@ -106,11 +110,11 @@ A self-custodial wallet for [Neptune Cash](https://neptune.cash).
 | Platform | Status |
 |---|---|
 | Android, Chrome (installed web app) | Main target. Tested on a Galaxy S24, including Mainnet sends. |
-| Android app | In testing. Test builds by GitHub Actions, tested on a Galaxy S24, including a Mainnet send. Not released or signed for release yet; see [docs/ANDROID.md](docs/ANDROID.md). |
+| Android app | In testing. Test builds by GitHub Actions, tested on a Galaxy S24, including a Mainnet send. Not released or signed for release yet. Backup export does not work in it yet, and Android's own backup may copy its data, the encrypted seed phrase included, to your Google account; see [docs/ANDROID.md](docs/ANDROID.md). |
 | iOS, Safari (installed web app) | Intended. Not tested yet. |
 | Desktop browsers | Work. Good for trying the app out. |
 | Windows desktop app | Builds and runs. Not signed yet. |
-| Linux and macOS desktop apps | The release workflow can build them, but has not run yet. Not tested, not signed. |
+| Linux and macOS desktop apps | The release workflow builds them, in runs started by hand so far, so there is no release yet. Not tested, not signed. |
 
 The web app and the native apps (desktop and Android) share one interface.
 The native apps run the wallet engine and the prover as native code rather
@@ -128,7 +132,11 @@ rather than in a browser's.
 - **Install the web app.** On Android, open Chrome's menu and choose
   "Install app" or "Add to Home screen". A browser is much less likely to
   clear an installed app's storage, and Settings, Backup warns you when the
-  browser has not promised to keep it.
+  browser has not promised to keep it. On an iPhone, open the site in
+  Safari, tap Share, then Add to Home Screen, and make or restore the
+  wallet in the app that adds: it keeps its own storage, apart from
+  Safari's, and Safari deletes a site's storage when it is not opened for
+  about a week.
 - **Sending takes a minute or more in the web app.** The proof needs about
   1 GB of free memory and one to two minutes on a recent high-end phone,
   longer on others; devices with 4 GB of RAM or less may run out of memory.
@@ -140,9 +148,10 @@ rather than in a browser's.
   - **Fast restore** takes seconds. The node's coin index finds your
     payments, so the node learns which payments are yours, and can
     recognise later ones, though not the amounts.
-  - **Private restore** downloads and scans every block from a date you
-    choose. From the start of Mainnet that is several gigabytes and hours of
-    scanning, and the node learns nothing about your coins.
+  - **Private restore** downloads and scans every block on your device,
+    from the start of Mainnet or from a month you choose. From the start
+    that is about 8 to 10 GB and hours of scanning, and the node learns
+    nothing about your coins.
 - **Your seed phrase is the only real backup.** Your password protects the
   wallet on this device. If you forget it, choose Forgot the password? when
   unlocking, and the seed phrase sets a new one. If you lose the seed
@@ -161,14 +170,16 @@ rather than in a browser's.
 - **What the node sees.** It never gets your seed phrase or password, and
   scanning happens on your device. It does see what the wallet asks: the
   blocks it scans, which pending payments are yours, the coins a send
-  spends, and the sends. A fast restore, or a rebuild from the chain, also
-  gives it identifiers made from your addresses, as above. The app shows
+  spends, and the sends. A fast restore or rescan, or a rebuild from the
+  chain, also gives it identifiers made from your addresses, as above. The app shows
   the full list under Settings, About, Privacy statement.
 - **What the chain shows.** Anyone can link the payments made to one
   address, and your own sends too, because their change returns to your
   main address. Amounts stay hidden. Give each payer a new address.
-- **What the node is trusted for.** It cannot spend your coins or invent a
-  payment without mining it, but it can hide payments or show an old chain.
+- **What the node is trusted for.** It cannot spend your coins, and on
+  Mainnet it cannot invent a confirmed payment without mining it. It can
+  hide payments, show a pending payment that never confirms, or show an old
+  chain.
   For amounts that matter, wait until History shows several blocks since a
   payment, and use a node you trust or run your own.
 - **No tracking.** No analytics, telemetry or crash reports. Diagnostics and
@@ -201,8 +212,8 @@ rather than in a browser's.
 - **Password.** If you forget it, choose Forgot the password? when
   unlocking: the seed phrase sets a new one, and everything on this device
   stays. A wallet that an older version of the app last unlocked needs one
-  more unlock with its password first; without that password, restore the
-  seed phrase in another browser or on another device. A backup file made
+  more unlock with its password or passkey first; without either, restore
+  the seed phrase in another browser or on another device. A backup file made
   earlier still opens only with the password it was made with.
 
 ## Getting help
@@ -224,7 +235,7 @@ web/                    the app: Vite, React, Mantine; wasm packages under publi
 crates/vault-core       wallet engine (keys, scanning, transactions, storage format), Rust to wasm
 crates/vault-prover     transaction prover, Rust to wasm with threads
 crates/vault-bridge     vault-core and the prover as native code, for the desktop and Android apps
-crates/vault-fixtures   deterministic witnesses for prover tests
+crates/vault-fixtures   deterministic witnesses for the prover benchmark (web/prover-bench)
 crates/vendor           neptune-consensus, neptune-primitives, triton-vm, twenty-first,
                         with small patches (see crates/vendor/VENDOR.md)
 shells/tauri            the desktop and Android apps (Tauri 2)
@@ -263,6 +274,7 @@ cd web && npm test                                   # web app (vitest)
 cd web && npm run typecheck
 cargo test -p vault-core                             # wallet engine, native
 cargo test -p vault-bridge                           # the native bridge the desktop and Android apps use
+cargo test -p vault-prover                           # the prover's quick checks
 cargo test --release -p vault-prover -- --ignored    # full proof round trip, takes minutes
 ```
 
@@ -293,7 +305,7 @@ Then:
 4. Send it coins from the node, and mine a block:
 
    ```bash
-   neptune-cli --data-dir <dir> --port 9799 send <app address> 10 0.1 vault on-chain on-chain
+   neptune-cli --data-dir <dir> --port 9799 send --accept-lustrations <app address> 10 0.1 vault on-chain on-chain
    ```
 
    ```bash
@@ -303,6 +315,9 @@ Then:
 Things to know about regtest:
 
 - Mine only after the node logs `single proof: Done`.
+- On regtest, coins must be published when they are spent (lustration).
+  The node's send needs `--accept-lustrations`, and the app's review says
+  "Part of this send will be public": choose Send anyway.
 - Restarting the node empties its mempool.
 - Regtest nodes accept only mock proofs, so the app skips real proving on
   regtest.
@@ -371,4 +386,5 @@ cd shells/tauri && npx --prefix ../../web tauri build
 
 ## Licence
 
-Not decided yet.
+Not decided yet. The Inter typeface the app ships, in `web/src/assets/fonts`,
+is under the SIL Open Font License (`Inter-LICENSE.txt` there).

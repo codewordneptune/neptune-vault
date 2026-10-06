@@ -19,7 +19,8 @@ The rest are the site's security policy and belong on any host too:
 
 - `Cross-Origin-Resource-Policy: same-origin`
 - a strict `Content-Security-Policy`: scripts only from the site (which
-  may compile wasm), and connections only to the site, to any `https:`
+  may compile wasm), fonts only from the site (the app ships its own,
+  Inter), and connections only to the site, to any `https:`
   address (nodes and the price sites), and to nodes on `localhost` or
   `127.0.0.1`
 - `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and
@@ -65,8 +66,8 @@ tab. A newer run cancels one still in progress. It:
 4. publishes the SHA-256 of every file it is about to upload (below);
 5. uploads `dist`.
 
-The first run compiled everything and took about 35 minutes; later runs
-reuse the cargo cache.
+A run takes about half an hour, most of it building the two wasm packages;
+the cargo cache saves downloads more than time.
 
 To deploy from this PC instead, in an emergency only: it publishes no hash
 list, so the site serves files no run has listed until the next deploy
@@ -75,7 +76,7 @@ from `main`. From a clean checkout of a pushed commit, after
 
 ```
 cd web
-npm ci
+npm ci --ignore-scripts
 npm run wasm:core
 npm run wasm:prover
 npm test
@@ -90,7 +91,8 @@ Run `npm run build` again after any `tauri build`, which replaces
 ## Who can deploy
 
 A deploy needs a push to `main` that touches the paths above, or a run by
-hand from the Actions tab; nothing else approves it. As of 2026-10-03,
+hand from the Actions tab; nothing else approves it. A run by hand can be
+started on any branch, and deploys that branch's build. As of 2026-10-03,
 `main` cannot be deleted or force-pushed (the repository's "Basic"
 ruleset), and no review is required before a push. The deployment token
 uploads anything without either, so it lives only in the repository
@@ -134,7 +136,8 @@ summary on GitHub and as an artifact named `dist-sha256-<commit>`, kept for
 90 days. Three things make that list worth comparing against:
 
 - The build's date comes from the commit (or `SOURCE_DATE_EPOCH`), never
-  from the clock, so the bundle does not change from one run to the next.
+  from the clock in a git checkout, so the bundle does not change from one
+  run to the next.
 - Absolute paths are trimmed from the wasm (`trim-paths` in
   `.cargo/config.toml` and the release profile), so the binaries do not
   carry the builder's directories, and a local build does not publish the
@@ -143,7 +146,8 @@ summary on GitHub and as an artifact named `dist-sha256-<commit>`, kept for
   by its Ubuntu version (`ubuntu-24.04`), which GitHub keeps updating.
 
 To check a deploy, in Git Bash or another Unix shell: `version.json` names
-the commit the site serves. Download that commit's `dist-sha256-<commit>`
+the commit the site serves, in its short form; the artifact's name carries
+the full commit. Download that commit's `dist-sha256-<commit>`
 artifact from its run, unzip `dist.sha256` into the current folder, and
 hash every listed file as the site serves it:
 

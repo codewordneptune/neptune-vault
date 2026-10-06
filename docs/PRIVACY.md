@@ -3,7 +3,7 @@
 What this wallet keeps, what it sends and to whom, and what is public. The
 same text is shown in the app under Settings, About, Privacy statement; the
 app's copy (`web/src/content/privacy.ts`) is the reference and this file
-mirrors it. Last changed 2026-10-03.
+mirrors it. Last changed 2026-10-07.
 
 The desktop and Android apps show the same statement with a few sentences
 changed where they differ from a browser; those are marked below.
@@ -22,17 +22,22 @@ its notes, your contacts, the names you gave your addresses and which of
 them you have given out, all encrypted too, so they cannot be read while
 the wallet is locked. Your seed phrase can open all of it too, so that it
 can set a new password if you forget yours. Kept without encryption: each
-wallet's name, network, creation time, start block and address count, and
-the settings, such as the node's address, the lock times and a record of
-the last proof. All of it lives in this browser's storage on this device.
-Nothing is kept anywhere else by this app.
+wallet's name, network, creation time, start block and address count, a
+few marks such as whether its seed phrase was confirmed and when you last
+saved a backup file, and the settings, such as the node's address, the lock
+times and a record of the last proof. All of it lives in this browser's
+storage on this device. Nothing is kept anywhere else by this app.
 
 *In the desktop and Android apps:* all of it lives in the app's own storage
 on this device.
 
+*In the Android app*, also: Android's own backup may copy it, the encrypted
+parts included, to your Google account and to a new phone, until the app
+turns that off.
+
 While you set up a new wallet, its new seed phrase is kept without
 encryption, so a reload does not lose it, until the wallet is made, you
-leave setup or the tab closes (*in the desktop and Android apps*, the app
+cancel it in setup or the tab closes (*in the desktop and Android apps*, the app
 closes). An imported seed phrase is never kept that way.
 
 Clearing the browser's site data deletes all of it. The seed phrase or a
@@ -62,8 +67,9 @@ about), which coins each send spends, and the sends you make. If you keep
 several wallets here and use one node, it can tell they are on the same
 device. It never receives your seed phrase, your password, your contacts,
 the names you gave your addresses, or the names and notes in payment
-requests. Your addresses reach it only as identifiers, in a fast restore or
-a rebuild (below).
+requests. Your addresses reach it only as identifiers: your main address's
+in the change of each send, as anyone reading the chain sees it later, and
+all of them in a fast restore or a rebuild (below).
 
 **A fast restore or rescan tells it more.** The identifiers of all your
 addresses, including a few of each kind you have not used yet, go to its
@@ -95,13 +101,15 @@ comes only when you install one.
 
 **The explorer, if you tap a link to it.** On Mainnet, a payment's details
 in History link each coin to a page about it on neptunefundamentals.org,
-which then knows that someone looked at that coin. You choose whether to
-tap.
+which then knows that someone looked at that coin. The default node is on
+the same domain, so whoever runs both could tie the coin you looked at to
+your other questions. You choose whether to tap.
 
 **Price sites, only if you turn on "Value in another currency" in
-Settings.** While it is on, and Home, Send or Receive is on screen, the app
-asks CoinGecko, or CoinPaprika when CoinGecko does not answer, for the
-price of NPT in the currency you chose, at most every 10 minutes. They see
+Settings.** While it is on, and Home, Send, Receive or this setting is on
+screen, the app asks CoinGecko, or CoinPaprika when CoinGecko does not
+answer, for the price of NPT in the currency you chose: about every 10
+minutes, or every 2 minutes while neither answers. They see
 your IP address and that this is a Neptune Cash wallet. They receive
 nothing about your wallet: no address, no balance. With the setting off,
 the app never contacts them.
@@ -124,8 +132,9 @@ node. It checks what it cheaply can: that the blocks are the ones it asked
 for, that each follows the last one it scanned, that on Mainnet each
 carries real proof of work, that a payment it shows is announced to your
 key and carried by that block, and that the node runs the network your
-wallet is on. So on Mainnet a node cannot simply invent a payment; it would
-have to mine a block for it. On the test networks it could.
+wallet is on. So on Mainnet a node cannot simply invent a confirmed payment;
+it would have to mine a block for it. It can show a pending payment that
+never confirms, and on the test networks it could invent either.
 
 What it cannot check: the proof inside a block, and whether the node shows
 the heaviest chain or all of it. A dishonest node can hide payments or
@@ -140,8 +149,15 @@ own.
 Every payment to you is announced on the chain with an identifier derived
 from the address it was sent to, so all payments to one address can be
 linked by anyone reading the chain, by count and timing. Amounts and
-senders are not revealed. Your own transactions are public as transactions;
-the wallet's proofs reveal nothing about your keys.
+senders are not revealed, except as below. Your own transactions are public
+as transactions; the wallet's proofs reveal nothing about your keys.
+
+Some sends must also make public the coins that pay for them: a rule of
+the network for coins received up to block 40,300 on Mainnet. Such a send
+shows how much each of those coins holds, which of your addresses received
+it and where in the chain it came from, so anyone can link the payment to
+the ones that funded it. The recipient and the amount you send stay
+private. The Send screen says so and asks before such a send goes out.
 
 The change from each of your sends comes back to your Standard main
 address and is announced the same way, so anyone reading the chain can link
@@ -175,7 +191,8 @@ not load.)
 
 Passkeys are made and kept by your device or its platform account, under
 that platform's own rules, and the platform may sync them; yours is listed
-there as Neptune Vault. The app keeps only the passkey's id and a key that
+there as Neptune Vault followed by the wallet's network, such as Neptune
+Vault (main). The app keeps only the passkey's id and a key that
 is useless without it. Removing a wallet does not delete its passkey:
 delete it in your device's password settings.
 
@@ -185,9 +202,12 @@ You choose the node, and can run your own. You choose how to restore or
 rescan: Fast, which is preselected, tells the node which payments are
 yours; Private downloads the blocks and tells it nothing about your coins.
 You choose what goes into a payment request. Backup files are yours:
-written where you save them and never uploaded, with the seed phrase,
-contacts, address names, who each send paid and your notes in them
-encrypted with your password.
+written where you save them and never uploaded. The seed phrase, contacts,
+address names, the addresses you have given out, who each send paid with
+its amounts and fee, and your notes in them are encrypted with your
+password. Without it, anyone holding a file can still read its network,
+start block and date, and the file's name says the wallet's name and
+network.
 
 This statement describes the app as published under this version. If a
 later version changes what leaves the device, this page changes with it,

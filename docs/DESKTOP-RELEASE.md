@@ -46,8 +46,8 @@ What each platform should get:
 | Linux | `.deb`, `.rpm` and an `.AppImage` |
 | macOS | `.app` in a `.dmg` (and a `.app.tar.gz`), one per chip |
 
-The workflow has not made a release yet, so this is what Tauri should
-produce; check it against the first one.
+No release has been published yet. Runs started by hand (the last on
+2026-10-04) produce exactly these files.
 
 ## Building locally
 

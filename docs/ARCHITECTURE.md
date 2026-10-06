@@ -14,7 +14,7 @@ The web code calls a wallet an account (`AccountRecord`, `accountId`); the
 core calls it a wallet (`wallet_id`, `wallet:<id>`). They are the same
 thing.
 
-Last reviewed 2026-10-03 against the code.
+Last reviewed 2026-10-07 against the code.
 
 ## 1. Overview
 
@@ -64,9 +64,11 @@ Rust crates (root `Cargo.toml` workspace):
   twenty-first 3.0.0 and triton-vm 9.0.0, with small changes, applied
   through `[patch.crates-io]` ([crates/vendor/VENDOR.md](../crates/vendor/VENDOR.md)).
 
-The native shell (`shells/tauri/src/lib.rs`) has no logic of its own: each
-command decodes its arguments, calls `vault_bridge`, and returns the result.
-Bytes travel as base64 (`web/src/backend/native/bridge.ts` says why).
+The native shell (`shells/tauri/src/lib.rs`) has no wallet logic of its
+own: each wallet, store and prover command decodes its arguments, calls
+`vault_bridge`, and returns the result. Three more are the shell's own:
+`app_save_file`, `app_open_url` and `app_secure_screen` (section 6). Bytes
+travel as base64 (`web/src/backend/native/bridge.ts` says why).
 Errors keep a name, and the page rebuilds `WrongPasswordError` and
 `WalletLockedError` from it; a cancelled proof is settled by the page itself
 (`native/proverClient.ts`). `wallet_ledger` and `prover_prove` run on
@@ -165,9 +167,14 @@ it, the node refuses it (`discardPending`), the person gives up on it
 (`forgetSend`), or it expires: `expireSends` frees them once the newest
 block is more than three days and an hour past the send's stamp
 (`SEND_LIFETIME_MS`). A send given up on that goes through anyway becomes
-that send again, and a rescan keeps this device's unsettled sends. Contacts
-and private notes are written as `WalletChange` batches (`storeCommit`), not
-as ledger operations.
+that send again. A send that was not sent leaves History through `dropRow`,
+the operation that also drops a mempool row, once no block can take it
+(section 5). A rescan keeps this device's unsettled sends, and
+`rescanFrom` (`web/src/app/accounts.ts`) first copies who each send paid,
+its fee and its note into the private notes (`sendDetails`), so History has
+them back when the scan finds the sends again. Contacts and private notes
+are written as `WalletChange` batches (`storeCommit`), not as ledger
+operations.
 
 ## 3. Storage
 
@@ -181,10 +188,10 @@ versions before the sealed log kept a wallet's data; they are read to move
 a wallet into its log, and the same unlock deletes that wallet's rows once
 the log holds them (below). Never sealed: the account record (name,
 network, creation time, start block and key counters, the envelope, the
-passkey's and the seed phrase's wrappings, `confirmSends`, backup dates)
-and the settings (node URLs, the current wallet, the last proof's figures).
-There can be several wallets per device, on three networks (`main`,
-`testnet`, `regtest`).
+passkey's and the seed phrase's wrappings, `backupConfirmed`, `synced`,
+`confirmSends`, backup dates) and the settings (node URLs, the current
+wallet, the last proof's figures). There can be several wallets per
+device, on three networks (`main`, `testnet`, `regtest`).
 
 A second database, `neptune-vault-log` (`web/src/storage/logStore.ts`, at
 `LOG_DB_VERSION` 1), has one store `entries` keyed `[log, seq, kind]`. It
@@ -217,7 +224,11 @@ from `neptune-vault`. `ENGINE_PARTS` (`web/src/backend/types.ts`) is
 move as one batch, and a new wallet's parts move, empty, when it is made.
 `private` holds named notes that must not be readable while the wallet is
 locked: the last failed send, the last send, a send in progress, address
-names, the addresses given out, and a fast restore's progress.
+names, the addresses given out, a fast restore's progress, who each send
+paid with its amounts, fee and note (`sendDetails`, by the coins it spent),
+and notes added in History: on payments received (`receivedNotes`, by the
+coin each brought) and on sends (`sentNotes`, by the first of the coins
+each spent, in sorted order).
 `prepare_migration` compares the would-be state with the dump record for
 record before writing. A part that fails stays in the database
 (`EngineParts.stays`); a chain that fails is started afresh (`storeRebuild`)
@@ -288,7 +299,9 @@ Where secrets go:
   while a wallet is made, a passkey is set up or confirms a send, the
   password is changed or strengthened or set with the seed phrase, and a
   backup file is written or restored. For these the core's `derive_key`
-  returns the wrap key to the page.
+  returns the wrap key to the page. The seed phrase's own key (below) is
+  derived on the page too, with WebCrypto's HKDF, when a wallet is made and
+  when the phrase sets a new password.
 - The seed phrase reaches the page when a new one is shown to be written
   down, when one is typed in, and when the person asks to see it (password
   again).
@@ -313,13 +326,17 @@ space apart) with a random 16-byte salt and the info
 password hash is needed. The wrapping is made where the phrase and the
 content key are both at hand: on the page when a wallet is made, and in the
 wallet worker or the shell when a wallet is restored from a file or
-unlocked without one (`unlockEnvelope`'s `seedUnlock` flag). Forgot the
-password? on the lock screen takes the phrase: it must open the wrapping,
-and the content key must then open a seed equal to it. The content key is
-then wrapped under a new password, and the wallet unlocks through the
-wrapping as through a passkey's. Never in a backup. HKDF exists twice
-(WebCrypto, and `seed_unlock_key` in `kdf.rs` for the shell), pinned by
-the same test vector.
+unlocked, by password or passkey, without one (the `seedUnlock` flag of
+`unlockEnvelope` and `unlockEnvelopeWithSecret`). Forgot the password? on
+the lock screen takes the phrase: it must open the wrapping, and the
+content key must then open a seed equal to it. The content key is then
+wrapped under a new password, and the wallet unlocks through the wrapping
+as through a passkey's. A wallet last unlocked by a version that did not
+make the wrapping has none (`NoSeedUnlockError`): the sheet says so, offers
+the passkey where there is one, since its unlock makes the wrapping, and
+otherwise points to restoring the phrase elsewhere. Never in a backup. HKDF
+exists twice (WebCrypto, and `seed_unlock_key` in `kdf.rs` for the shell),
+pinned by the same test vector.
 
 ### Backup file
 
@@ -331,7 +348,8 @@ password    --Argon2id--> wrap key --AES-GCM--> file key
 file key    --AES-GCM, AAD = readable part--> content key
 content key --AES-GCM--> seed (the database's own ciphertext)
 content key --AES-GCM, AAD = all of the above--> contacts, address names,
-                                                  addresses given out, sends
+                                                  addresses given out, sends,
+                                                  notes
 ```
 
 The readable part (format, version, network, start block, export date, KDF
@@ -341,14 +359,21 @@ the salt, the wrapped file key) fails that check and reads as a wrong
 password; any other change shows `BackupAlteredError`. The check is left
 unbound on purpose, so a wrong password and a changed file are told apart.
 Relabelled as version 2, the file does not open: an older reader takes the
-file key for the content key. Files are capped at `MAX_BACKUP_BYTES`
-(32 MiB).
+file key for the content key. A restore refuses a file over
+`MAX_BACKUP_BYTES` (32 MiB); export does not check the size it writes.
 
 Versions 1 (seed only) and 2 (contacts in clear) bound nothing and are
 still read. In version 3 the file's `envelope` is its own shape (its own
 `version: 2`, with `wrappedFileKey`, `boundContentKey` and `seed`), not a
 `SeedEnvelope`; a restore turns it back into an ordinary version 1 envelope
 under the same password.
+
+The sealed part is `BackupSecrets` (`envelope.ts`) as JSON: the contacts,
+and, each absent in files from before it was kept, address names
+(`labels`), the addresses given out (`given`), each send's details
+(`sends`), and the notes added in History (`receivedNotes`, `sentNotes`).
+A reader takes the fields it knows and passes over the rest, so a new
+optional field needs no new file version.
 
 ### Data-format policy
 
@@ -366,6 +391,10 @@ Pinned by `web/src/storage/formats.test.ts` and the fixtures in
   "update the app".
 - The seed envelope and log entries carry versions; a change is a new
   number, and old numbers still open.
+- The seed phrase's wrapping (`seedUnlock`) has no version of its own: its
+  key is bound to the info string `neptune-vault seed unlock key v1`, and
+  pinned by `test-vectors/seed-envelope.json`. Changing it needs a new
+  string and a version field.
 - A log entry's seal names its format (`neptune-vault log v1|...`), and the
   reader binds with this build's `FORMAT`. A reader for an older format must
   bind with that format's number, or every older entry will look tampered
@@ -407,8 +436,11 @@ their values stay below 2^53 (about 1.3e8 at block 54,000).
 
 Sync (`web/src/wallet/sync.ts`; the timers are in
 `web/src/app/AppContext.tsx`). A pass runs at unlock, every 15 s while
-unlocked and visible, and on reconnect; a Web Lock
-(`neptune-vault-sync:<id>`) allows one per wallet across windows. A pass:
+unlocked and visible, on reconnect, and when the person asks (Sync on
+Home, or a pull down from the top of Home in the phone apps); a Web Lock
+(`neptune-vault-sync:<id>`) allows one per wallet across windows. A long
+pass reports blocks done and to do (`work`), and Home shows a percentage
+and, from 15 s in, the time left at the pace measured. A pass:
 
 1. Asks `node_network`, and stops if the node runs another network; a node
    too old to answer is let through.
@@ -472,7 +504,9 @@ turned off for the wallet (`confirmSends`).
 1. `chain_tipHeader`, for the time. The transaction is stamped with the
    device's clock but never later than the newest block, and a clock more
    than nine hours behind stops the send here (`sendStamp`).
-2. `plan_inputs` over the ledger's `spendable` coins.
+2. `plan_inputs` over the ledger's `spendable` coins, with a coin of each
+   given-up send that may still pay the same person among them
+   (`givenUpRivals`, below).
 3. `wallet_restoreMembershipProof`, then `chain_tipHeader`, in that order.
    If a block arrived in between, `build_send` refuses (`TIP_MOVED`) and the
    flow asks both again, which counts as an attempt.
@@ -496,12 +530,22 @@ turned off for the wallet (`confirmSends`).
    `MAX_SEND_ATTEMPTS` (3). With the tip unmoved, a coin is spent, and the
    send stops and says so.
 
-A pending send keeps its coins until a block confirms it. After ten hours,
-when nodes drop a waiting transaction, Home offers Give up
-(`MEMPOOL_KEEPS_MS`). After three days and an hour of the chain's time, when
-no block may take it, the sync releases its coins and marks it expired
-(`SEND_LIFETIME_MS`). Notes in the sealed log let the next unlock say how a
-send ended if the app was closed during it.
+A pending send keeps its coins until a block confirms it. Its details offer
+Give up at any time; after ten hours, when nodes drop a waiting transaction,
+Home also says a send the node no longer has is not going through, and
+offers the same (`MEMPOOL_KEEPS_MS`). Giving up frees the coins but cannot
+call the send back, which may still confirm. So a new send to someone a
+given-up send may still pay spends one of that send's coins
+(`givenUpRivals`, `planWith` in `send.ts`): two transactions that spend one
+coin cannot both confirm, and nobody is paid twice. After three days and an
+hour of the chain's time, when no block may take it, the sync releases its
+coins and marks it expired (`SEND_LIFETIME_MS`). Notes in the sealed log
+let the next unlock say how a send ended if the app was closed during it.
+
+A send that was not sent can be removed from History once no block can take
+it (`removableFrom`, `SendService.remove`, the ledger's `dropRow`); until
+then its row is how the wallet would know it, should it go through after
+all.
 
 Browser prover (`web/src/backend/browser/proverClient.ts`, `proverWorker.ts`).
 A fresh worker per proof, so a failed or cancelled run frees its memory. It
@@ -535,8 +579,9 @@ until the send ends. A lock would end the send anyway, because recording
 the pending send needs the wallet's sealed log, which a lock closes; if one
 lands, nothing is sent and the send says so. A screen wake lock is
 requested (`web/src/app/wakeLock.ts`), and asked for again each time the
-page returns; the same happens during a long scan or a fast restore. The
-Android app has no native wake lock yet.
+page returns. The same happens during a long scan or a fast restore, which
+also holds off the idle lock (`holdIdleLock`), though not the background
+lock. The Android app has no native wake lock yet.
 
 ## 6. App shell
 
@@ -546,8 +591,11 @@ wallet), `/diagnostics` and `/privacy`. While a wallet is locked, every
 screen but `/privacy` shows the lock screen. Dialogs are `Sheet`
 (`web/src/components/Sheet.tsx`), never Mantine's `Modal` directly: a sheet
 adds a history entry, so Back (Android's or the browser's) closes it rather
-than the screen under it (`web/src/app/backCloses.ts`). Closing the tab or
-the desktop window during a send asks first (`CloseGuard`).
+than the screen under it (`web/src/app/backCloses.ts`). On a phone-width
+screen a sheet rises from the bottom with a handle, and a swipe down closes
+it; one that is a step of a task names the step it returns to (`back`) in
+place of the cross. Closing the tab or the desktop window during a send
+asks first (`CloseGuard`).
 
 One window owns the wallet (`web/src/app/windowOwner.ts`): it holds the Web
 Lock `neptune-vault-window`, and other windows say where the wallet is open
@@ -561,7 +609,8 @@ The strip names the waiting build from `version.json` (version, commit, build
 date; emitted by `vite.config.ts`, never precached) and links the commits
 between. It checks hourly and when the app comes to the front. A page cannot
 refuse its host's next version; the defences are that only a push to `main`
-deploys, and the published file hashes ([HOSTING.md](HOSTING.md)).
+or a run started by hand deploys (a run by hand deploys whichever branch it
+was started on), and the published file hashes ([HOSTING.md](HOSTING.md)).
 
 Desktop updates (`web/src/components/DesktopUpdateNotice.tsx`). No service
 worker and no signed auto-updater yet. When it starts and every six hours,
@@ -576,7 +625,8 @@ it, a sheet warns and offers Stay unlocked (`IDLE_WARNING_MS`). The wallet
 also locks when the page is hidden (on the desktop, when the window is
 minimized): at once by default, or after 30 seconds or 2 minutes
 (`BACKGROUND_LOCK_CHOICES_MS`). A file picker or camera prompt the app
-opened holds that lock for up to two minutes. The screen locks at once: in
+opened holds that lock for up to two minutes. A send holds off both locks,
+a long scan only the idle one (section 5). The screen locks at once: in
 the browser a lock terminates the wallet worker, and the seed, keys, content
 key and open logs go with its memory; natively `wallet_lock` drops the
 account and content key once the ledger operation in progress lets go.
@@ -588,6 +638,7 @@ Security headers (`web/public/staticwebapp.config.json`, also sent by
 isolation, without which neither wasm package can load); CORP
 `same-origin`; a CSP with `default-src 'none'`,
 `script-src 'self' 'wasm-unsafe-eval'`, workers from `'self' blob:`,
+fonts from `'self'` only (the app ships Inter, in `web/src/assets/fonts`),
 `frame-ancestors 'none'`, `form-action 'none'`; `X-Frame-Options: DENY`;
 `nosniff`; `Referrer-Policy: no-referrer`; and a `Permissions-Policy`
 granting only camera, clipboard write, screen wake lock, web share and
@@ -603,6 +654,8 @@ Native shell (`shells/tauri/src/lib.rs`). Beyond the wallet it does little:
   `LINK_HOSTS` (useneptune.org, t.me, talk.neptune.cash, github.com,
   neptune.cash, neptunefundamentals.org for the explorer), kept in step with
   `web/src/app/links.ts`.
+- Screen: `app_secure_screen` sets or clears Android's FLAG_SECURE, and
+  does nothing elsewhere.
 - Storage: sealed logs under `<app data dir>/logs`.
 - Permissions: the window may use `core:default`, set its page zoom, and
   close itself once a close during a send is confirmed
@@ -626,9 +679,12 @@ and `ANDROID` in `web/src/app/platform.ts`. Payment links (`neptunecash:`)
 open the app through Tauri's deep-link plugin, phones only, and fill in
 Send (`web/src/app/paymentLinks.ts`). While a seed phrase is shown or typed,
 `app_secure_screen` keeps the window out of screenshots and the recent-apps
-preview (FLAG_SECURE, `web/src/app/secureScreen.ts`). There is no update
-notice, no close guard and no passkey unlock. Backup export and a native
-screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
+preview (FLAG_SECURE, `web/src/app/secureScreen.ts`). A pull down from the
+top of Home syncs (`web/src/app/pullToSync.ts`). The window and the web view
+start in the app's navy (`shells/tauri/tauri.android.conf.json`, and the
+theme `android-test.yml` patches in), so the launch is not white. There is
+no update notice, no close guard and no passkey unlock. Backup export and a
+native screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
 
 ## 7. Build and test
 
@@ -669,10 +725,10 @@ screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
   list and deploys to Azure Static Web Apps.
   `.github/workflows/release-desktop.yml` builds `desktop-v*` tags into
   draft pre-releases. `.github/workflows/android-test.yml` builds an arm64
-  test APK by hand from the Actions tab, signed with a key made for that
-  run and then thrown away. See [README.md](../README.md),
-  [HOSTING.md](HOSTING.md), [DESKTOP-RELEASE.md](DESKTOP-RELEASE.md) and
-  [ANDROID.md](ANDROID.md).
+  test APK on a push to `cwn/android` or by hand from the Actions tab,
+  signed with a key made for that run and then thrown away. See
+  [README.md](../README.md), [HOSTING.md](HOSTING.md),
+  [DESKTOP-RELEASE.md](DESKTOP-RELEASE.md) and [ANDROID.md](ANDROID.md).
 
 ## 8. Facts that shape the design
 
@@ -723,10 +779,12 @@ screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
   `hash:aocl_index` as keys.
 - AES-GCM does not commit to one key, so a ciphertext can be crafted to open
   under several passwords, and a wrapped key of another length is where one
-  would hide. Every IV and wrapped key is checked for its exact length before
-  decryption (`assertEnvelope`).
+  would hide. The envelope's and the seed phrase's IVs and wrapped keys are
+  checked for their exact lengths before decryption (`assertEnvelope`,
+  `assertSeedUnlock`); the passkey's wrapping is not checked yet.
 - Without COOP and COEP a browser gives the page no `SharedArrayBuffer`, and
   the web app does not start: both wasm packages use shared memory
-  (`.cargo/config.toml`), and `web/src/main.tsx` stops with a message. The
+  (`.cargo/config.toml`), and `web/src/main.tsx` stops with a message
+(`FailureScreen`). The
   native apps need neither header. The node needs CORS either way, because
   the page posts JSON to it from another origin.

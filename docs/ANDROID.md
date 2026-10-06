@@ -41,7 +41,8 @@ A high-trust app that needs no personal registration with Google:
   the app, which pauses it and hides the page. The wallet waits for the
   answer instead of locking, as it does for a file picker.
 - **The seed phrase stays out of screen captures.** While a seed phrase is
-  shown (setup, Settings, Backup) or typed (restore, Forgot the password?),
+  shown (in setup, and in Settings, Backup) or typed (restore, Forgot the
+  password?),
   the window is kept out of screenshots, screen recordings and the
   recent-apps preview: the page asks the shell (`app_secure_screen`), which
   sets Android's FLAG_SECURE, and clears it once the phrase is off the
@@ -79,8 +80,11 @@ A high-trust app that needs no personal registration with Google:
    - Android's own backup. The generated project leaves
      `android:allowBackup` at its default, so Android may copy the app's
      data (the encrypted seed phrase and the wallet's sealed logs included)
-     to the person's Google account, and to a new phone. Turn it off, or
-     limit it with backup rules, in the manifest the workflow patches.
+     to the person's Google account, and to a new phone. Turn it off, and
+     add data extraction rules that leave everything out of both the cloud
+     backup and a transfer to a new phone, in the manifest the workflow
+     patches: on Android 12 and later, turning backup off does not stop
+     that transfer on some makers' phones.
 3. **Fingerprint unlock** (not done yet), in place of passkey unlock, which
    the Android web view cannot offer (see below).
 4. **Release pipeline and key** (see below).
