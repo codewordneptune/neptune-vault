@@ -1,8 +1,9 @@
 // Balance, sync status and history.
 
 import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { useReducedMotion } from '@mantine/hooks';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconWifiOff } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../components/Sheet';
@@ -12,6 +13,7 @@ import { MEMPOOL_KEEPS_MS, removableFrom, SEND_LIFETIME_MS, SEND_NOTE_MAX } from
 import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNotes } from '../app/receivedNotes';
 import { usePendingSends } from '../app/pending';
 import { readSendDetails, withSendDetails } from '../app/sendDetails';
+import { fixedNau, useCountUp } from '../app/countUp';
 import { Figure, speakNau } from '../components/Amount';
 import { Avatar } from '../components/Avatar';
 import { Spoken, spokenText } from '../components/Spoken';
@@ -28,6 +30,7 @@ import { LINKS } from '../app/links';
 import { abbreviateAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
+import { arrivals, type Listed } from '../util/arrivals';
 import { dayAhead, dayKey, dayLabel, formatAbout, formatDate, formatDateTime, formatTime, timeAgo, whenInSentence } from '../util/time';
 
 export function Home() {
@@ -87,7 +90,11 @@ export function Home() {
   // What the pending sends do to the balance, as every screen counts it: gone,
   // with their change on hold until they confirm (app/pending.ts).
   const { sends: pendingSends, ready: ownReady, isOwn, toSelf, balanceNau: headlineNau, onHoldNau } = usePendingSends();
-  const fiat = quote ? fiatParts(fiatOf(headlineNau, NAU_PER_COIN, quote.price), quote.currency) : null;
+  // A new balance counts up or down to its value, the figure in the other currency with it.
+  const reducedMotion = useReducedMotion();
+  const counted = useCountUp(loaded && ownReady ? headlineNau : null, hidden || reducedMotion, account?.id ?? '');
+  const balanceText = hidden ? '••••' : counted && counted.decimals !== null ? fixedNau(counted.nau, counted.decimals) : showNau(headlineNau);
+  const fiat = quote ? fiatParts(fiatOf(counted?.nau ?? headlineNau, NAU_PER_COIN, quote.price), quote.currency) : null;
 
   // What a backup file kept of the sends a restore finds only as coins that went.
   const [sendDetails, setSendDetails] = useState<SendDetails[]>([]);
@@ -105,6 +112,22 @@ export function Home() {
   const entries = groupHistory(withSendDetails(history, sendDetails), utxos).map((e) =>
     e.kind === 'sent' && e.record.status === 'pending' && toSelf(e.record) ? { ...e, kind: 'self' as const, shownNau: BigInt(e.record.feeNau ?? '0') } : e,
   );
+  // A payment that arrives while History is in view slides in with a brief
+  // green wash (util/arrivals.ts); a wallet's first listing shows as it is.
+  const listed = useRef<{ account: string; listed: Listed } | null>(null);
+  const [arrived, setArrived] = useState<ReadonlySet<string>>(new Set());
+  // Before the screen is painted, so a new row is never shown before it slides in.
+  useLayoutEffect(() => {
+    if (!loaded || !account) return;
+    const next = arrivals(listed.current?.account === account.id ? listed.current.listed : null, history, Date.now());
+    listed.current = { account: account.id, listed: next.listed };
+    if (next.arrived.length > 0) setArrived(new Set(next.arrived));
+  }, [history, loaded, account]);
+  useEffect(() => {
+    if (arrived.size === 0) return;
+    const t = setTimeout(() => setArrived(new Set()), 1000);
+    return () => clearTimeout(t);
+  }, [arrived]);
   const [contacts, setContacts] = useState<ContactRecord[]>([]);
   useEffect(() => {
     if (!account) return;
@@ -575,7 +598,7 @@ export function Home() {
             {/* The figure on screen is grouped; a screen reader is given plain digits, or "hidden". */}
             <div className="vault-balance">
               <span aria-hidden>
-                {loaded && ownReady ? <Figure text={amount(headlineNau)} /> : '…'}
+                {loaded && ownReady ? <Figure text={balanceText} /> : '…'}
                 <small> NPT</small>
               </span>
               <span className="sr-only">{loaded && ownReady ? `Balance ${spoken(headlineNau)} NPT${unsynced ? ', not synced yet' : ''}` : 'Balance loading'}</span>
@@ -786,7 +809,7 @@ export function Home() {
                     const incoming = e.kind === 'received';
                     return (
                       <UnstyledButton
-                        className="vault-row vault-row-button"
+                        className={arrived.has(h.key) ? 'vault-row vault-row-button vault-row-arrived' : 'vault-row vault-row-button'}
                         key={h.key}
                         onClick={() => setDetail(e)}
                         aria-label={rowLabelOf(e)}
