@@ -361,12 +361,11 @@ export function Home() {
   /** The payments of a send built here, when it paid more than one recipient. */
   const severalOf = (e: HistoryEntry) => ((e.record.payments?.length ?? 0) > 1 ? (e.record.payments ?? []) : null);
   // A row says who, when and how much. Who: the contact a send went to, the
-  // name of the address a payment came in through, or how many a send paid.
-  // A send's note to self names it when no contact does, or when it paid
-  // several. Without either, the title says what happened. The line under it is the
-  // time, and the state only while it is not final and the title does not
-  // already say it, then the note when the title is the contact's name.
-  // Block counts and the fee are in the sheet.
+  // name of the address a payment came in through, or how many a send paid;
+  // without one, the title says what happened. The line under it is the
+  // time, the state only while it is not final and the title does not
+  // already say it, and the note, last, so a long one is what the line cuts
+  // short. Block counts and the fee are in the sheet.
   const whoOf = (e: HistoryEntry): string | null => {
     if (e.kind === 'received') return labelOf(e.record);
     if (e.kind === 'self' || e.record.txid === '' || e.record.recipient === null) return null;
@@ -379,15 +378,6 @@ export function Home() {
     if (e.kind !== 'received') return sentNoteOf(e.record, sentNotes);
     const coin = receivedCoinOf(e.record);
     return coin ? (receivedNotes[coin] ?? null) : null;
-  };
-  /** The row's title when a name or a note gives one: the note before a count of recipients. */
-  const rowNameOf = (e: HistoryEntry): string | null => {
-    const note = noteOf(e);
-    return note && (severalOf(e) || !whoOf(e)) ? note : whoOf(e);
-  };
-  const noteAfterTime = (e: HistoryEntry): string | null => {
-    const note = noteOf(e);
-    return note && rowNameOf(e) !== note ? note : null;
   };
   /** What happened, in a word or two: a send reads Sent once the node has it (with Waiting for a block beside its time until a block confirms it), or Not going through once nodes dropped it. */
   const stateTitleOf = (e: HistoryEntry): string => {
@@ -406,7 +396,7 @@ export function Home() {
   const stateWordOf = (e: HistoryEntry): { word: string; tone: 'muted' | 'warn' | 'failed' } | null => {
     // A send waiting for a block says so even where its title is the state: the title says only Sent.
     if (e.kind === 'sent' && e.record.status === 'pending' && !notSent(e) && !isStuck(e.record)) return { word: WAITING_FOR_BLOCK, tone: 'muted' };
-    const saidInTitle = !rowNameOf(e) && e.kind !== 'received';
+    const saidInTitle = !whoOf(e) && e.kind !== 'received';
     if (saidInTitle) return null;
     if (notSent(e)) return { word: 'Not sent', tone: 'failed' };
     if (e.record.status === 'pending') {
@@ -434,13 +424,12 @@ export function Home() {
   /** What a screen reader says for a row, list or table alike. */
   const rowLabelOf = (e: HistoryEntry) => {
     const who = whoOf(e);
-    const name = rowNameOf(e);
-    const whom = !name ? '' : name !== who ? `, ${name}` : e.kind === 'received' ? `, ${who}'s address` : `, to ${who}`;
+    const whom = !who ? '' : e.kind === 'received' ? `, ${who}'s address` : `, to ${who}`;
     const money = notSent(e) ? `${spoken(e.shownNau)} NPT, not taken from your balance` : `${e.kind === 'received' ? 'plus' : 'minus'} ${spoken(e.shownNau)} NPT`;
     // A send says its state in its first word (Sent, Not sent), and that it waits for a block; a payment in says pending.
     const pending = e.record.status !== 'pending' ? '' : e.kind === 'received' ? ', pending' : stateWordOf(e)?.word === WAITING_FOR_BLOCK ? ', waiting for a block' : '';
     const release = lockOf(e.record);
-    const note = noteAfterTime(e);
+    const note = noteOf(e);
     // When, as the list shows it by its day heading and the row's time: rows alike in all else are told apart.
     const when = `${dayLabel(e.record.timestampMs)} ${formatTime(e.record.timestampMs)}`;
     return `${stateTitleOf(e)}${whom}, ${money}${pending}${release !== null ? `, spendable from ${showDate(release)}` : ''}${note ? `, note: ${note}` : ''}, ${when}, details`;
@@ -851,8 +840,8 @@ export function Home() {
                           {rowAvatarOf(e)}
                           <div style={{ minWidth: 0 }}>
                             {/* A send not going through says so in its title when nothing else names it, in the caution colour. */}
-                            <Text size="sm" fw={600} className={!rowNameOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>
-                              {rowNameOf(e) ? <bdi>{rowNameOf(e)}</bdi> : stateTitleOf(e)}
+                            <Text size="sm" fw={600} className={!whoOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>
+                              {whoOf(e) ? <bdi>{whoOf(e)}</bdi> : stateTitleOf(e)}
                             </Text>
                             <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
                               {formatTime(h.timestampMs)}
@@ -868,10 +857,10 @@ export function Home() {
                               {lockOf(h) !== null && ` · Spendable from ${showDate(lockOf(h) as number)}`}
                               {e.kind === 'self' && !hidden && ' · fee only'}
                               {/* Last, so a long one is what the line cuts short. */}
-                              {noteAfterTime(e) && (
+                              {noteOf(e) && (
                                 <>
                                   {' · '}
-                                  <bdi>{noteAfterTime(e)}</bdi>
+                                  <bdi>{noteOf(e)}</bdi>
                                 </>
                               )}
                             </Text>
