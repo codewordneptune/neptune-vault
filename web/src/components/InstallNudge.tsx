@@ -5,12 +5,12 @@
 // instruction there is; a desktop browser is not the target and sees
 // nothing. Dismissed for two weeks at a time, on this device.
 
-import { Button } from '@mantine/core';
+import { Group, UnstyledButton } from '@mantine/core';
 import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
-import { Caution, Info } from './Notice';
+import { Caution, headingNear, NoticeLine } from './Notice';
 import { INSTALL_BENEFITS } from '../app/words';
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
@@ -42,13 +42,30 @@ export function InstallNudge() {
   };
 
   return (
-    <Info title="Install Neptune Vault on this device" onClose={() => void dismiss()} closeLabel="Dismiss the install offer">
-      {INSTALL_BENEFITS}
-      <div>
-        <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => void promptInstall()}>
-          Install app
-        </Button>
-      </div>
-    </Info>
+    <NoticeLine
+      about="installing the app"
+      title="Install Neptune Vault on this device"
+      action={
+        <UnstyledButton onClick={() => void promptInstall()} c="var(--v-accent-text)" fz="sm" fw={600} className="vault-tap-link">
+          Install
+        </UnstyledButton>
+      }
+    >
+      <span>{INSTALL_BENEFITS}</span>
+      <Group>
+        <UnstyledButton
+          onClick={(e) => {
+            const heading = headingNear(e.currentTarget);
+            void dismiss();
+            heading?.focus({ preventScroll: true });
+          }}
+          c="var(--v-accent-text)"
+          fz="sm"
+          className="vault-tap-link vault-tap-link-start"
+        >
+          Not now
+        </UnstyledButton>
+      </Group>
+    </NoticeLine>
   );
 }

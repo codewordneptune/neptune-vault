@@ -283,6 +283,9 @@ export function Home() {
   // sync, and a payment arriving is announced as it arrives: once each, in
   // a region that is always there, never on every render.
   const [said, setSaid] = useState('');
+  // While all is well the status is a chip; the block and the time are a tap away.
+  const calmStatus = online && sync?.phase === 'done' && !behind;
+  const [statusOpen, setStatusOpen] = useState(false);
   const asked = useRef(false);
   const askSync = () => {
     asked.current = true;
@@ -508,12 +511,21 @@ export function Home() {
           blue while working, amber when the node looks behind (a caution:
           recent payments may not show), red when it cannot say. */}
       <div className="vault-status">
-        <span className="vault-status-text">
-          <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' ? (behind ? 'warn' : 'ok') : 'busy'}`} aria-hidden />
-          {!online && <IconWifiOff size={16} />}
-          {busy && <IconRefresh size={16} className="vault-spin" />}
-          <Spoken text={syncText} />
-        </span>
+        {calmStatus ? (
+          <button type="button" className="vault-status-chip" aria-expanded={statusOpen} onClick={() => setStatusOpen((v) => !v)}>
+            <span className="vault-status-pill">
+              <span className="vault-status-dot ok" aria-hidden />
+              <Spoken text={statusOpen ? syncText : 'Up to date'} />
+            </span>
+          </button>
+        ) : (
+          <span className="vault-status-text">
+            <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' ? (behind ? 'warn' : 'ok') : 'busy'}`} aria-hidden />
+            {!online && <IconWifiOff size={16} />}
+            {busy && <IconRefresh size={16} className="vault-spin" />}
+            <Spoken text={syncText} />
+          </span>
+        )}
         {/* The actions stay where they are while a sync runs, unavailable
             rather than gone, so focus on them is not dropped. */}
         {online && (

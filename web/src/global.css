@@ -1167,6 +1167,82 @@ main :is(h2, h3)[tabindex='-1']:focus {
   gap: 12px;
   flex-shrink: 0;
 }
+/* While all is well the status is a chip, drawn small inside a full touch
+   target; a tap shows the block and the time in it. */
+.vault-status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 40px;
+  margin: -8px 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.vault-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 10px;
+  border: 1px solid var(--v-field-border);
+  border-radius: 999px;
+  color: var(--v-text-2);
+  line-height: 18px;
+}
+.vault-status-chip:focus-visible {
+  outline: none;
+}
+.vault-status-chip:focus-visible .vault-status-pill {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 2px;
+}
+
+/* Advice in one line (NoticeLine), a card on the page edged in the calm
+   blue: its main action at the end, the reason behind the chevron. */
+.vault-noticeline {
+  padding: 4px 4px 4px 14px;
+  border: 1px solid color-mix(in srgb, var(--v-accent) 30%, var(--v-surface));
+  border-radius: var(--mantine-radius-md);
+  background: var(--v-surface);
+  box-shadow: var(--v-card-shadow);
+}
+.vault-noticeline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.vault-noticeline-icon {
+  display: flex;
+  flex: none;
+  color: var(--v-accent-text);
+}
+.vault-noticeline-title {
+  flex: 1;
+  min-width: 0;
+  margin-left: 2px;
+  font-size: var(--v-fs-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--v-text);
+}
+.vault-noticeline-row > .vault-tap-link {
+  flex: none;
+  white-space: nowrap;
+}
+.vault-noticeline-more {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 10px 12px 30px;
+  font-size: var(--v-fs-sm);
+  color: var(--v-text-2);
+}
 
 /* The not-yet-audited notice collapses to its title after the first visit. */
 .vault-poc {
@@ -1190,8 +1266,9 @@ main :is(h2, h3)[tabindex='-1']:focus {
   justify-content: space-between;
   gap: 8px;
 }
-/* The same warning as a tag by the mark: small and in the caution colour,
-   inside a button that is a full touch target (as .vault-tap-link). */
+/* The same warning as a tag by the mark: small and grey, so the caution
+   colour stays for what needs care now, inside a button that is a full
+   touch target (as .vault-tap-link). */
 .vault-beta {
   display: inline-flex;
   align-items: center;
@@ -1207,9 +1284,9 @@ main :is(h2, h3)[tabindex='-1']:focus {
 }
 .vault-beta span {
   padding: 0 8px;
-  border: 1px solid var(--v-warn-text);
+  border: 1px solid var(--v-field-border);
   border-radius: 999px;
-  color: var(--v-warn-text);
+  color: var(--v-muted);
   font-size: var(--v-fs-xs);
   font-weight: 600;
   line-height: 20px;

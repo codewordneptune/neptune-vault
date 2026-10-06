@@ -6,7 +6,7 @@
 // Dismissed, it does not come back on this device; the Backup page keeps its
 // own warning.
 
-import { Button, Group, Text } from '@mantine/core';
+import { Group, Text, UnstyledButton } from '@mantine/core';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -14,7 +14,7 @@ import { useApp } from '../app/AppContext';
 import { installState } from '../app/install';
 import { NATIVE } from '../app/platform';
 import { requestPersistentStorage } from '../storage/db';
-import { Caution } from './Notice';
+import { headingNear, NoticeLine } from './Notice';
 
 export function StorageNotice() {
   const { services, account } = useApp();
@@ -36,21 +36,38 @@ export function StorageNotice() {
   };
 
   return (
-    <Caution title="This browser may delete this wallet" onClose={() => void dismiss()} closeLabel="Dismiss the storage warning">
-      <span>When space runs low, a browser can delete what a site keeps. A backup file, or the seed phrase, brings the wallet back.</span>
-      <Group mt={4} gap="sm" align="center">
-        <Button variant="light" size="compact-sm" className="vault-tap" onClick={() => navigate('/settings/backup')}>
+    <NoticeLine
+      about="the storage warning"
+      title="This browser may delete this wallet"
+      action={
+        <UnstyledButton onClick={() => navigate('/settings/backup')} c="var(--v-accent-text)" fz="sm" fw={600} className="vault-tap-link">
           Back up
-        </Button>
-        <Button variant="subtle" size="compact-sm" onClick={() => void ask()}>
+        </UnstyledButton>
+      }
+    >
+      <span>When space runs low, a browser can delete what a site keeps. A backup file, or the seed phrase, brings the wallet back.</span>
+      <Group gap="md" align="center">
+        <UnstyledButton onClick={() => void ask()} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
           Ask the browser to keep it
-        </Button>
+        </UnstyledButton>
+        <UnstyledButton
+          onClick={(e) => {
+            const heading = headingNear(e.currentTarget);
+            void dismiss();
+            heading?.focus({ preventScroll: true });
+          }}
+          c="var(--v-accent-text)"
+          fz="sm"
+          className="vault-tap-link"
+        >
+          Dismiss
+        </UnstyledButton>
         {asked && (
           <Text size="sm" c="dimmed">
             Not granted.
           </Text>
         )}
       </Group>
-    </Caution>
+    </NoticeLine>
   );
 }

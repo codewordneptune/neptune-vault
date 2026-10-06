@@ -9,6 +9,9 @@
 //   backup, a public announcement, an address that shows every payment.
 // - information (this Info): plain text with an icon, in the page's own
 //   colours. For what helps but asks nothing.
+// - advice (NoticeLine): one line in the calm blue with its main action,
+//   the reason and the rest behind a chevron. For what asks little and
+//   can wait (backing up a browser wallet, installing the app).
 //
 // Standing on the page between cards (Home's), a notice or an error line
 // is a card of its own, edged in its colour (global.css); inside a card or
@@ -20,9 +23,9 @@
 // their own (a payment arriving, a send finishing on another screen) are
 // toasts; errors from a form sit under the form's button.
 
-import { CloseButton } from '@mantine/core';
-import { IconAlertTriangle, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
-import { useEffect, useRef, type HTMLAttributes, type ReactNode } from 'react';
+import { ActionIcon, CloseButton } from '@mantine/core';
+import { IconAlertTriangle, IconChevronRight, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
+import { useEffect, useId, useRef, useState, type HTMLAttributes, type ReactNode } from 'react';
 
 type NoticeProps = {
   title?: ReactNode;
@@ -130,4 +133,36 @@ export function Info(props: NoticeProps) {
 export function Done(props: NoticeProps) {
   // One that takes the focus is read out as it does; a live region as well would say it twice.
   return <Notice tier="done" role={props.focusOnMount ? undefined : 'status'} {...props} />;
+}
+
+/**
+ * Advice in one line, a card on the page: an icon, what it is about, its
+ * main action, and a chevron that opens the reason and whatever else it
+ * offers (a second action, dismissing it). `about` names it for the
+ * chevron's label, as in "More about the storage warning".
+ */
+export function NoticeLine({ title, action, about, children }: { title: ReactNode; action?: ReactNode; about: string; children?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const moreId = useId();
+  return (
+    <div className="vault-noticeline">
+      <div className="vault-noticeline-row">
+        <span className="vault-noticeline-icon" aria-hidden>
+          <IconInfoCircle size={20} />
+        </span>
+        <span className="vault-noticeline-title">{title}</span>
+        {action}
+        {children && (
+          <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-expanded={open} aria-controls={moreId} aria-label={(open ? 'Less about ' : 'More about ') + about} onClick={() => setOpen((v) => !v)}>
+            <IconChevronRight size={20} className={open ? 'vault-chevron open' : 'vault-chevron'} />
+          </ActionIcon>
+        )}
+      </div>
+      {children && open && (
+        <div id={moreId} className="vault-noticeline-more">
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
