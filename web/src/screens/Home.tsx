@@ -789,16 +789,24 @@ export function Home() {
               Finding your payments…
             </Text>
           ) : (
-            <Stack gap={6}>
-              <Text c="dimmed" size="sm">
-                Nothing yet.{' '}
-                <UnstyledButton onClick={() => navigate('/receive')} fz="sm" className="vault-inline-link">
-                  Share your receiving address
-                </UnstyledButton>{' '}
-                to get started.
+            // As a wallet starts: what happens next, and the way to begin.
+            <div className="vault-empty">
+              <svg className="vault-empty-art" viewBox="0 0 140 104" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <circle cx="70" cy="54" r="24" fill="var(--v-accent-soft)" />
+                <path d="M57 45a14 14 0 0 1 17 -6" strokeOpacity="0.55" />
+                <ellipse cx="70" cy="54" rx="54" ry="15" transform="rotate(-14 70 54)" strokeOpacity="0.75" />
+                <circle cx="121" cy="40" r="4.5" fill="currentColor" stroke="none" />
+                <circle cx="24" cy="72" r="2.5" fill="currentColor" stroke="none" opacity="0.6" />
+              </svg>
+              <Text fw={600}>Your wallet is ready</Text>
+              <Text c="dimmed" size="sm" maw={320}>
+                Share your address. A payment shows here as soon as the node sees it, and is confirmed by the next block, usually within about 10 minutes.
               </Text>
+              <Button mt={4} leftSection={<IconArrowDownLeft size={16} />} onClick={() => navigate('/receive')}>
+                Receive
+              </Button>
               {account && <SearchedFrom account={account} />}
-            </Stack>
+            </div>
           )
         ) : (
           <div>

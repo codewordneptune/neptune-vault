@@ -2098,6 +2098,21 @@ html {
 .vault-pill[data-variant='light'] .vault-pill-icon {
   background: var(--v-accent-soft);
 }
+/* An empty History as a wallet starts: a drawing in the accent, what
+   happens next, and the way to begin. */
+.vault-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 8px;
+  text-align: center;
+}
+.vault-empty-art {
+  width: 128px;
+  height: 96px;
+  color: var(--v-accent);
+}
 /* The last 30 days under the figure: the line, its two ends named below it. */
 .vault-balance-line {
   margin-top: 6px;
