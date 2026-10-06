@@ -27,9 +27,16 @@ A high-trust app that needs no personal registration with Google:
   A newer test build installs only after the older one is uninstalled,
   which deletes that app's wallet data.
 - **The app's own parts of the Android project.** The workflow generates the
-  project on each run, then adds the camera permission for the QR scanner
-  and the launcher icon from `shells/tauri/icons/android` (the web app's
-  icon, as an adaptive icon). Everything else is Tauri's default.
+  project on each run, then adds the camera permission for the QR scanner,
+  the launcher icon from `shells/tauri/icons/android` (the web app's icon,
+  as an adaptive icon), and the app's navy as the window's background, so
+  the launch screen is navy rather than white in a light system theme. The
+  web view starts navy too (`shells/tauri/tauri.android.conf.json`), until
+  the page paints. Everything else is Tauri's default. Not yet tried on a
+  phone.
+- **Pull to sync.** On Home, a pull down from the top of the page syncs, as
+  Sync does (`web/src/app/pullToSync.ts`, in the phone apps only). Tried
+  with touch events in Chrome, not yet on a phone.
 - **Android's own screens.** Android asks for the camera on a screen over
   the app, which pauses it and hides the page. The wallet waits for the
   answer instead of locking, as it does for a file picker.

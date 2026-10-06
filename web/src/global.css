@@ -1224,6 +1224,36 @@ main :is(h2, h3)[tabindex='-1']:focus {
 .vault-row-arrived {
   animation: vault-arrive 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+/* The mark of a pull to sync (Home.tsx, in the phone apps): a round tile
+   behind the header that comes down with the pull, turning, and takes the
+   accent once letting go would sync. */
+.vault-pull {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 24px);
+  left: 50%;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-left: -20px;
+  border-radius: 50%;
+  background: var(--v-surface);
+  color: var(--v-muted);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  opacity: var(--pull);
+  transform: translateY(var(--pulled)) rotate(calc(var(--pull) * 270deg));
+  transition:
+    transform 200ms ease,
+    opacity 200ms ease;
+  pointer-events: none;
+}
+.vault-pull[data-pulling] {
+  transition: none;
+}
+.vault-pull[data-ready] {
+  color: var(--v-accent-text);
+}
 /* Buttons give a little as they are pressed, in place of the library's
    1 px drop. */
 .mantine-Button-root {

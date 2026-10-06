@@ -3,7 +3,7 @@
 import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { useReducedMotion } from '@mantine/hooks';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconWifiOff } from '@tabler/icons-react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../components/Sheet';
@@ -26,7 +26,8 @@ import { InstallNudge } from '../components/InstallNudge';
 import { StorageNotice } from '../components/StorageNotice';
 import { Caution, ErrorLine, Info } from '../components/Notice';
 import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED, SENT_WAITING, WAITING_FOR_BLOCK } from '../app/words';
-import { DESKTOP, NATIVE } from '../app/platform';
+import { DESKTOP, MOBILE, NATIVE } from '../app/platform';
+import { PULL_READY_PX, usePullToSync } from '../app/pullToSync';
 import { LINKS } from '../app/links';
 import { abbreviateAddress } from '../util/address';
 import { copyText } from '../util/clipboard';
@@ -322,6 +323,10 @@ export function Home() {
     asked.current = true;
     void syncNow();
   };
+  // In the phone apps a pull down from the top syncs, as Sync does.
+  const pull = usePullToSync(MOBILE && online, () => {
+    if (!busy) askSync();
+  });
   useEffect(() => {
     if (asked.current && (sync?.phase === 'done' || sync?.phase === 'error' || !online)) {
       asked.current = false;
@@ -526,6 +531,18 @@ export function Home() {
       <Title order={2} className="sr-only">
         Home
       </Title>
+      {/* The pull's mark, out of sight under the header until a pull brings it down, turning as it comes. */}
+      {MOBILE && (
+        <div
+          className="vault-pull"
+          data-pulling={pull.pulled > 0 || undefined}
+          data-ready={pull.ready || undefined}
+          style={{ '--pulled': `${pull.pulled}px`, '--pull': Math.min(1, pull.pulled / PULL_READY_PX) } as CSSProperties}
+          aria-hidden
+        >
+          <IconRefresh size={20} />
+        </div>
+      )}
       {/* A wallet with no confirmed seed phrase and no backup file can be lost
           with this device or browser: a warning, at the top. The early-version
           warning is the Beta tag in the header (PocNotice.tsx). */}

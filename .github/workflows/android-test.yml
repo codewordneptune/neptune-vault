@@ -66,8 +66,11 @@ jobs:
       # The Android project is generated from tauri.conf.json on each run,
       # rather than kept in the repository, and then given what is the
       # app's own: the camera, for the QR scanner (not required, so a phone
-      # without one still installs it), and the launcher icon, the web
-      # app's icon as an adaptive icon (shells/tauri/icons/README.md).
+      # without one still installs it), the launcher icon, the web app's
+      # icon as an adaptive icon (shells/tauri/icons/README.md), and the
+      # app's navy behind everything (the dark theme's page colour), so the
+      # launch screen and the moment before the page paints are never white.
+      # The web view's own background is in tauri.android.conf.json.
       - name: Android project
         working-directory: shells/tauri
         run: |
@@ -79,6 +82,11 @@ jobs:
           grep -n 'uses-' "$manifest"
           cp -r icons/android/. gen/android/app/src/main/res/
           ls gen/android/app/src/main/res/mipmap-anydpi-v26
+          for themes in gen/android/app/src/main/res/values/themes.xml gen/android/app/src/main/res/values-night/themes.xml; do
+            sed -i 's|<!-- Customize your theme here. -->|<item name="android:windowBackground">#FF111923</item>|' "$themes"
+            grep -q 'android:windowBackground' "$themes"
+            cat "$themes"
+          done
 
       - name: Build
         working-directory: shells/tauri
