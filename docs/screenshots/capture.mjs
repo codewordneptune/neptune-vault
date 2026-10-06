@@ -8,7 +8,8 @@
 //    regtest node"): `cd web && npm run dev` serves http://localhost:4400.
 // 2. Start Chrome with a DevTools port and a profile of its own, e.g.
 //      chrome --headless=new --remote-debugging-port=9222 --user-data-dir=<dir> http://localhost:4400/
-// 3. In that profile, make the demo wallet the screenshots show. The first
+// 3. In that profile, make the demo wallet the screenshots show, on a new
+//    Regtest chain (a node started with a fresh --data-dir). The first
 //    wallet goes on Mainnet: make one, tick Developer networks in Settings,
 //    Advanced, then choose Add a wallet in the header's wallet menu. Choose
 //    Regtest in its Network line and restore the public test phrase
@@ -16,8 +17,12 @@
 //    this seed phrase is new".
 //    On Receive, add address 1 and name it "Alice". From the node, pay
 //    12.5 NPT to the main address and 3 NPT to Alice's, mining a block
-//    after each. Save the node's address as the contact "Bob", send Bob
-//    2 NPT at the Medium fee, and mine a block. Nothing is left pending.
+//    after each (the node's mined coins need `neptune-cli send
+//    --accept-lustrations`). Save the node's address as the contact "Bob",
+//    send Bob 2 NPT at the Medium fee (the review asks to publish the coins
+//    that pay for it: Send anyway), and mine a block. Nothing is left
+//    pending. Where the browser does not keep the wallet's storage, dismiss
+//    Home's notice about it.
 //
 // Then, whenever the screens change:
 //      VAULT_PASSWORD=<the demo wallet's password> node docs/screenshots/capture.mjs
@@ -58,11 +63,6 @@ const SHOTS = [
       await sleep(800);
       setValue(field('Amount'), '1.5');
       await sleep(300);
-      // The fee is one line until a tap on it opens its choices.
-      $('.vault-fee-line')?.click();
-      await sleep(400);
-      $$('.mantine-SegmentedControl-label').find((label) => label.textContent.startsWith('Medium'))?.click();
-      await sleep(300);
       byText('button', 'Review').click();
       await until(() => $('[role=dialog]'));
       await sleep(1200);`,
@@ -90,7 +90,7 @@ const PAGE = `
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   };
-  const field = (label) => $$('main input').find((input) => input.closest('.mantine-InputWrapper-root')?.querySelector('label')?.textContent.startsWith(label));
+  const field = (label) => $$('main input').find((input) => (input.labels?.[0]?.textContent ?? '').trim().startsWith(label));
   const go = async (path) => {
     history.pushState({}, '', path);
     dispatchEvent(new PopStateEvent('popstate'));
