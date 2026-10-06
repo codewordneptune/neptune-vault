@@ -2082,21 +2082,9 @@ html {
   border: 1px solid var(--v-hero-edge);
   box-shadow: inset 0 1px 0 var(--v-hero-highlight), var(--v-card-shadow);
 }
-/* Send and Receive as pills, each icon in a circle of its own. */
+/* Send and Receive as pills. */
 .vault-balance-actions .vault-pill {
   border-radius: 999px;
-}
-.vault-pill-icon {
-  width: 26px;
-  height: 26px;
-  margin-left: -6px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: rgba(255, 255, 255, 0.18);
-}
-.vault-pill[data-variant='light'] .vault-pill-icon {
-  background: var(--v-accent-soft);
 }
 /* An empty History as a wallet starts: a drawing in the accent, what
    happens next, and the way to begin. */

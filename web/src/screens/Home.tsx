@@ -642,27 +642,10 @@ export function Home() {
             )}
           </Stack>
           <div className="vault-balance-actions">
-            <Button
-              className="vault-pill"
-              leftSection={
-                <span className="vault-pill-icon">
-                  <IconArrowUpRight size={16} />
-                </span>
-              }
-              onClick={() => navigate('/send')}
-            >
+            <Button className="vault-pill" leftSection={<IconArrowUpRight size={16} />} onClick={() => navigate('/send')}>
               Send
             </Button>
-            <Button
-              className="vault-pill"
-              variant="light"
-              leftSection={
-                <span className="vault-pill-icon">
-                  <IconArrowDownLeft size={16} />
-                </span>
-              }
-              onClick={() => navigate('/receive')}
-            >
+            <Button className="vault-pill" variant="light" leftSection={<IconArrowDownLeft size={16} />} onClick={() => navigate('/receive')}>
               Receive
             </Button>
           </div>
