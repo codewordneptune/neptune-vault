@@ -7,7 +7,7 @@
 // focus moves on (Tab), as a native select's does.
 
 import { Combobox, Input, Text, useCombobox } from '@mantine/core';
-import { IconCheck, IconChevronDown } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useId, type ReactNode } from 'react';
 
 export interface Choice {
@@ -29,6 +29,7 @@ export function ChoiceField({
   hint,
   more,
   reading,
+  row = false,
 }: {
   label: string;
   value: string;
@@ -42,6 +43,8 @@ export function ChoiceField({
   more?: { label: string; onSelect: () => void };
   /** A reading under the field, as under an amount field: its estimate in another currency. */
   reading?: ReactNode;
+  /** On one line, as a list row: the label at the start, the choice at the end, no reading (Send's fee on a phone). */
+  row?: boolean;
 }) {
   const labelId = useId();
   const fieldId = useId();
@@ -53,10 +56,11 @@ export function ChoiceField({
       if (source === 'keyboard') box.selectActiveOption();
     },
   });
-  const describedBy = [reading ? readingId : null, hint ? hintId : null].filter(Boolean).join(' ') || undefined;
+  const shownReading = row ? null : reading;
+  const describedBy = [shownReading ? readingId : null, hint ? hintId : null].filter(Boolean).join(' ') || undefined;
   return (
     <div>
-      <Input.Label id={labelId} htmlFor={fieldId}>
+      <Input.Label id={labelId} htmlFor={fieldId} className={row ? 'sr-only' : undefined}>
         {label}
       </Input.Label>
       <Combobox
@@ -69,9 +73,14 @@ export function ChoiceField({
         position="bottom-start"
       >
         <Combobox.Target targetType="button" withExpandedAttribute>
-          <button type="button" id={fieldId} className="vault-choice-field" aria-labelledby={`${labelId} ${fieldId}`} aria-describedby={describedBy} onClick={() => box.toggleDropdown()} onBlur={() => box.closeDropdown()}>
+          <button type="button" id={fieldId} className={row ? 'vault-choice-field vault-choice-row' : 'vault-choice-field'} aria-labelledby={`${labelId} ${fieldId}`} aria-describedby={describedBy} onClick={() => box.toggleDropdown()} onBlur={() => box.closeDropdown()}>
+            {row && (
+              <span className="vault-choice-row-label" aria-hidden>
+                {label}
+              </span>
+            )}
             <span className="vault-choice-face">{face ?? choices.find((c) => c.value === value)?.name}</span>
-            <IconChevronDown size={16} aria-hidden />
+            {row ? <IconChevronRight size={16} aria-hidden /> : <IconChevronDown size={16} aria-hidden />}
           </button>
         </Combobox.Target>
         <Combobox.Dropdown>
@@ -118,9 +127,9 @@ export function ChoiceField({
           {hint}
         </span>
       )}
-      {reading && (
+      {shownReading && (
         <Text id={readingId} size="sm" c="dimmed" mt={5}>
-          {reading}
+          {shownReading}
         </Text>
       )}
     </div>

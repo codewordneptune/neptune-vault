@@ -2906,6 +2906,130 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   gap: 12px;
 }
 
+/* On a phone sending to one person (Send.tsx), Send is the page itself
+   rather than a card, and the amount takes its middle: large and centred,
+   the field as wide as the figure (a hidden copy of the figure under it
+   sets the width), smaller as the figure grows so that it fits the width, with an
+   accent line under it while it is typed in. The recipient and the fee
+   stand on the page as cards. */
+.mantine-Paper-root.vault-send-bare {
+  display: flex;
+  flex-direction: column;
+  background: none;
+  box-shadow: none;
+}
+/* The page reaches the tab bar, so the amount sits in the space between
+   the recipient and the fee, and Review at the foot, where the thumb is:
+   the window less the header (taller on a touch screen), the page's
+   padding and the tab bar's room. */
+@media (pointer: coarse) {
+  .mantine-Paper-root.vault-send-bare {
+    min-height: calc(100dvh - 179px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+@media (pointer: fine) {
+  .mantine-Paper-root.vault-send-bare {
+    min-height: calc(100dvh - 168px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+.vault-send-bare > .mantine-Stack-root,
+.vault-send-bare .vault-send-form > .mantine-Stack-root,
+.vault-send-bare .vault-send-first,
+.vault-send-bare .vault-amount-hero {
+  flex: 1 0 auto;
+}
+.vault-send-bare .vault-send-form:not([hidden]) {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+.vault-send-bare .vault-amount-hero {
+  justify-content: center;
+}
+.vault-send-bare .vault-recipient {
+  border-color: transparent;
+  background: var(--v-surface);
+  box-shadow: var(--v-card-shadow);
+}
+.vault-amount-hero {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-block: 24px 16px;
+  text-align: center;
+}
+.vault-amount-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  font-size: min(3.125rem, calc((100cqi - 64px) / (var(--chars) * 0.62)));
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.vault-amount-field {
+  position: relative;
+  display: inline-block;
+  min-width: 0;
+  border-bottom: 2px solid transparent;
+}
+.vault-amount-field:focus-within {
+  border-bottom-color: var(--v-accent);
+}
+.vault-amount-field > span {
+  visibility: hidden;
+  white-space: pre;
+}
+.vault-amount-field > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--v-text);
+  caret-color: var(--v-accent);
+  outline: none;
+}
+.vault-amount-field > input::placeholder {
+  color: var(--v-faint);
+  opacity: 1;
+}
+.vault-amount-unit {
+  font-size: 1.125rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--v-muted);
+}
+/* The fee as one row on that page: its label at the start, the choice and a
+   chevron at the end (components/ChoiceField.tsx). */
+.vault-choice-field.vault-choice-row {
+  min-height: 48px;
+  border-color: transparent;
+  border-radius: var(--v-radius-sm);
+  background: var(--v-surface);
+  box-shadow: var(--v-card-shadow);
+  font-size: var(--v-fs-sm);
+}
+.vault-choice-field.vault-choice-row:hover:not(:focus-visible, [aria-expanded='true']) {
+  border-color: transparent;
+}
+.vault-choice-row-label {
+  color: var(--v-muted);
+}
+.vault-choice-row .vault-choice-face {
+  margin-left: auto;
+  font-weight: 600;
+}
+
 /* Copy and Share under a code on Receive: two exactly equal halves at
    every width, so the pair centres on the code above it (a grid, as flex
    halves came out 2 px apart by the buttons' borders). With a text size

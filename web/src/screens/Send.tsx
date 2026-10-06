@@ -6,7 +6,7 @@
 import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, PasswordInput, Progress, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
 import { IconAlertTriangle, IconCheck, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
-import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../components/Sheet';
@@ -164,6 +164,86 @@ function RecipientCard({ address, name, requestName, who, onChange, changeRef }:
   );
 }
 
+/**
+ * The amount on a phone sending to one person: large and centred, the
+ * field as wide as what is typed and the unit after it, smaller as the
+ * figure grows; under it its estimate in another currency, and what can be
+ * spent, with Max.
+ */
+function AmountHero({
+  inputRef,
+  value,
+  onChange,
+  onBlur,
+  error,
+  estimate,
+  spendable,
+  onMax,
+  maxDisabled,
+}: {
+  inputRef: (el: HTMLInputElement | null) => void;
+  value: string;
+  onChange: (value: string) => void;
+  onBlur: () => void;
+  error: string | null;
+  estimate: string | undefined;
+  spendable: string;
+  onMax: () => void;
+  maxDisabled: boolean;
+}) {
+  const id = useId();
+  const estimateId = useId();
+  const spendableId = useId();
+  const errorId = useId();
+  return (
+    <div className="vault-amount-hero">
+      <label htmlFor={id} className="sr-only">
+        Amount (NPT)
+      </label>
+      <div className="vault-amount-line" style={{ '--chars': Math.max(4, value.length) } as CSSProperties}>
+        <span className="vault-amount-field">
+          <span aria-hidden>{value || '0'}</span>
+          <input
+            id={id}
+            ref={inputRef}
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="0"
+            size={1}
+            value={value}
+            onChange={(e) => onChange(e.currentTarget.value)}
+            onBlur={onBlur}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={[estimate ? estimateId : null, spendableId, error ? errorId : null].filter(Boolean).join(' ')}
+          />
+        </span>
+        <span className="vault-amount-unit" aria-hidden>
+          NPT
+        </span>
+      </div>
+      {estimate && (
+        <Text id={estimateId} size="sm" c="dimmed">
+          <Spoken text={estimate} />
+        </Text>
+      )}
+      <Text size="sm" c="dimmed">
+        <span id={spendableId}>
+          <Spoken text={spendable} />
+        </span>
+        {' · '}
+        <UnstyledButton type="button" onClick={onMax} disabled={maxDisabled} c={maxDisabled ? 'var(--v-faint)' : 'var(--v-accent-text)'} fz="sm" className="vault-tap-link">
+          Max
+        </UnstyledButton>
+      </Text>
+      {error && (
+        <Input.Error id={errorId}>
+          <Spoken text={error} />
+        </Input.Error>
+      )}
+    </div>
+  );
+}
+
 export function Send() {
   const { services, account, balance, utxos, history, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
   // Sends given up on that may still pay someone a send to these addresses pays (givenUpRivals).
@@ -216,8 +296,9 @@ export function Send() {
   const showNote = noteOpen || note !== '';
   // The name a request gave, offered for the contact after the send.
   const [lastLabel, setLastLabel] = useState<string | null>(null);
-  // The review's password field takes the focus on opening only on a wider screen.
-  const phone = useMediaQuery('(max-width: 36em)');
+  // A phone: the review's password field waits for a tap, and a send to one
+  // person leads with the amount (AmountHero).
+  const phone = useMediaQuery('(max-width: 36em)', undefined, { getInitialValueInEffect: false });
   const [saving, setSaving] = useState(false);
 
   // The wallet's contacts, so an address typed, pasted or scanned into a
@@ -915,6 +996,10 @@ export function Send() {
     );
   }
 
+  // On a phone a send to one person leads with the amount, large, on the
+  // page itself; several recipients, and a wider screen, keep the form's fields.
+  const amountFirst = phone && extras.length === 0;
+
   // The review is a sheet over the form, so the form stays in view and
   // "Edit" is a step back rather than a screen change.
   let reviewSheet: ReactNode = null;
@@ -1160,8 +1245,91 @@ export function Send() {
     );
   }
 
+  // Another recipient and a note, then the fee; on a phone sending to one person the fee comes first.
+  const linksBlock = (
+    <>
+      {/* The two extras as links on one line: another recipient, and a note,
+          which most sends do without. The note opens where it is asked for. */}
+      {(1 + extras.length < MAX_PAYMENTS || !showNote) && (
+        <div className="vault-send-extras">
+          {1 + extras.length < MAX_PAYMENTS && (
+            <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-add-payee">
+              <IconPlus size={16} aria-hidden />
+              Add another recipient
+            </UnstyledButton>
+          )}
+          {!showNote && (
+            <UnstyledButton
+              type="button"
+              onClick={() => {
+                setNoteOpen(true);
+                setTimeout(() => noteRef.current?.focus(), 0);
+              }}
+              c="var(--v-accent-text)"
+              fz="sm"
+              className="vault-tap-link vault-tap-link-start vault-add-payee"
+            >
+              <IconPlus size={16} aria-hidden />
+              Add a note
+            </UnstyledButton>
+          )}
+        </div>
+      )}
+      {/* For the whole send, however many recipients: kept in History on this device, never sent. */}
+      {showNote && (
+        <TextInput ref={noteRef} label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
+      )}
+    </>
+  );
+  const feeBlock = (
+    <>
+      {/* Chosen as the address type is on Receive: a field that opens the
+          list, each choice with what it costs; under the field, as under
+          an amount, its estimate in another currency. */}
+      <ChoiceField
+        label="Fee"
+        value={feePreset}
+        face={
+          feePreset === 'custom' ? (
+            feeLevel
+          ) : (
+            <>
+              {feeLevel} <span className="vault-choice-amount">{fee} NPT</span>
+            </>
+          )
+        }
+        choices={FEE_PRESETS.map((p) => ({ value: p.value, name: p.label, note: p.fee ? <Spoken text={[`${p.fee} NPT`, estimateOf(p.fee)].filter(Boolean).join(' · ')} /> : 'Any amount you choose' }))}
+        hint="A higher fee usually confirms sooner when the network is busy."
+        onChoose={chooseFee}
+        reading={choiceEstimate && <Spoken text={choiceEstimate} />}
+        row={amountFirst}
+      />
+      {feePreset === 'custom' && (
+        <TextInput
+          label="Custom fee (NPT)"
+          inputMode="decimal"
+          value={fee}
+          onChange={(e) => {
+            setFee(e.currentTarget.value);
+            setFeeError(null);
+          }}
+          onBlur={() => void (maxFollowsFee() ? sendAll() : checkAmounts(true))}
+          error={feeError && <Spoken text={feeError} />}
+          description={estimateOf(fee) && <Spoken text={estimateOf(fee)} />}
+          inputWrapperOrder={UNDER_THE_FIELD}
+          ref={customFeeRef}
+        />
+      )}
+      {formFeeNote && (
+        <Text size="sm" c="var(--v-warn-text)">
+          {formFeeNote}
+        </Text>
+      )}
+    </>
+  );
+
   return (
-    <Paper>
+    <Paper className={amountFirst ? 'vault-send-bare' : undefined} p={amountFirst ? 0 : undefined}>
       <Stack>
         <Sheet opened={reviewSheet !== null} onClose={() => setStep('form')} title="Review" back="Edit" size={560} centered>
           {reviewSheet}
@@ -1253,6 +1421,7 @@ export function Send() {
         </div>
         <form
           ref={formRef}
+          className="vault-send-form"
           hidden={sentShown}
           onSubmit={(e) => {
             e.preventDefault();
@@ -1260,7 +1429,7 @@ export function Send() {
           }}
         >
           <Stack>
-            <Stack role={extras.length > 0 ? 'group' : undefined} aria-labelledby={extras.length > 0 ? 'payee-first' : undefined}>
+            <Stack role={extras.length > 0 ? 'group' : undefined} aria-labelledby={extras.length > 0 ? 'payee-first' : undefined} className="vault-send-first">
             {extras.length > 0 && (
               <span className="vault-group-label" id="payee-first">
                 Recipient 1
@@ -1314,6 +1483,24 @@ export function Send() {
                 rightSection={<FieldActions contacts={contacts.length > 0} onPick={() => setPickFor(0)} onScan={() => setScanFor(0)} who={extras.length > 0 ? 'recipient 1' : null} />}
               />
               )}
+            {amountFirst ? (
+              <AmountHero
+                inputRef={(el) => {
+                  if (el) amountRefs.current.set(0, el);
+                }}
+                value={amount}
+                onChange={(value) => {
+                  setAmount(value);
+                  setAmountError(null);
+                }}
+                onBlur={() => void checkAmounts(true)}
+                error={amountError}
+                estimate={estimateOf(amount)}
+                spendable={spendableText}
+                onMax={() => void sendAll()}
+                maxDisabled={balance.spendableNau <= 0n}
+              />
+            ) : (
             <TextInput
               ref={(el) => {
                 if (el) amountRefs.current.set(0, el);
@@ -1338,6 +1525,7 @@ export function Send() {
                 ) : undefined
               }
             />
+            )}
             </Stack>
             {extras.map((x, i) => (
               <div key={x.id} className="vault-payee" role="group" aria-labelledby={`payee-${x.id}`}>
@@ -1418,77 +1606,17 @@ export function Send() {
                 />
               </div>
             ))}
-            {/* The two extras as links on one line: another recipient, and a note,
-                which most sends do without. The note opens where it is asked for. */}
-            {(1 + extras.length < MAX_PAYMENTS || !showNote) && (
-              <div className="vault-send-extras">
-                {1 + extras.length < MAX_PAYMENTS && (
-                  <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-add-payee">
-                    <IconPlus size={16} aria-hidden />
-                    Add another recipient
-                  </UnstyledButton>
-                )}
-                {!showNote && (
-                  <UnstyledButton
-                    type="button"
-                    onClick={() => {
-                      setNoteOpen(true);
-                      setTimeout(() => noteRef.current?.focus(), 0);
-                    }}
-                    c="var(--v-accent-text)"
-                    fz="sm"
-                    className="vault-tap-link vault-tap-link-start vault-add-payee"
-                  >
-                    <IconPlus size={16} aria-hidden />
-                    Add a note
-                  </UnstyledButton>
-                )}
-              </div>
-            )}
-            {/* For the whole send, however many recipients: kept in History on this device, never sent. */}
-            {showNote && (
-              <TextInput ref={noteRef} label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
-            )}
-            {/* Chosen as the address type is on Receive: a field that opens the
-                list, each choice with what it costs; under the field, as under
-                an amount, its estimate in another currency. */}
-            <ChoiceField
-              label="Fee"
-              value={feePreset}
-              face={
-                feePreset === 'custom' ? (
-                  feeLevel
-                ) : (
-                  <>
-                    {feeLevel} <span className="vault-choice-amount">{fee} NPT</span>
-                  </>
-                )
-              }
-              choices={FEE_PRESETS.map((p) => ({ value: p.value, name: p.label, note: p.fee ? <Spoken text={[`${p.fee} NPT`, estimateOf(p.fee)].filter(Boolean).join(' · ')} /> : 'Any amount you choose' }))}
-              hint="A higher fee usually confirms sooner when the network is busy."
-              onChoose={chooseFee}
-              reading={choiceEstimate && <Spoken text={choiceEstimate} />}
-            />
-            {feePreset === 'custom' && (
-              <TextInput
-                label="Custom fee (NPT)"
-                inputMode="decimal"
-                value={fee}
-                onChange={(e) => {
-                  setFee(e.currentTarget.value);
-                  setFeeError(null);
-                }}
-                onBlur={() => void (maxFollowsFee() ? sendAll() : checkAmounts(true))}
-                error={feeError && <Spoken text={feeError} />}
-                description={estimateOf(fee) && <Spoken text={estimateOf(fee)} />}
-                inputWrapperOrder={UNDER_THE_FIELD}
-                ref={customFeeRef}
-              />
-            )}
-            {formFeeNote && (
-              <Text size="sm" c="var(--v-warn-text)">
-                {formFeeNote}
-              </Text>
+            {/* On a phone sending to one person the fee comes first, as a row under the amount. */}
+            {amountFirst ? (
+              <>
+                {feeBlock}
+                {linksBlock}
+              </>
+            ) : (
+              <>
+                {linksBlock}
+                {feeBlock}
+              </>
             )}
             {/* Why Review waits, one look for both reasons: a sentence, no
                 title. The node's own words are on Settings, Advanced. */}
