@@ -3,6 +3,7 @@ name = "vault-fixtures"
 version = "0.1.0"
 edition = "2021"
 publish = false
+license = "MIT OR Apache-2.0"
 description = "Native tool that writes deterministic PrimitiveWitness fixtures for the browser prover benchmark"
 
 [dependencies]

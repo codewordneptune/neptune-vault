@@ -386,5 +386,18 @@ cd shells/tauri && npx --prefix ../../web tauri build
 
 ## Licence
 
-Not decided yet. The Inter typeface the app ships, in `web/src/assets/fonts`,
-is under the SIL Open Font License (`Inter-LICENSE.txt` there).
+Neptune Vault is licensed under either of
+
+- the Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE)), or
+- the MIT licence ([LICENSE-MIT](LICENSE-MIT)),
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution you submit for
+inclusion in Neptune Vault, as defined in the Apache-2.0 licence, is licensed
+as above, without any additional terms or conditions.
+
+Code from others keeps its own licence. The vendored crates in
+`crates/vendor` keep theirs; `twenty-first` among them is GPL-2.0. The Inter
+typeface the app ships, in `web/src/assets/fonts`, is under the SIL Open Font
+License (`Inter-LICENSE.txt` there).

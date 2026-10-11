@@ -3,6 +3,7 @@ name = "vault-shell"
 version = "0.1.0"
 edition = "2021"
 publish = false
+license = "MIT OR Apache-2.0"
 description = "The native shell for Neptune Vault: a window, and the commands that reach the bridge"
 
 [lib]

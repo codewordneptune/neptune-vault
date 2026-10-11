@@ -3,6 +3,7 @@ name = "vault-bridge"
 version = "0.1.0"
 edition = "2021"
 publish = false
+license = "MIT OR Apache-2.0"
 description = "The wallet core and prover as a native shell calls them, with no shell framework in sight"
 
 [dependencies]

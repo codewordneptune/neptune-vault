@@ -3,6 +3,7 @@ name = "vault-core"
 version = "0.1.0"
 edition = "2021"
 publish = false
+license = "MIT OR Apache-2.0"
 description = "Wallet core for Neptune Vault (keys, addresses, scanning, witness building), compiled to WebAssembly"
 
 [lib]
