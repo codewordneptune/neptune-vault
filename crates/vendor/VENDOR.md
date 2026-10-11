@@ -17,6 +17,12 @@ patch will not apply.
 Reproduce: copy the crate from `~/.cargo/registry/src/*/<crate>-<version>`,
 delete `.cargo-ok`, then apply the changes above.
 
+Licence files: the published crates carry none, so each folder holds its
+upstream repository's: `LICENSE` from Neptune-Crypto/neptune-core (Apache-2.0)
+in the two Neptune crates, `LICENSE` from Neptune-Crypto/twenty-first
+(GPL-2.0), and `LICENSE-MIT` and `LICENSE-APACHE` from TritonVM/triton-vm.
+Keep them when replacing a folder.
+
 Update: raise the version in the vault-* manifests that use the crate. The
 old copy then no longer matches (cargo warns that the patch is unused), so
 cargo fetches the new release into `~/.cargo/registry/src/*/<crate>-<version>`.
