@@ -401,3 +401,9 @@ Code from others keeps its own licence. The vendored crates in
 `crates/vendor` keep theirs; `twenty-first` among them is GPL-2.0. The Inter
 typeface the app ships, in `web/src/assets/fonts`, is under the SIL Open Font
 License (`Inter-LICENSE.txt` there).
+
+Every build ships the list of third-party software it contains, with each
+licence text: `third-party-licences.txt` next to the page, shown in the app
+under Settings, About, Open-source licences. `web/thirdPartyLicences.ts`
+writes it while building, from the lock files and the packages' own licence
+files, so `npm run build` needs `cargo`.

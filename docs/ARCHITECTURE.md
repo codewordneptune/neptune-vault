@@ -703,6 +703,11 @@ native screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
   `beforeBuildCommand`, for the desktop and Android apps) drops the service
   worker and removes `wasm`, `bench` and `staticwebapp.config.json` from the
   output.
+- Every build writes `third-party-licences.txt` (`web/thirdPartyLicences.ts`,
+  shown under Settings, About): the crates it compiles, from `cargo metadata`
+  (the wasm packages for the web, the shell for the apps; tests' own
+  dependencies left out), the npm packages its bundles contain (workers' and
+  the service worker's included), and each licence text once.
 - The dev server (`npm run dev`, port 4400) sends only the isolation
   headers, since hot reload needs inline scripts the CSP forbids.
   `npm run build` then `npm run preview` (port 4401) serves the production

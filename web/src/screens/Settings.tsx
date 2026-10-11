@@ -1,8 +1,8 @@
 // Settings: a short list, each row with its current value, and a page for
 // each row with its explanations. Backup, lock and passkey, the node with
 // its connectivity check, rescan and diagnostics (a page of its own),
-// appearance, currency, about (with its pages: report a problem, privacy),
-// removal.
+// appearance, currency, about (with its pages: report a problem, privacy,
+// open-source licences), removal.
 
 import { Anchor, Button, Checkbox, Divider, Group, Kbd, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import {
@@ -48,6 +48,7 @@ import { Spoken } from '../components/Spoken';
 import { ContactsPanel } from './Contacts';
 import { DeviceDetails } from './Diagnostics';
 import { PrivacyStatement } from './Privacy';
+import { ThirdPartyLicences } from './Licences';
 import { usePendingSends } from '../app/pending';
 import { isCancellation } from '../app/passkey';
 import { copyText } from '../util/clipboard';
@@ -73,7 +74,7 @@ function useOpenForm(key: FormKey): [boolean, (on: boolean) => void] {
 // its page, where its explanations are, so each is read only by someone
 // changing that setting. On a wide window the list and the open page sit
 // side by side.
-type SectionKey = 'backup' | 'security' | 'contacts' | 'name' | 'autolock' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove' | 'diagnostics' | 'report' | 'privacy';
+type SectionKey = 'backup' | 'security' | 'contacts' | 'name' | 'autolock' | 'appearance' | 'currency' | 'advanced' | 'about' | 'remove' | 'diagnostics' | 'report' | 'privacy' | 'licences';
 const SECTION_TITLES: Record<SectionKey, string> = {
   backup: 'Backup',
   security: 'Security',
@@ -88,6 +89,7 @@ const SECTION_TITLES: Record<SectionKey, string> = {
   diagnostics: 'Diagnostics',
   report: 'Report a problem',
   privacy: 'Privacy statement',
+  licences: 'Open-source licences',
 };
 const SECTION_ICONS: Partial<Record<SectionKey, TablerIcon>> = {
   backup: IconKey,
@@ -103,7 +105,7 @@ const SECTION_ICONS: Partial<Record<SectionKey, TablerIcon>> = {
 };
 // Pages reached from another page rather than from the list: their way
 // back is to that page, and on a wide window the list beside them marks it.
-const PARENT_OF: Partial<Record<SectionKey, SectionKey>> = { diagnostics: 'advanced', report: 'about', privacy: 'about' };
+const PARENT_OF: Partial<Record<SectionKey, SectionKey>> = { diagnostics: 'advanced', report: 'about', privacy: 'about', licences: 'about' };
 /** A node's address as the list shows it: its host, or a path on this site as written. */
 function nodeHost(url: string): string {
   if (url.startsWith('/')) return url;
@@ -830,6 +832,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               </LinkGroup>
               <LinkGroup label="Learn more">
                 <LinkRow to="/settings/privacy">Privacy statement</LinkRow>
+                <LinkRow to="/settings/licences">Open-source licences</LinkRow>
                 <LinkRow href={LINKS.neptune}>Official website</LinkRow>
                 <LinkRow href={LINKS.project}>Community website</LinkRow>
               </LinkGroup>
@@ -849,6 +852,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
       {section === 'diagnostics' && <DeviceDetails />}
       {section === 'report' && <DeviceDetails report />}
       {section === 'privacy' && <PrivacyStatement />}
+      {section === 'licences' && <ThirdPartyLicences />}
     </OpenFormContext.Provider>
   );
 }

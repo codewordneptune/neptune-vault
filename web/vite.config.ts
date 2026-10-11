@@ -1,7 +1,10 @@
 import { execSync } from 'node:child_process';
 import { readFileSync, rmSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { defineConfig, type Plugin } from 'vite';
+
+import { packageDir, thirdPartyLicences } from './thirdPartyLicences';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 let commit = 'unknown';
@@ -62,6 +65,50 @@ function versionJson(): Plugin {
   };
 }
 
+// The npm packages whose code went into a bundle: the page's, and each
+// worker's, which Vite builds separately (so this plugin runs there too).
+const bundledPackages = new Set<string>();
+function collectPackages(): Plugin {
+  return {
+    name: 'vault-collect-packages',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      for (const output of Object.values(bundle)) {
+        if (output.type !== 'chunk') continue;
+        for (const id of output.moduleIds) {
+          const dir = packageDir(id);
+          if (dir) bundledPackages.add(dir);
+        }
+      }
+    },
+  };
+}
+
+// The Workbox modules the generated service worker is built from (its
+// workbox-*.js names them); it is written after the bundle, so they are named here.
+const WORKBOX_RUNTIME = ['workbox-core', 'workbox-precaching', 'workbox-routing', 'workbox-strategies'];
+
+// third-party-licences.txt next to the page: the notice the licences of the
+// software in this build require (README, Licence), shown under Settings,
+// About. Never precached (txt is not in the service worker's glob).
+function licencesFile(mode: string): Plugin {
+  const web = mode !== 'desktop';
+  return {
+    name: 'vault-third-party-licences',
+    generateBundle() {
+      const workbox = web ? WORKBOX_RUNTIME.map((name) => fileURLToPath(new URL(`./node_modules/${name}`, import.meta.url))) : [];
+      const source = thirdPartyLicences(web ? ['vault-core', 'vault-prover'] : ['vault-shell'], [...bundledPackages, ...workbox]);
+      this.emitFile({ type: 'asset', fileName: 'third-party-licences.txt', source });
+    },
+    configureServer(server) {
+      server.middlewares.use('/third-party-licences.txt', (_req, res) => {
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.end('The list of third-party software is written by production builds (npm run build).\n');
+      });
+    },
+  };
+}
+
 // Cross-origin isolation is required for SharedArrayBuffer, which the
 // threaded prover needs. Production hosting must send the same two headers.
 const isolationHeaders = {
@@ -88,6 +135,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     versionJson(),
+    collectPackages(),
+    licencesFile(mode),
     ...(mode === 'desktop' ? [desktopTrim()] : []),
     VitePWA({
       disable: mode === 'desktop',
@@ -130,6 +179,6 @@ export default defineConfig(({ mode }) => ({
     proxy: regtestProxy,
   },
   preview: { headers: hosting.globalHeaders, port: 4401, proxy: regtestProxy },
-  worker: { format: 'es' },
+  worker: { format: 'es', plugins: () => [collectPackages()] },
   build: { target: 'es2022' },
 }));
