@@ -41,6 +41,13 @@ The Android app is built from the same shell; see [ANDROID.md](ANDROID.md).
    - as a pre-release, to share it with testers: the apps never offer a
      pre-release, nor a draft.
 
+Two repository settings guard releases, since 2026-10-13. The tag ruleset
+"Desktop release tags" lets only the repository's admin create, move or
+delete a `desktop-v*` tag, so neither a workflow nor anyone else with write
+access can start a release. Release immutability locks a published
+release's files and tag: a mistake in one needs a new version, while a
+draft stays editable.
+
 A run started by hand from the Actions tab only builds. Start it on a
 branch other than `main`: on `main` it stops at once (see
 [HOSTING.md](HOSTING.md#deploying)). Every run, tagged or not, also keeps
