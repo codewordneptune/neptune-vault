@@ -447,14 +447,18 @@ pub fn persist_scan(
             }
         }
 
-        // This device's sends in this block: those whose outputs it carries.
-        // A send's inputs being spent is not enough: another send of this
-        // device, or another device with the same seed phrase, can spend the
-        // same coins in another transaction, and then this one never reached
-        // its recipient. A send given up on, or expired, goes through like
-        // any other while its coins are unspent. Rows from before outputs
-        // were recorded keep the old rule: a pending send whose held coin is
-        // spent went through; one given up on cannot be told apart.
+        // This device's sends in this block. A transaction a block takes
+        // spends all its inputs there and puts all its outputs there, so a
+        // send is in it when every coin of it this wallet knows is spent here
+        // and the block carries every one of its outputs. Neither alone is
+        // enough: another send of this device, or another device with the
+        // same seed phrase, can spend the same coins, and two sends of this
+        // device built at one height can share an output, since a payment of
+        // one amount to one address then gets the same commitment. A send
+        // given up on, or expired, goes through like any other while its
+        // coins are unspent. Rows from before outputs were recorded keep the
+        // old rule: a pending send whose held coin is spent went through; one
+        // given up on cannot be told apart.
         let seen: BTreeSet<&str> = block.seen.iter().map(String::as_str).collect();
         let spent_here: BTreeSet<&str> = block.spent.iter().map(String::as_str).collect();
         let carried: Vec<HistoryEntry> = tx
@@ -470,7 +474,9 @@ pub fn persist_scan(
                             spent_here.contains(h.as_str()) && tx.work.utxos.get(h).is_some_and(|c| c.pending_txid.as_deref() == Some(s.txid.as_str()))
                         })
                 } else {
-                    recorded.iter().any(|c| seen.contains(c.as_str()))
+                    s.input_hashes.iter().any(|h| spent_here.contains(h.as_str()))
+                        && s.input_hashes.iter().all(|h| spent_here.contains(h.as_str()) || !tx.work.utxos.contains_key(h))
+                        && recorded.iter().all(|c| seen.contains(c.as_str()))
                 }
             })
             .cloned()

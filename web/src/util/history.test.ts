@@ -113,6 +113,18 @@ describe('groupHistory', () => {
     expect(groupHistory(rows, []).map((e) => e.kind)).toEqual(['sent', 'received']);
   });
 
+  it('folds nothing into a send that failed in the block, which a send sharing its payment went through in', () => {
+    const outputs = (change: string) => [{ commitment: 'same', role: 'recipient' as const }, { commitment: change, role: 'change' as const }];
+    const lost = sent({ key: `${A}:sent:lost`, txid: 'lost', status: 'failed', error: 'Not sent', outputs: outputs('chg-lost') });
+    const took = sent({ key: `${A}:sent:took`, txid: 'took', outputs: outputs('chg-took') });
+    const coins = [{ ...utxo('pay', '5000', 40), stored: { own_build_height: 40, commitment: 'same' } as UtxoRecord['stored'] }, { ...utxo('chg', '4700', 40), stored: { own_build_height: 40, commitment: 'chg-took' } as UtxoRecord['stored'] }];
+    const entries = groupHistory([lost, took, received('pay', '5000'), received('chg', '4700')], coins);
+    expect(entries.map((e) => [e.record.txid, e.kind, e.folded.length])).toEqual([
+      ['lost', 'sent', 0],
+      ['took', 'self', 2],
+    ]);
+  });
+
   it('folds a coin this seed built whatever its amount, and never one someone else built', () => {
     const rows = [sent({ changeNau: '4700', outputs: [{ commitment: 'pay', role: 'recipient' }, { commitment: 'chg', role: 'change' }] }), received('mine', '999'), received('theirs', '5000')];
     const coins = [utxo('mine', '999', 40), utxo('theirs', '5000', null)];

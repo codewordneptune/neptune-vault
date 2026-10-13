@@ -115,7 +115,7 @@ fn a_spend_that_carries_the_send_s_own_outputs_confirms_it() {
     run(&mut state, |s| record_pending(s, pending_send("tx1", &["a"], &["out1", "chg1"])));
     assert_eq!(state.utxos["a"].pending_txid.as_deref(), Some("tx1"));
 
-    persist(&mut state, &[block(121, vec![], &["a"], &["out1"])]);
+    persist(&mut state, &[block(121, vec![], &["a"], &["out1", "chg1"])]);
     let a = &state.utxos["a"];
     assert_eq!((a.spent_height, a.spent_txid.as_deref(), a.pending_txid.as_deref()), (Some(121), Some("tx1"), Some("tx1")));
     assert_eq!(row(&state, "sent:tx1")["status"], json!("confirmed"));
@@ -497,7 +497,7 @@ fn a_send_given_up_on_that_a_block_carries_is_confirmed_as_itself() {
     run(&mut state, |s| record_pending(s, pending_send("tx", &["a"], &["o1", "o2"])));
     run(&mut state, |s| forget_send(s, W, "tx"));
 
-    persist(&mut state, &[block(121, vec![], &["a"], &["o1"])]);
+    persist(&mut state, &[block(121, vec![], &["a"], &["o1", "o2"])]);
     assert_eq!(row(&state, "sent:tx")["status"], json!("confirmed"));
     assert_eq!(row(&state, "sent:tx")["height"], json!(121));
     assert_eq!(row(&state, "sent:tx")["error"], Value::Null);
@@ -565,7 +565,7 @@ fn a_block_that_carries_a_send_given_up_on_fails_the_newer_send_of_the_same_coin
     watched.sort();
     assert_eq!(watched, ["c-old", "o-new", "o-old"], "the scan watches for both");
 
-    persist(&mut state, &[block(121, vec![], &["a"], &["o-old"])]);
+    persist(&mut state, &[block(121, vec![], &["a"], &["o-old", "c-old"])]);
     let old = row(&state, "sent:old");
     assert_eq!((old["status"].clone(), old["height"].clone(), old["givenUp"].clone(), old["error"].clone()), (json!("confirmed"), json!(121), Value::Null, Value::Null));
     let new = row(&state, "sent:new");
@@ -573,6 +573,31 @@ fn a_block_that_carries_a_send_given_up_on_fails_the_newer_send_of_the_same_coin
     assert!(!state.history.contains_key("w:spent:121"), "not a spend made elsewhere");
     assert_eq!(state.utxos["a"].spent_txid.as_deref(), Some("old"));
     assert_eq!(state.utxos["b"].pending_txid, None, "the newer send's other coin is free again");
+}
+
+#[test]
+fn a_send_that_shares_an_output_with_one_a_block_carries_is_not_taken_for_it() {
+    // As on regtest: "old" was given up on; "new" spends its coin; "other",
+    // built at the same height for the same amount to the same address,
+    // has the same payment commitment as "new". The block carries "old"
+    // and "other".
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("c", 10, 120), coin("d", 7, 120), coin("e", 3, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("old", &["c"], &["o-old", "c-old"])));
+    run(&mut state, |s| forget_send(s, W, "old"));
+    run(&mut state, |s| record_pending(s, pending_send("new", &["c"], &["same", "c-new"])));
+    run(&mut state, |s| record_pending(s, pending_send("other", &["d"], &["same", "c-other"])));
+    // A send whose payment shows up in a block that spends none of its coins stays as it is.
+    run(&mut state, |s| record_pending(s, pending_send("waiting", &["e"], &["same"])));
+
+    persist(&mut state, &[block(121, vec![], &["c", "d"], &["o-old", "c-old", "same", "c-other"])]);
+    assert_eq!(row(&state, "sent:old")["status"], json!("confirmed"));
+    assert_eq!(row(&state, "sent:other")["status"], json!("confirmed"));
+    let new = row(&state, "sent:new");
+    assert_eq!((new["status"].clone(), new["error"].clone()), (json!("failed"), json!(LOST_TO_OWN)));
+    assert_eq!(state.utxos["c"].spent_txid.as_deref(), Some("old"));
+    assert_eq!(row(&state, "sent:waiting")["status"], json!("pending"));
+    assert_eq!(state.utxos["e"].pending_txid.as_deref(), Some("waiting"));
 }
 
 #[test]

@@ -73,7 +73,9 @@ export function groupHistory(rows: HistoryRecord[], utxos: UtxoRecord[]): Histor
     const ownPayments: string[] = [];
     let ownNau = 0n;
     let kind: EntryKind = 'sent';
-    if (sent.height !== null) {
+    // A send that failed keeps the height of the block that spent its coins
+    // otherwise; what that block brought back belongs to the send it took.
+    if (sent.height !== null && sent.status !== 'failed') {
       // What a send brought back lands in the block that confirms it. A coin
       // this seed built (by its sender randomness) belongs to the send; a
       // coin scanned before that fact was kept falls back to amount matching;
