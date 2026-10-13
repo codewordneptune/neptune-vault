@@ -1,7 +1,7 @@
 # Builds the wasm packages and the web app, then deploys to Azure Static Web
 # Apps. The build runs the dependencies' code, so it holds no secret. The
 # deploy is a job of its own that only uploads what the build made, and only
-# after the maintainer approves it in the `production` environment, the one
+# after the maintainer approves it in the `prod` environment, the one
 # place the deployment token is kept (docs/HOSTING.md, security audit H4).
 #
 # Third-party actions are pinned to a commit, not a tag, so a moved tag cannot
@@ -123,7 +123,7 @@ jobs:
           retention-days: 14
 
   # Only main's build goes out, and only once the maintainer approves it:
-  # the job waits in the production environment, which only main may use
+  # the job waits in the prod environment, which only main may use
   # and which alone holds the token. No checkout, and no build tool runs here.
   deploy:
     if: github.ref == 'refs/heads/main'
@@ -131,7 +131,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
-      name: production
+      name: prod
       url: https://vault.dev.useneptune.org
     permissions: {}
     steps:

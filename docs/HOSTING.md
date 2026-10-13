@@ -43,8 +43,8 @@ serves the same headers.
    and includes custom domains with their certificates; Standard adds an
    SLA. Deployment source: "Other", since the GitHub Actions workflow
    uploads a prebuilt `dist`.
-2. In the GitHub repository, create the environment `production`
-   (Settings, Environments, New environment):
+2. In the GitHub repository, set up the environment `prod` (Settings,
+   Environments):
    - Required reviewers: the maintainer. Leave "Prevent self-review"
      off, or the maintainer cannot approve their own pushes.
    - Deployment branches and tags: "Selected branches and tags", with
@@ -81,8 +81,8 @@ The build job holds no secret and can only read the repository. It:
 5. publishes the SHA-256 of every file in `dist` (below), and keeps
    `dist` for the deploy job for 14 days.
 
-The deploy job runs only for `main`, and waits in the `production`
-environment until you approve it: GitHub notifies you, and the run's page
+The deploy job runs only for `main`, and waits in the `prod` environment
+until you approve it: GitHub notifies you, and the run's page
 offers Review deployments. It then checks the files against the build's
 list and uploads them. It checks out no code and runs no build tool, and
 only it can read the deployment token.
@@ -121,7 +121,7 @@ Run `npm run build` again after any `tauri build`, which replaces
 ## Who can deploy
 
 A deploy needs a build of `main`, from a push that touches the paths above
-or a run by hand on `main`, and then your approval in the `production`
+or a run by hand on `main`, and then your approval in the `prod`
 environment. Only `main` may use that environment, administrators cannot
 skip its approval, and only that environment holds the deployment token.
 So no build step, no other branch's workflow and no run by hand elsewhere
