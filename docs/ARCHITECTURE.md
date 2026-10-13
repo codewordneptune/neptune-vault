@@ -608,9 +608,9 @@ which the strip does not offer during a send, or when the app next starts.
 The strip names the waiting build from `version.json` (version, commit, build
 date; emitted by `vite.config.ts`, never precached) and links the commits
 between. It checks hourly and when the app comes to the front. A page cannot
-refuse its host's next version; the defences are that only a push to `main`
-or a run started by hand deploys (a run by hand deploys whichever branch it
-was started on), and the published file hashes ([HOSTING.md](HOSTING.md)).
+refuse its host's next version; the defences are that only a build of
+`main` deploys, and only once the maintainer approves it, and the published
+file hashes ([HOSTING.md](HOSTING.md)).
 
 Desktop updates (`web/src/components/DesktopUpdateNotice.tsx`). No service
 worker and no signed auto-updater yet. When it starts and every six hours,
@@ -728,9 +728,10 @@ native screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
 - CI runs only on a push to `main` that touches the app or the crates, or
   by hand; its Rust step is vault-core's tests only.
   `.github/workflows/deploy-web.yml` runs the Rust tests, the wasm builds,
-  `npm ci --ignore-scripts`, the tests and the build, publishes a SHA-256
-  list and deploys to Azure Static Web Apps. It restores nothing from the
-  Actions cache. `.github/workflows/release-desktop.yml` builds
+  `npm ci --ignore-scripts`, the tests and the build, with no secret and
+  nothing from the Actions cache, and publishes a SHA-256 list; a job of
+  its own then deploys `main`'s build to Azure Static Web Apps once the
+  maintainer approves it. `.github/workflows/release-desktop.yml` builds
   `desktop-v*` tags in jobs that can only read the repository; a job of
   its own, running none of the build's code, drafts the pre-release with
   `SHA256SUMS` and a build provenance attestation.

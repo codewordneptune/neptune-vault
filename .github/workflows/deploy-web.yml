@@ -1,6 +1,11 @@
 # Builds the wasm packages and the web app, then deploys to Azure Static Web
-# Apps. Needs the repository secret AZURE_STATIC_WEB_APPS_API_TOKEN_DEV from the
-# Static Web App's deployment token (see docs/HOSTING.md).
+# Apps. The build runs the dependencies' code, so it holds no secret. The
+# deploy is a job of its own that only uploads what the build made, and only
+# after the maintainer approves it in the `production` environment, the one
+# place the deployment token is kept (docs/HOSTING.md, security audit H4).
+#
+# Third-party actions are pinned to a commit, not a tag, so a moved tag cannot
+# change what runs here.
 
 name: Deploy web app
 
@@ -10,12 +15,15 @@ on:
     paths: ['web/**', 'crates/**', 'Cargo.*', '.cargo/**', 'rust-toolchain.toml', '.github/workflows/deploy-web.yml']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-web
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build:
     # A named image and an exact Node, so that the same commit builds the
     # same files next month as today. Nothing comes from the Actions cache,
     # for cargo or npm: any other run on main can save an entry there, and
@@ -23,7 +31,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       # rust-toolchain.toml pins the nightly and pulls rust-src and the wasm32
       # target; the threaded build rebuilds std, so both are required.
@@ -36,18 +46,39 @@ jobs:
       - name: Rust tests
         run: cargo test --locked -p vault-core
 
-      - name: Install wasm-pack
-        run: curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+      # wasm-pack takes the wasm-bindgen and wasm-opt it finds on the PATH,
+      # and downloads its own, unchecked, only when it finds none. So all
+      # three are put there first: wasm-pack and the wasm-bindgen in
+      # Cargo.lock built from crates.io, which checks every crate against its
+      # checksum, and the Binaryen release wasm-pack 0.13.1 would fetch,
+      # checked against the SHA-256 below. Built outside the repository, so
+      # with the runner's stable Rust and none of the settings here.
+      - name: wasm tools
+        run: |
+          set -euo pipefail
+          bindgen=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
+          test -n "$bindgen"
+          cd "$RUNNER_TEMP"
+          cargo install --locked wasm-pack --version 0.13.1
+          cargo install --locked wasm-bindgen-cli --version "$bindgen"
+          curl -sSfL -o binaryen.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-x86_64-linux.tar.gz
+          echo "3dc677006555b355ea2da5e82602065a161d5e83eaefd3f759afa00b96e83212  binaryen.tar.gz" | sha256sum --check
+          mkdir binaryen
+          tar -xzf binaryen.tar.gz --strip-components=1 -C binaryen
+          echo "$RUNNER_TEMP/binaryen/bin" >> "$GITHUB_PATH"
+          wasm-pack --version
+          wasm-bindgen --version
+          binaryen/bin/wasm-opt --version
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.20.0
 
       - name: Build wasm packages
         working-directory: web
         run: |
           npm run wasm:core
           npm run wasm:prover
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.20.0
 
       - name: Install, test, build
         working-directory: web
@@ -78,16 +109,52 @@ jobs:
             echo '</details>'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dist-sha256-${{ github.sha }}
           path: web/dist.sha256
           retention-days: 90
 
-      - name: Deploy to Azure Static Web Apps
-        uses: Azure/static-web-apps-deploy@v1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_DEV }}
+          name: dist
+          path: web/dist
+          include-hidden-files: true
+          retention-days: 14
+
+  # Only main's build goes out, and only once the maintainer approves it:
+  # the job waits in the production environment, which only main may use
+  # and which alone holds the token. No checkout, and no build tool runs here.
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://vault.dev.useneptune.org
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dist
+          path: web/dist
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dist-sha256-${{ github.sha }}
+          path: web
+
+      - name: The files the build listed, and no others
+        working-directory: web/dist
+        run: |
+          sha256sum --check --strict --quiet ../dist.sha256
+          test "$(find . -type f | wc -l)" -eq "$(wc -l < ../dist.sha256)"
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           action: upload
           app_location: web/dist
           skip_app_build: true

@@ -16,7 +16,8 @@ The Android app is built from the same shell; see [ANDROID.md](ANDROID.md).
    ```
 
    The web app and the desktop apps both take their version from there,
-   so pushing it to `main` also deploys the web app under that version.
+   so pushing it to `main` also deploys the web app under that version,
+   once you approve the deploy.
 2. Commit and push that change, then tag the same commit and push the tag,
    for example:
 

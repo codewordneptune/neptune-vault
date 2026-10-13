@@ -368,8 +368,8 @@ cd shells/tauri && npx --prefix ../../web tauri build
   commit and the build time. Each release is tagged `v<version>`; desktop
   releases are tagged `desktop-v<version>`.
 - Each push to `main` that touches the app or the crates builds the wasm
-  packages, runs the tests and deploys to Azure Static Web Apps
-  ([docs/HOSTING.md](docs/HOSTING.md)).
+  packages and runs the tests; the build is deployed to Azure Static Web
+  Apps once the maintainer approves it ([docs/HOSTING.md](docs/HOSTING.md)).
 - An open web app checks for a new build every hour, and whenever it comes
   back to the front. Each build ships a `version.json` (version, commit,
   build time), which the update strip reads to name the waiting build and

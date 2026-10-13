@@ -43,8 +43,19 @@ serves the same headers.
    and includes custom domains with their certificates; Standard adds an
    SLA. Deployment source: "Other", since the GitHub Actions workflow
    uploads a prebuilt `dist`.
-2. Copy its deployment token (Overview, "Manage deployment token") into
-   the GitHub repository secret `AZURE_STATIC_WEB_APPS_API_TOKEN_DEV`.
+2. In the GitHub repository, create the environment `production`
+   (Settings, Environments, New environment):
+   - Required reviewers: the maintainer. Leave "Prevent self-review"
+     off, or the maintainer cannot approve their own pushes.
+   - Deployment branches and tags: "Selected branches and tags", with
+     `main` only.
+   - Leave "Allow administrators to bypass configured protection rules"
+     off.
+
+   Then add the Static Web App's deployment token (Overview, "Manage
+   deployment token") as that environment's secret
+   `AZURE_STATIC_WEB_APPS_API_TOKEN`. Keep it nowhere else: not as a
+   repository secret, and not in a file.
 3. Add the custom domain under the app's Custom domains; Azure issues the
    TLS certificate itself. `vault.dev.useneptune.org` has been configured
    since 2026-09-13.
@@ -56,34 +67,51 @@ serves the same headers.
 `.github/workflows/deploy-web.yml` runs on every push to `main` that
 touches `web/`, `crates/`, the root Cargo files, `.cargo/`,
 `rust-toolchain.toml` or the workflow itself, and by hand from the Actions
-tab. A newer run cancels one still in progress. It:
+tab. A newer run cancels one still in progress, or still waiting for
+approval. It has two jobs.
+
+The build job holds no secret and can only read the repository. It:
 
 1. runs the wallet core's Rust tests (`cargo test -p vault-core`);
-2. builds the two wasm packages with the pinned nightly and wasm-pack,
-   both installed on every run;
-3. runs `npm ci --ignore-scripts`, the web tests and `npm run build`;
-4. publishes the SHA-256 of every file it is about to upload (below);
-5. uploads `dist`.
+2. installs wasm-pack 0.13.1 and the wasm-bindgen in `Cargo.lock` from
+   crates.io, and Binaryen's wasm-opt (version 117), checked against a
+   SHA-256 in the workflow;
+3. builds the two wasm packages with the pinned nightly;
+4. runs `npm ci --ignore-scripts`, the web tests and `npm run build`;
+5. publishes the SHA-256 of every file in `dist` (below), and keeps
+   `dist` for the deploy job for 14 days.
+
+The deploy job runs only for `main`, and waits in the `production`
+environment until you approve it: GitHub notifies you, and the run's page
+offers Review deployments. It then checks the files against the build's
+list and uploads them. It checks out no code and runs no build tool, and
+only it can read the deployment token.
 
 Every run builds its commit from nothing. It restores no Actions cache,
 for cargo or npm, because any run on `main` can save an entry there, and
 the deploy would ship what it holds. For the same reason the desktop and
-Android workflows stop at once when started on `main`. A run takes about
-45 minutes, most of it building the two wasm packages.
+Android workflows stop at once when started on `main`. The build takes
+about 45 minutes, most of it building the two wasm packages. A run by hand
+on another branch builds and tests that branch, and deploys nothing.
 
-To deploy from this PC instead, in an emergency only: it publishes no hash
-list, so the site serves files no run has listed until the next deploy
-from `main`. From a clean checkout of a pushed commit, after
-`cargo test -p vault-core` at the root:
+To deploy from this PC instead, in an emergency only: it skips the
+approval and publishes no hash list, so the site serves files no run has
+listed until the next deploy from `main`. From a clean checkout of a
+pushed commit, after `cargo test -p vault-core` at the root, in Git Bash.
+Paste the token from the Azure portal (Overview, "Manage deployment
+token") when `read` asks for it, which keeps it out of the shell's
+history:
 
-```
+```bash
 cd web
 npm ci --ignore-scripts
 npm run wasm:core
 npm run wasm:prover
 npm test
 npm run build
-npx @azure/static-web-apps-cli deploy dist --deployment-token <token> --env production
+read -rsp 'Deployment token: ' SWA_CLI_DEPLOYMENT_TOKEN && export SWA_CLI_DEPLOYMENT_TOKEN
+npx @azure/static-web-apps-cli@2.0.10 deploy dist --env production
+unset SWA_CLI_DEPLOYMENT_TOKEN
 ```
 
 Run `npm run build` again after any `tauri build`, which replaces
@@ -92,13 +120,19 @@ Run `npm run build` again after any `tauri build`, which replaces
 
 ## Who can deploy
 
-A deploy needs a push to `main` that touches the paths above, or a run by
-hand from the Actions tab; nothing else approves it. A run by hand can be
-started on any branch, and deploys that branch's build. As of 2026-10-03,
-`main` cannot be deleted or force-pushed (the repository's "Basic"
-ruleset), and no review is required before a push. The deployment token
-uploads anything without either, so it lives only in the repository
-secret; if it leaks, reset it under Manage deployment token.
+A deploy needs a build of `main`, from a push that touches the paths above
+or a run by hand on `main`, and then your approval in the `production`
+environment. Only `main` may use that environment, administrators cannot
+skip its approval, and only that environment holds the deployment token.
+So no build step, no other branch's workflow and no run by hand elsewhere
+can deploy. As of 2026-10-03, `main` cannot be deleted or force-pushed (the
+repository's "Basic" ruleset), and no review is required before a push.
+
+Someone holding your GitHub session could still push and approve, so sign
+in to GitHub with a passkey or a security key, which cannot be phished.
+The deployment token uploads anything without either step: if it leaks,
+reset it under Manage deployment token and put the new one in the
+environment.
 
 ## Checking a deployment
 
@@ -144,8 +178,9 @@ summary on GitHub and as an artifact named `dist-sha256-<commit>`, kept for
   `.cargo/config.toml` and the release profile), so the binaries do not
   carry the builder's directories, and a local build does not publish the
   builder's user name.
-- The Rust nightly and Node are pinned exactly; the runner image is named
-  by its Ubuntu version (`ubuntu-24.04`), which GitHub keeps updating.
+- The Rust nightly, Node, wasm-pack, wasm-bindgen and wasm-opt are pinned
+  exactly; the runner image is named by its Ubuntu version
+  (`ubuntu-24.04`), which GitHub keeps updating.
 
 To check a deploy, in Git Bash or another Unix shell: `version.json` names
 the commit the site serves, in its short form; the artifact's name carries
@@ -163,9 +198,8 @@ done < dist.sha256 | diff dist.sha256 -
 `diff` prints only the files that differ. One always does:
 `staticwebapp.config.json`, which Azure reads and does not serve.
 
-To go further, build the same commit on Linux, as the workflow does, and
-compare `web/dist` file by file. On Windows, clone with
+To go further, build the same commit on Linux, as the workflow does, with
+the same wasm-pack, wasm-bindgen and wasm-opt, and compare `web/dist` file
+by file. On Windows, clone with
 `git clone -c core.autocrlf=false <repository URL>`, or Git rewrites line
-endings and the copied files differ. What is not pinned yet, and can still
-make two builds differ: wasm-pack, which the workflow installs at its
-newest, and the wasm-opt it downloads. wasm-bindgen follows `Cargo.lock`.
+endings and the copied files differ.
