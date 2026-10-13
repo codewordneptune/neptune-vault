@@ -54,7 +54,7 @@ serves the same headers.
 
    Then add the Static Web App's deployment token (Overview, "Manage
    deployment token") as that environment's secret
-   `AZURE_STATIC_WEB_APPS_API_TOKEN`. Keep it nowhere else: not as a
+   `AZURE_STATIC_WEB_APPS_API_TOKEN_DEV`. Keep it nowhere else: not as a
    repository secret, and not in a file.
 3. Add the custom domain under the app's Custom domains; Azure issues the
    TLS certificate itself. `vault.dev.useneptune.org` has been configured
