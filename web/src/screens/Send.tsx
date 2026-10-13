@@ -461,7 +461,8 @@ export function Send() {
       const id = draftFor.current;
       if (!id) return;
       // A form whose send is running is that send, not a draft: kept, it
-      // would come back pre-filled after the payment went out.
+      // would come back pre-filled after the payment went out. Once the
+      // send is recorded, keepSendDraft refuses its form too.
       const job = sendJobRef.current;
       if (job && !job.done) return clearSendDraft(id);
       const f = formNow.current;

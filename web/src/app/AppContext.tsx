@@ -11,7 +11,7 @@ import type { SyncEngine, SyncProgress } from '../wallet/sync';
 import { paymentsTotalNau, RequiresLustrationError, SendBusyError, SendCancelledError, SendNotApprovedError, SendUnconfirmedError, type LastSend, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
 import { useScreenWakeLock, type WakeLockState } from './wakeLock';
-import { clearSendDraft } from './sendDraft';
+import { clearSendDraft, sendRecorded } from './sendDraft';
 import { forgetOwnAddresses } from './ownAddresses';
 import { notSentReason, SENDING_UNTIL_CONFIRMED, SENT_WAITING } from './words';
 import { Spoken } from '../components/Spoken';
@@ -473,6 +473,7 @@ export function AppProvider({ services, children }: { services: Services; childr
             // this app (closed, or the tab killed). Not shown meanwhile.
             onRecorded: async (txid) => {
               recorded = true;
+              sendRecorded(accountId, request.payments);
               await services.accounts.setLastSend(accountId, noteOf(txid, 'unconfirmed')).catch(() => {});
               await services.accounts.setSendInProgress(accountId, null).catch(() => {});
             },
