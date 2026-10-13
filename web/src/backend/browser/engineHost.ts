@@ -22,7 +22,7 @@ type Account = InstanceType<CoreModule['Account']>;
 const COMPACT_EVERY = 256;
 
 /** Operations that need the wallet's keys, which the worker keeps apart from its data. */
-export const KEYED_OPS = new Set<LedgerOp['op']>(['announcementFlags', 'scanBlocks', 'scanMempoolKernel']);
+export const KEYED_OPS = new Set<LedgerOp['op']>(['announcementFlags', 'scanBlocks', 'scanMempoolKernel', 'checkBranch']);
 
 interface Held {
   log: WalletLog;

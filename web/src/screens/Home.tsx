@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sheet } from '../components/Sheet';
 import { NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../app/addressLabels';
-import { MEMPOOL_KEEPS_MS, removableFrom, SEND_LIFETIME_MS, SEND_NOTE_MAX } from '../app/send';
+import { EXPIRED_NOTE, mayStillGo, MEMPOOL_KEEPS_MS, removable, SEND_LIFETIME_MS, SEND_NOTE_MAX } from '../app/send';
 import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNotes } from '../app/receivedNotes';
 import { readSentNotes, sentCoinOf, sentNoteOf, writeSentNote, type SentNotes } from '../app/sentNotes';
 import { usePendingSends } from '../app/pending';
@@ -201,13 +201,16 @@ export function Home() {
     await refresh();
     focusRow(key);
   };
+  // A send given up on, or expired, can still go through until a block spends one of its coins.
+  const spentCoins = new Set(utxos.filter((u) => u.spentHeight !== null).map((u) => u.hash));
+  const stillGoes = (h: HistoryRecord) => mayStillGo(h, (coin) => spentCoins.has(coin));
   // A send that was not sent leaves History once it can no longer go
   // through; confirmed first.
   const [removing, setRemoving] = useState<HistoryRecord | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const historyTitle = useRef<HTMLHeadingElement>(null);
-  const removeFrom = detail ? removableFrom(detail.record) : null;
+  const canRemove = detail ? removable(detail.record, (coin) => spentCoins.has(coin)) : null;
   const closeRemove = () => {
     if (removing) focusRow(removing.key);
     setRemoving(null);
@@ -261,8 +264,11 @@ export function Home() {
   // ten hours after it was made) and no block has taken: it is not going
   // through, and its coins wait for nothing until it expires. The one state
   // of a send that asks for something, so the one in the caution colour.
+  // Not one a block confirmed before that block was rolled back: it went through once.
   const isStuck = (h: HistoryRecord) =>
-    h.kind === 'sent' && h.status === 'pending' && h.key.includes(':sent:') && Date.now() - (h.stampMs ?? h.timestampMs) > MEMPOOL_KEEPS_MS && nodeHolds(h) !== 'has';
+    h.kind === 'sent' && h.status === 'pending' && h.key.includes(':sent:') && !h.rolledBack && Date.now() - (h.stampMs ?? h.timestampMs) > MEMPOOL_KEEPS_MS && nodeHolds(h) !== 'has';
+  /** A pending send's words: waiting again when a block had confirmed it and was then rolled back. */
+  const waitingOf = (h: HistoryRecord) => (h.rolledBack ? `${WAITING_FOR_BLOCK} again` : WAITING_FOR_BLOCK);
   const stuck = pendingSends.find(isStuck);
 
   // A receipt's time lock, from the row or, for rows written before it was
@@ -356,8 +362,10 @@ export function Home() {
         <IconInfoCircle size={16} />
       </ActionIcon>
     ) : null;
-  /** A send that failed or was given up on: nothing left the wallet. */
-  const notSent = (e: HistoryEntry) => e.kind !== 'received' && e.record.status === 'failed';
+  /** A send that failed, or was given up on and can no longer go through: nothing left the wallet. */
+  const notSent = (e: HistoryEntry) => e.kind !== 'received' && e.record.status === 'failed' && !stillGoes(e.record);
+  /** A send given up on, or expired, that may still go through: nothing has left the wallet yet. */
+  const mayGo = (e: HistoryEntry) => e.kind !== 'received' && stillGoes(e.record);
   /** The payments of a send built here, when it paid more than one recipient. */
   const severalOf = (e: HistoryEntry) => ((e.record.payments?.length ?? 0) > 1 ? (e.record.payments ?? []) : null);
   // A row says who, when and how much. Who: the contact a send went to, the
@@ -381,6 +389,7 @@ export function Home() {
   };
   /** What happened, in a word or two: a send reads Sent once the node has it (with Waiting for a block beside its time until a block confirms it), or Not going through once nodes dropped it. */
   const stateTitleOf = (e: HistoryEntry): string => {
+    if (mayGo(e)) return e.record.expired ? 'Expired' : 'Given up';
     if (notSent(e)) return 'Not sent';
     if (e.kind === 'received') return e.record.status === 'failed' ? 'Failed' : 'Received';
     if (e.kind === 'self') return e.record.status === 'pending' ? 'Moving to yourself' : 'Moved to yourself';
@@ -390,19 +399,21 @@ export function Home() {
   /**
    * The state beside the time, unless the title already says it: in the
    * row's own muted colour while it simply waits for a block (Waiting for a
-   * block, Pending), amber only where something is asked of the person (Not
-   * going through), red where it did not happen.
+   * block, Pending), amber where something is asked of the person (Not
+   * going through) or a send given up on may still go through, red where
+   * it did not happen.
    */
   const stateWordOf = (e: HistoryEntry): { word: string; tone: 'muted' | 'warn' | 'failed' } | null => {
     // A send waiting for a block says so even where its title is the state: the title says only Sent.
-    if (e.kind === 'sent' && e.record.status === 'pending' && !notSent(e) && !isStuck(e.record)) return { word: WAITING_FOR_BLOCK, tone: 'muted' };
+    if (e.kind === 'sent' && e.record.status === 'pending' && !notSent(e) && !isStuck(e.record)) return { word: waitingOf(e.record), tone: 'muted' };
     const saidInTitle = !whoOf(e) && e.kind !== 'received';
+    if (mayGo(e)) return { word: saidInTitle ? 'May still go through' : `${e.record.expired ? 'Expired' : 'Given up'}: may still go through`, tone: 'warn' };
     if (saidInTitle) return null;
     if (notSent(e)) return { word: 'Not sent', tone: 'failed' };
     if (e.record.status === 'pending') {
       if (e.kind === 'received') return { word: 'Pending', tone: 'muted' };
       if (isStuck(e.record)) return { word: 'Not going through', tone: 'warn' };
-      return { word: WAITING_FOR_BLOCK, tone: 'muted' };
+      return { word: waitingOf(e.record), tone: 'muted' };
     }
     if (e.record.status === 'failed') return { word: 'Failed', tone: 'failed' };
     return null;
@@ -425,9 +436,10 @@ export function Home() {
   const rowLabelOf = (e: HistoryEntry) => {
     const who = whoOf(e);
     const whom = !who ? '' : e.kind === 'received' ? `, ${who}'s address` : `, to ${who}`;
-    const money = notSent(e) ? `${spoken(e.shownNau)} NPT, not taken from your balance` : `${e.kind === 'received' ? 'plus' : 'minus'} ${spoken(e.shownNau)} NPT`;
-    // A send says its state in its first word (Sent, Not sent), and that it waits for a block; a payment in says pending.
-    const pending = e.record.status !== 'pending' ? '' : e.kind === 'received' ? ', pending' : stateWordOf(e)?.word === WAITING_FOR_BLOCK ? ', waiting for a block' : '';
+    const money = notSent(e) || mayGo(e) ? `${spoken(e.shownNau)} NPT, not taken from your balance` : `${e.kind === 'received' ? 'plus' : 'minus'} ${spoken(e.shownNau)} NPT`;
+    // A send says its state in its first word (Sent, Not sent, Given up), and that it waits for a block or may still go through; a payment in says pending.
+    const word = stateWordOf(e)?.word ?? '';
+    const pending = mayGo(e) ? ', may still go through' : e.record.status !== 'pending' ? '' : e.kind === 'received' ? ', pending' : word.startsWith(WAITING_FOR_BLOCK) ? `, ${word.toLowerCase()}` : '';
     const release = lockOf(e.record);
     const note = noteOf(e);
     // When, as the list shows it by its day heading and the row's time: rows alike in all else are told apart.
@@ -437,7 +449,7 @@ export function Home() {
   /** The full title, for the detail sheet and for screen readers. */
   const titleOf = (e: HistoryEntry) => {
     const word = stateTitleOf(e);
-    if (e.kind !== 'sent' || notSent(e) || e.record.txid === '' || e.record.recipient === null) return word;
+    if (e.kind !== 'sent' || notSent(e) || mayGo(e) || e.record.txid === '' || e.record.recipient === null) return word;
     const several = severalOf(e);
     if (several) return `${word} to ${several.length} recipients`;
     const c = contactFor(e.record.recipient);
@@ -501,10 +513,16 @@ export function Home() {
           h.kind === 'sent'
           ? isStuck(h)
             ? 'Not going through'
-            : WAITING_FOR_BLOCK
+            : h.rolledBack
+              ? `${WAITING_FOR_BLOCK} again: a block had confirmed it, but that block is no longer on the node's chain.`
+              : WAITING_FOR_BLOCK
           : 'Pending'
         : h.kind === 'sent'
-          ? 'Not sent. Nothing left this wallet.'
+          ? stillGoes(h)
+            ? 'It may still go through: until one of its coins is spent, a block can take it, and then it shows here as Sent.'
+            : h.givenUp || h.expired
+              ? 'Not sent. One of its coins has since been spent by another transaction, so it can no longer go through.'
+              : 'Not sent. Nothing left this wallet.'
           : 'Failed';
   };
   const nodeStatusOf = (h: HistoryRecord) => {
@@ -867,9 +885,10 @@ export function Home() {
                           </div>
                         </Group>
                         <div className="vault-row-amount">
-                          {/* Nothing left the wallet: the figure is struck through, with no sign. */}
-                          <Text size="sm" fw={600} c={notSent(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
-                            {notSent(e) ? '' : incoming ? '+' : '−'}
+                          {/* Nothing left the wallet: the figure is struck through, with no sign. A send that may
+                              still go through has not left it either, but may: dimmed, with no sign, not struck through. */}
+                          <Text size="sm" fw={600} c={notSent(e) || mayGo(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {notSent(e) || mayGo(e) ? '' : incoming ? '+' : '−'}
                             <Figure text={amount(e.shownNau)} />{' '}
                             <span className="vault-unit">NPT</span>
                           </Text>
@@ -962,7 +981,7 @@ export function Home() {
             ) : (
               noteOf(detail) && <DetailRow label="Note" value={noteOf(detail) as string} isolate />
             )}
-            {detail.record.error && <DetailRow label="What happened" value={detail.record.error} />}
+            {(detail.record.expired ? EXPIRED_NOTE : detail.record.error) && <DetailRow label="What happened" value={detail.record.expired ? EXPIRED_NOTE : (detail.record.error as string)} />}
             {(outputsOf(detail).length > 0 || nodeStatusOf(detail.record) !== null || (detail.kind !== 'received' && detail.changeNau !== null && detail.changeNau > 0n)) && (
               <>
                 {/* A section of the sheet, not a link beside the address's own
@@ -1002,9 +1021,9 @@ export function Home() {
                 </Button>
               </Group>
             )}
-            {/* Once it can no longer go through, a send that was not sent can go; until then, from when. */}
-            {removeFrom !== null &&
-              (Date.now() >= removeFrom ? (
+            {/* Once it can no longer go through, a send that was not sent can go; until then, it stays. */}
+            {canRemove !== null &&
+              (canRemove ? (
                 <Group justify="flex-end" mt={4}>
                   <Button
                     variant="light"
@@ -1018,7 +1037,7 @@ export function Home() {
                 </Group>
               ) : (
                 <Text size="sm" c="dimmed">
-                  It can be removed from History from {formatTime(removeFrom)} {dayAhead(removeFrom)}, once it can no longer go through.
+                  It stays in History while it can still go through: until one of its coins is spent.
                 </Text>
               ))}
           </Stack>
@@ -1049,8 +1068,8 @@ export function Home() {
               {nodeHolds(givingUp) === 'has'
                 ? 'The node still has this send, so it may still go through. Giving up makes its coins spendable here, but if it confirms anyway, it shows up as Sent.'
                 : nodeHolds(givingUp) === null
-                  ? 'Giving up makes its coins spendable, and the send stays in History, marked Not sent. If it confirms anyway, it still goes through and shows up as Sent.'
-                  : 'The node no longer has this send. Giving up makes its coins spendable, and the send stays in History, marked Not sent.'}
+                  ? 'Giving up makes its coins spendable, but it does not call the send back: it stays in History as Given up, and if it confirms anyway, it shows up as Sent.'
+                  : 'The node no longer has this send. Giving up makes its coins spendable, and the send stays in History as Given up until one of its coins is spent.'}
             </Text>
             <Text size="sm" c="dimmed">
               <Spoken text={`This send: ${showNau(BigInt(givingUp.amountNau))} NPT${givingUp.feeNau ? ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee` : ''}. Giving up makes ${showNau(reservedFor(givingUp))} NPT spendable again.`} />

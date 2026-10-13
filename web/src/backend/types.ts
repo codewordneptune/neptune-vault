@@ -13,6 +13,17 @@ export interface ScannedBlock {
   spent: string[];
   /** Which watched output commitments the block carries. */
   seen?: string[];
+  /** The block's difficulty and the chain's work up to it, as the core counts them, kept to weigh a competing chain against. */
+  difficulty?: number[] | null;
+  cumulative_pow?: number[] | null;
+}
+
+/** A block as far as weighing chains needs (chain::Weighed in the core). */
+export interface Weighed {
+  height: number;
+  hash: string;
+  difficulty: number[];
+  cumulativePow: number[];
 }
 
 /** Address kinds the app offers; names match the Rust serde names. */
@@ -178,12 +189,13 @@ export type LedgerOp =
   | { op: 'unspentHashes' }
   | { op: 'spendable'; now: number }
   | { op: 'forkCandidates'; below: number }
-  | { op: 'rollbackFloor' }
   | { op: 'watchedCommitments' }
   | { op: 'announcementFlags' }
   | { op: 'absoluteIndexSets' }
   | { op: 'scanBlocks'; blocksResponse: string; from: number; to: number; prevHash: string | null }
   | { op: 'scanMempoolKernel'; kernelResponse: string }
+  /** Weigh a stretch of a node's competing chain, from the kept block below `from` or from `after`. */
+  | { op: 'checkBranch'; blocksResponse: string; from: number; to: number; after: Weighed | null }
   | { op: 'startPass'; tipHeight: number; startHint?: number | null }
   | { op: 'rollBack'; height: number; hash: string | null; now: number }
   | { op: 'persistScan'; result: ScanResult; keepBlocks?: number; now: number }
@@ -206,7 +218,6 @@ export interface LedgerAnswers {
   unspentHashes: string[];
   spendable: StoredUtxo[];
   forkCandidates: [number, string][];
-  rollbackFloor: number;
   watchedCommitments: string[];
   /** JSON text: the identifiers are 64-bit values a JavaScript number cannot hold. */
   announcementFlags: string;
@@ -214,6 +225,8 @@ export interface LedgerAnswers {
   absoluteIndexSets: string;
   scanBlocks: ScanResult;
   scanMempoolKernel: MempoolScan;
+  /** The last block shown, to go on from, and whether the chain shown holds more work than the blocks this wallet scanned. */
+  checkBranch: { last: Weighed | null; heavier: boolean };
   startPass: Position;
   rollBack: null;
   persistScan: null;

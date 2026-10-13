@@ -12,6 +12,8 @@ use neptune_consensus::transaction::transaction_kernel::TransactionKernel;
 use neptune_mutator_set::addition_record::AdditionRecord;
 use neptune_mutator_set::removal_record::absolute_index_set::AbsoluteIndexSet;
 use neptune_primitives::announcement_flag::AnnouncementFlag;
+use neptune_primitives::difficulty_control::Difficulty;
+use neptune_primitives::difficulty_control::ProofOfWork;
 use neptune_rpc_api::model::block::transaction_kernel::RpcAbsoluteIndexSet;
 use neptune_rpc_api::model::wallet::block::RpcWalletBlock;
 use neptune_wallet::address::SpendingKey;
@@ -143,6 +145,12 @@ pub struct ScannedBlock {
     /// lost its inputs to some other transaction.
     #[serde(default)]
     pub seen: Vec<String>,
+    /// The block's difficulty and the chain's work up to it, kept to weigh
+    /// a competing chain against.
+    #[serde(default)]
+    pub difficulty: Option<Difficulty>,
+    #[serde(default)]
+    pub cumulative_pow: Option<ProofOfWork>,
 }
 
 /// Next unused derivation index per key kind.
@@ -239,6 +247,8 @@ pub fn scan_blocks(
             incoming,
             spent,
             seen,
+            difficulty: Some(kernel.header.difficulty),
+            cumulative_pow: Some(kernel.header.cumulative_proof_of_work),
         });
     }
 

@@ -34,7 +34,6 @@ pub enum Op {
     UnspentHashes,
     Spendable { now: u64 },
     ForkCandidates { below: i64 },
-    RollbackFloor,
     /// Output commitments of the pending sends, which a scan watches for.
     WatchedCommitments,
     /// The index request of the keys the wallet watches, as JSON text: the
@@ -46,6 +45,9 @@ pub enum Op {
     // Scanning, with the wallet's keys, against the wallet as it is.
     ScanBlocks { blocks_response: String, from: u64, to: u64, prev_hash: Option<String> },
     ScanMempoolKernel { kernel_response: String },
+    /// Weigh a stretch of a node's competing chain (see `check_branch`); the
+    /// network's rules are the keys'.
+    CheckBranch { blocks_response: String, from: u64, to: u64, #[serde(default)] after: Option<Weighed> },
 
     // The sync.
     /// `start_hint`: where a wallet whose start is unknown begins, when the app could find it.
@@ -75,7 +77,7 @@ impl Op {
     /// Whether this operation needs the wallet's keys, which live apart from
     /// its data and only while it is unlocked.
     pub fn needs_keys(&self) -> bool {
-        matches!(self, Op::AnnouncementFlags | Op::ScanBlocks { .. } | Op::ScanMempoolKernel { .. })
+        matches!(self, Op::AnnouncementFlags | Op::ScanBlocks { .. } | Op::ScanMempoolKernel { .. } | Op::CheckBranch { .. })
     }
 }
 
@@ -99,7 +101,6 @@ pub fn run(state: &WalletState, wallet_id: &str, op: Op, keys: Option<&mut Accou
         Op::UnspentHashes => read(unspent(state)?.into_iter().map(|u| u.hash).collect::<Vec<_>>()),
         Op::Spendable { now } => read(spendable(state, now)),
         Op::ForkCandidates { below } => read(fork_candidates(state, below)),
-        Op::RollbackFloor => read(rollback_floor(state)?),
         Op::WatchedCommitments => read(watched_commitments(state)),
         Op::AnnouncementFlags => {
             let flags = scan::announcement_flags(keys.ok_or_else(keys_needed)?, &next_key_indices(state)?);
@@ -137,6 +138,14 @@ pub fn run(state: &WalletState, wallet_id: &str, op: Op, keys: Option<&mut Accou
                 }
             };
             read(found)
+        }
+        Op::CheckBranch { blocks_response, from, to, after } => {
+            let account = keys.ok_or_else(keys_needed)?;
+            let blocks = serde_json::from_str::<Envelope<neptune_rpc_api::model::message::GetBlocksResponse>>(&blocks_response)
+                .context("cannot decode blocks")?
+                .result
+                .blocks;
+            read(check_branch(state, account.network(), &crate::chain::hashed(blocks), from, to, after)?)
         }
 
         Op::StartPass { tip_height, start_hint } => {

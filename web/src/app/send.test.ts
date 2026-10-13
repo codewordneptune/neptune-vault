@@ -7,7 +7,7 @@ import { openVaultDb, type AccountRecord, type HistoryRecord, type UtxoRecord, t
 import { CHAIN_PARTS, type InputPlan, type SendPlan, type SendRequest, type StoredUtxo, type WalletCore } from '../backend/types';
 import { chainView, testEngine, type TestEngine } from '../backend/engineForTests';
 import type { Prover } from '../backend/types';
-import { cleanNote, givenUpRivals, removableFrom, RequiresLustrationError, SAME_PAYMENT_WINDOW_MS, sameSentRecently, SEND_LIFETIME_MS, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
+import { cleanNote, givenUpRivals, mayStillGo, removable, RequiresLustrationError, SAME_PAYMENT_WINDOW_MS, sameSentRecently, SEND_LIFETIME_MS, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
 
 function stored(hash: string, amount: string, height: number): StoredUtxo {
   return { hash, amount_nau: amount, amount, key_kind: 'generation', key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
@@ -20,6 +20,7 @@ function row(u: StoredUtxo, extra: Partial<UtxoRecord> = {}): UtxoRecord {
 /** The core's send building, faked; its ledger is the real engine's, set in setup. */
 class FakeCore implements Partial<WalletCore> {
   ledger?: WalletCore['ledger'];
+  storeRead?: WalletCore['storeRead'];
   planned: StoredUtxo[] = [];
   lustration = false;
   /** The output commitments the built kernel reports, in kernel order. */
@@ -190,6 +191,7 @@ async function setup() {
   await view.put('utxos', row(stored('spent', '9', 4), { spentHeight: 5 }));
   const core = new FakeCore();
   core.ledger = vault.store.ledger;
+  core.storeRead = vault.store.storeRead;
   const node = new FakeNode();
   const prover = new FakeProver();
   const service = new SendService(node as unknown as NodeClient, core as unknown as WalletCore, prover, 'acc', 'regtest', 4);
@@ -500,26 +502,33 @@ describe('send service', () => {
     await expect(service.remove(pending)).rejects.toThrow(/may still go through/);
     await service.forget('tx-abc');
     const given = (await view.get('history', 'acc:sent:tx-abc')) as HistoryRecord;
-    const from = removableFrom(given) as number;
-    await expect(service.remove(given, from - 1)).rejects.toThrow(/may still go through/);
+    await expect(service.remove(given)).rejects.toThrow(/may still go through/);
     expect(await view.get('history', 'acc:sent:tx-abc')).toBeDefined();
-    await service.remove(given, from);
+    // Another transaction spent one of its coins in a block: now it cannot.
+    await view.put('utxos', { ...(await view.get('utxos', 'acc:a')), spentHeight: 9 });
+    await service.remove(given);
     expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
-    expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
   });
 });
 
 describe('a send that was not sent', () => {
-  const base = { accountId: 'acc', key: 'k', txid: 't', kind: 'sent', status: 'failed', amountNau: '1', feeNau: '1', timestampMs: 1_000, height: null, inputHashes: ['a'], recipient: 'nolgar1bob', error: null, changeNau: null } as HistoryRecord;
-  it('may leave History once no block can take it', () => {
-    expect(removableFrom(base)).toBe(1_000 + SEND_LIFETIME_MS);
-    expect(removableFrom({ ...base, givenUp: true, stampMs: 900 })).toBe(900 + SEND_LIFETIME_MS);
-    expect(removableFrom({ ...base, expired: true })).toBe(0);
+  const base = { accountId: 'acc', key: 'k', txid: 't', kind: 'sent', status: 'failed', amountNau: '1', feeNau: '1', timestampMs: 1_000, height: null, inputHashes: ['a', 'b'], recipient: 'nolgar1bob', error: null, changeNau: null } as HistoryRecord;
+  const none = () => false;
+  it('may still go through, given up on or expired, until one of its coins is spent', () => {
+    for (const row of [{ ...base, givenUp: true }, { ...base, expired: true }, { ...base, error: 'You gave up on this send.' }]) {
+      expect(mayStillGo(row, none)).toBe(true);
+      expect(mayStillGo(row, (coin) => coin === 'b')).toBe(false);
+      expect(removable(row, none)).toBe(false);
+      expect(removable(row, (coin) => coin === 'b')).toBe(true);
+    }
+    // One whose coins went in another transaction never could.
+    expect(mayStillGo(base, none)).toBe(false);
+    expect(removable(base, none)).toBe(true);
   });
-  it('is the only row that may', () => {
-    expect(removableFrom({ ...base, status: 'pending' })).toBeNull();
-    expect(removableFrom({ ...base, status: 'confirmed' })).toBeNull();
-    expect(removableFrom({ ...base, kind: 'received' })).toBeNull();
+  it('is the only row that may leave History', () => {
+    expect(removable({ ...base, status: 'pending' }, none)).toBeNull();
+    expect(removable({ ...base, status: 'confirmed' }, none)).toBeNull();
+    expect(removable({ ...base, kind: 'received' }, none)).toBeNull();
   });
 });
 

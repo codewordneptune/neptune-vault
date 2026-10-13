@@ -42,6 +42,8 @@ fn block(height: u64, incoming: Vec<StoredUtxo>, spent: &[&str], seen: &[&str]) 
         incoming,
         spent: spent.iter().map(|s| s.to_string()).collect(),
         seen: seen.iter().map(|s| s.to_string()).collect(),
+        difficulty: None,
+        cumulative_pow: None,
     }
 }
 
@@ -183,9 +185,11 @@ fn a_rollback_forgets_what_was_above_and_puts_own_sends_back_to_pending() {
     run(&mut state, |s| roll_back(s, W, 120, Some("h120".into()), 9));
     assert!(!state.utxos.contains_key("b"), "a coin found above goes");
     assert_eq!(state.utxos["a"].spent_height, None, "a spend above is undone");
+    assert_eq!(state.utxos["a"].pending_txid.as_deref(), Some("tx1"), "and the send holds it again");
     assert!(!state.history.contains_key("w:recv:b"));
     assert_eq!(row(&state, "sent:tx1")["status"], json!("pending"));
     assert_eq!(row(&state, "sent:tx1")["height"], Value::Null);
+    assert_eq!(row(&state, "sent:tx1")["rolledBack"], json!(true));
     assert_eq!(state.blocks.keys().copied().collect::<Vec<_>>(), [120]);
     assert_eq!(state.sync.as_ref().unwrap().synced_height, 120);
 
@@ -245,7 +249,6 @@ fn fork_candidates_are_the_kept_blocks_below_the_position_oldest_first() {
     let mut state = wallet();
     persist(&mut state, &(101..=104).map(|h| block(h, vec![], &[], &[])).collect::<Vec<_>>());
     assert_eq!(fork_candidates(&state, 104).iter().map(|(h, _)| *h).collect::<Vec<_>>(), [101, 102, 103]);
-    assert_eq!(rollback_floor(&state).unwrap(), 99);
 }
 
 #[test]
@@ -523,4 +526,158 @@ fn the_watcher_never_writes_this_devices_own_pending_send_as_a_spend_from_elsewh
     assert!(!run(&mut state, |s| record_outgoing(s, outgoing("m1", &["a"]))));
     assert!(!state.history.contains_key("w:outgoing:a"));
     assert_eq!(state.utxos["a"].pending_txid.as_deref(), Some("tx"));
+}
+
+#[test]
+fn a_send_given_up_on_or_expired_is_watched_until_one_of_its_coins_is_spent() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 10, 120), coin("b", 5, 120), coin("d", 2, 120), coin("e", 2, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("given-up", &["a"], &["o1", "c1"])));
+    run(&mut state, |s| record_pending(s, pending_send("expiring", &["b"], &["o2"])));
+    run(&mut state, |s| record_pending(s, pending_send("two-coins", &["d", "e"], &["o3"])));
+    run(&mut state, |s| forget_send(s, W, "given-up"));
+    run(&mut state, |s| forget_send(s, W, "two-coins"));
+    assert_eq!(run(&mut state, |s| expire_sends(s, 2 + SEND_LIFETIME_MS)), ["expiring"]);
+    let watched = |state: &WalletState| {
+        let mut all = watched_commitments(state);
+        all.sort();
+        all
+    };
+    assert_eq!(watched(&state), ["c1", "o1", "o2", "o3"]);
+
+    // Coins spent by other transactions: neither send can go through any more.
+    persist(&mut state, &[block(121, vec![], &["b", "d"], &["other"])]);
+    assert_eq!(watched(&state), ["c1", "o1"]);
+    // A spend of its other coin seen coming is not that send come back.
+    assert!(run(&mut state, |s| record_outgoing(s, outgoing("m", &["e"]))));
+    assert_eq!(row(&state, "sent:two-coins")["status"], json!("failed"));
+}
+
+#[test]
+fn a_block_that_carries_a_send_given_up_on_fails_the_newer_send_of_the_same_coin_not_a_send_made_elsewhere() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 10, 120), coin("b", 7, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("old", &["a"], &["o-old", "c-old"])));
+    run(&mut state, |s| forget_send(s, W, "old"));
+    // The newer send spends one of the same coins, and one more.
+    run(&mut state, |s| record_pending(s, pending_send("new", &["a", "b"], &["o-new"])));
+    let mut watched = watched_commitments(&state);
+    watched.sort();
+    assert_eq!(watched, ["c-old", "o-new", "o-old"], "the scan watches for both");
+
+    persist(&mut state, &[block(121, vec![], &["a"], &["o-old"])]);
+    let old = row(&state, "sent:old");
+    assert_eq!((old["status"].clone(), old["height"].clone(), old["givenUp"].clone(), old["error"].clone()), (json!("confirmed"), json!(121), Value::Null, Value::Null));
+    let new = row(&state, "sent:new");
+    assert_eq!((new["status"].clone(), new["error"].clone()), (json!("failed"), json!(LOST_TO_OWN)));
+    assert!(!state.history.contains_key("w:spent:121"), "not a spend made elsewhere");
+    assert_eq!(state.utxos["a"].spent_txid.as_deref(), Some("old"));
+    assert_eq!(state.utxos["b"].pending_txid, None, "the newer send's other coin is free again");
+}
+
+#[test]
+fn every_coin_of_a_send_a_block_carries_is_that_send_s() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 10, 120), coin("b", 7, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("tx", &["a", "b"], &["o1"])));
+    run(&mut state, |s| forget_send(s, W, "tx"));
+    persist(&mut state, &[block(121, vec![], &["a", "b"], &["o1"])]);
+    assert_eq!(row(&state, "sent:tx")["status"], json!("confirmed"));
+    assert_eq!((state.utxos["a"].spent_txid.as_deref(), state.utxos["b"].spent_txid.as_deref()), (Some("tx"), Some("tx")));
+    assert!(!state.history.contains_key("w:spent:121"));
+}
+
+#[test]
+fn a_send_that_expired_and_went_through_after_all_is_sent() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 10, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("tx", &["a"], &["o1"])));
+    assert_eq!(run(&mut state, |s| expire_sends(s, 2 + SEND_LIFETIME_MS)), ["tx"]);
+    persist(&mut state, &[block(121, vec![], &["a"], &["o1"])]);
+    let sent = row(&state, "sent:tx");
+    assert_eq!((sent["status"].clone(), sent["error"].clone(), sent["expired"].clone()), (json!("confirmed"), Value::Null, Value::Null));
+}
+
+#[test]
+fn a_send_whose_block_was_rolled_back_waits_again_and_never_expires_by_time() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 10, 120), coin("b", 4, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("tx1", &["a"], &["o1"])));
+    run(&mut state, |s| record_pending(s, pending_send("tx2", &["b"], &["o2"])));
+    persist(&mut state, &[block(121, vec![], &["a"], &["o1"])]);
+    // Another device spent b, so this device's send of it failed.
+    persist(&mut state, &[block(122, vec![], &["b"], &["other"])]);
+    assert_eq!(row(&state, "sent:tx2")["status"], json!("failed"));
+
+    run(&mut state, |s| roll_back(s, W, 120, Some("h120".into()), 9));
+    assert_eq!(row(&state, "sent:tx1")["status"], json!("pending"));
+    let tx2 = row(&state, "sent:tx2");
+    assert_eq!((tx2["status"].clone(), tx2["error"].clone(), tx2["rolledBack"].clone()), (json!("pending"), Value::Null, Value::Null));
+    assert_eq!(state.utxos["b"].pending_txid.as_deref(), Some("tx2"), "held again");
+
+    // Days later by the chain's clock: the send a block had confirmed waits on.
+    assert_eq!(run(&mut state, |s| expire_sends(s, u64::MAX / 2)), ["tx2"]);
+    assert_eq!(row(&state, "sent:tx1")["status"], json!("pending"));
+}
+
+#[test]
+fn giving_up_on_a_send_a_block_confirmed_meanwhile_changes_nothing() {
+    let mut state = wallet();
+    persist(&mut state, &[block(120, vec![coin("a", 10, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("tx", &["a"], &["o1"])));
+    persist(&mut state, &[block(121, vec![], &["a"], &["o1"])]);
+    assert!(forget_send(&state, W, "tx").changes.is_empty());
+}
+
+// ------------------------------------------------------------ a node's competing chain
+
+/// Real mainnet blocks 54,000 and 54,001, as the node sends them.
+fn mainnet_pair() -> Vec<(Digest, BlockKernel)> {
+    #[derive(Deserialize)]
+    struct Answer {
+        result: neptune_rpc_api::model::message::GetBlocksResponse,
+    }
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/blocks-54000-54001.json")).unwrap();
+    chain::hashed(serde_json::from_str::<Answer>(&text).unwrap().result.blocks)
+}
+
+/// A scanned block, kept with the work its header claims.
+fn kept(hash: Digest, kernel: &BlockKernel) -> ScannedBlock {
+    let header = &kernel.header;
+    ScannedBlock {
+        hash: hash.to_hex(),
+        prev_hash: header.prev_block_digest.to_hex(),
+        timestamp_ms: header.timestamp.0.value(),
+        difficulty: Some(header.difficulty),
+        cumulative_pow: Some(header.cumulative_proof_of_work),
+        ..block(header.height.into(), vec![], &[], &[])
+    }
+}
+
+#[test]
+fn a_competing_chain_counts_as_heavier_only_with_more_work_than_the_blocks_scanned() {
+    let blocks = mainnet_pair();
+    let mut state = wallet();
+    persist(&mut state, &[kept(blocks[0].0, &blocks[0].1)]);
+
+    // Block 54,001 grows from the kept block 54,000, where the wallet stopped.
+    let check = check_branch(&state, Network::Main, &blocks[1..], 54_001, 54_001, None).unwrap();
+    assert_eq!(check.last, Some(Weighed::of(blocks[1].0, &blocks[1].1.header)));
+    assert!(check.heavier);
+    // The stretch after it is weighed from where this one ended.
+    let after = check_branch(&state, Network::Main, &[], 54_002, 54_002, check.last.clone()).unwrap();
+    assert_eq!((after.last, after.heavier), (None, false));
+
+    // Had the wallet scanned a chain with more work, it would not be heavier.
+    let mut ours = kept(blocks[1].0, &blocks[1].1);
+    ours.height = 54_009;
+    ours.cumulative_pow = Some(blocks[1].1.header.cumulative_proof_of_work + blocks[1].1.header.difficulty);
+    persist(&mut state, &[ours]);
+    assert!(!check_branch(&state, Network::Main, &blocks[1..], 54_001, 54_001, None).unwrap().heavier);
+
+    // A kept block without its work cannot be weighed from.
+    let mut bare = wallet();
+    persist(&mut bare, &[block(54_000, vec![], &[], &[])]);
+    let error = check_branch(&bare, Network::Main, &blocks[1..], 54_001, 54_001, None).unwrap_err().to_string();
+    assert!(error.contains("not kept with its work"), "{error}");
 }

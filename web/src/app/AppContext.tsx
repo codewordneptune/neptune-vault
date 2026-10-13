@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { byCreation, type AccountRecord, type HistoryRecord, type Network, type SendFailure, type UtxoRecord } from '../storage/db';
 import type { ScanSettings, SendRequest } from '../backend/types';
 import type { SyncEngine, SyncProgress } from '../wallet/sync';
-import { paymentsTotalNau, RequiresLustrationError, SendBusyError, SendCancelledError, SendNotApprovedError, SendUnconfirmedError, type LastSend, type SendOutcome, type SendProgress } from './send';
+import { EXPIRED_NOTE, paymentsTotalNau, RequiresLustrationError, SendBusyError, SendCancelledError, SendNotApprovedError, SendUnconfirmedError, type LastSend, type SendOutcome, type SendProgress } from './send';
 import type { Services } from './services';
 import { useScreenWakeLock, type WakeLockState } from './wakeLock';
 import { clearSendDraft, sendRecorded } from './sendDraft';
@@ -346,8 +346,9 @@ export function AppProvider({ services, children }: { services: Services; childr
         // Settled. A send that failed without the person giving up on it
         // did not go through: after "Sent", that is news, so it becomes the
         // note about a send that did not go through, in the engine's words
-        // for why (it expired, or its coins went in another transaction).
-        if (row.status === 'failed' && !row.givenUp && !/gave up/i.test(row.error ?? '')) {
+        // for why (its coins went in another transaction). One that expired
+        // may still go through, and its own notice says so.
+        if (row.status === 'failed' && !row.givenUp && !row.expired && !/gave up/i.test(row.error ?? '')) {
           failure = {
             at: Date.now(),
             accountId,
@@ -656,13 +657,13 @@ export function AppProvider({ services, children }: { services: Services; childr
           await services.accounts.markSynced(accountId).catch(() => undefined);
         }
         await refresh();
-        // A send no block can take any more has been released: said once,
-        // here, since the person may have dismissed every other note about it.
+        // A send no block took in time has been released: said once, here,
+        // since the person may have dismissed every other note about it.
         if (result.expired?.length && document.visibilityState === 'visible') {
           notifications.show({
             color: 'yellow',
             title: result.expired.length === 1 ? 'A send expired' : `${result.expired.length} sends expired`,
-            message: 'No block can take it any more, so nothing went out, and its coins are spendable again. It is marked Not sent in History.',
+            message: `${EXPIRED_NOTE} It is unlikely to go through now, but it still can until one of those coins is spent.`,
             autoClose: 10_000,
           });
         }

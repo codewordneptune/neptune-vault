@@ -92,6 +92,15 @@ class FakeCore {
   outputs = new Map<number, string[]>();
   expectations: ScanExpectation[] = [];
   nextKeyIndexAfter = 1;
+  /** Whether a competing chain the node shows holds more work than the wallet's: the core weighs it from real headers. */
+  heavier = false;
+  branchChecks: Array<[number, number]> = [];
+  async checkBranch(op: Extract<LedgerOp, { op: 'checkBranch' }>) {
+    this.branchChecks.push([op.from, op.to]);
+    const last = (JSON.parse(op.blocksResponse) as { result: { blocks: RpcWalletBlock[] } }).result.blocks.at(-1);
+    if (!last) return { last: null, heavier: false };
+    return { last: { height: last.kernel.header.height, hash: last.proofLeaf, difficulty: [], cumulativePow: [] }, heavier: this.heavier };
+  }
   /** The coin index is keyed by absolute index sets; the fake node keys it by coin hash. */
   async absoluteIndexSets() {
     return JSON.stringify(await vault.store.ledger('acc', { op: 'unspentHashes' }));
@@ -151,6 +160,7 @@ async function setup(options: { rebuild?: boolean } = {}) {
   const core = new FakeCore();
   vault = await testEngine({
     scanBlocks: (op) => core.scanBlocks(op),
+    checkBranch: (op) => core.checkBranch(op),
     announcementFlags: () => '[]',
     absoluteIndexSets: () => core.absoluteIndexSets(),
   });
@@ -439,10 +449,11 @@ describe('sync engine', () => {
   });
 
   it('finds the fork by halving, not by walking down', async () => {
-    const { node, engine } = await setup();
+    const { node, core, engine } = await setup();
     node.extendTo(90);
     await engine.syncOnce();
     node.forkAbove(10, 95);
+    core.heavier = true;
     node.canonicalQuestions = 0;
     const result = await engine.syncOnce();
     expect(result.syncedHeight).toBe(95);
@@ -451,6 +462,67 @@ describe('sync engine', () => {
     const blocks = await view.getAllFromIndex('blocks', 'byAccountHeight', IDBKeyRange.bound(['acc', 0], ['acc', Infinity]));
     expect(blocks.find((b) => b.height === 10)?.hash).toBe('hash-10');
     expect(blocks.find((b) => b.height === 11)?.hash).toBe('fork-11');
+  });
+
+  it('follows a reorganisation of up to ten blocks on the node\'s word', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(30);
+    await engine.syncOnce();
+    node.forkAbove(20, 31);
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('done');
+    expect((await view.get('syncState', 'acc'))?.syncedHash).toBe('fork-31');
+    expect(core.branchChecks).toEqual([]);
+  });
+
+  it('follows a deeper one only once the node shows a chain with more work', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(30);
+    core.incoming.set(25, [utxo('recent', 25, '2')]);
+    await engine.syncOnce();
+
+    // The node says the last 12 blocks are gone, and shows nothing heavier in their place.
+    node.forkAbove(18, 32);
+    core.incoming.clear();
+    const refused = await engine.syncOnce();
+    expect(refused.phase).toBe('error');
+    expect(refused.message).toMatch(/^The node says the last 12 blocks this wallet scanned are no longer on its chain, but it did not show a chain with more work in their place\. Nothing was changed\./);
+    expect(core.branchChecks).toEqual([[19, 22], [23, 26], [27, 30], [31, 32]]);
+    expect(await view.get('utxos', 'acc:recent')).toBeDefined();
+    expect((await view.get('syncState', 'acc'))?.syncedHash).toBe('hash-30');
+
+    core.heavier = true;
+    const followed = await engine.syncOnce();
+    expect(followed.phase).toBe('done');
+    expect(await view.get('utxos', 'acc:recent')).toBeUndefined();
+    expect((await view.get('syncState', 'acc'))?.syncedHash).toBe('fork-32');
+  });
+
+  it('never goes back to before its start on the node\'s word', async () => {
+    const { node, core } = await setup();
+    node.extendTo(30);
+    core.incoming.set(5, [utxo('u1', 5, '2')]);
+    // Keeping only the newest block leaves none below it to go back to.
+    const engine = new SyncEngine(db, node as unknown as NodeClient, vault.store as unknown as WalletCore, 'acc', { batchSize: 4, keepBlocks: 1 });
+    await engine.syncOnce();
+    node.forkAbove(29, 31);
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('error');
+    expect(result.message).toMatch(/keeps no older block to go back to\. Nothing was changed\./);
+    expect(await view.get('utxos', 'acc:u1')).toBeDefined();
+    expect((await view.get('syncState', 'acc'))?.syncedHeight).toBe(30);
+  });
+
+  it('is not up to date when the node does not hand over the blocks up to its newest', async () => {
+    const { node, engine } = await setup();
+    node.extendTo(10);
+    await engine.syncOnce();
+    node.extendTo(14);
+    node.getBlocks = async () => [];
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('error');
+    expect(result.message).toBe('The node says its newest block is 14, but it did not send the blocks after block 10, so this wallet is not up to date. Try again later, or choose another node in Settings.');
+    expect(result.syncedHeight).toBe(10);
   });
 
   it('fast restore says so on a node without the index, and stays pending', async () => {
@@ -557,7 +629,7 @@ describe('sync engine', () => {
     expect(result.expired).toEqual(['tx-1']);
     const sent = (await view.get('history', 'acc:sent:tx-1'))!;
     expect(sent.status).toBe('failed');
-    expect(sent.error).toMatch(/^Not sent: it expired/);
+    expect(sent.error).toMatch(/^No block took it within three days/);
     expect((await view.get('utxos', 'acc:u1'))?.pendingTxid).toBeNull();
     expect(result.tipTimestampMs).toBe(1000 + 3 * day + 2 * 3600_000);
   });

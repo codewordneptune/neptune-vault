@@ -14,7 +14,7 @@
 import { NodeError, nodeNetworkLabel, type NodeClient } from '../node/rpc';
 import { networkLabel } from '../util/network';
 import type { Network, VaultDb } from '../storage/db';
-import { NOT_LINKED, type LedgerAnswer, type LedgerOp, type ScanSettings, type WalletCore } from '../backend/types';
+import { NOT_LINKED, type LedgerAnswer, type LedgerOp, type ScanSettings, type WalletCore, type Weighed } from '../backend/types';
 
 export interface SyncProgress {
   phase: 'checking' | 'restoring' | 'scanning' | 'done' | 'error';
@@ -47,6 +47,13 @@ function isMethodNotFound(e: unknown): boolean {
 
 /** How many blocks below the tip a fast restore hands over to the ordinary scan. */
 export const RESTORE_HANDOVER = 10;
+
+/**
+ * The deepest reorganisation followed on the node's word alone, deeper than
+ * any seen on Mainnet. A deeper one is followed only once the node shows the
+ * chain that replaces the blocks and it holds more work than they did.
+ */
+export const MAX_ROLLBACK_ON_WORD = 10;
 
 /** What a fast restore says on a node with no coin index. */
 const NO_INDEX = 'This node does not support fast restore. Rescan from a block or a date instead, or choose another node in Settings.';
@@ -211,7 +218,7 @@ export class SyncEngine {
       let position = await this.ledger({ op: 'startPass', tipHeight: tip.height, startHint: await this.startHint(account.createdAt) });
 
       this.progress('checking', position.syncedHeight, tip.height);
-      const rolledBackTo = await this.rollBackIfForked(position.syncedHeight, position.syncedHash);
+      const rolledBackTo = await this.rollBackIfForked(tip.height, position.syncedHeight, position.syncedHash);
       if (rolledBackTo !== null) position = await this.ledger({ op: 'startPass', tipHeight: tip.height });
 
       let height = position.syncedHeight + 1;
@@ -264,7 +271,7 @@ export class SyncEngine {
           // rounds rather than chase a node that never agrees with itself.
           unlinked += 1;
           if (unlinked > 3) throw new Error('The node keeps answering with blocks that do not follow the ones this wallet has scanned. Try again later, or choose another node in Settings.');
-          await this.rollBackIfForked(height - 1, prevHash, true);
+          await this.rollBackIfForked(tip.height, height - 1, prevHash, true);
           const rolled = await this.ledger({ op: 'startPass', tipHeight: tip.height });
           height = rolled.syncedHeight + 1;
           prevHash = rolled.syncedHash;
@@ -278,8 +285,13 @@ export class SyncEngine {
       }
       const synced = await this.syncedHeight();
       if (this.stopRequested) return { phase: 'scanning', syncedHeight: synced, tipHeight: tip.height };
-      // Sends of this device no block can take any more, by the chain's
-      // clock: their coins are released and they are marked as expired.
+      // A node that names a newest block and then does not hand over the
+      // blocks up to it leaves the wallet short of it: not up to date.
+      if (synced < tip.height) {
+        return this.progress('error', synced, tip.height, `The node says its newest block is ${tip.height}, but it did not send the blocks after block ${synced}, so this wallet is not up to date. Try again later, or choose another node in Settings.`);
+      }
+      // Sends of this device no block took in time, by the chain's clock:
+      // their coins are released and they are marked as expired.
       const expired = typeof tip.timestamp === 'number' && tip.timestamp > 0 ? await this.ledger({ op: 'expireSends', tipTimestampMs: tip.timestamp }) : [];
       return this.progress('done', synced, tip.height, undefined, expired.length > 0 ? { expired } : {});
     } catch (e) {
@@ -420,10 +432,12 @@ export class SyncEngine {
 
   /**
    * If the last scanned block is no longer canonical, find the newest stored
-   * block that still is and roll the account back to it. Returns the height
-   * rolled back to, or null when nothing was forked.
+   * block that still is and roll the account back to it: on the node's word
+   * up to MAX_ROLLBACK_ON_WORD blocks, deeper only once the node shows the
+   * heavier chain, and never back past the start without the person. Returns
+   * the height rolled back to, or null when nothing was forked.
    */
-  private async rollBackIfForked(syncedHeight: number, syncedHash: string | null, knownForked = false): Promise<number | null> {
+  private async rollBackIfForked(tipHeight: number, syncedHeight: number, syncedHash: string | null, knownForked = false): Promise<number | null> {
     if (!knownForked) {
       if (!syncedHash) return null;
       if (await this.node.isBlockCanonical(syncedHash)) return null;
@@ -452,9 +466,47 @@ export class SyncEngine {
     if (target === null && stored.length > 0) {
       throw new Error('None of the blocks this wallet has scanned are on this node\'s chain. The node may be on another chain or out of date. Nothing was changed. If you trust this node, rescan in Settings.');
     }
-    const height = target?.[0] ?? (await this.ledger({ op: 'rollbackFloor' }));
+    // With no block kept below, the rollback goes back to before the start.
+    const height = target?.[0] ?? (await this.scanSettings()).birthdayHeight - 1;
+    const depth = syncedHeight - height;
+    if (depth > MAX_ROLLBACK_ON_WORD) {
+      if (target === null) {
+        throw new Error('The node says the last block this wallet scanned is no longer on its chain, and this wallet keeps no older block to go back to. Nothing was changed. If you trust this node, rescan in Settings.');
+      }
+      if (!(await this.showsHeavierChain(height, tipHeight))) {
+        throw new Error(`The node says the last ${depth} blocks this wallet scanned are no longer on its chain, but it did not show a chain with more work in their place. Nothing was changed. Try again later, or choose another node in Settings.`);
+      }
+    }
     await this.rollBack(height, target?.[1] ?? null);
     return height;
+  }
+
+  /**
+   * Whether the node shows a chain that grows from the kept block at
+   * `forkHeight` and holds more work than the blocks this wallet scanned:
+   * fetched up to the node's newest block at most, a batch at a time, each
+   * batch linked to the last and its work checked by the core. Nothing is
+   * written.
+   */
+  private async showsHeavierChain(forkHeight: number, tipHeight: number): Promise<boolean> {
+    let after: Weighed | null = null;
+    let from = forkHeight + 1;
+    while (from <= tipHeight && !this.stopRequested) {
+      const to = Math.min(from + this.batchSize - 1, tipHeight);
+      const blocksResponse = await this.node.getBlocksRaw(from, to);
+      let check;
+      try {
+        check = await this.ledger({ op: 'checkBranch', blocksResponse, from, to, after });
+      } catch (e) {
+        if (e instanceof Error && /wallet is locked/i.test(e.message)) throw e;
+        return false;
+      }
+      if (check.heavier) return true;
+      if (!check.last) return false;
+      after = check.last;
+      from = check.last.height + 1;
+    }
+    return false;
   }
 
   /** Forget everything above `height`, including spends recorded above it. */

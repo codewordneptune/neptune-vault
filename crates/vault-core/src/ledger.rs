@@ -24,12 +24,17 @@ use anyhow::anyhow;
 use anyhow::bail;
 use anyhow::Context;
 use anyhow::Result;
+use neptune_consensus::block::block_kernel::BlockKernel;
+use neptune_primitives::network::Network;
+use neptune_wallet::tasm_lib::prelude::Digest;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
 use serde_json::Map;
 use serde_json::Value;
 
+use crate::chain;
+use crate::chain::Weighed;
 use crate::scan::NextKeyIndices;
 use crate::scan::ScannedBlock;
 use crate::scan::StoredUtxo;
@@ -99,8 +104,16 @@ fn nau(text: &str) -> i128 {
 /// The note `forget_send` leaves on a send the person gave up on.
 const GAVE_UP: &str = "You gave up on this send.";
 
-/// The note `expire_sends` leaves on a send no block can take any more.
-pub const EXPIRED: &str = "Not sent: it expired. No block can include it any more, so its coins are spendable again.";
+/// The note `expire_sends` leaves on a send no block took in time.
+pub const EXPIRED: &str = "No block took it within three days, so its coins are spendable again.";
+
+/// Why a pending send failed when a block carried another send of this
+/// device that spends one of the same coins.
+const LOST_TO_OWN: &str = "Not sent: another send of yours that spends the same coins went through instead.";
+
+/// Why a pending send failed when one of its coins went in a transaction
+/// this device did not build.
+const LOST_ELSEWHERE: &str = "Not sent: its coins were spent by another transaction, made elsewhere with this seed phrase.";
 
 /// How long a send can wait for a block. A block may not carry a
 /// transaction stamped more than three days before its own timestamp
@@ -120,9 +133,22 @@ pub(crate) fn given_up(entry: &HistoryEntry) -> bool {
             || entry.extra.get("error").and_then(Value::as_str) == Some(GAVE_UP))
 }
 
-/// Whether a row is a send that expired: no block can take it any more.
+/// Whether a row is a send that expired: no block took it in time.
 fn expired(entry: &HistoryEntry) -> bool {
     entry.extra.get("expired").and_then(Value::as_bool) == Some(true)
+}
+
+/// Whether a send went back to waiting because the block that confirmed it
+/// was rolled back.
+fn rolled_back(entry: &HistoryEntry) -> bool {
+    entry.extra.get("rolledBack").and_then(Value::as_bool) == Some(true)
+}
+
+/// Whether a send given up on, or one that expired, can still go through:
+/// none of its coins has been spent in a block. Its transaction stays
+/// valid until then, so a block can still take it.
+fn may_still_go(state: &WalletState, entry: &HistoryEntry) -> bool {
+    given_up(entry) && !entry.input_hashes.iter().any(|h| state.utxos.get(h).is_some_and(|u| u.spent_height.is_some()))
 }
 
 /// A send this device built, as opposed to one the chain or the mempool
@@ -131,9 +157,9 @@ pub(crate) fn own_send(entry: &HistoryEntry) -> bool {
     entry.kind == "sent" && !entry.txid.is_empty() && entry.key.contains(":sent:")
 }
 
-/// The send given up on whose inputs include this coin, if any.
+/// The send given up on, still able to go through, whose inputs include this coin.
 fn given_up_spending(state: &WalletState, hash: &str) -> Option<HistoryEntry> {
-    state.history.values().find(|r| given_up(r) && r.input_hashes.iter().any(|h| h == hash)).cloned()
+    state.history.values().find(|r| r.input_hashes.iter().any(|h| h == hash) && may_still_go(state, r)).cloned()
 }
 
 /// A send given up on that goes through after all: the same row again,
@@ -142,6 +168,7 @@ fn revived(entry: &HistoryEntry, status: &str, height: Option<u64>) -> HistoryEn
     let mut extra = entry.extra.clone();
     extra.insert("error".into(), Value::Null);
     extra.remove("givenUp");
+    extra.remove("expired");
     HistoryEntry { status: status.into(), height, extra, ..entry.clone() }
 }
 
@@ -182,13 +209,14 @@ pub fn spendable(state: &WalletState, now: u64) -> Vec<Value> {
         .collect()
 }
 
-/// Output commitments of this wallet's pending sends: a block that carries
-/// one has that send in it.
+/// Output commitments of the sends a block may still carry: the pending
+/// ones, and this device's sends given up on or expired that can still go
+/// through. A block that carries one has that send in it.
 pub fn watched_commitments(state: &WalletState) -> Vec<String> {
     state
         .history
         .values()
-        .filter(|h| h.kind == "sent" && h.status == "pending")
+        .filter(|h| h.kind == "sent" && (h.status == "pending" || (own_send(h) && may_still_go(state, h))))
         .flat_map(outputs)
         .collect()
 }
@@ -262,14 +290,54 @@ pub fn fork_candidates(state: &WalletState, below: i64) -> Vec<(u64, String)> {
         .collect()
 }
 
-/// Where a rollback lands when no kept block is canonical: before the start.
-pub fn rollback_floor(state: &WalletState) -> Result<i64> {
-    let birthday = scan_of(state).map(|s| s.birthday_height).unwrap_or(1);
-    Ok(birthday as i64 - 1)
+/// What a node's competing chain, shown so far, comes to.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchCheck {
+    /// The last block shown, to go on from; none when the answer had none.
+    pub last: Option<Weighed>,
+    /// Whether the chain shown holds more work than the blocks this wallet scanned.
+    pub heavier: bool,
+}
+
+/// A kept block with the work it was kept with; none for one kept before blocks carried it.
+fn weighed(block: &Block) -> Option<Weighed> {
+    Some(Weighed {
+        height: block.height,
+        hash: block.hash.clone(),
+        difficulty: serde_json::from_value(block.extra.get("difficulty")?.clone()).ok()?,
+        cumulative_pow: serde_json::from_value(block.extra.get("cumulativePow")?.clone()).ok()?,
+    })
+}
+
+/// Weigh a stretch of a node's competing chain, growing from the kept block
+/// below `from`, or from `after`, the last block of the stretch before (see
+/// `chain::weigh`). Nothing is written: a deep rollback waits until the
+/// chain shown holds more work than the blocks this wallet scanned.
+pub fn check_branch(
+    state: &WalletState,
+    network: Network,
+    blocks: &[(Digest, BlockKernel)],
+    from: u64,
+    to: u64,
+    after: Option<Weighed>,
+) -> Result<BranchCheck> {
+    let below = from.saturating_sub(1);
+    let parent = match after {
+        Some(after) => after,
+        None => state.blocks.get(&below).and_then(weighed).ok_or_else(|| anyhow!("chain check: block {below} was not kept with its work"))?,
+    };
+    let last = chain::weigh(network, blocks, from, to, &parent)?;
+    let ours = state.sync.as_ref().and_then(|s| u64::try_from(s.synced_height).ok()).and_then(|h| state.blocks.get(&h)).and_then(weighed);
+    let heavier = matches!((&last, &ours), (Some(theirs), Some(ours)) if theirs.cumulative_pow > ours.cumulative_pow);
+    Ok(BranchCheck { last, heavier })
 }
 
 /// Forget everything above `height`, including spends recorded above it.
-/// Rows the chain produced go; a send this device built goes back to pending.
+/// Rows the chain produced go. A send this device built goes back to
+/// pending and holds its coins again; one a block had confirmed is marked,
+/// so that it is never taken for expired: it went through once, and the
+/// chain that dropped it may be the node's word alone.
 pub fn roll_back(state: &WalletState, wallet_id: &str, height: i64, hash: Option<String>, now: u64) -> Outcome {
     let mut tx = Tx::new(state);
     for u in state.utxos.values() {
@@ -285,7 +353,16 @@ pub fn roll_back(state: &WalletState, wallet_id: &str, height: i64, hash: Option
             if h.kind == "received" || h.txid.is_empty() {
                 tx.push(WalletChange::DeleteHistory { key: h.key.clone() });
             } else {
-                tx.push(WalletChange::PutHistory { entry: HistoryEntry { status: "pending".into(), height: None, ..h.clone() } });
+                let mut extra = h.extra.clone();
+                if h.status == "confirmed" {
+                    extra.insert("rolledBack".into(), json!(true));
+                } else {
+                    extra.insert("error".into(), Value::Null);
+                }
+                tx.push(WalletChange::PutHistory { entry: HistoryEntry { status: "pending".into(), height: None, extra, ..h.clone() } });
+                for input in &h.input_hashes {
+                    set_hold(&mut tx, input, None, Some(&h.txid));
+                }
             }
         }
     }
@@ -370,78 +447,83 @@ pub fn persist_scan(
             }
         }
 
+        // This device's sends in this block: those whose outputs it carries.
+        // A send's inputs being spent is not enough: another send of this
+        // device, or another device with the same seed phrase, can spend the
+        // same coins in another transaction, and then this one never reached
+        // its recipient. A send given up on, or expired, goes through like
+        // any other while its coins are unspent. Rows from before outputs
+        // were recorded keep the old rule: a pending send whose held coin is
+        // spent went through; one given up on cannot be told apart.
+        let seen: BTreeSet<&str> = block.seen.iter().map(String::as_str).collect();
+        let spent_here: BTreeSet<&str> = block.spent.iter().map(String::as_str).collect();
+        let carried: Vec<HistoryEntry> = tx
+            .work
+            .history
+            .values()
+            .filter(|s| own_send(s) && (s.status == "pending" || given_up(s)))
+            .filter(|s| {
+                let recorded = outputs(s);
+                if recorded.is_empty() {
+                    s.status == "pending"
+                        && s.input_hashes.iter().any(|h| {
+                            spent_here.contains(h.as_str()) && tx.work.utxos.get(h).is_some_and(|c| c.pending_txid.as_deref() == Some(s.txid.as_str()))
+                        })
+                } else {
+                    recorded.iter().any(|c| seen.contains(c.as_str()))
+                }
+            })
+            .cloned()
+            .collect();
+        for sent in &carried {
+            let entry = if sent.status == "pending" {
+                HistoryEntry { status: "confirmed".into(), height: Some(block.height), ..sent.clone() }
+            } else {
+                revived(sent, "confirmed", Some(block.height))
+            };
+            tx.push(WalletChange::PutHistory { entry });
+        }
+
         // Inputs spent by a transaction this device did not build, such as
         // a send from another device with the same phrase.
         let mut elsewhere: Vec<String> = Vec::new();
         let mut spent_nau: i128 = 0;
-        let seen: BTreeSet<&str> = block.seen.iter().map(String::as_str).collect();
         for hash in &block.spent {
             let Some(existing) = tx.work.utxos.get(hash).cloned() else { continue };
-            // A send given up on no longer holds its coins, but it may have
-            // gone through anyway: then it is that send, not one made
-            // elsewhere, and its own row says so.
-            let sent = existing
-                .pending_txid
-                .as_ref()
-                .and_then(|txid| tx.work.history.get(&record_key(wallet_id, &format!("sent:{txid}"))).cloned())
-                .or_else(|| given_up_spending(&tx.work, hash));
-            // A send is in this block when the block carries its outputs. Its
-            // inputs being spent is not enough: another device with the same
-            // seed phrase can spend the same coins in another transaction,
-            // and then this send never reached its recipient. Rows from
-            // before outputs were recorded keep the old rule.
-            // A send given up on counts only by its outputs: without them, the
-            // same coins spent elsewhere could not be told from it.
-            let recorded = sent.as_ref().map(outputs).unwrap_or_default();
-            let seen_any = recorded.iter().any(|c| seen.contains(c.as_str()));
-            let mine = match &sent {
-                None => false,
-                Some(s) if given_up(s) => seen_any,
-                Some(_) => recorded.is_empty() || seen_any,
-            };
-            let spent_by = sent.as_ref().filter(|_| mine).map(|s| s.txid.clone());
+            let spent_by = carried.iter().find(|s| s.input_hashes.contains(hash)).map(|s| s.txid.clone());
             tx.push(WalletChange::PutUtxo {
                 utxo: Utxo {
                     spent_height: Some(block.height),
                     spent_txid: spent_by.clone(),
-                    pending_txid: spent_by,
+                    pending_txid: spent_by.clone(),
                     ..existing.clone()
                 },
             });
-            match &sent {
-                Some(sent) if mine => {
-                    if sent.status == "pending" {
-                        tx.push(WalletChange::PutHistory {
-                            entry: HistoryEntry { status: "confirmed".into(), height: Some(block.height), ..sent.clone() },
-                        });
-                    } else if given_up(sent) {
-                        tx.push(WalletChange::PutHistory { entry: revived(sent, "confirmed", Some(block.height)) });
-                    }
+            // A pending send that spends the same coin can no longer go through.
+            let lost: Vec<HistoryEntry> = tx.work.history.values().filter(|r| own_send(r) && r.status == "pending" && r.input_hashes.contains(hash)).cloned().collect();
+            for sent in lost {
+                let mut extra = sent.extra.clone();
+                extra.insert("error".into(), json!(if spent_by.is_some() { LOST_TO_OWN } else { LOST_ELSEWHERE }));
+                tx.push(WalletChange::PutHistory {
+                    entry: HistoryEntry { status: "failed".into(), height: Some(block.height), extra, ..sent.clone() },
+                });
+                // Whatever else it held is free again.
+                let others: Vec<Utxo> = tx
+                    .work
+                    .utxos
+                    .values()
+                    .filter(|o| o.pending_txid.as_deref() == Some(sent.txid.as_str()) && o.spent_height.is_none() && o.hash != *hash)
+                    .cloned()
+                    .collect();
+                for other in others {
+                    tx.push(WalletChange::PutUtxo { utxo: Utxo { pending_txid: None, ..other } });
                 }
-                _ => {
-                    if let Some(sent) = sent.as_ref().filter(|s| s.status == "pending") {
-                        let mut extra = sent.extra.clone();
-                        extra.insert("error".into(), json!("Not sent: its coins were spent by another transaction, made elsewhere with this seed phrase."));
-                        tx.push(WalletChange::PutHistory {
-                            entry: HistoryEntry { status: "failed".into(), height: Some(block.height), extra, ..sent.clone() },
-                        });
-                        // Whatever else it held is free again.
-                        let others: Vec<Utxo> = tx
-                            .work
-                            .utxos
-                            .values()
-                            .filter(|o| o.pending_txid.as_deref() == Some(sent.txid.as_str()) && o.spent_height.is_none() && o.hash != *hash)
-                            .cloned()
-                            .collect();
-                        for other in others {
-                            tx.push(WalletChange::PutUtxo { utxo: Utxo { pending_txid: None, ..other } });
-                        }
-                    }
-                    // Not a send this device built (a coin the mempool
-                    // watcher held for a transaction seen elsewhere lands here too).
-                    elsewhere.push(hash.clone());
-                    spent_nau += nau(&existing.amount_nau);
-                }
+            }
+            // Not a send this device built (a coin the mempool watcher held
+            // for a transaction seen elsewhere lands here too).
+            if spent_by.is_none() {
+                elsewhere.push(hash.clone());
+                spent_nau += nau(&existing.amount_nau);
             }
         }
         if !elsewhere.is_empty() {
@@ -473,22 +555,25 @@ pub fn persist_scan(
                     extra,
                 },
             });
-            // The watcher's pending row for the same spend, if any.
-            let spent: BTreeSet<&String> = elsewhere.iter().collect();
-            let stale: Vec<String> = tx
-                .work
-                .history
-                .values()
-                .filter(|r| r.status == "pending" && r.key.contains(":outgoing:") && r.input_hashes.iter().any(|h| spent.contains(h)))
-                .map(|r| r.key.clone())
-                .collect();
-            for key in stale {
-                tx.push(WalletChange::DeleteHistory { key });
-            }
+        }
+        // The watcher's pending rows for coins this block spent, whichever transaction spent them.
+        let stale: Vec<String> = tx
+            .work
+            .history
+            .values()
+            .filter(|r| r.status == "pending" && r.key.contains(":outgoing:") && r.input_hashes.iter().any(|h| spent_here.contains(h.as_str())))
+            .map(|r| r.key.clone())
+            .collect();
+        for key in stale {
+            tx.push(WalletChange::DeleteHistory { key });
         }
 
         let mut extra = owner(wallet_id);
         extra.insert("key".into(), json!(record_key(wallet_id, &block.height.to_string())));
+        if let (Some(difficulty), Some(work)) = (&block.difficulty, &block.cumulative_pow) {
+            extra.insert("difficulty".into(), json!(difficulty));
+            extra.insert("cumulativePow".into(), json!(work));
+        }
         tx.push(WalletChange::PutBlock {
             block: Block { height: block.height, hash: block.hash.clone(), prev_hash: block.prev_hash.clone(), timestamp_ms: block.timestamp_ms, extra },
         });
@@ -594,10 +679,11 @@ pub fn discard_pending(state: &WalletState, wallet_id: &str, txid: &str) -> Outc
     tx.done(())
 }
 
-/// The person gave up on a pending send: release its inputs and mark it failed.
+/// The person gave up on a pending send: release its inputs and mark it
+/// failed. One no longer pending, which a block confirmed meanwhile, stays.
 pub fn forget_send(state: &WalletState, wallet_id: &str, txid: &str) -> Outcome {
     let mut tx = Tx::new(state);
-    if let Some(entry) = state.history.get(&record_key(wallet_id, &format!("sent:{txid}"))).cloned() {
+    if let Some(entry) = state.history.get(&record_key(wallet_id, &format!("sent:{txid}"))).filter(|e| e.status == "pending").cloned() {
         release_inputs(&mut tx, &entry);
         let mut extra = entry.extra.clone();
         extra.insert("error".into(), json!(GAVE_UP));
@@ -614,13 +700,14 @@ fn stamped_at(entry: &HistoryEntry) -> u64 {
     entry.extra.get("stampMs").and_then(Value::as_u64).unwrap_or(entry.timestamp_ms)
 }
 
-/// Pending sends of this device that no block can take any more, now that
-/// the chain's newest block is timestamped `tip_timestamp_ms`: their coins
-/// are released and each is marked as expired. Answers their transaction ids.
+/// Pending sends of this device that no block took in time, now that the
+/// chain's newest block is timestamped `tip_timestamp_ms`: their coins are
+/// released and each is marked as expired. Not one whose confirming block
+/// was rolled back. Answers their transaction ids.
 pub fn expire_sends(state: &WalletState, tip_timestamp_ms: u64) -> Outcome<Vec<String>> {
     let mut tx = Tx::new(state);
     let mut expired = Vec::new();
-    for entry in state.history.values().filter(|h| own_send(h) && h.status == "pending") {
+    for entry in state.history.values().filter(|h| own_send(h) && h.status == "pending" && !rolled_back(h)) {
         if tip_timestamp_ms <= stamped_at(entry).saturating_add(SEND_LIFETIME_MS) {
             continue;
         }

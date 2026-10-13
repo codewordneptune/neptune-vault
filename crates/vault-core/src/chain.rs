@@ -8,8 +8,9 @@
 //! the real network's, on top of the wallet's own last block.
 //!
 //! What stays out of reach: the block's proof, the mutator set, and whether
-//! this is the heaviest chain. A node can still withhold blocks. The app
-//! says so where it explains the node.
+//! this is the heaviest chain there is (a node's competing chain is weighed
+//! only against the wallet's own, see `weigh`). A node can still withhold
+//! blocks. The app says so where it explains the node.
 
 use anyhow::bail;
 use anyhow::Result;
@@ -17,6 +18,7 @@ use neptune_consensus::block::block_header::BlockHeader;
 use neptune_consensus::block::block_kernel::BlockKernel;
 use neptune_consensus::consensus_rule_set::ConsensusRuleSet;
 use neptune_primitives::difficulty_control::Difficulty;
+use neptune_primitives::difficulty_control::ProofOfWork;
 use neptune_primitives::network::Network;
 use neptune_rpc_api::model::wallet::block::RpcWalletBlock;
 use neptune_wallet::tasm_lib::prelude::Digest;
@@ -120,6 +122,47 @@ pub fn check(network: Network, blocks: &[(Digest, BlockKernel)], expect: &Expect
         parent = Some((*hash, header));
     }
     Ok(())
+}
+
+/// A block as far as weighing chains needs: where it is, and the work the
+/// chain holds up to it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Weighed {
+    pub height: u64,
+    pub hash: String,
+    pub difficulty: Difficulty,
+    pub cumulative_pow: ProofOfWork,
+}
+
+impl Weighed {
+    pub fn of(hash: Digest, header: &BlockHeader) -> Self {
+        Weighed { height: header.height.into(), hash: hash.to_hex(), difficulty: header.difficulty, cumulative_pow: header.cumulative_proof_of_work }
+    }
+}
+
+/// Hold a stretch of a competing chain against the block it grows from:
+/// what `check` holds any answer to, and the work each block claims must
+/// add up from `parent` as the consensus rules add it. A node can then
+/// claim more work only by doing it. Answers the last block, weighed, or
+/// none for an answer with no blocks.
+pub fn weigh(network: Network, blocks: &[(Digest, BlockKernel)], from: u64, to: u64, parent: &Weighed) -> Result<Option<Weighed>> {
+    check(network, blocks, &Expectation { from, to, prev_hash: Some(parent.hash.clone()), watch: Vec::new() })?;
+    let mut last = parent.clone();
+    for (i, (hash, kernel)) in blocks.iter().enumerate() {
+        let header = &kernel.header;
+        let rules = ConsensusRuleSet::infer_from(network, header.height);
+        // `check` cannot hold the first block to its parent's difficulty: here the parent is known.
+        if i == 0 && checks_pow(network) && rules.use_parent_difficulty() && *hash > last.difficulty.target() {
+            bail!("chain check: block {} does not carry the proof of work its difficulty requires", last.height + 1);
+        }
+        let added = if rules.use_parent_difficulty() { last.difficulty } else { header.difficulty };
+        if header.cumulative_proof_of_work != last.cumulative_pow + added {
+            bail!("chain check: block {} claims an amount of work that does not add up", last.height + 1);
+        }
+        last = Weighed::of(*hash, header);
+    }
+    Ok((!blocks.is_empty()).then_some(last))
 }
 
 /// For tests and for the scan: hashes and kernels of a node's answer.

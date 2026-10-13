@@ -8,6 +8,7 @@ use neptune_rpc_api::model::message::GetBlocksResponse;
 use serde::Deserialize;
 use vault_core::chain;
 use vault_core::chain::Expectation;
+use vault_core::chain::Weighed;
 
 #[derive(Deserialize)]
 struct Envelope {
@@ -86,6 +87,34 @@ fn a_difficulty_the_network_never_had_is_refused() {
     blocks[0].1.header.difficulty = neptune_primitives::difficulty_control::Difficulty::MINIMUM;
     let error = chain::check(Network::Main, &blocks, &expect(54_000, 54_001)).unwrap_err().to_string();
     assert!(error.contains("difficulty"), "{error}");
+}
+
+#[test]
+fn a_competing_chain_is_weighed_from_the_block_it_grows_from_in_every_era() {
+    for name in ["blocks-1-3.json", "blocks-12000-12001.json", "blocks-30000-30001.json", "blocks-54000-54001.json"] {
+        let blocks = load(name);
+        let parent = Weighed::of(blocks[0].0, &blocks[0].1.header);
+        let (from, to) = (parent.height + 1, parent.height + blocks.len() as u64 - 1);
+        let last = chain::weigh(Network::Main, &blocks[1..], from, to, &parent).unwrap_or_else(|e| panic!("{name}: {e}")).unwrap();
+        let tip = blocks.last().unwrap();
+        assert_eq!(last, Weighed::of(tip.0, &tip.1.header), "{name}");
+        assert!(last.cumulative_pow > parent.cumulative_pow, "{name}");
+    }
+}
+
+#[test]
+fn work_that_does_not_add_up_from_the_block_it_grows_from_is_refused() {
+    let blocks = load("blocks-54000-54001.json");
+    let parent = Weighed::of(blocks[0].0, &blocks[0].1.header);
+    let inflated = Weighed { cumulative_pow: parent.cumulative_pow + parent.difficulty, ..parent.clone() };
+    let error = chain::weigh(Network::Main, &blocks[1..], 54_001, 54_001, &inflated).unwrap_err().to_string();
+    assert!(error.contains("does not add up"), "{error}");
+    // Nor does a chain that grows from another block.
+    let stranger = Weighed { hash: "00".repeat(40), ..parent.clone() };
+    let error = chain::weigh(Network::Main, &blocks[1..], 54_001, 54_001, &stranger).unwrap_err().to_string();
+    assert!(error.starts_with(chain::NOT_LINKED), "{error}");
+    // An answer with no blocks weighs nothing.
+    assert_eq!(chain::weigh(Network::Main, &[], 54_001, 54_001, &parent).unwrap(), None);
 }
 
 #[test]

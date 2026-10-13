@@ -114,7 +114,11 @@ it. When the first does not follow the wallet's last scanned block, the
 error starts with `NOT_LINKED`, which the sync treats as a reorganisation.
 On Mainnet it checks proof of work, with a difficulty floor of 1e11 from
 height 10,000. It cannot check the block proof, the mutator set, or that
-this is the heaviest chain. It then decrypts announcements, keeps those
+this is the heaviest chain. When a node claims a deep reorganisation,
+`weigh` holds its competing chain to the kept block it grows from: linked,
+with proof of work on Mainnet, and the work each block claims adding up as
+the consensus rules add it, so the chain counts as heavier only with work
+done for it. It then decrypts announcements, keeps those
 whose addition record the block carries, assigns the AOCL index, and finds
 spends by exact absolute-index-set match. Coins are keyed
 `<utxo hash>:<aocl index>` (`coin_key`). `scan_mempool_kernel` does the same
@@ -157,8 +161,8 @@ operation (`LedgerOp` in `web/src/backend/types.ts` mirrors `ledger::op::Op`)
 that reads the wallet as it is, returns a batch, and takes effect only once
 the batch is written. Operations on one wallet run one at a time
 (`web/src/backend/browser/engineHost.ts` queues per log; the bridge holds the
-store's mutex). `announcementFlags`, `scanBlocks` and `scanMempoolKernel`
-need the unlocked account.
+store's mutex). `announcementFlags`, `scanBlocks`, `scanMempoolKernel` and
+`checkBranch` need the unlocked account.
 
 Operations are reads, scans, sync steps (`startPass`, `rollBack`,
 `persistScan`, `finishFastRestore`, `resetForRescan`), sends and mempool
@@ -166,10 +170,14 @@ rows. A send's coins stay held from `recordPending` until a block confirms
 it, the node refuses it (`discardPending`), the person gives up on it
 (`forgetSend`), or it expires: `expireSends` frees them once the newest
 block is more than three days and an hour past the send's stamp
-(`SEND_LIFETIME_MS`). A send given up on that goes through anyway becomes
-that send again. A send that was not sent leaves History through `dropRow`,
-the operation that also drops a mempool row, once no block can take it
-(section 5). A rescan keeps this device's unsettled sends, and
+(`SEND_LIFETIME_MS`), unless a block had confirmed it before a rollback.
+A send given up on, or expired, stays watched until one of its coins is
+spent in a block: spent by the send itself, it becomes that send again;
+spent by another transaction, it can no longer go through. A spent coin is
+credited to the send whose outputs the block carries, so a send that lost
+its coins to another send of this device says so. A send that was not sent
+leaves History through `dropRow`, the operation that also drops a mempool
+row, once it can no longer go through (section 5). A rescan keeps this device's unsettled sends, and
 `rescanFrom` (`web/src/app/accounts.ts`) first copies who each send paid,
 its fee and its note into the private notes (`sendDetails`), so History has
 them back when the scan finds the sends again. Contacts and private notes
@@ -448,14 +456,21 @@ and, from 15 s in, the time left at the pace measured. A pass:
 2. Reads `chain_tipHeader`, and runs a pending fast restore (below).
 3. Gets the position (`startPass`). If the last synced block is no longer
    canonical, `rollBackIfForked` binary-searches the stored blocks (the
-   ledger keeps 1000) for the newest canonical one and rolls back to it. If
-   none is canonical it stops and changes nothing; the person may rescan.
+   ledger keeps 1000) for the newest canonical one and rolls back to it: up
+   to ten blocks (`MAX_ROLLBACK_ON_WORD`) on the node's word, deeper only
+   once the node's blocks from there (`checkBranch`) hold more work than the
+   ones they replace, and never back past the wallet's start. Otherwise, or
+   if none is canonical, it stops and changes nothing; the person may
+   rescan. A send whose confirming block was rolled back waits for a block
+   again and is never expired by time.
 4. Fetches `wallet_getBlocks` in batches of 25, each scanned against the
    hash it must follow. A batch that times out is halved, and grows back
    after four that arrive; at one block the pass stops, and timed passes
    then wait one to five minutes. A `NOT_LINKED` answer rolls back and
-   retries, at most three times.
-5. Releases the coins of sends no block can take any more (`expireSends`).
+   retries, at most three times. A node that sends no blocks short of its
+   own tip ends the pass with an error, so Home never says up to date below
+   the tip.
+5. Releases the coins of sends no block took in time (`expireSends`).
 
 Fast restore. With `restore: 'fast'` a pass asks
 `utxoindex_blockHeightsByFlags` for blocks with announcements for the
@@ -546,14 +561,17 @@ call the send back, which may still confirm. So a new send to someone a
 given-up send may still pay spends one of that send's coins
 (`givenUpRivals`, `planWith` in `send.ts`): two transactions that spend one
 coin cannot both confirm, and nobody is paid twice. After three days and an
-hour of the chain's time, when no block may take it, the sync releases its
-coins and marks it expired (`SEND_LIFETIME_MS`). Notes in the sealed log
-let the next unlock say how a send ended if the app was closed during it.
+hour of the chain's time, when a block is unlikely to take it, the sync
+releases its coins and marks it expired (`SEND_LIFETIME_MS`). Unlikely, not
+impossible: a send given up on or expired shows as "May still go through"
+until one of its coins is spent in a block (`mayStillGo`). Notes in the
+sealed log let the next unlock say how a send ended if the app was closed
+during it.
 
-A send that was not sent can be removed from History once no block can take
-it (`removableFrom`, `SendService.remove`, the ledger's `dropRow`); until
-then its row is how the wallet would know it, should it go through after
-all.
+A send that was not sent can be removed from History once it can no longer
+go through (`removable`, `SendService.remove`, the ledger's `dropRow`);
+until then its row is how the wallet would know it, should it go through
+after all.
 
 Browser prover (`web/src/backend/browser/proverClient.ts`, `proverWorker.ts`).
 A fresh worker per proof, so a failed or cancelled run frees its memory. It

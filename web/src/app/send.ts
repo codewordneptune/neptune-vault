@@ -106,16 +106,31 @@ export function sameSentRecently(history: HistoryRecord[], payees: { address: st
   return found;
 }
 
+/** The engine's note on a send the person gave up on; rows from before the mark was kept are told by it. */
+const GAVE_UP = 'You gave up on this send.';
+
+/** What happened to a send that expired, whatever words its row was stored with. */
+export const EXPIRED_NOTE = 'No block took it within three days, so its coins are spendable again.';
+
 /**
- * From when a send that was not sent may leave History: once no block can
- * take it, so that it can no longer go through (0 for one that expired).
- * Until then its row is how the wallet knows it, should it go through after
- * all, and what keeps a new send to the same person from paying twice.
- * Null for any other row.
+ * Whether a send that was not sent may still go through: one given up on,
+ * or one that expired, none of whose coins has been spent. Its transaction
+ * stays valid until then, so a block can still take it, and it shows up as
+ * Sent if one does. `spent` says whether one of this wallet's coins has
+ * been spent in a block.
  */
-export function removableFrom(h: HistoryRecord): number | null {
+export function mayStillGo(h: HistoryRecord, spent: (coin: string) => boolean): boolean {
+  return h.kind === 'sent' && h.status === 'failed' && (h.givenUp === true || h.expired === true || h.error === GAVE_UP) && !h.inputHashes.some(spent);
+}
+
+/**
+ * Whether a send that was not sent may leave History: once it can no
+ * longer go through (see mayStillGo). Until then its row is how the wallet
+ * knows it, should it go through after all. Null for any other row.
+ */
+export function removable(h: HistoryRecord, spent: (coin: string) => boolean): boolean | null {
   if (h.kind !== 'sent' || h.status !== 'failed') return null;
-  return h.expired ? 0 : (h.stampMs ?? h.timestampMs) + SEND_LIFETIME_MS;
+  return !mayStillGo(h, spent);
 }
 
 /** The most recipients one send pays: the core refuses more (`MAX_PAYMENTS` in send.rs). */
@@ -506,10 +521,11 @@ export class SendService {
     await this.ledger({ op: 'forgetSend', txid });
   }
 
-  /** Take a send that was not sent out of History, once it can no longer go through (see removableFrom). */
-  async remove(record: HistoryRecord, nowMs = Date.now()): Promise<void> {
-    const from = removableFrom(record);
-    if (from === null || from > nowMs) throw new Error('This send may still go through, so it stays in History for now.');
+  /** Take a send that was not sent out of History, once it can no longer go through (see removable). */
+  async remove(record: HistoryRecord): Promise<void> {
+    const coins = (await this.core.storeRead?.(this.accountId, 'utxos')) as { hash: string; spentHeight: number | null }[] | undefined;
+    const spent = new Set((coins ?? []).filter((u) => u.spentHeight !== null).map((u) => u.hash));
+    if (removable(record, (coin) => spent.has(coin)) !== true) throw new Error('This send may still go through, so it stays in History for now.');
     await this.ledger({ op: 'dropRow', key: record.key });
   }
 }

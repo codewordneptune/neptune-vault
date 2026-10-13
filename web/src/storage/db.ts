@@ -149,9 +149,11 @@ export interface HistoryRecord {
   mempoolCheckedAt?: number | null;
   /** For sends built here: the transaction's own timestamp. Absent on rows from before it was kept. */
   stampMs?: number;
-  /** For a send given up on, or one that expired (no block can take it any more): the engine's marks. */
+  /** For a send given up on, or one that expired (no block took it in time): the engine's marks. Either may still go through until one of its coins is spent. */
   givenUp?: boolean;
   expired?: boolean;
+  /** For a pending send: a block had confirmed it, and that block was rolled back. It is never expired by time. */
+  rolledBack?: boolean;
   /** For a payment on its way in: which of this wallet's addresses it is paid to. */
   keyKind?: KeyKind;
   keyIndex?: number;
