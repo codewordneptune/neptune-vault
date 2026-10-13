@@ -52,11 +52,16 @@ What each platform should get:
 | Platform | Files |
 |---|---|
 | Windows | `.msi` and a `-setup.exe` (NSIS) |
-| Linux | `.deb`, `.rpm` and an `.AppImage` |
+| Linux | `.deb` and an `.rpm` |
 | macOS | `.app` in a `.dmg`, one per chip |
 
-A release also carries `SHA256SUMS`. No release has been published yet;
-the last run by hand, on 2026-10-06, built these files.
+A release also carries `SHA256SUMS`. No release has been published yet.
+
+No AppImage: to make one, the bundler downloads AppRun, linuxdeploy and
+three plugins while it builds, and checks none of them, and two of them
+would ship inside it. The `.deb` and `.rpm` it makes by itself. If a
+package for every Linux distribution is wanted later, look at Flatpak:
+Flathub builds from sources pinned by checksum.
 
 ## Checking a download
 
