@@ -305,11 +305,12 @@ Where secrets go:
 - The seed phrase reaches the page when a new one is shown to be written
   down, when one is typed in, and when the person asks to see it (password
   again).
-- While a new wallet is being made, its generated seed phrase is kept in
-  clear in the tab's sessionStorage (`neptune-vault.onboarding-draft`), so
-  a reload or an app switch does not lose it. It goes when the wallet is
-  made, setup is left or the tab closes. An imported seed phrase is never
-  stored (`web/src/screens/Onboarding.tsx`).
+- A seed phrase being set up, generated or typed in, stays in the setup
+  screen's memory until the wallet is made, and nothing writes it to web
+  storage, which browsers keep on disk. A reload during setup starts again;
+  a mark that holds no words (`neptune-vault.setup-unfinished` in
+  localStorage) has the first screen say that the phrase shown before
+  belongs to no wallet (`web/src/screens/Onboarding.tsx`).
 
 Passkeys (`web/src/app/passkey.ts`). A platform passkey with the WebAuthn PRF
 extension yields a 32-byte secret after user verification. It wraps the same

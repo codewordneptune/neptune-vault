@@ -27,42 +27,34 @@ import { Spoken } from '../components/Spoken';
 
 type Step = 'welcome' | 'existing' | 'show' | 'confirm' | 'password' | 'import' | 'file';
 
-// A newly generated phrase lives in this tab's session storage until the
-// account exists, so a screenshot, app switch, tab discard or reload does
-// not throw the user back to the start. It has no funds behind it yet, is
-// invisible to other tabs and sites, and is wiped on completion or when the
-// tab closes. An imported phrase is never stored: it usually has funds
-// behind it, and no password protects anything at that point. It stays in
-// this screen's memory, and a reload asks for the words again.
-const DRAFT_KEY = 'neptune-vault.onboarding-draft';
-interface Draft {
-  phrase: string[];
-  network: Network;
-  imported: boolean;
-  birthday: number | string;
-  /** Imported with the fast restore (the node's coin index) rather than a scan from a block. */
-  fast?: boolean;
-}
-function loadDraft(): Draft | null {
+// A seed phrase being set up, new or typed in, lives only in this screen's
+// memory. Browsers write session and local storage to disk, where deleting
+// does not erase, and phone backups copy them, so a phrase kept there could
+// be read once it guards funds. A reload during setup therefore starts again
+// with a new phrase, and a mark that holds no words lets the first screen say
+// so, in case the old one was written down.
+const UNFINISHED_KEY = 'neptune-vault.setup-unfinished';
+const LEGACY_DRAFT_KEY = 'neptune-vault.onboarding-draft';
+function setupUnfinished(): boolean {
   try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    const draft = raw ? (JSON.parse(raw) as Draft) : null;
-    // A draft written by an older version may hold an imported phrase: gone at first sight.
-    if (draft?.imported) {
-      sessionStorage.removeItem(DRAFT_KEY);
-      return null;
-    }
-    return draft;
+    return localStorage.getItem(UNFINISHED_KEY) === '1';
   } catch {
-    return null;
+    return false;
   }
 }
-function saveDraft(draft: Draft | null) {
+function markUnfinished(unfinished: boolean) {
   try {
-    if (draft) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    else sessionStorage.removeItem(DRAFT_KEY);
+    if (unfinished) localStorage.setItem(UNFINISHED_KEY, '1');
+    else localStorage.removeItem(UNFINISHED_KEY);
   } catch {
-    // Session storage unavailable: onboarding still works, just without resume.
+    // Storage unavailable: only the reminder after a reload is lost.
+  }
+}
+function dropLegacyDraft() {
+  try {
+    sessionStorage.removeItem(LEGACY_DRAFT_KEY);
+  } catch {
+    // Nothing to drop.
   }
 }
 
@@ -72,14 +64,15 @@ export function Onboarding() {
   // Adding a wallet next to an existing one: same steps, a way back to it.
   const location = useLocation();
   const adding = Boolean(account) && new URLSearchParams(location.search).has('add');
-  const draft = loadDraft();
-  const [step, setStep] = useState<Step>(draft ? (draft.imported ? 'password' : 'show') : 'welcome');
+  const [step, setStep] = useState<Step>('welcome');
+  const [interrupted, setInterrupted] = useState(setupUnfinished);
+  useEffect(dropLegacyDraft, []);
   // The network the new wallet goes on. Without Developer networks it is
   // Mainnet, and nobody is asked. With it, setup asks, starting on Mainnet,
   // or on the network picked in the wallet menu when that one has no wallet
   // yet (that is why setup is open). The app moves there once it is made.
   const developer = services.settings.developerNetworks === true;
-  const [chosen, setChosen] = useState<Network>(draft?.network ?? (adding ? 'main' : currentNetwork));
+  const [chosen, setChosen] = useState<Network>(adding ? 'main' : currentNetwork);
   const network: Network = developer ? chosen : 'main';
   const shownNetwork = useRef(currentNetwork);
   useEffect(() => {
@@ -89,15 +82,15 @@ export function Onboarding() {
   }, [currentNetwork, adding]);
   // That network's node, which need not be the app's yet.
   const node = () => nodeFor(services.settings.nodeUrls[network], network);
-  const [phrase, setPhrase] = useState<string[]>(draft?.phrase ?? []);
-  const [imported, setImported] = useState(draft?.imported ?? false);
-  const [birthday, setBirthday] = useState<number | string>(draft?.birthday ?? 1);
+  const [phrase, setPhrase] = useState<string[]>([]);
+  const [imported, setImported] = useState(false);
+  const [birthday, setBirthday] = useState<number | string>(1);
   // When an imported phrase first received a payment: not known (find
   // everything), a month (scan from its first block), or never (start at the
   // tip; 0 = unknown, resolved at first sync).
   const [when, setWhen] = useState<FirstFunds>('unknown');
   const [month, setMonth] = useState('');
-  const [fast, setFast] = useState(draft?.fast ?? true);
+  const [fast, setFast] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Networks other than the app's that have a wallet on this device: after
@@ -150,7 +143,8 @@ export function Onboarding() {
       const words = await services.accounts.generatePhrase();
       setPhrase(words);
       setImported(false);
-      saveDraft({ phrase: words, network, imported: false, birthday });
+      markUnfinished(true);
+      setInterrupted(false);
       setStep('show');
     } catch (e) {
       setError((e as Error).message);
@@ -231,7 +225,7 @@ export function Onboarding() {
       }
       await pauseSync();
       const record = await services.accounts.createAccount(phrase, password, network, height, { fastRestore, name: adding ? name : undefined });
-      saveDraft(null);
+      markUnfinished(false);
       await services.accounts.markBackupConfirmed(record.id);
       await services.updateSettings({ currentAccountId: record.id, network: record.network });
       setAccount({ ...record, backupConfirmed: true });
@@ -255,7 +249,7 @@ export function Onboarding() {
       const parsed = parseBackupFile(await file.text());
       await pauseSync();
       const record = await services.accounts.importFile(parsed, password, { fastRestore: fast });
-      saveDraft(null);
+      markUnfinished(false);
       await services.updateSettings({ currentAccountId: record.id, network: record.network });
       setAccount(record);
       if (record.network !== currentNetwork) {
@@ -292,6 +286,18 @@ export function Onboarding() {
             <Text size="sm" c="dimmed">
               {adding ? 'Another wallet on this device, with its own seed phrase and password.' : 'Your keys stay on this device.'}
             </Text>
+            {interrupted && (
+              <Caution
+                title="The last setup did not finish"
+                onClose={() => {
+                  markUnfinished(false);
+                  setInterrupted(false);
+                }}
+                closeLabel="Dismiss"
+              >
+                Its seed phrase was not kept. If you wrote it down, cross it out: it belongs to no wallet. A new wallet gets a new phrase.
+              </Caution>
+            )}
             {/* Two doors: a new wallet, or one that exists; which way to bring
                 one back is asked behind the second door. */}
             <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
@@ -316,19 +322,6 @@ export function Onboarding() {
                   ))}
                 </Group>
               </Info>
-            )}
-            {draft && (
-              <Button
-                variant="subtle"
-                onClick={() => {
-                  saveDraft(null);
-                  setPhrase([]);
-                  // The button goes with the draft: focus moves to the first choice.
-                  setTimeout(() => stepsRef.current?.querySelector<HTMLElement>('.mantine-Paper-root button')?.focus(), 0);
-                }}
-              >
-                Discard the unfinished wallet
-              </Button>
             )}
             {adding && (
               <Button variant="subtle" onClick={() => (location.key !== 'default' ? navigate(-1) : navigate('/'))}>
@@ -412,7 +405,7 @@ export function Onboarding() {
               </Text>
             </Stack>
             <Button onClick={startConfirm}>I have written them down</Button>
-            <Button variant="subtle" onClick={() => { saveDraft(null); setPhrase([]); setStep('welcome'); }}>
+            <Button variant="subtle" onClick={() => { markUnfinished(false); setPhrase([]); setStep('welcome'); }}>
               Cancel
             </Button>
           </Stack>
@@ -502,8 +495,6 @@ export function Onboarding() {
           onPhrase={(words) => {
             setPhrase(words);
             setImported(true);
-            // Not saved anywhere: see the note on the draft above.
-            saveDraft(null);
             setStep('password');
           }}
           onBack={() => setStep('existing')}

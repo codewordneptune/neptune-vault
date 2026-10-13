@@ -35,6 +35,13 @@ A high-trust app that needs no personal registration with Google:
   web view starts navy too (`shells/tauri/tauri.android.conf.json`), until
   the page paints. Everything else is Tauri's default. Not yet tried on a
   phone.
+- **No Android backup.** The same patch sets `android:allowBackup="false"`
+  and adds data extraction rules
+  (`shells/tauri/android-res/xml/data_extraction_rules.xml`) that leave the
+  app's data out of the cloud backup and of a transfer to a new phone, as
+  turning backup off alone does not stop that transfer on some makers'
+  phones. A new phone starts empty: the seed phrase or a backup file brings
+  the wallet back. Not yet tried on a phone.
 - **Pull to sync.** On Home, a pull down from the top of the page syncs, as
   Sync does (`web/src/app/pullToSync.ts`, in the phone apps only). Tried
   with touch events in Chrome, not yet on a phone.
@@ -78,14 +85,6 @@ A high-trust app that needs no personal registration with Google:
    - Keep the screen on from the native side while a send is proved or a
      long scan or restore runs, as the web app asks the browser to
      (`web/src/app/wakeLock.ts`). Today the app asks only the web view.
-   - Android's own backup. The generated project leaves
-     `android:allowBackup` at its default, so Android may copy the app's
-     data (the encrypted seed phrase and the wallet's sealed logs included)
-     to the person's Google account, and to a new phone. Turn it off, and
-     add data extraction rules that leave everything out of both the cloud
-     backup and a transfer to a new phone, in the manifest the workflow
-     patches: on Android 12 and later, turning backup off does not stop
-     that transfer on some makers' phones.
 3. **Fingerprint unlock** (not done yet), in place of passkey unlock, which
    the Android web view cannot offer (see below).
 4. **Release pipeline and key** (see below).

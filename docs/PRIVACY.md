@@ -3,7 +3,7 @@
 What this wallet keeps, what it sends and to whom, and what is public. The
 same text is shown in the app under Settings, About, Privacy statement; the
 app's copy (`web/src/content/privacy.ts`) is the reference and this file
-mirrors it. Last changed 2026-10-07.
+mirrors it. Last changed 2026-10-13.
 
 The desktop and Android apps show the same statement with a few sentences
 changed where they differ from a browser; those are marked below.
@@ -31,14 +31,12 @@ storage on this device. Nothing is kept anywhere else by this app.
 *In the desktop and Android apps:* all of it lives in the app's own storage
 on this device.
 
-*In the Android app*, also: Android's own backup may copy it, the encrypted
-parts included, to your Google account and to a new phone, until the app
-turns that off.
+*In the Android app*, also: Android's own backup and its transfer to a new
+phone leave it out.
 
-While you set up a new wallet, its new seed phrase is kept without
-encryption, so a reload does not lose it, until the wallet is made, you
-cancel it in setup or the tab closes (*in the desktop and Android apps*, the app
-closes). An imported seed phrase is never kept that way.
+A seed phrase being set up, new or typed in, is never written to storage:
+it stays in memory until the wallet is made, and a reload during setup
+starts again.
 
 Clearing the browser's site data deletes all of it. The seed phrase or a
 backup file is the only way back.

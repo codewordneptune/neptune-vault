@@ -11,7 +11,7 @@ export interface PrivacySection {
   paragraphs: string[];
 }
 
-export const PRIVACY_UPDATED = '2026-10-07';
+export const PRIVACY_UPDATED = '2026-10-13';
 
 /** The statement in a few lines, before its sections. */
 export const PRIVACY_SUMMARY =
@@ -24,10 +24,8 @@ export const PRIVACY: PrivacySection[] = [
       "Your seed phrase, encrypted with your password (and, if you turn it on, wrapped for your passkey). The coins found by scanning, your history and its notes, your contacts, the names you gave your addresses and which of them you have given out, all encrypted too, so they cannot be read while the wallet is locked. Your seed phrase can open all of it too, so that it can set a new password if you forget yours. Kept without encryption: each wallet's name, network, creation time, start block and address count, a few marks such as whether its seed phrase was confirmed and when you last saved a backup file, and the settings, such as the node's address, the lock times and a record of the last proof. All of it lives in " +
         (NATIVE ? "the app's own storage" : "this browser's storage") +
         ' on this device. Nothing is kept anywhere else by this app.' +
-        (NATIVE && !DESKTOP ? " Android's own backup may copy it, the encrypted parts included, to your Google account and to a new phone, until the app turns that off." : ''),
-      'While you set up a new wallet, its new seed phrase is kept without encryption, so a reload does not lose it, until the wallet is made, you cancel it in setup or ' +
-        (NATIVE ? 'the app closes' : 'the tab closes') +
-        '. An imported seed phrase is never kept that way.',
+        (NATIVE && !DESKTOP ? " Android's own backup and its transfer to a new phone leave it out." : ''),
+      'A seed phrase being set up, new or typed in, is never written to storage: it stays in memory until the wallet is made, and a reload during setup starts again.',
       NATIVE
         ? "Deleting the app's data deletes all of it. The seed phrase or a backup file is the only way back."
         : "Clearing the browser's site data deletes all of it. The seed phrase or a backup file is the only way back.",
