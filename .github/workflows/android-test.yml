@@ -1,5 +1,6 @@
 # Builds a test APK of the app for Android phones (64-bit ARM) from the
-# Tauri shell, on each push to cwn/android, or by hand from the Actions tab.
+# Tauri shell, on each push to cwn/android, or by hand from the Actions tab
+# on a branch other than main.
 #
 # Not a release. Gradle leaves a release APK unsigned and Android installs
 # only signed ones, so the APK is signed with a key made for this one run
@@ -30,6 +31,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
+      # Never on main: runs on every branch and tag can restore what a run on
+      # main saves in the Actions cache, so a compromised build there could
+      # reach the others, desktop releases included (security audit R1).
+      - name: Not on main
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "::error::Start this workflow on a branch other than main."
+          exit 1
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # The runner carries the Android SDK, its NDKs, and Java 17, which the

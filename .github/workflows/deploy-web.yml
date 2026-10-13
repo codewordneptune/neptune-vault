@@ -17,7 +17,9 @@ concurrency:
 jobs:
   build-and-deploy:
     # A named image and an exact Node, so that the same commit builds the
-    # same files next month as today.
+    # same files next month as today. Nothing comes from the Actions cache,
+    # for cargo or npm: any other run on main can save an entry there, and
+    # this build would ship what it holds (security audit R1).
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -27,16 +29,6 @@ jobs:
       # target; the threaded build rebuilds std, so both are required.
       - name: Rust toolchain
         run: rustup show
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: wasm-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', '.cargo/config.toml') }}
-          restore-keys: wasm-${{ runner.os }}-
 
       # The wallet core's own tests, which the web tests cannot stand in
       # for: key derivation, scanning, the chain checks held against real
@@ -56,8 +48,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22.20.0
-          cache: npm
-          cache-dependency-path: web/package-lock.json
 
       - name: Install, test, build
         working-directory: web

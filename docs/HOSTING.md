@@ -60,14 +60,16 @@ tab. A newer run cancels one still in progress. It:
 
 1. runs the wallet core's Rust tests (`cargo test -p vault-core`);
 2. builds the two wasm packages with the pinned nightly and wasm-pack,
-   both installed on every run (the cargo registry and the build
-   directory are cached between runs);
+   both installed on every run;
 3. runs `npm ci --ignore-scripts`, the web tests and `npm run build`;
 4. publishes the SHA-256 of every file it is about to upload (below);
 5. uploads `dist`.
 
-A run takes about half an hour, most of it building the two wasm packages;
-the cargo cache saves downloads more than time.
+Every run builds its commit from nothing. It restores no Actions cache,
+for cargo or npm, because any run on `main` can save an entry there, and
+the deploy would ship what it holds. For the same reason the desktop and
+Android workflows stop at once when started on `main`. A run takes about
+45 minutes, most of it building the two wasm packages.
 
 To deploy from this PC instead, in an emergency only: it publishes no hash
 list, so the site serves files no run has listed until the next deploy

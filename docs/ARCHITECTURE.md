@@ -727,11 +727,13 @@ native screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
   by hand; its Rust step is vault-core's tests only.
   `.github/workflows/deploy-web.yml` runs the Rust tests, the wasm builds,
   `npm ci --ignore-scripts`, the tests and the build, publishes a SHA-256
-  list and deploys to Azure Static Web Apps.
-  `.github/workflows/release-desktop.yml` builds `desktop-v*` tags into
-  draft pre-releases. `.github/workflows/android-test.yml` builds an arm64
-  test APK on a push to `cwn/android` or by hand from the Actions tab,
-  signed with a key made for that run and then thrown away. See
+  list and deploys to Azure Static Web Apps. It restores nothing from the
+  Actions cache. `.github/workflows/release-desktop.yml` builds
+  `desktop-v*` tags into draft pre-releases.
+  `.github/workflows/android-test.yml` builds an arm64 test APK on a push
+  to `cwn/android` or by hand from the Actions tab, signed with a key made
+  for that run and then thrown away. Both stop at once when started on
+  `main`, whose cache entries every other run can restore. See
   [README.md](../README.md), [HOSTING.md](HOSTING.md),
   [DESKTOP-RELEASE.md](DESKTOP-RELEASE.md) and [ANDROID.md](ANDROID.md).
 

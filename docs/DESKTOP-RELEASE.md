@@ -34,9 +34,11 @@ The Android app is built from the same shell; see [ANDROID.md](ANDROID.md).
    Download button opens this page), then publish the draft. Only a
    published release reaches the apps' update notice; a draft never does.
 
-A run started by hand from the Actions tab only builds. Every run, tagged or
-not, also keeps the installers as workflow artifacts, for as long as the
-repository's artifact retention setting says (90 days unless changed).
+A run started by hand from the Actions tab only builds. Start it on a
+branch other than `main`: on `main` it stops at once (see
+[HOSTING.md](HOSTING.md#deploying)). Every run, tagged or not, also keeps
+the installers as workflow artifacts, for as long as the repository's
+artifact retention setting says (90 days unless changed).
 
 What each platform should get:
 

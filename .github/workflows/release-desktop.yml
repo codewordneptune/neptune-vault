@@ -2,8 +2,9 @@
 # Linux and macOS, and attaches their installers to a draft GitHub release.
 #
 # Run it by pushing a tag named desktop-v<version> (for example
-# desktop-v0.2.0), or by hand from the Actions tab, which builds without
-# releasing and keeps the installers as workflow artifacts.
+# desktop-v0.2.0), or by hand from the Actions tab on a branch other than
+# main, which builds without releasing and keeps the installers as workflow
+# artifacts.
 #
 # Unsigned for now: code signing and the auto-updater need keys only the
 # maintainer can create. docs/DESKTOP-RELEASE.md lists them and where they go.
@@ -48,6 +49,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 150
     steps:
+      # Never on main: runs on every branch and tag can restore what a run on
+      # main saves in the Actions cache, so a compromised build there could
+      # reach the others, releases included (security audit R1).
+      - name: Not on main
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          echo "::error::Start this workflow on a branch other than main, or push a desktop-v tag for a release."
+          exit 1
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # The webview and the libraries a Tauri app links on Linux.

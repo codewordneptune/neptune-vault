@@ -20,8 +20,9 @@ A high-trust app that needs no personal registration with Google:
 ## Where it stands
 
 - **Test builds.** `.github/workflows/android-test.yml` builds an arm64 APK
-  when run by hand from the Actions tab, on `main` or a branch made from
-  it. It also runs on a push to `cwn/android`, which was merged into `main`
+  when run by hand from the Actions tab on a branch made from `main`; on
+  `main` itself it stops at once (see [HOSTING.md](HOSTING.md#deploying)).
+  It also runs on a push to `cwn/android`, which was merged into `main`
   on 2026-10-01 and has not moved since. Each APK is signed with a key made
   for that run and thrown away, and is kept on the run's page for 14 days.
   A newer test build installs only after the older one is uninstalled,
