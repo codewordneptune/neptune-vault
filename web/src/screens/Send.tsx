@@ -1082,8 +1082,14 @@ export function Send() {
     // A send given up on that may still pay the same person: this send also
     // spends one of its coins, as SendService does, alone if it pays for all.
     const rivals = rivalsFor(payees.map((x) => x.address));
-    // This device's sends that already paid a recipient the same amount.
+    // This device's sends that already paid a recipient the same amount: per
+    // recipient, the latest of them and how many there were.
     const sameBefore = sameSentRecently(history, payees);
+    const sentAt = (h: HistoryRecord) => h.stampMs ?? h.timestampMs;
+    const sameFor = [...new Set(sameBefore.map((m) => m.address))].map((address) => {
+      const earlier = sameBefore.filter((m) => m.address === address).map((m) => m.record);
+      return { address, latest: earlier.reduce((a, b) => (sentAt(b) > sentAt(a) ? b : a)), count: earlier.length };
+    });
     const whoIs = (address: string) => {
       if (isOwn(address)) return 'yourself';
       const payee = payees.find((p) => p.address === address);
@@ -1228,12 +1234,12 @@ export function Send() {
               <Spoken text={`While this send is pending, ${showNau(spendableWhile)} NPT stays spendable; its change of ${showNau(spendableAfter - spendableWhile)} NPT is on hold until it confirms.`} />
             </Text>
           )}
-          {sameBefore.length > 0 && (
+          {sameFor.length > 0 && (
             <Caution title="You sent this recently">
-              {sameBefore.slice(0, 3).map(({ address, record }) => (
-                <Text key={`${record.key} ${address}`} size="sm">
-                  You sent <bdi>{whoIs(address)}</bdi> this same amount <Spoken text={timeAgo(record.stampMs ?? record.timestampMs)} />, and{' '}
-                  {record.status === 'pending' ? 'it is still waiting for a block' : 'a block has confirmed it'}.
+              {sameFor.map(({ address, latest, count }) => (
+                <Text key={address} size="sm">
+                  You sent <bdi>{whoIs(address)}</bdi> this same amount {count > 1 ? `${count} times recently, the last ` : ''}
+                  <Spoken text={timeAgo(sentAt(latest))} />, and {latest.status === 'pending' ? 'it is still waiting for a block' : 'a block has confirmed it'}.
                 </Text>
               ))}
               <Text size="sm">Check that this is a new payment, not the same one again.</Text>
