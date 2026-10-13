@@ -500,7 +500,14 @@ list. In development `/regtest-node` is proxied to `127.0.0.1:9797`
 
 `SendService.send` in `web/src/app/send.ts`. The Send screen has already
 asked for the wallet's password or passkey on the review, unless that is
-turned off for the wallet (`confirmSends`).
+turned off for the wallet (`confirmSends`). The review is one reading of
+the form, taken when Review was pressed and checked, and the request is
+built from that reading alone, so a change made meanwhile cannot pair one
+recipient with another's amount. An unusually high or low fee goes out
+only once agreed to on the review, by the button or by Enter. When a send
+of this device already paid a recipient the same amount, still waiting
+for a block or confirmed less than a day ago, the review says so
+(`sameSentRecently`): paying the same twice is usually a mistake.
 
 1. `chain_tipHeader`, for the time. The transaction is stamped with the
    device's clock but never later than the newest block, and a clock more
@@ -680,7 +687,9 @@ Android app. The same shell, built with `tauri android` (`lib.rs` has the
 mobile entry point). What differs is gated by `NATIVE`, `MOBILE`, `DESKTOP`
 and `ANDROID` in `web/src/app/platform.ts`. Payment links (`neptunecash:`)
 open the app through Tauri's deep-link plugin, phones only, and fill in
-Send (`web/src/app/paymentLinks.ts`). While a seed phrase is shown or typed,
+Send (`web/src/app/paymentLinks.ts`) once: the link is then taken off its
+history entry, so neither Back nor Send coming back after an unlock fills
+it in again. While a seed phrase is shown or typed,
 `app_secure_screen` keeps the window out of screenshots and the recent-apps
 preview (FLAG_SECURE, `web/src/app/secureScreen.ts`). A pull down from the
 top of Home syncs (`web/src/app/pullToSync.ts`). The window and the web view

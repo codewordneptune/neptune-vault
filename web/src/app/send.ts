@@ -81,6 +81,31 @@ export function givenUpRivals(history: HistoryRecord[], freeCoins: ReadonlySet<s
   );
 }
 
+/** How long after a send confirmed the review still mentions it when the same is paid again. */
+export const SAME_PAYMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * This device's sends that already paid one of `payees` the same amount:
+ * still waiting for a block, however old, or confirmed less than a day ago.
+ * A second payment like that is often the first one made again by mistake
+ * (a request filled in again, a send that looked as if it had failed), so
+ * the review says so. Sends given up on are left to `givenUpRivals`.
+ */
+export function sameSentRecently(history: HistoryRecord[], payees: { address: string; nau: bigint }[], nowMs = Date.now()): { address: string; record: HistoryRecord }[] {
+  const found: { address: string; record: HistoryRecord }[] = [];
+  for (const h of history) {
+    if (h.kind !== 'sent' || h.givenUp || h.expired) continue;
+    const recent = h.status === 'pending' || (h.status === 'confirmed' && nowMs - (h.stampMs ?? h.timestampMs) < SAME_PAYMENT_WINDOW_MS);
+    if (!recent) continue;
+    const paid = h.payments?.length ? h.payments : h.recipient ? [{ recipient: h.recipient, amountNau: h.amountNau }] : [];
+    for (const p of payees) {
+      const address = p.address.trim().toLowerCase();
+      if (paid.some((x) => x.recipient.trim().toLowerCase() === address && BigInt(x.amountNau) === p.nau)) found.push({ address: p.address, record: h });
+    }
+  }
+  return found;
+}
+
 /**
  * From when a send that was not sent may leave History: once no block can
  * take it, so that it can no longer go through (0 for one that expired).

@@ -17,7 +17,7 @@ import { formatAbout, formatDuration, timeAgo } from '../util/time';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
 import { fiatOf, fiatOfTyped, formatFiat } from '../util/fiat';
-import { cleanNote, givenUpRivals, MAX_PAYMENTS, paymentsTotalNau, SEND_NOTE_MAX, RequiresLustrationError, SendBusyError, SendUnconfirmedError } from '../app/send';
+import { cleanNote, givenUpRivals, MAX_PAYMENTS, paymentsTotalNau, SEND_NOTE_MAX, RequiresLustrationError, sameSentRecently, SendBusyError, SendUnconfirmedError } from '../app/send';
 import { isCancellation } from '../app/passkey';
 import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
@@ -244,6 +244,28 @@ function AmountHero({
   );
 }
 
+/** The amounts as checked: each payment in nau (the first recipient's first), their sum, and the fee. */
+interface Totals {
+  amountNau: bigint;
+  feeNau: bigint;
+  feeHigh: boolean;
+  feeLow: boolean;
+  payments: bigint[];
+}
+
+/** A send as reviewed: each payment with its address, typed amount, nau and contact name, and the rest of the form. */
+interface Reviewed {
+  payees: { address: string; amount: string; nau: bigint; name: string | null }[];
+  amountNau: bigint;
+  feeNau: bigint;
+  fee: string;
+  feeHigh: boolean;
+  feeLow: boolean;
+  note: string | null;
+  /** A payment link's name, shown unverified on a send to one recipient. */
+  label: string | null;
+}
+
 export function Send() {
   const { services, account, balance, utxos, history, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
   // Sends given up on that may still pay someone a send to these addresses pays (givenUpRivals).
@@ -349,8 +371,6 @@ export function Send() {
   const [feeAgreed, setFeeAgreed] = useState(false);
   // "Max" in exact nau: the shown text has eight decimals and the balance has more.
   const [maxExact, setMaxExact] = useState<{ text: string; nau: bigint } | null>(null);
-  // The contact name of each recipient on the review sheet, when it is one.
-  const [reviewNames, setReviewNames] = useState<(string | null)[]>([]);
   const [recipientError, setRecipientError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [feeError, setFeeError] = useState<string | null>(null);
@@ -372,8 +392,10 @@ export function Send() {
   };
   // The amount fields, by recipient (0 is the first), for where focus goes after a Remove.
   const amountRefs = useRef(new Map<number, HTMLInputElement>());
-  // As reviewed: each payment in nau (the first recipient's first), their sum, and the fee.
-  const [totals, setTotals] = useState<{ amountNau: bigint; feeNau: bigint; feeHigh: boolean; feeLow: boolean; payments: bigint[] } | null>(null);
+  // What the review sheet shows and Send sends: one reading of the form,
+  // taken when Review was pressed and checked, so that a change made while
+  // the checks run cannot pair one recipient with another's amount or name.
+  const [reviewed, setReviewed] = useState<Reviewed | null>(null);
   const [askLustration, setAskLustration] = useState(false);
   // Which recipient Scan and Choose contact fill: 0 for the first, else an added one's id.
   const [scanFor, setScanFor] = useState<number | null>(null);
@@ -527,7 +549,7 @@ export function Send() {
   // Every amount and the fee, against the spendable balance. On leaving a
   // field (`leaving`) an amount or a fee that is still empty is not an error
   // yet: the person may be on the way to it.
-  const checkAmounts = async (leaving = false): Promise<boolean> => {
+  const checkAmounts = async (leaving = false): Promise<{ ok: boolean; totals: Totals | null }> => {
     const typed = await parsePositive(amount, 'amount');
     // Max means everything: the exact figure, not the eight decimals on screen.
     const a = maxExact && extras.length === 0 && maxExact.text === amount && 'nau' in typed ? { nau: maxExact.nau } : typed;
@@ -541,6 +563,7 @@ export function Send() {
     });
     const feeMessage = 'message' in f ? (leaving && fee.trim() === '' ? null : f.message) : null;
     const parsed = [a, ...more];
+    let totals: Totals | null = null;
     if (parsed.every((p) => 'nau' in p) && 'nau' in f) {
       const payments = parsed.map((p) => (p as { nau: bigint }).nau);
       const total = payments.reduce((sum, n) => sum + n, 0n);
@@ -555,14 +578,13 @@ export function Send() {
         const topPreset = BigInt(await services.core.parseAmount(FEE_PRESETS.reduce((m, p) => (Number(p.fee) > Number(m) ? p.fee : m), '0')));
         const feeHigh = f.nau > one || (f.nau > total && f.nau > topPreset);
         const feeLow = f.nau < BigInt(await services.core.parseAmount(LOW_FEE));
-        setTotals({ amountNau: total, feeNau: f.nau, feeHigh, feeLow, payments });
-        setFeeAgreed(false);
+        totals = { amountNau: total, feeNau: f.nau, feeHigh, feeLow, payments };
       }
     }
     setAmountError(amountMessage);
     setExtras((all) => all.map((x, i) => ({ ...x, amountError: moreMessages[i] ?? null })));
     setFeeError(feeMessage);
-    return amountMessage === null && feeMessage === null && moreMessages.every((m) => m === null);
+    return { ok: amountMessage === null && feeMessage === null && moreMessages.every((m) => m === null), totals };
   };
 
   // Everything spendable minus the current fee; the fee must parse first.
@@ -584,22 +606,44 @@ export function Send() {
   };
 
   const formRef = useRef<HTMLFormElement>(null);
+  const [reviewing, setReviewing] = useState(false);
   const review = async () => {
-    const checks = await Promise.all([checkRecipient(), ...extras.map((x) => checkExtraRecipient(x.id)), checkAmounts()]);
-    if (!checks.every(Boolean)) {
-      // Review stays pressable, so what stands in its way is shown, and the
-      // first such field, which may be below the fold, gets the focus.
-      setTimeout(() => {
-        const first = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
-        first?.focus();
-        first?.scrollIntoView({ block: 'center' });
-      }, 0);
-      return;
+    if (reviewing) return;
+    setReviewing(true);
+    try {
+      // The form as it was pressed, which the checks below judge too: what
+      // they pass is what the review shows, whatever changes meanwhile.
+      const form = { recipient, amount, extras, fee, note, linkMeta };
+      const [amounts, addressesOk] = await Promise.all([checkAmounts(), Promise.all([checkRecipient(), ...extras.map((x) => checkExtraRecipient(x.id))])]);
+      const totals = amounts.totals;
+      if (!amounts.ok || !totals || !addressesOk.every(Boolean)) {
+        // Review stays pressable, so what stands in its way is shown, and the
+        // first such field, which may be below the fold, gets the focus.
+        setTimeout(() => {
+          const first = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+          first?.focus();
+          first?.scrollIntoView({ block: 'center' });
+        }, 0);
+        return;
+      }
+      const addresses = [form.recipient, ...form.extras.map((x) => x.recipient)].map((a) => a.trim());
+      const typed = [form.amount, ...form.extras.map((x) => x.amount)].map((a) => a.trim());
+      const names = await Promise.all(addresses.map(async (a) => (account ? ((await services.contacts.findByAddress(account.id, a))?.name ?? null) : null)));
+      setReviewed({
+        payees: addresses.map((address, i) => ({ address, amount: typed[i], nau: totals.payments[i], name: names[i] })),
+        amountNau: totals.amountNau,
+        feeNau: totals.feeNau,
+        fee: form.fee.trim(),
+        feeHigh: totals.feeHigh,
+        feeLow: totals.feeLow,
+        note: cleanNote(form.note) || null,
+        label: form.linkMeta?.label ?? null,
+      });
+      setFeeAgreed(false);
+      setStep('review');
+    } finally {
+      setReviewing(false);
     }
-    const addresses = [recipient, ...extras.map((x) => x.recipient)].map((a) => a.trim());
-    const names = await Promise.all(addresses.map(async (a) => (account ? ((await services.contacts.findByAddress(account.id, a))?.name ?? null) : null)));
-    setReviewNames(names);
-    setStep('review');
   };
 
   // A second tap while the first is being taken up does nothing at all.
@@ -624,31 +668,34 @@ export function Send() {
     setPassword('');
     setPasswordError(null);
     setPasskeyError(null);
+    // Consent to publish the coins is given on the review it was asked on.
+    setAskLustration(false);
   }, [step]);
   const needsApproval = confirmEach && !approvedHere;
+  // An unusually high or low fee goes out only once agreed to, however the send is started.
+  const feeNeedsAgreement = Boolean(reviewed && (reviewed.feeHigh || reviewed.feeLow) && !feeAgreed);
   const send = async (acceptLustration: boolean) => {
-    if (!account || starting || !totals) return;
+    if (!account || starting || running || !reviewed || feeNeedsAgreement) return;
+    const sending = reviewed;
     setStarting(true);
     setAskLustration(false);
     try {
       // Saving as a contact is offered after a send to one recipient.
-      const sentTo = extras.length === 0 ? recipient.trim().toLowerCase() : null;
-      const addresses = [recipient, ...extras.map((x) => x.recipient)];
-      const amounts = [amount, ...extras.map((x) => x.amount)];
+      const sentTo = sending.payees.length === 1 ? sending.payees[0].address.toLowerCase() : null;
       // The exact figures the review sheet showed go with the request, so the
       // core sends those and never parses the texts a second time, its own way.
       await startSend(
         {
-          payments: addresses.map((r, i) => ({ recipient: r.trim(), amount: amounts[i].trim(), amount_nau: totals.payments[i].toString() })),
-          fee: fee.trim(),
+          payments: sending.payees.map((p) => ({ recipient: p.address, amount: p.amount, amount_nau: p.nau.toString() })),
+          fee: sending.fee,
           accept_lustration: acceptLustration,
-          fee_nau: totals.feeNau.toString(),
+          fee_nau: sending.feeNau.toString(),
         },
-        cleanNote(note) || null,
-        { rivals: rivalsFor(addresses) },
+        sending.note,
+        { rivals: rivalsFor(sending.payees.map((p) => p.address)) },
       );
       setLastRecipient(sentTo);
-      setLastLabel(sentTo && linkMeta?.label ? linkMeta.label : null);
+      setLastLabel(sentTo && sending.label ? sending.label : null);
       setRecipient('');
       setAmount('');
       setExtras([]);
@@ -656,7 +703,7 @@ export function Send() {
       setNote('');
       setNoteOpen(false);
       filledNote.current = null;
-      setTotals(null);
+      setReviewed(null);
       setStep('form');
     } catch (e) {
       if (e instanceof SendBusyError) return;
@@ -673,7 +720,7 @@ export function Send() {
         setNote('');
         setNoteOpen(false);
         filledNote.current = null;
-        setTotals(null);
+        setReviewed(null);
         setStep('form');
       } else {
         // The failure notice lives on the form.
@@ -686,7 +733,7 @@ export function Send() {
 
   // The password, checked before anything starts; a wrong one is said at the field.
   const confirmWithPassword = async () => {
-    if (!account || !password) return;
+    if (!account || !password || feeNeedsAgreement) return;
     setChecking(true);
     setPasswordError(null);
     let ok = false;
@@ -705,7 +752,7 @@ export function Send() {
   };
   // The passkey, likewise. Closing its sheet is a choice, not an error: the password is there instead.
   const confirmWithPasskey = async () => {
-    if (!account) return;
+    if (!account || feeNeedsAgreement) return;
     setPasskeyBusy(true);
     setPasskeyError(null);
     let ok = false;
@@ -809,7 +856,7 @@ export function Send() {
     setMaxExact(null);
     setFeeAgreed(false);
     setAskLustration(false);
-    setTotals(null);
+    setReviewed(null);
     setFormSaid('Form cleared.');
     // A card gives way to the empty field, which takes the focus as it comes.
     if (recipientRef.current) recipientRef.current.focus();
@@ -817,9 +864,10 @@ export function Send() {
   };
 
   // A payment link opened from elsewhere: the form starts over from it, as
-  // from a scanned code, and a review open for an earlier send closes. Each
-  // link once, by its place in the history; nothing goes out without the
-  // review.
+  // from a scanned code, and a review open for an earlier send closes.
+  // Nothing goes out without the review. Each link once: read, it is taken
+  // off its history entry, so neither Back nor Send coming back after an
+  // unlock fills in a request that may already be paid.
   const linkRead = useRef<string | null>(null);
   useEffect(() => {
     const link = arrival?.link;
@@ -829,6 +877,7 @@ export function Send() {
     clearForm();
     applyText(link);
     setFormSaid('Filled in from the payment link.');
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
     // The form's own helpers, as they are now; the arrival is what counts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
@@ -1004,12 +1053,15 @@ export function Send() {
   // The review is a sheet over the form, so the form stays in view and
   // "Edit" is a step back rather than a screen change.
   let reviewSheet: ReactNode = null;
-  if (step === 'review' && totals) {
-    const totalNau = totals.amountNau + totals.feeNau;
-    const reviewFeeNote = feeShareNote(Number(totals.feeNau), Number(totals.amountNau), extras.length > 0);
-    const kind = addressKindNote(recipient);
-    const reviewName = reviewNames[0] ?? null;
-    const payees = [recipient, ...extras.map((x) => x.recipient)].map((address, i) => ({ address: address.trim(), name: reviewNames[i] ?? null, nau: totals.payments[i] ?? 0n }));
+  if (step === 'review' && reviewed) {
+    const totalNau = reviewed.amountNau + reviewed.feeNau;
+    const { payees } = reviewed;
+    const reviewFeeNote = feeShareNote(Number(reviewed.feeNau), Number(reviewed.amountNau), payees.length > 1);
+    const kind = addressKindNote(payees[0].address);
+    const reviewName = payees[0].name;
+    // Agreeing to the fee comes before the password, so it takes the focus instead.
+    const agreeFirst = reviewed.feeHigh || reviewed.feeLow;
+    const sendDisabled = running || passkeyBusy || feeNeedsAgreement || (needsApproval && !password);
     // The coins the core will pick (largest first, then oldest), so the
     // review can say what stays spendable while the send is pending.
     const nowMs = Date.now();
@@ -1030,6 +1082,13 @@ export function Send() {
     // A send given up on that may still pay the same person: this send also
     // spends one of its coins, as SendService does, alone if it pays for all.
     const rivals = rivalsFor(payees.map((x) => x.address));
+    // This device's sends that already paid a recipient the same amount.
+    const sameBefore = sameSentRecently(history, payees);
+    const whoIs = (address: string) => {
+      if (isOwn(address)) return 'yourself';
+      const payee = payees.find((p) => p.address === address);
+      return payee?.name ?? abbreviateAddress(address);
+    };
     const added: typeof coins = [];
     for (const rival of rivals) {
       const theirs = coins.filter((u) => rival.inputHashes.includes(u.hash));
@@ -1050,7 +1109,7 @@ export function Send() {
             // One recipient: a receipt, with who and how much first and large.
             <div className="vault-receipt">
               {reviewName ? (
-                <Avatar big name={reviewName} address={recipient} />
+                <Avatar big name={reviewName} address={payees[0].address} />
               ) : (
                 <span className="vault-row-icon out big" aria-hidden>
                   <IconUser size={20} />
@@ -1062,14 +1121,14 @@ export function Send() {
                 </Text>
               )}
               <Text ff="monospace" size="sm" c={reviewName ? 'dimmed' : undefined}>
-                {abbreviateAddress(recipient)}
+                {abbreviateAddress(payees[0].address)}
               </Text>
               {/* One name per recipient: the saved contact's, or else the request's, said to be unverified. */}
-              {!reviewName && linkMeta?.label && (
+              {!reviewName && reviewed.label && (
                 <Text size="sm" c="dimmed">
                   Name, unverified:{' '}
                   <Text span inherit c="var(--v-text)" fw={600} dir="auto" className="vault-bidi">
-                    {linkMeta.label}
+                    {reviewed.label}
                   </Text>
                 </Text>
               )}
@@ -1080,12 +1139,12 @@ export function Send() {
                 </Badge>
               )}
               <div className="vault-receipt-amount">
-                <Amount nau={totals.amountNau} />
+                <Amount nau={reviewed.amountNau} />
               </div>
               {/* As under the balance: the price's age once it is getting old, its source in Settings, Currency. */}
               {quote && (
                 <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  <Spoken text={`≈ ${formatFiat(fiatOf(totals.amountNau, NAU_PER_COIN, quote.price), quote.currency)}`} />
+                  <Spoken text={`≈ ${formatFiat(fiatOf(reviewed.amountNau, NAU_PER_COIN, quote.price), quote.currency)}`} />
                   {Date.now() - quote.at > QUOTE_OLD_MS && <Spoken text={` · price from ${timeAgo(quote.at)}`} />}
                 </Text>
               )}
@@ -1129,7 +1188,7 @@ export function Send() {
             <div className="vault-review-row">
               <span>Fee</span>
               <b>
-                <Amount nau={totals.feeNau} figure />
+                <Amount nau={reviewed.feeNau} figure />
               </b>
             </div>
             <div className="vault-review-row total">
@@ -1151,12 +1210,12 @@ export function Send() {
               <span>{reviewFeeNote}</span>
             </Text>
           )}
-          {cleanNote(note) && (
+          {reviewed.note && (
             <Text size="sm">
               <Text span inherit c="dimmed">
                 Note to self:{' '}
               </Text>
-              <bdi>{cleanNote(note)}</bdi>
+              <bdi>{reviewed.note}</bdi>
             </Text>
           )}
           {/* What pressing Send starts: what cannot be undone, and how long it takes. */}
@@ -1168,6 +1227,17 @@ export function Send() {
             <Text size="sm" c="dimmed">
               <Spoken text={`While this send is pending, ${showNau(spendableWhile)} NPT stays spendable; its change of ${showNau(spendableAfter - spendableWhile)} NPT is on hold until it confirms.`} />
             </Text>
+          )}
+          {sameBefore.length > 0 && (
+            <Caution title="You sent this recently">
+              {sameBefore.slice(0, 3).map(({ address, record }) => (
+                <Text key={`${record.key} ${address}`} size="sm">
+                  You sent <bdi>{whoIs(address)}</bdi> this same amount <Spoken text={timeAgo(record.stampMs ?? record.timestampMs)} />, and{' '}
+                  {record.status === 'pending' ? 'it is still waiting for a block' : 'a block has confirmed it'}.
+                </Text>
+              ))}
+              <Text size="sm">Check that this is a new payment, not the same one again.</Text>
+            </Caution>
           )}
           {rivals.length > 0 && (
             <Caution title="An earlier send may still go through">
@@ -1185,18 +1255,20 @@ export function Send() {
               The network asks this send to publish the coins that pay for it: how much each holds, which of your addresses received it, and where in the chain it came from. Anyone can then link this payment to the ones that funded it. The recipient and the amount you send stay private.
             </Caution>
           )}
-          {totals.feeHigh && (
+          {reviewed.feeHigh && (
             <Checkbox
+              data-autofocus={!phone ? true : undefined}
               checked={feeAgreed}
               onChange={(e) => setFeeAgreed(e.currentTarget.checked)}
-              label={<Spoken text={`The fee is ${showNau(totals.feeNau)} NPT, which is unusually high. Pay it anyway.`} />}
+              label={<Spoken text={`The fee is ${showNau(reviewed.feeNau)} NPT, which is unusually high. Pay it anyway.`} />}
             />
           )}
-          {totals.feeLow && (
+          {reviewed.feeLow && (
             <Checkbox
+              data-autofocus={!phone ? true : undefined}
               checked={feeAgreed}
               onChange={(e) => setFeeAgreed(e.currentTarget.checked)}
-              label={<Spoken text={`The fee is ${showNau(totals.feeNau)} NPT. Nodes usually do not finish proving sends that pay less than about ${LOW_FEE} NPT, so this one may never confirm. Send it anyway.`} />}
+              label={<Spoken text={`The fee is ${showNau(reviewed.feeNau)} NPT. Nodes usually do not finish proving sends that pay less than about ${LOW_FEE} NPT, so this one may never confirm. Send it anyway.`} />}
             />
           )}
           {/* The password or passkey, before the send starts: the proof is made only after it. */}
@@ -1204,7 +1276,7 @@ export function Send() {
             <Stack gap="sm">
               {hasPasskey && (
                 <>
-                  <Button leftSection={<IconFingerprint size={16} />} loading={passkeyBusy || (starting && !checking)} disabled={running || checking || ((totals.feeHigh || totals.feeLow) && !feeAgreed)} onClick={() => void confirmWithPasskey()}>
+                  <Button leftSection={<IconFingerprint size={16} />} loading={passkeyBusy || (starting && !checking)} disabled={running || checking || feeNeedsAgreement} onClick={() => void confirmWithPasskey()}>
                     Send with passkey
                   </Button>
                   {passkeyError && <ErrorLine>{passkeyError}</ErrorLine>}
@@ -1214,16 +1286,17 @@ export function Send() {
               {/* Where typing is how the send goes on (a wide screen, no passkey), the field has the focus. */}
               <PasswordInput
                 label="Password"
-                data-autofocus={!phone && !hasPasskey ? true : undefined}
+                data-autofocus={!phone && !hasPasskey && !agreeFirst ? true : undefined}
                 value={password}
                 onChange={(e) => {
                   setPassword(e.currentTarget.value);
                   setPasswordError(null);
                 }}
+                // Enter does what the Send button does, and only when it could be pressed.
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    void confirmWithPassword();
+                    if (!sendDisabled) void confirmWithPassword();
                   }
                 }}
                 error={passwordError}
@@ -1238,7 +1311,7 @@ export function Send() {
             variant={needsApproval && hasPasskey ? 'light' : 'filled'}
             onClick={() => void (needsApproval ? confirmWithPassword() : send(askLustration))}
             loading={checking || (starting && !passkeyBusy)}
-            disabled={running || passkeyBusy || ((totals.feeHigh || totals.feeLow) && !feeAgreed) || (needsApproval && !password)}
+            disabled={sendDisabled}
           >
             <Spoken text={`Send ${showNau(totalNau)} NPT${askLustration ? ' anyway' : ''}`} />
           </Button>
@@ -1636,7 +1709,7 @@ export function Send() {
                 </Group>
               </Caution>
             )}
-            <Button type="submit" disabled={!online || nodeDown}>
+            <Button type="submit" disabled={!online || nodeDown} loading={reviewing}>
               Review
             </Button>
           </Stack>

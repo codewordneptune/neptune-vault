@@ -7,7 +7,7 @@ import { openVaultDb, type AccountRecord, type HistoryRecord, type UtxoRecord, t
 import { CHAIN_PARTS, type InputPlan, type SendPlan, type SendRequest, type StoredUtxo, type WalletCore } from '../backend/types';
 import { chainView, testEngine, type TestEngine } from '../backend/engineForTests';
 import type { Prover } from '../backend/types';
-import { cleanNote, givenUpRivals, removableFrom, RequiresLustrationError, SEND_LIFETIME_MS, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
+import { cleanNote, givenUpRivals, removableFrom, RequiresLustrationError, SAME_PAYMENT_WINDOW_MS, sameSentRecently, SEND_LIFETIME_MS, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
 
 function stored(hash: string, amount: string, height: number): StoredUtxo {
   return { hash, amount_nau: amount, amount, key_kind: 'generation', key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
@@ -559,5 +559,38 @@ describe('sends given up on that may still pay', () => {
       { ...base, key: 'k7', txid: 't7', timestampMs: now - 1000, inputHashes: ['b'], recipient: null, payments: [{ recipient: 'nolgar1carol', amountNau: '1' }, { recipient: 'nolgar1bob', amountNau: '1' }] },
     ] as HistoryRecord[];
     expect(givenUpRivals(rows, new Set(['a', 'b']), [' NOLGAR1BOB '], now).map((h) => h.txid)).toEqual(['t1', 't7']);
+  });
+});
+
+describe('sends that already paid the same', () => {
+  const base = { accountId: 'acc', kind: 'sent', status: 'pending', amountNau: '5', feeNau: '1', height: null, recipient: 'nolgar1bob', error: null, changeNau: null, inputHashes: ['a'] };
+  it('are pending sends of any age, and sends confirmed in the last day, paying the same address the same amount', () => {
+    const now = Date.now();
+    const rows = [
+      { ...base, key: 'k1', txid: 't1', timestampMs: now - 3 * 24 * 3600 * 1000 },
+      { ...base, key: 'k2', txid: 't2', timestampMs: now - 1000, status: 'confirmed' },
+      { ...base, key: 'k3', txid: 't3', timestampMs: now - SAME_PAYMENT_WINDOW_MS - 1, status: 'confirmed' },
+      { ...base, key: 'k4', txid: 't4', timestampMs: now - 1000, amountNau: '6' },
+      { ...base, key: 'k5', txid: 't5', timestampMs: now - 1000, recipient: 'nolgar1carol' },
+      { ...base, key: 'k6', txid: 't6', timestampMs: now - 1000, status: 'failed' },
+      { ...base, key: 'k7', txid: 't7', timestampMs: now - 1000, status: 'failed', givenUp: true },
+      { ...base, key: 'k8', txid: 't8', timestampMs: now - 1000, recipient: null },
+      { ...base, key: 'k9', txid: 't9', timestampMs: now - 1000, recipient: null, amountNau: '7', payments: [{ recipient: 'nolgar1carol', amountNau: '2' }, { recipient: 'NOLGAR1BOB', amountNau: '5' }] },
+      { ...base, key: 'k10', txid: 't10', timestampMs: now - 1000, kind: 'received' },
+    ] as HistoryRecord[];
+    expect(sameSentRecently(rows, [{ address: ' nolgar1bob ', nau: 5n }], now).map((m) => m.record.txid)).toEqual(['t1', 't2', 't9']);
+  });
+
+  it('say which recipient of a send to several was paid before', () => {
+    const now = Date.now();
+    const rows = [{ ...base, key: 'k1', txid: 't1', timestampMs: now - 1000 }] as HistoryRecord[];
+    const found = sameSentRecently(rows, [{ address: 'nolgar1carol', nau: 5n }, { address: 'nolgar1bob', nau: 5n }], now);
+    expect(found.map((m) => m.address)).toEqual(['nolgar1bob']);
+  });
+
+  it('judge a confirmed send by its own time, not its block\'s', () => {
+    const now = Date.now();
+    const rows = [{ ...base, key: 'k1', txid: 't1', status: 'confirmed', timestampMs: now - 1000, stampMs: now - SAME_PAYMENT_WINDOW_MS - 1 }] as HistoryRecord[];
+    expect(sameSentRecently(rows, [{ address: 'nolgar1bob', nau: 5n }], now)).toEqual([]);
   });
 });
