@@ -7,7 +7,7 @@ import { openVaultDb, type AccountRecord, type HistoryRecord, type UtxoRecord, t
 import { CHAIN_PARTS, type InputPlan, type SendPlan, type SendRequest, type StoredUtxo, type WalletCore } from '../backend/types';
 import { chainView, testEngine, type TestEngine } from '../backend/engineForTests';
 import type { Prover } from '../backend/types';
-import { cleanNote, givenUpRivals, mayStillGo, removable, RequiresLustrationError, SAME_PAYMENT_WINDOW_MS, sameSentRecently, SEND_LIFETIME_MS, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
+import { cleanNote, givenUpRivals, mayStillGo, removable, RequiresLustrationError, RIVAL_GONE, SAME_PAYMENT_WINDOW_MS, sameSentRecently, SEND_NOTE_MAX, SendCancelledError, SendNotApprovedError, SendService, SendUnconfirmedError, sendStamp } from './send';
 
 function stored(hash: string, amount: string, height: number): StoredUtxo {
   return { hash, amount_nau: amount, amount, key_kind: 'generation', key_index: 0, release_date_ms: null, confirmed_height: height, confirmed_block: 'b', confirmed_timestamp_ms: 0, recovery: { aocl_index: height } };
@@ -464,7 +464,15 @@ describe('send service', () => {
     expect(prover.last?.blockHeight).toBe(core.askedHeights[0]);
   });
 
-  it('spends a coin of a send given up on that may still pay the same person, alone when it is enough', async () => {
+  it('sends nothing when a send given up on, named on the review, has no coin left to spend', async () => {
+    const { node, service } = await setup();
+    const rival = { key: 'acc:sent:old', accountId: 'acc', kind: 'sent', status: 'failed', givenUp: true, txid: 'old', amountNau: '1', feeNau: '1', timestampMs: Date.now(), height: null, inputHashes: ['spent'], recipient: 'nolgar1x', error: null, changeNau: null } as HistoryRecord;
+    await expect(service.send(request, () => {}, { rivals: [rival] })).rejects.toThrow(RIVAL_GONE);
+    expect(node.submitted).toHaveLength(0);
+    expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
+  });
+
+  it('spends a coin of a send given up on, alone when it is enough', async () => {
     const { core, node, service } = await setup();
     core.largestFirst = true;
     // Free coins a (4) and b (3); a send given up on spent b.
@@ -554,20 +562,19 @@ describe('a note to self on a send', () => {
   });
 });
 
-describe('sends given up on that may still pay', () => {
-  const base = { accountId: 'acc', kind: 'sent', status: 'failed', givenUp: true, amountNau: '1', feeNau: '1', height: null, recipient: 'nolgar1bob', error: null, changeNau: null };
-  it('are those to the same person, with coins still free, that a block can still take', () => {
-    const now = Date.now();
+describe('sends given up on that may still go through', () => {
+  const base = { accountId: 'acc', kind: 'sent', status: 'failed', givenUp: true, amountNau: '1', feeNau: '1', height: null, recipient: 'nolgar1bob', error: null, changeNau: null, timestampMs: 1 };
+  it('are each one, whoever it paid and however old, with a coin still free and none spent', () => {
     const rows = [
-      { ...base, key: 'k1', txid: 't1', timestampMs: now - 1000, inputHashes: ['a'] },
-      { ...base, key: 'k2', txid: 't2', timestampMs: now - 1000, inputHashes: ['b'], recipient: 'nolgar1carol' },
-      { ...base, key: 'k3', txid: 't3', timestampMs: now - 1000, inputHashes: ['spent'] },
-      { ...base, key: 'k4', txid: 't4', timestampMs: now - SEND_LIFETIME_MS - 1, inputHashes: ['a'] },
-      { ...base, key: 'k5', txid: 't5', timestampMs: now - 1000, inputHashes: ['a'], expired: true },
-      { ...base, key: 'k6', txid: 't6', timestampMs: now - 1000, inputHashes: ['a'], givenUp: false },
-      { ...base, key: 'k7', txid: 't7', timestampMs: now - 1000, inputHashes: ['b'], recipient: null, payments: [{ recipient: 'nolgar1carol', amountNau: '1' }, { recipient: 'nolgar1bob', amountNau: '1' }] },
+      { ...base, key: 'k1', txid: 't1', inputHashes: ['a'] },
+      { ...base, key: 'k2', txid: 't2', inputHashes: ['b'], recipient: 'nolgar1carol' },
+      { ...base, key: 'k3', txid: 't3', inputHashes: ['held'] },
+      { ...base, key: 'k4', txid: 't4', inputHashes: ['a', 'spent'] },
+      { ...base, key: 'k5', txid: 't5', inputHashes: ['a'], givenUp: false, expired: true },
+      { ...base, key: 'k6', txid: 't6', inputHashes: ['a'], givenUp: false },
+      { ...base, key: 'k7', txid: 't7', inputHashes: ['held', 'b'] },
     ] as HistoryRecord[];
-    expect(givenUpRivals(rows, new Set(['a', 'b']), [' NOLGAR1BOB '], now).map((h) => h.txid)).toEqual(['t1', 't7']);
+    expect(givenUpRivals(rows, new Set(['a', 'b']), (coin) => coin === 'spent').map((h) => h.txid)).toEqual(['t1', 't2', 't5', 't7']);
   });
 });
 

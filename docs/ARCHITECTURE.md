@@ -528,8 +528,9 @@ for a block or confirmed less than a day ago, the review says so
    device's clock but never later than the newest block, and a clock more
    than nine hours behind stops the send here (`sendStamp`).
 2. `plan_inputs` over the ledger's `spendable` coins, with a coin of each
-   given-up send that may still pay the same person among them
-   (`givenUpRivals`, below).
+   given-up send that may still go through among them (`givenUpRivals`,
+   below). If one named on the review has no coin left to spend, it may
+   have just gone through, and nothing is sent (`RIVAL_GONE`).
 3. `wallet_restoreMembershipProof`, then `chain_tipHeader`, in that order.
    If a block arrived in between, `build_send` refuses (`TIP_MOVED`) and the
    flow asks both again, which counts as an attempt.
@@ -557,10 +558,11 @@ A pending send keeps its coins until a block confirms it. Its details offer
 Give up at any time; after ten hours, when nodes drop a waiting transaction,
 Home also says a send the node no longer has is not going through, and
 offers the same (`MEMPOOL_KEEPS_MS`). Giving up frees the coins but cannot
-call the send back, which may still confirm. So a new send to someone a
-given-up send may still pay spends one of that send's coins
-(`givenUpRivals`, `planWith` in `send.ts`): two transactions that spend one
-coin cannot both confirm, and nobody is paid twice. After three days and an
+call the send back, which may still confirm. So every new send, whoever it
+pays, spends one coin of each given-up send that may still go through
+(`givenUpRivals`, `planWith` in `send.ts`), and its review says so: two
+transactions that spend one coin cannot both confirm, and once the new one
+does, the old one never can. After three days and an
 hour of the chain's time, when a block is unlikely to take it, the sync
 releases its coins and marks it expired (`SEND_LIFETIME_MS`). Unlikely, not
 impossible: a send given up on or expired shows as "May still go through"

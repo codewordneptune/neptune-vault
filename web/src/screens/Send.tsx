@@ -264,12 +264,12 @@ interface Reviewed {
   note: string | null;
   /** A payment link's name, shown unverified on a send to one recipient. */
   label: string | null;
+  /** Sends given up on that may still go through: this send spends a coin of each (givenUpRivals). */
+  rivals: HistoryRecord[];
 }
 
 export function Send() {
   const { services, account, balance, utxos, history, online, sync, syncNow, sendJob, screenAwake, startSend, cancelSend, dismissSendJob, dismissLastSend, dismissSendFailure } = useApp();
-  // Sends given up on that may still pay someone a send to these addresses pays (givenUpRivals).
-  const rivalsFor = (addresses: string[]) => givenUpRivals(history, new Set(utxos.filter((u) => u.spentHeight === null && u.pendingTxid === null).map((u) => u.hash)), addresses);
   // Whether an address is this wallet's own, so a send to it says "yourself".
   const { isOwn } = usePendingSends();
   // Amounts hidden on Home stay hidden here, the review and its errors included.
@@ -629,6 +629,8 @@ export function Send() {
       const addresses = [form.recipient, ...form.extras.map((x) => x.recipient)].map((a) => a.trim());
       const typed = [form.amount, ...form.extras.map((x) => x.amount)].map((a) => a.trim());
       const names = await Promise.all(addresses.map(async (a) => (account ? ((await services.contacts.findByAddress(account.id, a))?.name ?? null) : null)));
+      const free = new Set(utxos.filter((u) => u.spentHeight === null && u.pendingTxid === null).map((u) => u.hash));
+      const spent = new Set(utxos.filter((u) => u.spentHeight !== null).map((u) => u.hash));
       setReviewed({
         payees: addresses.map((address, i) => ({ address, amount: typed[i], nau: totals.payments[i], name: names[i] })),
         amountNau: totals.amountNau,
@@ -638,6 +640,7 @@ export function Send() {
         feeLow: totals.feeLow,
         note: cleanNote(form.note) || null,
         label: form.linkMeta?.label ?? null,
+        rivals: givenUpRivals(history, free, (coin) => spent.has(coin)),
       });
       setFeeAgreed(false);
       setStep('review');
@@ -692,7 +695,7 @@ export function Send() {
           fee_nau: sending.feeNau.toString(),
         },
         sending.note,
-        { rivals: rivalsFor(sending.payees.map((p) => p.address)) },
+        { rivals: sending.rivals },
       );
       setLastRecipient(sentTo);
       setLastLabel(sentTo && sending.label ? sending.label : null);
@@ -1079,9 +1082,9 @@ export function Send() {
       heldNau += BigInt(c.amountNau);
       picked.push(c);
     }
-    // A send given up on that may still pay the same person: this send also
-    // spends one of its coins, as SendService does, alone if it pays for all.
-    const rivals = rivalsFor(payees.map((x) => x.address));
+    // Sends given up on that may still go through: this send also spends one
+    // coin of each, as SendService does, alone if it pays for all.
+    const { rivals } = reviewed;
     // This device's sends that already paid a recipient the same amount: per
     // recipient, the latest of them and how many there were.
     const sameBefore = sameSentRecently(history, payees);
@@ -1103,8 +1106,10 @@ export function Send() {
     if (added.length === 1 && BigInt(added[0].amountNau) >= totalNau) heldNau = BigInt(added[0].amountNau);
     else heldNau += added.reduce((sum, u) => sum + BigInt(u.amountNau), 0n);
     const rivalTo = (rival: HistoryRecord) => {
-      const to = (rival.payments?.length ? rival.payments.map((x) => x.recipient) : [rival.recipient ?? '']).find((a) => payees.some((x) => x.address.toLowerCase() === a.toLowerCase())) ?? '';
-      return contactName(to) ?? abbreviateAddress(to);
+      const to = rival.payments?.length ? rival.payments.map((x) => x.recipient) : rival.recipient ? [rival.recipient] : [];
+      if (to.length === 0) return 'a recipient';
+      const first = isOwn(to[0]) ? 'yourself' : (contactName(to[0]) ?? abbreviateAddress(to[0]));
+      return to.length > 1 ? `${first} and ${to.length - 1} more` : first;
     };
     // What stays spendable while it is pending, and the change on hold until it confirms: said only when there is change.
     const spendableWhile = balance.spendableNau - heldNau;
@@ -1250,8 +1255,8 @@ export function Send() {
               <Spoken
                 text={
                   rivals.length === 1
-                    ? `Your earlier ${hidden ? '' : `${showNau(BigInt(rivals[0].amountNau))} NPT `}to ${rivalTo(rivals[0])} may still go through: giving up on it did not call it back. This send spends one of the same coins, so only one of the two can go through.`
-                    : `${rivals.length} earlier sends you gave up on may still go through. This send spends one coin of each, so none of them can go through along with it.`
+                    ? `Your earlier ${hidden ? '' : `${showNau(BigInt(rivals[0].amountNau))} NPT `}to ${rivalTo(rivals[0])} may still go through: giving up on it did not call it back. This send spends one of its coins, so only one of the two can go through. If the earlier one does, this one is not sent.`
+                    : `${rivals.length} earlier sends you gave up on may still go through. This send spends one coin of each, so none of them can go through along with it. If one of them does, this one is not sent.`
                 }
               />
             </Caution>

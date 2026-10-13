@@ -82,8 +82,8 @@ A self-custodial wallet for [Neptune Cash](https://neptune.cash).
   confirms it, added or changed in its details.
 - A send that the node has stopped carrying is marked "Not going through".
   You can give up on a pending send to free its coins. It may still go
-  through, so a new send to the same person spends one of the same coins,
-  and only one of the two can.
+  through, so your next send, to anyone, spends one of its coins, and only
+  one of the two can.
 - A send that was not sent can be removed from History once it can no
   longer go through.
 - Hide amounts with one tap, for using the wallet where others can see. The

@@ -49,37 +49,23 @@ export interface SendOptions {
   approved?: Promise<boolean>;
   /** Called once the pending row is written, just before the node hears of the send. */
   onRecorded?: (txid: string) => void | Promise<void>;
-  /** Sends given up on that may still pay the same person (givenUpRivals): this send spends a coin of each. */
+  /** Sends given up on that may still go through (givenUpRivals): this send spends a coin of each. */
   rivals?: HistoryRecord[];
 }
 
-/** Everyone a send row pays. */
-function recipientsOf(h: HistoryRecord): string[] {
-  return (h.payments?.length ? h.payments.map((p) => p.recipient) : h.recipient ? [h.recipient] : []).map((a) => a.toLowerCase());
+/**
+ * Sends given up on, or expired, that may still go through (mayStillGo) and
+ * have a coin that is still free here. Giving up frees a send's coins but
+ * cannot call it back, so every new send, whoever it pays, spends one coin
+ * of each: two transactions that spend one coin cannot both confirm, and
+ * once the new one does, the old one never can.
+ */
+export function givenUpRivals(history: HistoryRecord[], freeCoins: ReadonlySet<string>, spent: (coin: string) => boolean): HistoryRecord[] {
+  return history.filter((h) => mayStillGo(h, spent) && h.inputHashes.some((coin) => freeCoins.has(coin)));
 }
 
-/**
- * Sends given up on that may still go through and pay one of `recipients`:
- * given up rather than expired, stamped recently enough for a block to take
- * them, and spending only coins that are still free here. Giving up frees a
- * send's coins but cannot call it back, so a new send to the same person
- * spends one of the same coins: two transactions that spend one coin cannot
- * both confirm, and the person is not paid twice.
- */
-export function givenUpRivals(history: HistoryRecord[], freeCoins: ReadonlySet<string>, recipients: string[], nowMs = Date.now()): HistoryRecord[] {
-  const to = new Set(recipients.map((a) => a.trim().toLowerCase()));
-  return history.filter(
-    (h) =>
-      h.kind === 'sent' &&
-      h.status === 'failed' &&
-      h.givenUp === true &&
-      !h.expired &&
-      (h.stampMs ?? h.timestampMs) + SEND_LIFETIME_MS > nowMs &&
-      h.inputHashes.length > 0 &&
-      h.inputHashes.every((coin) => freeCoins.has(coin)) &&
-      recipientsOf(h).some((a) => to.has(a)),
-  );
-}
+/** Why a send stops when a send given up on, named on its review, has no coin left to spend. */
+export const RIVAL_GONE = 'Nothing was sent: an earlier send you gave up on has changed since the review, and may have just gone through. Check History before you send again.';
 
 /** How long after a send confirmed the review still mentions it when the same is paid again. */
 export const SAME_PAYMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -304,9 +290,12 @@ export class SendService {
    * The inputs for `request`, with a coin of each send in `rivals` among
    * them (see givenUpRivals). The core picks largest first; a rival's coin
    * it did not pick is added, or, when that one coin pays for the send by
-   * itself, taken alone, which leaves less to prove.
+   * itself, taken alone, which leaves less to prove. A rival with no coin
+   * left to spend may have gone through since the review: then nothing is
+   * sent, as this send could no longer stop it.
    */
   private async planWith(spendable: StoredUtxo[], request: SendRequest, nowMs: number, rivals: HistoryRecord[]): Promise<InputPlan> {
+    if (rivals.some((rival) => !spendable.some((u) => rival.inputHashes.includes(u.hash)))) throw new Error(RIVAL_GONE);
     const plan = await this.core.planInputs(spendable, request, nowMs);
     const largest = (coins: StoredUtxo[]) => coins.reduce<StoredUtxo | undefined>((big, u) => (!big || BigInt(u.amount_nau) > BigInt(big.amount_nau) ? u : big), undefined);
     const added: StoredUtxo[] = [];

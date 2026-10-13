@@ -1069,7 +1069,8 @@ export function Home() {
                 ? 'The node still has this send, so it may still go through. Giving up makes its coins spendable here, but if it confirms anyway, it shows up as Sent.'
                 : nodeHolds(givingUp) === null
                   ? 'Giving up makes its coins spendable, but it does not call the send back: it stays in History as Given up, and if it confirms anyway, it shows up as Sent.'
-                  : 'The node no longer has this send. Giving up makes its coins spendable, and the send stays in History as Given up until one of its coins is spent.'}
+                  : 'The node no longer has this send. Giving up makes its coins spendable, and the send stays in History as Given up until one of its coins is spent.'}{' '}
+              Your next send, to anyone, spends one of its coins, so the two cannot both go through.
             </Text>
             <Text size="sm" c="dimmed">
               <Spoken text={`This send: ${showNau(BigInt(givingUp.amountNau))} NPT${givingUp.feeNau ? ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee` : ''}. Giving up makes ${showNau(reservedFor(givingUp))} NPT spendable again.`} />
