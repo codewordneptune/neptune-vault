@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { defineConfig, type Plugin } from 'vite';
 
-import { packageDir, thirdPartyLicences } from './thirdPartyLicences';
+import { packageDir, targetOf, thirdPartyLicences } from './thirdPartyLicences';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 let commit = 'unknown';
@@ -97,7 +97,7 @@ function licencesFile(mode: string): Plugin {
     name: 'vault-third-party-licences',
     generateBundle() {
       const workbox = web ? WORKBOX_RUNTIME.map((name) => fileURLToPath(new URL(`./node_modules/${name}`, import.meta.url))) : [];
-      const source = thirdPartyLicences(web ? ['vault-core', 'vault-prover'] : ['vault-shell'], [...bundledPackages, ...workbox]);
+      const source = thirdPartyLicences(web ? ['vault-core', 'vault-prover'] : ['vault-shell'], targetOf(web), [...bundledPackages, ...workbox]);
       this.emitFile({ type: 'asset', fileName: 'third-party-licences.txt', source });
     },
     configureServer(server) {

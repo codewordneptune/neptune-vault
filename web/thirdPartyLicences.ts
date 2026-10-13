@@ -1,13 +1,15 @@
 // The notice every build ships for the third-party software in it: each
 // Rust crate and npm package, its licence, and each licence text with its
 // copyright lines, once per distinct text. MIT, BSD and Apache-2.0 require
-// it in every copy handed out (README, Licence). Built from the lock files
-// and the packages' own licence files, so it names nothing the build does
-// not contain and no path on the builder's machine.
+// it in every copy handed out (README, Licence). Built from the lock files,
+// for the platform the build is for, and from the packages' own licence
+// files, so it names no crate only another platform uses and no path on the
+// builder's machine. A licence file must lie inside its package: a crate's
+// manifest can name any path, and whatever is read here is published.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 interface Item {
@@ -45,16 +47,57 @@ function normalise(text: string): string {
     .trim();
 }
 
-function licenceTexts(dir: string, extra?: string | null): string[] {
-  const names = readdirSync(dir).filter((f) => LICENCE_FILE.test(f) && !NOT_A_TEXT.test(f) && statSync(join(dir, f)).isFile());
-  if (extra && !names.includes(extra) && existsSync(join(dir, extra))) names.push(extra);
-  return names.sort(byCodePoint).map((f) => normalise(readFileSync(join(dir, f), 'utf8')));
+/** Far above the size of any licence text. */
+const MAX_TEXT_BYTES = 256 * 1024;
+
+/**
+ * A package's licence texts: the files in its folder named like a licence,
+ * and `named`, the one its manifest names. Each must resolve, links
+ * followed, to a regular file inside the package and of a licence's size,
+ * or the build stops and names the package.
+ */
+export function licenceTexts(dir: string, label: string, named?: string | null): string[] {
+  const root = realpathSync.native(dir);
+  const files = new Map<string, string>();
+  const take = (name: string, fromManifest: boolean) => {
+    let real: string;
+    try {
+      real = realpathSync.native(resolve(dir, name));
+    } catch {
+      // Named in the manifest but not in the package: nothing to read.
+      return;
+    }
+    if (!real.startsWith(root + sep)) throw new Error(`third-party licences: ${label} names a licence file outside its package: ${name}`);
+    const stat = statSync(real);
+    if (!stat.isFile()) {
+      if (fromManifest) throw new Error(`third-party licences: ${label} names a licence file that is not a file: ${name}`);
+      return;
+    }
+    if (stat.size > MAX_TEXT_BYTES) throw new Error(`third-party licences: ${label} has a licence file larger than ${MAX_TEXT_BYTES / 1024} KB: ${name}`);
+    files.set(real, relative(root, real).split(sep).join('/'));
+  };
+  for (const name of readdirSync(dir)) if (LICENCE_FILE.test(name) && !NOT_A_TEXT.test(name)) take(name, false);
+  if (named) take(named, true);
+  return [...files]
+    .sort(([, a], [, b]) => byCodePoint(a, b))
+    .map(([real]) => normalise(readFileSync(real, 'utf8')));
 }
 
-/** The crates the given workspace members are built from, tests' own dependencies left out. */
-function crates(roots: string[]): Item[] {
+/** The platform a build is for: wasm for the web app; for the apps, the one Tauri builds for, or else this machine's. */
+export function targetOf(web: boolean): string {
+  if (web) return 'wasm32-unknown-unknown';
+  if (process.env.TAURI_ENV_TARGET_TRIPLE) return process.env.TAURI_ENV_TARGET_TRIPLE;
+  const host = /^host: (\S+)$/m.exec(execFileSync('rustc', ['-vV'], { cwd: REPO }).toString())?.[1];
+  if (!host) throw new Error('third-party licences: rustc did not say which platform this is');
+  return host;
+}
+
+/** The crates the given workspace members are built from on `target`, tests' own dependencies left out. */
+function crates(roots: string[], target: string): Item[] {
   const meta = JSON.parse(
-    execFileSync('cargo', ['metadata', '--format-version', '1', '--locked', '--manifest-path', join(REPO, 'Cargo.toml')], { maxBuffer: 512 * 1024 * 1024 }).toString(),
+    execFileSync('cargo', ['metadata', '--format-version', '1', '--locked', '--filter-platform', target, '--manifest-path', join(REPO, 'Cargo.toml')], {
+      maxBuffer: 512 * 1024 * 1024,
+    }).toString(),
   ) as CargoMetadata;
   const own = new Set(meta.workspace_members);
   const nodes = new Map(meta.resolve.nodes.map((n) => [n.id, n]));
@@ -72,14 +115,15 @@ function crates(roots: string[]): Item[] {
     .filter((id) => !own.has(id))
     .map((id) => {
       const p = packages.get(id) as CargoMetadata['packages'][number];
-      return { group: 'Rust crates', name: p.name, version: p.version, licence: p.license ?? 'see its licence text', texts: licenceTexts(dirname(p.manifest_path), p.license_file) };
+      const texts = licenceTexts(dirname(p.manifest_path), `${p.name} ${p.version}`, p.license_file);
+      return { group: 'Rust crates', name: p.name, version: p.version, licence: p.license ?? 'see its licence text', texts };
     });
 }
 
 function npmPackage(dir: string): Item {
   const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { name: string; version: string; license?: string | { type?: string } };
   const licence = typeof pkg.license === 'string' ? pkg.license : (pkg.license?.type ?? 'see its licence text');
-  return { group: 'JavaScript packages', name: pkg.name, version: pkg.version, licence, texts: licenceTexts(dir) };
+  return { group: 'JavaScript packages', name: pkg.name, version: pkg.version, licence, texts: licenceTexts(dir, `${pkg.name} ${pkg.version}`) };
 }
 
 // Licences whose text names the copyright holder: as a standard text for
@@ -141,12 +185,13 @@ function others(packages: Item[]): Item[] {
 
 /**
  * The notice for one build: `roots` are the workspace crates it compiles
- * (the wasm packages, or the native shell), `npmDirs` the npm packages whose
- * code went into its bundles.
+ * (the wasm packages, or the native shell), `target` the platform it
+ * compiles them for, and `npmDirs` the npm packages whose code went into
+ * its bundles.
  */
-export function thirdPartyLicences(roots: string[], npmDirs: Iterable<string>): string {
+export function thirdPartyLicences(roots: string[], target: string, npmDirs: Iterable<string>): string {
   const packages = [...new Set(npmDirs)].map(npmPackage);
-  const items = [...crates(roots), ...packages, ...others(packages)];
+  const items = [...crates(roots, target), ...packages, ...others(packages)];
   const order = ['Rust crates', 'JavaScript packages', 'Other'];
   items.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group) || byCodePoint(a.name, b.name) || byCodePoint(a.version, b.version));
   const standard = standardTexts(items);
