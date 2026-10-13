@@ -6,6 +6,10 @@
 # main, which builds without releasing and keeps the installers as workflow
 # artifacts.
 #
+# The build jobs run the dependencies' build scripts, so they can only read
+# the repository. The release is drafted by a job of its own, which runs none
+# of the build's code (security audit R3).
+#
 # Unsigned for now: code signing and the auto-updater need keys only the
 # maintainer can create. docs/DESKTOP-RELEASE.md lists them and where they go.
 #
@@ -19,7 +23,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-desktop-${{ github.ref }}
@@ -60,6 +64,8 @@ jobs:
           exit 1
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       # The webview and the libraries a Tauri app links on Linux.
       - name: Linux build dependencies
@@ -86,30 +92,99 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      # The apps offer a release by the version in its tag, so the tag must
+      # name the version this commit builds.
+      - name: Tag names the version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          version=$(node -p "require('./web/package.json').version")
+          if [ "$GITHUB_REF_NAME" != "desktop-v$version" ]; then
+            echo "::error::The tag $GITHUB_REF_NAME does not name the version in web/package.json, $version."
+            exit 1
+          fi
+
       # The page the shell loads; the Tauri CLI lives here too.
       - name: Web dependencies
         working-directory: web
         run: npm ci
 
-      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: shells/tauri
-          tauriScript: npx --prefix ../../web tauri
-          args: ${{ matrix.args }}
-          # A tag makes a draft release, which a person reviews and publishes;
-          # a run by hand only builds.
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: Neptune Vault desktop __VERSION__
-          releaseBody: Unsigned test build. See docs/DESKTOP-RELEASE.md.
-          releaseDraft: true
-          prerelease: true
+      - name: Build
+        working-directory: shells/tauri
+        run: npx --prefix ../../web tauri build ${{ matrix.args }}
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: neptune-vault-desktop-${{ matrix.rust_target || matrix.os }}
           path: |
-            target/release/bundle/
-            target/*/release/bundle/
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*-setup.exe
+            target/release/bundle/deb/*.deb
+            target/release/bundle/rpm/*.rpm
+            target/release/bundle/appimage/*.AppImage
+            target/*/release/bundle/dmg/*.dmg
           if-no-files-found: error
+
+  # The only job that can write. It works from the installers alone: no
+  # checkout, and no build tool runs here.
+  release:
+    name: Draft release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: neptune-vault-desktop-*
+          path: bundles
+
+      # One folder of installers, named as GitHub shows them (a space becomes
+      # a dot), so that SHA256SUMS checks the files as they are downloaded.
+      - name: Installers and their checksums
+        run: |
+          set -euo pipefail
+          mkdir release
+          find bundles -type f -print0 | while IFS= read -r -d '' file; do
+            name=$(basename "$file")
+            name=${name// /.}
+            if [ -e "release/$name" ]; then
+              echo "::error::Two installers are named $name."
+              exit 1
+            fi
+            mv "$file" "release/$name"
+          done
+          (cd release && sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS")
+          mv "$RUNNER_TEMP/SHA256SUMS" release/
+          cat release/SHA256SUMS
+
+      # A signed record, kept by GitHub and in Sigstore's public log, that each
+      # file came from this workflow at this commit (`gh attestation verify`).
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: release/SHA256SUMS
+
+      # Run again on the same tag, it adds to that tag's draft; a published
+      # release it never changes.
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$draft" != true ]; then
+              echo "::error::$TAG is already published. Make a new version instead."
+              exit 1
+            fi
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" release/* --draft --prerelease --verify-tag \
+              --title "Neptune Vault desktop ${TAG#desktop-v}" \
+              --notes "Unsigned test build. See docs/DESKTOP-RELEASE.md, which also says how to check a download."
+          fi

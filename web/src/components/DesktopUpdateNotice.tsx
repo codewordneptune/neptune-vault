@@ -7,23 +7,28 @@
 //
 // What it tells GitHub: that someone at this address asked about the
 // project's releases, as any visit to the page would. Nothing about the
-// wallet. It never counts a draft: only a release someone has published.
+// wallet. It counts only a full release someone has published, never a draft
+// or a pre-release, and opens that release's page by its tag, never a link
+// from GitHub's answer.
 
 import { Button, Group, Text } from '@mantine/core';
 import { IconCircleArrowUp } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
+import { LINKS } from '../app/links';
 
 const RELEASES = 'https://api.github.com/repos/codewordneptune/neptune-vault/releases?per_page=20';
 const TAG_PREFIX = 'desktop-v';
+/** Numbers and dots only: anything else is no version to offer, and stays out of the link. */
+const VERSION = /^\d+(\.\d+){0,3}$/;
 /** How often a running app asks again. */
 const CHECK_MS = 6 * 60 * 60 * 1000;
 
 interface Release {
   tag_name: string;
-  html_url: string;
   draft: boolean;
+  prerelease: boolean;
 }
 
 /** Whether version `a` is newer than `b`, by dotted numbers. */
@@ -37,13 +42,16 @@ export function isNewer(a: string, b: string): boolean {
   return false;
 }
 
-/** The newest published desktop release, if any is newer than `current`. */
+/** The newest published full desktop release, if any is newer than `current`. */
 export function newerRelease(releases: Release[], current: string): { version: string; url: string } | null {
   let best: { version: string; url: string } | null = null;
   for (const r of releases) {
-    if (r.draft || !r.tag_name.startsWith(TAG_PREFIX)) continue;
+    if (r.draft || r.prerelease || !r.tag_name.startsWith(TAG_PREFIX)) continue;
     const version = r.tag_name.slice(TAG_PREFIX.length);
-    if (isNewer(version, current) && (!best || isNewer(version, best.version))) best = { version, url: r.html_url };
+    if (!VERSION.test(version)) continue;
+    if (isNewer(version, current) && (!best || isNewer(version, best.version))) {
+      best = { version, url: `${LINKS.release}${TAG_PREFIX}${version}` };
+    }
   }
   return best;
 }

@@ -8,6 +8,8 @@ export const LINKS = {
   issues: 'https://github.com/codewordneptune/neptune-vault/issues',
   /** GitHub compare page; append `<from>...<to>` commits. */
   compare: 'https://github.com/codewordneptune/neptune-vault/compare/',
+  /** GitHub release page; append the tag. */
+  release: 'https://github.com/codewordneptune/neptune-vault/releases/tag/',
   neptune: 'https://neptune.cash',
   /** Explorer page for an output, by canonical commitment; Mainnet only. */
   explorerOutput: 'https://neptunefundamentals.org/output/',

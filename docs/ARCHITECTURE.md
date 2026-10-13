@@ -614,9 +614,11 @@ was started on), and the published file hashes ([HOSTING.md](HOSTING.md)).
 
 Desktop updates (`web/src/components/DesktopUpdateNotice.tsx`). No service
 worker and no signed auto-updater yet. When it starts and every six hours,
-the app asks the GitHub releases API for a published `desktop-v*` release
-newer than itself and offers the download page. The Android app makes no
-update check: a phone app is updated by installing its next build.
+the app asks the GitHub releases API for a published full release (no
+draft, no pre-release) tagged `desktop-v<version>` newer than itself, and
+offers that tag's release page, a link it builds itself rather than takes
+from the answer. The Android app makes no update check: a phone app is
+updated by installing its next build.
 
 Auto-lock (`web/src/app/accounts.ts`). The idle time is one of
 `LOCK_CHOICES_MS` (1, 5, 15 or 30 minutes; default 5), measured by the wall
@@ -729,7 +731,9 @@ native screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
   `npm ci --ignore-scripts`, the tests and the build, publishes a SHA-256
   list and deploys to Azure Static Web Apps. It restores nothing from the
   Actions cache. `.github/workflows/release-desktop.yml` builds
-  `desktop-v*` tags into draft pre-releases.
+  `desktop-v*` tags in jobs that can only read the repository; a job of
+  its own, running none of the build's code, drafts the pre-release with
+  `SHA256SUMS` and a build provenance attestation.
   `.github/workflows/android-test.yml` builds an arm64 test APK on a push
   to `cwn/android` or by hand from the Actions tab, signed with a key made
   for that run and then thrown away. Both stop at once when started on

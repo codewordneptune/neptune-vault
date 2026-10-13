@@ -26,13 +26,20 @@ The Android app is built from the same shell; see [ANDROID.md](ANDROID.md).
    ```
 
    The running apps compare the tag's version with their own to tell
-   people a new version is out, so the two must match; nothing checks this
-   for you.
-3. The workflow builds for the four targets and attaches the installers to
-   a **draft** pre-release whose notes say "Unsigned test build". Try the
-   installers, replace the notes with what people should read (the app's
-   Download button opens this page), then publish the draft. Only a
-   published release reaches the apps' update notice; a draft never does.
+   people a new version is out, so the two must match: the workflow stops
+   if the tag does not name the version in `web/package.json`.
+3. The workflow builds for the four targets; the build jobs can only read
+   the repository. Once all four have built, a job of its own, which runs
+   none of the build's code, lists the installers' SHA-256 in
+   `SHA256SUMS`, records a build provenance attestation for them, and
+   attaches them to a **draft** pre-release whose notes say "Unsigned test
+   build". Try the installers, replace the notes with what people should
+   read (the app's Download button opens this page), then publish the
+   draft:
+   - as a full release ("Set as a pre-release" unticked), for the apps'
+     update notice to offer it;
+   - as a pre-release, to share it with testers: the apps never offer a
+     pre-release, nor a draft.
 
 A run started by hand from the Actions tab only builds. Start it on a
 branch other than `main`: on `main` it stops at once (see
@@ -46,10 +53,26 @@ What each platform should get:
 |---|---|
 | Windows | `.msi` and a `-setup.exe` (NSIS) |
 | Linux | `.deb`, `.rpm` and an `.AppImage` |
-| macOS | `.app` in a `.dmg` (and a `.app.tar.gz`), one per chip |
+| macOS | `.app` in a `.dmg`, one per chip |
 
-No release has been published yet. Runs started by hand (the last on
-2026-10-04) produce exactly these files.
+A release also carries `SHA256SUMS`. No release has been published yet;
+the last run by hand, on 2026-10-06, built these files.
+
+## Checking a download
+
+`SHA256SUMS` lists each file's SHA-256, and GitHub keeps a signed
+attestation, also in Sigstore's public log, that each file was built by
+this workflow from the tagged commit. With the file and `SHA256SUMS` in one
+folder:
+
+```
+sha256sum -c SHA256SUMS --ignore-missing
+gh attestation verify <file> --repo codewordneptune/neptune-vault
+```
+
+On Windows, `Get-FileHash <file>` in PowerShell prints the SHA-256 to
+compare with the list. Both show that a file is the one the workflow
+built, not that the build was safe, and neither replaces code signing.
 
 ## Building locally
 
@@ -95,9 +118,11 @@ Without `-o`, the command also overwrites the Android icon.
 
 These need keys only the maintainer can create. None of them goes in the
 repository: each is a secret under Settings, Secrets and variables,
-Actions. Adding a secret is not enough: name it in the `env` of the
-`tauri-action` step in `release-desktop.yml`, which today passes only
-`GITHUB_TOKEN`.
+Actions. Adding a secret is not enough: a step must name it in its `env`.
+Do not give signing keys to the build jobs, which run the dependencies'
+build scripts. Sign in a job of its own, as the release job drafts the
+release, with the keys in an environment that only tags can use and that
+waits for your approval.
 
 **macOS** (without it, macOS refuses to open the app until the person
 allows it in System Settings, Privacy and Security). An Apple Developer
@@ -120,11 +145,13 @@ and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Then add the plugin to the shell
 `capabilities/default.json`), put the public key in
 `plugins.updater.pubkey` and the endpoint in `plugins.updater.endpoints`,
 and set `bundle.createUpdaterArtifacts` to `true`; the app then checks the
-release's `latest.json`. GitHub's `releases/latest` skips pre-releases, so
-turn off `prerelease` in the workflow before pointing the endpoint there.
+release's `latest.json`. GitHub's `releases/latest` skips pre-releases, as
+the update notice does, so a release meant for everyone is published as a
+full release.
 
 Until then the app only tells people that a newer version is out: when it
 starts, and every six hours, it asks GitHub's releases API
-(`web/src/components/DesktopUpdateNotice.tsx`) and links the release page.
+(`web/src/components/DesktopUpdateNotice.tsx`) and links the newest full
+release's page, built from its tag.
 
 Linux packages are usually not signed.

@@ -356,7 +356,8 @@ cd shells/tauri && npx --prefix ../../web tauri build
   It also replaces `web/dist` with the desktop page, so run `npm run build`
   in `web` again before you deploy the web app.
 - Pushing a `desktop-v<version>` tag builds all platforms and attaches the
-  installers to a draft pre-release.
+  installers, with `SHA256SUMS` and a build attestation, to a draft
+  pre-release.
 - Details, and the signing and updater keys still needed:
   [docs/DESKTOP-RELEASE.md](docs/DESKTOP-RELEASE.md).
 
