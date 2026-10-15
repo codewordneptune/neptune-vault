@@ -8,7 +8,11 @@ use std::collections::HashSet;
 
 use anyhow::anyhow;
 use anyhow::Result;
+use neptune_consensus::proof_abstractions::tasm::program::TritonProgram;
 use neptune_consensus::transaction::transaction_kernel::TransactionKernel;
+use neptune_consensus::transaction::utxo::Utxo;
+use neptune_consensus::type_scripts::native_currency::NativeCurrency;
+use neptune_consensus::type_scripts::native_currency_amount::NativeCurrencyAmount;
 use neptune_mutator_set::addition_record::AdditionRecord;
 use neptune_mutator_set::removal_record::absolute_index_set::AbsoluteIndexSet;
 use neptune_primitives::announcement_flag::AnnouncementFlag;
@@ -20,6 +24,7 @@ use neptune_wallet::address::SpendingKey;
 use neptune_wallet::incoming_utxo::IncomingUtxoRecoveryData;
 use neptune_wallet::tasm_lib::prelude::Digest;
 use neptune_wallet::tasm_lib::prelude::Tip5;
+use neptune_wallet::tasm_lib::twenty_first::math::bfield_codec::BFieldCodec;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -258,6 +263,22 @@ pub fn scan_blocks(
     })
 }
 
+/// What a coin holds, when a valid transaction could carry it: each
+/// native-currency part, and their sum, between zero and the total supply.
+/// A node can hand over a transaction it made up, with any amount in it.
+fn valid_amount(utxo: &Utxo) -> Option<NativeCurrencyAmount> {
+    let native = NativeCurrency.hash();
+    let mut total: i128 = 0;
+    for coin in utxo.coins().iter().filter(|c| c.type_script_hash == native) {
+        let nau = NativeCurrencyAmount::decode(&coin.state).ok()?.to_nau();
+        if !(0..=NativeCurrencyAmount::MAX_NAU).contains(&nau) {
+            return None;
+        }
+        total = total.checked_add(nau).filter(|sum| *sum <= NativeCurrencyAmount::MAX_NAU)?;
+    }
+    Some(NativeCurrencyAmount::from_nau(total))
+}
+
 /// The block-independent core of scanning, so tests can drive it with a bare
 /// transaction kernel. Returns (incoming, spent hashes, next key indices).
 #[allow(clippy::too_many_arguments)]
@@ -291,6 +312,9 @@ pub fn scan_kernel(
         if !found.utxo.all_type_script_states_are_valid() {
             continue;
         }
+        let Some(native_amount) = valid_amount(&found.utxo) else {
+            continue;
+        };
         let Some((key_kind, key_index)) = account.key_for_lock_script_hash(found.utxo.lock_script_hash())
         else {
             continue;
@@ -298,7 +322,6 @@ pub fn scan_kernel(
         next_key_indices.mark_used(key_kind, key_index);
         let own_build_height = own_build_height(account, key_kind, key_index, found.sender_randomness, height);
 
-        let native_amount = found.utxo.get_native_currency_amount();
         // Two outputs of one transaction can carry the same addition record
         // (same amount, same address, same build height): each announcement
         // then takes its own position, so both coins are kept.
@@ -411,12 +434,14 @@ pub fn scan_mempool_kernel(
         if !found.utxo.all_type_script_states_are_valid() {
             continue;
         }
+        let Some(native_amount) = valid_amount(&found.utxo) else {
+            continue;
+        };
         let Some((key_kind, key_index)) =
             account.key_for_lock_script_hash(found.utxo.lock_script_hash())
         else {
             continue;
         };
-        let native_amount = found.utxo.get_native_currency_amount();
         // Built against the tip or a little below it; the next block is
         // allowed for a node slightly ahead of this wallet.
         let own = own_build_height(account, key_kind, key_index, found.sender_randomness, tip_height + 1).is_some();

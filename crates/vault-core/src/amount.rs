@@ -28,7 +28,16 @@ pub fn to_nau_string(amount: NativeCurrencyAmount) -> String {
 
 /// Display form: NPT with trailing zeros trimmed, at most 8 decimals.
 pub fn format(amount: NativeCurrencyAmount) -> String {
-    let s = amount.display_n_decimals(8);
+    // The library shows a negative amount by negating it and calling itself,
+    // which never ends for i128::MIN: its negation is itself. Here a
+    // negative amount is shown from its magnitude, and i128::MIN from the
+    // nearest one, a nau away.
+    let nau = amount.to_nau();
+    let s = if nau < 0 {
+        format!("-{}", NativeCurrencyAmount::from_nau(nau.checked_neg().unwrap_or(i128::MAX)).display_n_decimals(8))
+    } else {
+        amount.display_n_decimals(8)
+    };
     match s.find('.') {
         Some(_) => {
             let trimmed = s.trim_end_matches('0').trim_end_matches('.');

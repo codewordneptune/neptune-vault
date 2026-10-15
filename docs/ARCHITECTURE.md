@@ -119,8 +119,10 @@ this is the heaviest chain. When a node claims a deep reorganisation,
 with proof of work on Mainnet, and the work each block claims adding up as
 the consensus rules add it, so the chain counts as heavier only with work
 done for it. It then decrypts announcements, keeps those
-whose addition record the block carries, assigns the AOCL index, and finds
-spends by exact absolute-index-set match. Coins are keyed
+whose addition record the block carries and whose amount a valid
+transaction could hold (each part and their sum between zero and the total
+supply, `valid_amount`), assigns the AOCL index, and finds spends by exact
+absolute-index-set match. Coins are keyed
 `<utxo hash>:<aocl index>` (`coin_key`). `scan_mempool_kernel` does the same
 for one unmined kernel without advancing key indices.
 

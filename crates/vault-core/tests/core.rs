@@ -2,6 +2,7 @@
 
 use neptune_consensus::transaction::announcement::Announcement;
 use neptune_consensus::transaction::transaction_kernel::TransactionKernelProxy;
+use neptune_consensus::transaction::utxo::Coin;
 use neptune_consensus::transaction::utxo::Utxo;
 use neptune_consensus::type_scripts::native_currency_amount::NativeCurrencyAmount;
 use neptune_mutator_set::commit;
@@ -79,6 +80,36 @@ fn amounts_parse_and_format() {
     assert_eq!(amount::format(amount::parse("0").unwrap()), "0");
     assert!(amount::parse("-1").is_err());
     assert!(amount::parse("abc").is_err());
+
+    // A negative amount shows with a minus, the most negative one too.
+    assert_eq!(amount::format(NativeCurrencyAmount::from_nau(-one_and_a_half.to_nau())), "-1.5");
+    assert!(amount::format(NativeCurrencyAmount::from_nau(i128::MIN)).starts_with("-42535295."));
+}
+
+#[test]
+fn a_coin_no_valid_transaction_can_carry_is_not_taken() {
+    // A node can hand over a transaction it made up, with any amount in it.
+    let mut account = account();
+    let max = NativeCurrencyAmount::MAX_NAU;
+    let coin = |nau: i128| Coin::new_native_currency(NativeCurrencyAmount::from_nau(nau));
+    for coins in [vec![coin(i128::MIN)], vec![coin(-1)], vec![coin(max + 1)], vec![coin(max), coin(1)]] {
+        let (proxy, _) = kernel_announcing(&mut account, KeyKind::Generation, 1, coins.clone());
+        let kernel = proxy.into_kernel();
+        let pending = scan::scan_mempool_kernel(&mut account, &kernel, &[], NextKeyIndices::default(), 0);
+        assert!(pending.incoming.is_empty(), "{coins:?}");
+        let (incoming, _, next) = scan::scan_kernel(&mut account, &kernel, &kernel.outputs.clone(), 0, &[], NextKeyIndices::default(), 1, "00", 0);
+        assert!(incoming.is_empty(), "{coins:?}");
+        assert_eq!(next, NextKeyIndices::default(), "{coins:?}: a coin not taken uses no key");
+    }
+
+    // The whole supply, in one part or two, is a coin like any other.
+    for coins in [vec![coin(max)], vec![coin(max - 1), coin(1)]] {
+        let (proxy, _) = kernel_announcing(&mut account, KeyKind::Generation, 1, coins.clone());
+        let kernel = proxy.into_kernel();
+        let (incoming, _, _) = scan::scan_kernel(&mut account, &kernel, &kernel.outputs.clone(), 0, &[], NextKeyIndices::default(), 1, "00", 0);
+        assert_eq!(incoming.len(), 1, "{coins:?}");
+        assert_eq!(incoming[0].amount_nau, max.to_string());
+    }
 }
 
 /// Build a kernel with one announced output to `account`'s key `key_index`
@@ -119,10 +150,15 @@ fn kernel_paying_kind(
     key_index: u64,
     coins: &str,
 ) -> (TransactionKernelProxy, Digest) {
+    kernel_announcing(account, kind, key_index, vec![Coin::new_native_currency(amount::parse(coins).unwrap())])
+}
+
+/// A kernel with one announced output to `account`'s key holding `coins`
+/// as given, whether or not a valid transaction could carry them.
+fn kernel_announcing(account: &mut Account, kind: KeyKind, key_index: u64, coins: Vec<Coin>) -> (TransactionKernelProxy, Digest) {
     let key = account.key(kind, key_index).clone();
     let address = key.to_address();
-    let amount = amount::parse(coins).unwrap();
-    let utxo = Utxo::new_native_currency(address.lock_script_hash(), amount);
+    let utxo = Utxo::new(address.lock_script_hash(), coins);
     let sender_randomness = Digest::default();
     let payload = UtxoNotificationPayload::new(utxo.clone(), sender_randomness);
     let announcement: Announcement = address.generate_announcement(payload);
