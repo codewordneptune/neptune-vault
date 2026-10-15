@@ -91,7 +91,8 @@ Every run builds its commit from nothing. It restores no Actions cache,
 for cargo or npm, because any run on `main` can save an entry there, and
 the deploy would ship what it holds. For the same reason the desktop and
 Android workflows stop at once when started on `main`. The build takes
-about 45 minutes, most of it building the two wasm packages. A run by hand
+about 70 minutes: about 40 building the two wasm packages and about 20
+running the Rust tests. A run by hand
 on another branch builds and tests that branch, and deploys nothing.
 
 To deploy from this PC instead, in an emergency only: it skips the
