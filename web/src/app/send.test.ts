@@ -516,9 +516,29 @@ describe('send service', () => {
   it('forget releases the inputs of a pending send', async () => {
     const { service } = await setup();
     await service.send(request, () => {});
-    await service.forget('tx-abc');
+    expect(await service.forget('tx-abc')).toBe(true);
     expect((await view.get('utxos', 'acc:a'))?.pendingTxid).toBeNull();
     expect((await view.get('history', 'acc:sent:tx-abc'))?.status).toBe('failed');
+    expect(await service.forget('tx-abc')).toBe(false);
+  });
+
+  it('gives nothing up of a send a block confirmed meanwhile, and says so', async () => {
+    const { service } = await setup();
+    await service.send(request, () => {});
+    const row = (await view.get('history', 'acc:sent:tx-abc')) as HistoryRecord;
+    await view.put('history', { ...row, status: 'confirmed', height: 11 });
+    expect(await service.forget('tx-abc')).toBe(false);
+    expect((await view.get('history', 'acc:sent:tx-abc'))?.status).toBe('confirmed');
+  });
+
+  it('judges a removal by the row as it is now, not by the copy on screen', async () => {
+    const { service } = await setup();
+    await service.send(request, () => {});
+    const pending = (await view.get('history', 'acc:sent:tx-abc')) as HistoryRecord;
+    // The screen still holds the send as it was when it had failed; it waits for a block again now.
+    const copy = { ...pending, status: 'failed', error: 'Not sent' } as HistoryRecord;
+    await expect(service.remove(copy)).rejects.toThrow(/may still go through/);
+    expect(await view.get('history', 'acc:sent:tx-abc')).toBeDefined();
   });
 
   it('removes a send given up on from History only once it can no longer go through', async () => {

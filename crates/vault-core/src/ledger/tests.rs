@@ -362,11 +362,13 @@ fn a_refused_send_disappears_and_one_given_up_on_is_kept_as_failed() {
     assert!(!state.history.contains_key("w:sent:tx1"));
     assert_eq!(state.utxos["a"].pending_txid, None);
 
-    run(&mut state, |s| forget_send(s, W, "tx2"));
+    assert!(run(&mut state, |s| forget_send(s, W, "tx2")));
     assert_eq!(row(&state, "sent:tx2")["status"], json!("failed"));
     assert_eq!(row(&state, "sent:tx2")["error"], json!("You gave up on this send."));
     assert_eq!(state.utxos["b"].pending_txid, None);
-    assert!(forget_send(&state, W, "nothing").changes.is_empty());
+    let nothing = forget_send(&state, W, "nothing");
+    assert!(nothing.changes.is_empty() && !nothing.value);
+    assert!(!forget_send(&state, W, "tx2").value, "given up once");
 }
 
 // ------------------------------------------------------------------ the mempool
@@ -681,7 +683,8 @@ fn giving_up_on_a_send_a_block_confirmed_meanwhile_changes_nothing() {
     persist(&mut state, &[block(120, vec![coin("a", 10, 120)], &[], &[])]);
     run(&mut state, |s| record_pending(s, pending_send("tx", &["a"], &["o1"])));
     persist(&mut state, &[block(121, vec![], &["a"], &["o1"])]);
-    assert!(forget_send(&state, W, "tx").changes.is_empty());
+    let late = forget_send(&state, W, "tx");
+    assert!(late.changes.is_empty() && !late.value, "nothing was given up");
 }
 
 // ------------------------------------------------------------ a node's competing chain

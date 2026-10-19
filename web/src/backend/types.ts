@@ -237,7 +237,8 @@ export interface LedgerAnswers {
   clearRestore: null;
   recordPending: null;
   discardPending: null;
-  forgetSend: null;
+  /** Whether the send was given up: false when it was no longer pending. */
+  forgetSend: boolean;
   expireSends: string[];
   chainTime: number | null;
   /** Whether the row was written; false when it was there already. */

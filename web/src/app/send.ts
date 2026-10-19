@@ -516,16 +516,27 @@ export class SendService {
     await this.ledger({ op: 'discardPending', txid });
   }
 
-  /** Give up on a pending send: release its inputs and mark it failed. */
-  async forget(txid: string): Promise<void> {
-    await this.ledger({ op: 'forgetSend', txid });
+  /**
+   * Give up on a pending send: release its inputs and mark it failed.
+   * False when it was no longer pending, a block having confirmed it
+   * meanwhile: nothing was given up.
+   */
+  forget(txid: string): Promise<boolean> {
+    return this.ledger({ op: 'forgetSend', txid });
   }
 
-  /** Take a send that was not sent out of History, once it can no longer go through (see removable). */
+  /**
+   * Take a send that was not sent out of History, once it can no longer go
+   * through (see removable): judged by its row and coins as they are now,
+   * not by the copy the screen holds.
+   */
   async remove(record: HistoryRecord): Promise<void> {
+    const rows = (await this.core.storeRead?.(this.accountId, 'history')) as HistoryRecord[] | undefined;
+    const live = rows ? rows.find((h) => h.key === record.key) : record;
+    if (!live) return;
     const coins = (await this.core.storeRead?.(this.accountId, 'utxos')) as { hash: string; spentHeight: number | null }[] | undefined;
     const spent = new Set((coins ?? []).filter((u) => u.spentHeight !== null).map((u) => u.hash));
-    if (removable(record, (coin) => spent.has(coin)) !== true) throw new Error('This send may still go through, so it stays in History for now.');
+    if (removable(live, (coin) => spent.has(coin)) !== true) throw new Error('This send may still go through, so it stays in History for now.');
     await this.ledger({ op: 'dropRow', key: record.key });
   }
 }

@@ -157,11 +157,14 @@ export function Home() {
   // The newest block the wallet knows of, for counting confirmations.
   const tipHeight = Math.max(sync?.tipHeight ?? 0, sync?.syncedHeight ?? 0);
   const blocksSince = (h: HistoryRecord): number | null => (h.status === 'confirmed' && h.height !== null && tipHeight >= h.height ? tipHeight - h.height : null);
-  const [detail, setDetail] = useState<HistoryEntry | null>(null);
+  // The entry whose details are open, read from History as it is now: a
+  // send that confirms while its sheet is open says so there and then.
+  const [opened, setDetail] = useState<HistoryEntry | null>(null);
+  const detail = opened ? (entries.find((e) => e.record.key === opened.record.key) ?? opened) : null;
   const [why, setWhy] = useState(false);
   // The sheet's technical rows are folded until asked for, and fold again for the next entry.
   const [tech, setTech] = useState(false);
-  useEffect(() => setTech(false), [detail]);
+  useEffect(() => setTech(false), [opened]);
   const PAGE = 50;
   const [shown, setShown] = useState(PAGE);
   // The shown entries by calendar day, in the order they come (newest first):
@@ -179,23 +182,36 @@ export function Home() {
   const [giveUpBusy, setGiveUpBusy] = useState(false);
   // A give-up that failed is said in its dialog, which stays open for another try.
   const [giveUpError, setGiveUpError] = useState<string | null>(null);
+  // The send as History has it now. One that stopped waiting while the
+  // dialog was open, or that the engine found no longer pending, is not
+  // given up, and the dialog says why.
+  const givingUpNow = givingUp ? (history.find((h) => h.key === givingUp.key) ?? givingUp) : null;
+  const [notPending, setNotPending] = useState(false);
+  const nothingToGiveUp = givingUpNow !== null && (notPending || givingUpNow.status !== 'pending');
   const closeGiveUp = () => {
     if (givingUp) focusRow(givingUp.key);
     setGivingUp(null);
     setGiveUpError(null);
+    setNotPending(false);
   };
   const giveUp = async () => {
     if (!account || !givingUp) return;
     const key = givingUp.key;
     setGiveUpBusy(true);
     setGiveUpError(null);
+    let given: boolean;
     try {
-      await services.sendService(account.id).forget(givingUp.txid);
+      given = await services.sendService(account.id).forget(givingUp.txid);
     } catch (e) {
       setGiveUpError((e as Error).message);
       return;
     } finally {
       setGiveUpBusy(false);
+    }
+    if (!given) {
+      await refresh();
+      setNotPending(true);
+      return;
     }
     setGivingUp(null);
     await refresh();
@@ -1061,31 +1077,45 @@ export function Home() {
         )}
       </Sheet>
 
-      <Sheet opened={givingUp !== null} onClose={closeGiveUp} returnFocus={false} title="Give up on this send?">
-        {givingUp && (
-          <Stack>
-            <Text size="sm">
-              {nodeHolds(givingUp) === 'has'
-                ? 'The node still has this send, so it may still go through. Giving up makes its coins spendable here, but if it confirms anyway, it shows up as Sent.'
-                : nodeHolds(givingUp) === null
-                  ? 'Giving up makes its coins spendable, but it does not call the send back: it stays in History as Given up, and if it confirms anyway, it shows up as Sent.'
-                  : 'The node no longer has this send. Giving up makes its coins spendable, and the send stays in History as Given up until one of its coins is spent.'}{' '}
-              Your next send, to anyone, spends one of its coins, so the two cannot both go through.
-            </Text>
-            <Text size="sm" c="dimmed">
-              <Spoken text={`This send: ${showNau(BigInt(givingUp.amountNau))} NPT${givingUp.feeNau ? ` plus a ${showNau(BigInt(givingUp.feeNau))} NPT fee` : ''}. Giving up makes ${showNau(reservedFor(givingUp))} NPT spendable again.`} />
-            </Text>
-            {giveUpError && <ErrorLine title="This send was not given up">{giveUpError}</ErrorLine>}
-            <Group grow>
-              <Button variant="default" onClick={closeGiveUp}>
-                Cancel
-              </Button>
-              <Button color="red" loading={giveUpBusy} onClick={() => void giveUp()}>
-                {giveUpError ? 'Try again' : 'Give up'}
-              </Button>
-            </Group>
-          </Stack>
-        )}
+      <Sheet opened={givingUp !== null} onClose={closeGiveUp} returnFocus={false} title={nothingToGiveUp ? 'Nothing to give up' : 'Give up on this send?'}>
+        {givingUpNow &&
+          (nothingToGiveUp ? (
+            <Stack>
+              <Text size="sm">
+                {givingUpNow.status === 'confirmed'
+                  ? 'A block has just confirmed this send, so it went through and there is nothing to give up. History shows it as Sent.'
+                  : 'This send is no longer waiting for a block, so there is nothing to give up. History shows what became of it.'}
+              </Text>
+              <Group grow>
+                <Button variant="default" onClick={closeGiveUp}>
+                  Close
+                </Button>
+              </Group>
+            </Stack>
+          ) : (
+            <Stack>
+              <Text size="sm">
+                {nodeHolds(givingUpNow) === 'has'
+                  ? 'The node still has this send, so it may still go through. Giving up makes its coins spendable here, but if it confirms anyway, it shows up as Sent.'
+                  : nodeHolds(givingUpNow) === null
+                    ? 'Giving up makes its coins spendable, but it does not call the send back: it stays in History as Given up, and if it confirms anyway, it shows up as Sent.'
+                    : 'The node no longer has this send. Giving up makes its coins spendable, and the send stays in History as Given up until one of its coins is spent.'}{' '}
+                Your next send, to anyone, spends one of its coins, so the two cannot both go through.
+              </Text>
+              <Text size="sm" c="dimmed">
+                <Spoken text={`This send: ${showNau(BigInt(givingUpNow.amountNau))} NPT${givingUpNow.feeNau ? ` plus a ${showNau(BigInt(givingUpNow.feeNau))} NPT fee` : ''}. Giving up makes ${showNau(reservedFor(givingUpNow))} NPT spendable again.`} />
+              </Text>
+              {giveUpError && <ErrorLine title="This send was not given up">{giveUpError}</ErrorLine>}
+              <Group grow>
+                <Button variant="default" onClick={closeGiveUp}>
+                  Cancel
+                </Button>
+                <Button color="red" loading={giveUpBusy} onClick={() => void giveUp()}>
+                  {giveUpError ? 'Try again' : 'Give up'}
+                </Button>
+              </Group>
+            </Stack>
+          ))}
       </Sheet>
     </Stack>
   );

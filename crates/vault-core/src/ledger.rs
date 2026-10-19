@@ -687,16 +687,18 @@ pub fn discard_pending(state: &WalletState, wallet_id: &str, txid: &str) -> Outc
 
 /// The person gave up on a pending send: release its inputs and mark it
 /// failed. One no longer pending, which a block confirmed meanwhile, stays.
-pub fn forget_send(state: &WalletState, wallet_id: &str, txid: &str) -> Outcome {
+/// Answers whether the send was given up.
+pub fn forget_send(state: &WalletState, wallet_id: &str, txid: &str) -> Outcome<bool> {
     let mut tx = Tx::new(state);
-    if let Some(entry) = state.history.get(&record_key(wallet_id, &format!("sent:{txid}"))).filter(|e| e.status == "pending").cloned() {
-        release_inputs(&mut tx, &entry);
-        let mut extra = entry.extra.clone();
-        extra.insert("error".into(), json!(GAVE_UP));
-        extra.insert("givenUp".into(), json!(true));
-        tx.push(WalletChange::PutHistory { entry: HistoryEntry { status: "failed".into(), extra, ..entry } });
-    }
-    tx.done(())
+    let Some(entry) = state.history.get(&record_key(wallet_id, &format!("sent:{txid}"))).filter(|e| e.status == "pending").cloned() else {
+        return tx.done(false);
+    };
+    release_inputs(&mut tx, &entry);
+    let mut extra = entry.extra.clone();
+    extra.insert("error".into(), json!(GAVE_UP));
+    extra.insert("givenUp".into(), json!(true));
+    tx.push(WalletChange::PutHistory { entry: HistoryEntry { status: "failed".into(), extra, ..entry } });
+    tx.done(true)
 }
 
 /// When a pending send was stamped: the transaction's own timestamp, kept

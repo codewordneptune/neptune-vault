@@ -165,7 +165,7 @@ pub fn run(state: &WalletState, wallet_id: &str, op: Op, keys: Option<&mut Accou
 
         Op::RecordPending { entry } => wrote(record_pending(state, history_entry(entry)?)),
         Op::DiscardPending { txid } => wrote(discard_pending(state, wallet_id, &txid)),
-        Op::ForgetSend { txid } => wrote(forget_send(state, wallet_id, &txid)),
+        Op::ForgetSend { txid } => said(forget_send(state, wallet_id, &txid)),
         Op::ExpireSends { now } => {
             let outcome = expire_sends(state, now);
             Ok(Outcome { changes: outcome.changes, value: json!(outcome.value) })
