@@ -79,60 +79,60 @@ export function ContactsPanel() {
           {contacts !== null && (
             <div>
               {contacts.map((c) => (
-                <div className="vault-row" key={c.key}>
-                  <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                    <Avatar name={c.name} address={c.address} />
-                    <div style={{ minWidth: 0 }}>
+                <div className="vault-row vault-contact" key={c.key}>
+                  <Avatar name={c.name} address={c.address} />
+                  <div className="vault-contact-text">
+                    <div className="vault-contact-head">
                       <Text size="sm" fw={600} className="vault-row-title">
                         <bdi>{c.name}</bdi>
                       </Text>
-                      <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
-                        {abbreviateAddress(c.address)}
-                      </Text>
-                      {/* The kind in plain words, and only when it is not Standard. */}
-                      {addressKindNote(c.address) && (
-                        <Text size="xs" c="dimmed">
-                          {addressKindNote(c.address)}
-                        </Text>
-                      )}
+                      <Group gap={4} wrap="nowrap" className="vault-contact-actions">
+                        {/* Stays while the pointer moves onto it, so it can be read. */}
+                        <Tooltip label="Send to this contact" interactive>
+                          <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`Send to ${c.name}`} onClick={() => navigate('/send', { state: { recipient: c.address } })}>
+                            <IconArrowUpRight size={20} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Menu position="bottom-end">
+                          <Menu.Target>
+                            <ActionIcon
+                              variant="subtle"
+                              size="lg"
+                              className="vault-tap"
+                              aria-label={`More for ${c.name}`}
+                              ref={(el: HTMLButtonElement | null) => {
+                                if (el) moreButtons.current.set(c.key, el);
+                                else moreButtons.current.delete(c.key);
+                              }}
+                            >
+                              <IconDotsVertical size={20} />
+                            </ActionIcon>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            {/* The row shows the address shortened; this copies it whole, to hand on or paste into another wallet. */}
+                            <Menu.Item leftSection={<IconCopy size={16} />} onClick={() => void copyText(c.address, 'Address copied')}>
+                              Copy address
+                            </Menu.Item>
+                            <Menu.Item leftSection={<IconPencil size={16} />} onClick={() => setRenaming(c)}>
+                              Rename
+                            </Menu.Item>
+                            <Menu.Item leftSection={<IconTrash size={16} />} c="var(--v-danger-text)" className="danger" onClick={() => setRemoving(c)}>
+                              Remove
+                            </Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
+                      </Group>
                     </div>
-                  </Group>
-                  <Group gap={4} wrap="nowrap">
-                    {/* Stays while the pointer moves onto it, so it can be read. */}
-                    <Tooltip label="Send to this contact" interactive>
-                      <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={`Send to ${c.name}`} onClick={() => navigate('/send', { state: { recipient: c.address } })}>
-                        <IconArrowUpRight size={20} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Menu position="bottom-end">
-                      <Menu.Target>
-                        <ActionIcon
-                          variant="subtle"
-                          size="lg"
-                          className="vault-tap"
-                          aria-label={`More for ${c.name}`}
-                          ref={(el: HTMLButtonElement | null) => {
-                            if (el) moreButtons.current.set(c.key, el);
-                            else moreButtons.current.delete(c.key);
-                          }}
-                        >
-                          <IconDotsVertical size={20} />
-                        </ActionIcon>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        {/* The row shows the address shortened; this copies it whole, to hand on or paste into another wallet. */}
-                        <Menu.Item leftSection={<IconCopy size={16} />} onClick={() => void copyText(c.address, 'Address copied')}>
-                          Copy address
-                        </Menu.Item>
-                        <Menu.Item leftSection={<IconPencil size={16} />} onClick={() => setRenaming(c)}>
-                          Rename
-                        </Menu.Item>
-                        <Menu.Item leftSection={<IconTrash size={16} />} c="var(--v-danger-text)" className="danger" onClick={() => setRemoving(c)}>
-                          Remove
-                        </Menu.Item>
-                      </Menu.Dropdown>
-                    </Menu>
-                  </Group>
+                    <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">
+                      {abbreviateAddress(c.address)}
+                    </Text>
+                    {/* The kind in plain words, and only when it is not Standard. */}
+                    {addressKindNote(c.address) && (
+                      <Text size="xs" c="dimmed">
+                        {addressKindNote(c.address)}
+                      </Text>
+                    )}
+                  </div>
                 </div>
               ))}
               <div className="vault-row vault-address-row">

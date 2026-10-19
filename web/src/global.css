@@ -824,6 +824,29 @@ button.vault-network:focus-visible {
 .vault-row > *:last-child {
   flex-shrink: 0;
 }
+/* A contact: Send and the menu end its name's line, so the shortened
+   address under them has the row's width, as on Send's recipient card. */
+.vault-contact > .vault-contact-text {
+  flex: 1;
+  min-width: 0;
+}
+.vault-contact-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* The buttons (40 px, 44 on touch) reach into the row's padding, so the
+   name's line keeps its 18 px and the address sits right under it. */
+.vault-contact-actions {
+  flex: none;
+  margin-block: -11px;
+}
+@media (pointer: coarse) {
+  .vault-contact-actions {
+    margin-block: -13px;
+  }
+}
 /* History rows are buttons that open the detail sheet (sized with .vault-pick). */
 .vault-row-button:focus-visible {
   outline: 2px solid var(--v-accent);
