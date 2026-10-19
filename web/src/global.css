@@ -55,8 +55,9 @@
   --v-line: #212c3b;
   --v-card-shadow: none;
   --v-rail-tile-shadow: none;
-  /* The rail's other tabs' labels, on the page's glow at its strongest. */
-  --v-rail-label: var(--v-muted);
+  /* Muted text on the page's glow at its strongest: the rail's other tabs'
+     labels and the labels over Settings' groups. */
+  --v-muted-on-glow: var(--v-muted);
   /* A field's edge is the one exception: the field's fill is 1.2:1 off the
      card, so an empty field was all but invisible. A quiet edge, 1.8:1 on
      the card (#1a2433), marks it without outlining every form: the
@@ -159,9 +160,10 @@
   --v-line: #d3dbe6;
   --v-card-shadow: 0 0 0 1px rgba(21, 32, 46, 0.07), 0 1px 3px rgba(21, 32, 46, 0.06);
   --v-rail-tile-shadow: 0 0 0 1px rgba(21, 32, 46, 0.08), 0 1px 3px rgba(21, 32, 46, 0.08);
-  /* The glow's blue darkens the page behind the rail's first tabs: muted
-     text there falls to 4.4:1, this keeps it above 4.8:1. */
-  --v-rail-label: #546377;
+  /* The glow's blue darkens the page behind the rail's first tabs and the
+     first Settings label: muted text there falls to 4.4:1, this keeps it
+     above 4.8:1. */
+  --v-muted-on-glow: #546377;
   /* A field's edge: 1.9:1 on the white card, quiet, with the field's
      faint tint (#f7f9fc) setting it apart from the card as the darker fill
      does in the dark palette; 3.1:1 under the pointer. A box or radio,
@@ -756,12 +758,13 @@ button.vault-network:focus-visible {
 }
 
 /* A label over a group of rows, as History's day headings read: in
-   sentence case ("This wallet", "App", "Recipient 1"). Spaced capitals
+   sentence case ("This wallet", "App", "Recipient 1"), in the muted grey of
+   the rows' second lines, so the rows under it lead. Spaced capitals
    (.vault-eyebrow) stay for card titles, step counters and menus. */
 .vault-group-label {
   font-size: var(--v-fs-sm);
   font-weight: 600;
-  color: var(--v-text-2);
+  color: var(--v-muted);
 }
 
 /* Key figures. */
@@ -2331,7 +2334,7 @@ html {
     flex: none;
     width: 100%;
     padding: 12px 4px;
-    color: var(--v-rail-label);
+    color: var(--v-muted-on-glow);
   }
   /* In the rail the current tab sits on a tile of the cards' own surface,
      icon and label together, not a line: a line on the rail's outer edge
@@ -2536,6 +2539,7 @@ html {
   gap: 6px;
 }
 .vault-settings-group-label {
+  color: var(--v-muted-on-glow);
   padding-inline: 16px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2754,8 +2758,8 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 }
 
 /* History by day: a heading says the day once, the rows under it keep only
-   their time. Sentence case and the text colour, so it reads as a day and
-   not as another card title. */
+   their time. Sentence case and muted, as the group labels, so it reads as
+   a day and not as another card title. */
 .vault-history-day + .vault-history-day {
   margin-top: 16px;
 }
@@ -2765,7 +2769,7 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   margin: 0 0 18px;
   font-size: var(--v-fs-sm);
   font-weight: 600;
-  color: var(--v-text-2);
+  color: var(--v-muted);
 }
 
 /* The library's toasts and keys in the app's text colours and weights. */
