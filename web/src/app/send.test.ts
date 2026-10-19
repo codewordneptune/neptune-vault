@@ -46,7 +46,10 @@ class FakeCore implements Partial<WalletCore> {
   async absoluteIndexSets(unspent: StoredUtxo[]): Promise<string> {
     return JSON.stringify(unspent.map((u) => ({ set: u.hash })));
   }
-  async buildSend(inputs: StoredUtxo[], _s: string, _t: string, request: SendRequest): Promise<SendPlan> {
+  /** The stamps sends were built with, in order. */
+  stamps: number[] = [];
+  async buildSend(inputs: StoredUtxo[], _s: string, _t: string, request: SendRequest, stampMs: number): Promise<SendPlan> {
+    this.stamps.push(stampMs);
     if (this.lustration && !request.accept_lustration) throw new Error('this send requires lustration announcements; confirm to proceed');
     return {
       witness: new Uint8Array([1, 2, 3]),
@@ -463,6 +466,21 @@ describe('send service', () => {
     await service.send(request, () => {});
     expect(prover.last?.blockHeight).toBe(core.askedHeights[0]);
   });
+
+  for (const [nodeSays, stamped] of [
+    [-3 * 86400_000, 0],
+    [30_000, 30_000],
+  ]) {
+    it(`is stamped no earlier than the newest block this wallet checked, the node saying ${nodeSays / 1000} s from it`, async () => {
+      const { core, node, service } = await setup();
+      const checked = Date.now() - 60_000;
+      await view.put('blocks', { key: 'acc:12', accountId: 'acc', height: 12, hash: 'h12', prevHash: 'h11', timestampMs: checked });
+      await view.put('syncState', { accountId: 'acc', syncedHeight: 12, syncedHash: 'h12', updatedAt: 0 });
+      node.tipTime = checked + nodeSays;
+      await service.send(request, () => {});
+      expect(core.stamps).toEqual([checked + stamped]);
+    });
+  }
 
   it('sends nothing when a send given up on, named on the review, has no coin left to spend', async () => {
     const { node, service } = await setup();

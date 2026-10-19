@@ -281,6 +281,17 @@ export class SendService {
     return this.core.ledger(this.accountId, op);
   }
 
+  /**
+   * The newest block's time for a send's stamp: the node's word, but never
+   * earlier than the newest block this wallet checked itself, so a node
+   * cannot date a send in the past.
+   */
+  private async newestBlockTime(nodeSaysMs: number | null): Promise<number | null> {
+    const checked = await this.ledger({ op: 'chainTime', now: Date.now() });
+    if (checked === null) return nodeSaysMs;
+    return nodeSaysMs === null ? checked : Math.max(nodeSaysMs, checked);
+  }
+
   /** Unspent, unreserved, unlocked UTXOs available to spend. */
   spendable(nowMs = Date.now()): Promise<StoredUtxo[]> {
     return this.ledger({ op: 'spendable', now: nowMs });
@@ -340,7 +351,7 @@ export class SendService {
     // The stamp and the time-lock check both go by the newest block's time
     // when the device's clock is ahead of it (see sendStamp).
     const tip = await this.node.tipHeader();
-    const first = sendStamp(Date.now(), tip.timestamp);
+    const first = sendStamp(Date.now(), await this.newestBlockTime(tip.timestamp));
     if (first.clockProblem) throw new Error(first.clockProblem);
     const plan = await this.planWith(await this.spendable(first.stampMs), request, first.stampMs, rivals);
 
@@ -363,7 +374,7 @@ export class SendService {
 
       onProgress({ stage: 'building', note: again });
       let built;
-      const stamp = sendStamp(Date.now(), tipHeader.timestampMs).stampMs;
+      const stamp = sendStamp(Date.now(), await this.newestBlockTime(tipHeader.timestampMs)).stampMs;
       try {
         built = await this.core.buildSend(plan.inputs, snapshotResponse, tipHeader.raw, request, stamp);
       } catch (e) {

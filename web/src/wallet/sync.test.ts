@@ -30,6 +30,8 @@ class FakeNode {
   networkName: string | null = 'regtest';
   /** Answer "canonical" this many times whatever is asked: a reorganisation that lands just after the check. */
   staleCanonicalAnswers = 0;
+  /** Block times by height, where a test sets them; otherwise a second per block. */
+  times = new Map<number, number>();
   async network() {
     return this.networkName;
   }
@@ -77,7 +79,7 @@ class FakeNode {
   async getBlocks(from: number, to: number): Promise<RpcWalletBlock[]> {
     const blocks: RpcWalletBlock[] = [];
     for (let h = from; h <= Math.min(to, this.tip); h++) {
-      blocks.push({ kernel: { header: { height: h, prevBlockDigest: this.hashAt(h - 1), timestamp: h * 1000, difficulty: '1' }, body: {}, appendix: [] }, proofLeaf: this.hashAt(h) });
+      blocks.push({ kernel: { header: { height: h, prevBlockDigest: this.hashAt(h - 1), timestamp: this.times.get(h) ?? h * 1000, difficulty: '1' }, body: {}, appendix: [] }, proofLeaf: this.hashAt(h) });
     }
     return blocks;
   }
@@ -613,7 +615,7 @@ describe('sync engine', () => {
     expect(node.getBlocksCalls[0]).toEqual([5, 8]);
   });
 
-  it('releases a send the chain is three days past, which no block can take any more', async () => {
+  it('releases a send once a block it scanned is three days past it', async () => {
     const { node, core, engine } = await setup();
     node.extendTo(6);
     core.incoming.set(4, [utxo('u1', 4, '5')]);
@@ -622,16 +624,34 @@ describe('sync engine', () => {
     await view.put('utxos', { ...u, pendingTxid: 'tx-1' });
     await view.put('history', { key: 'acc:sent:tx-1', accountId: 'acc', kind: 'sent', status: 'pending', txid: 'tx-1', amountNau: '1', feeNau: '0', timestampMs: 1000, height: null, inputHashes: ['u1'], recipient: 'r', error: null, stampMs: 1000 });
 
-    node.extendTo(7);
     const day = 86400_000;
-    node.tipHeader = async () => ({ height: node.tip, prevBlockDigest: node.hashAt(node.tip - 1), timestamp: 1000 + 3 * day + 2 * 3600_000, difficulty: '1' });
+    node.times.set(7, 1000 + 3 * day + 2 * 3600_000);
+    node.extendTo(7);
     const result = await engine.syncOnce();
     expect(result.expired).toEqual(['tx-1']);
     const sent = (await view.get('history', 'acc:sent:tx-1'))!;
     expect(sent.status).toBe('failed');
     expect(sent.error).toMatch(/^No block took it within three days/);
     expect((await view.get('utxos', 'acc:u1'))?.pendingTxid).toBeNull();
-    expect(result.tipTimestampMs).toBe(1000 + 3 * day + 2 * 3600_000);
+  });
+
+  it('expires nothing on a time the node only claims', async () => {
+    const { node, core, engine } = await setup();
+    node.extendTo(6);
+    core.incoming.set(4, [utxo('u1', 4, '5')]);
+    await engine.syncOnce();
+    const u = (await view.get('utxos', 'acc:u1'))!;
+    await view.put('utxos', { ...u, pendingTxid: 'tx-1' });
+    await view.put('history', { key: 'acc:sent:tx-1', accountId: 'acc', kind: 'sent', status: 'pending', txid: 'tx-1', amountNau: '1', feeNau: '0', timestampMs: 1000, height: null, inputHashes: ['u1'], recipient: 'r', error: null, stampMs: 1000 });
+
+    // Its newest block, it says, is a month on; the block it sends is not.
+    node.extendTo(7);
+    node.tipHeader = async () => ({ height: node.tip, prevBlockDigest: node.hashAt(node.tip - 1), timestamp: 1000 + 30 * 86400_000, difficulty: '1' });
+    const result = await engine.syncOnce();
+    expect(result.phase).toBe('done');
+    expect(result.expired).toBeUndefined();
+    expect((await view.get('history', 'acc:sent:tx-1'))?.status).toBe('pending');
+    expect((await view.get('utxos', 'acc:u1'))?.pendingTxid).toBe('tx-1');
   });
 
   it('asks for fewer blocks at once when the node is too slow, and pauses when even one is too much', async () => {

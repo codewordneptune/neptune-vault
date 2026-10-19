@@ -33,6 +33,11 @@ fn coin(hash: &str, amount: i128, height: u64) -> StoredUtxo {
     }
 }
 
+/// An empty block at `height`, timestamped `at`.
+fn block_at(height: u64, at: u64) -> ScannedBlock {
+    ScannedBlock { timestamp_ms: at, ..block(height, vec![], &[], &[]) }
+}
+
 fn block(height: u64, incoming: Vec<StoredUtxo>, spent: &[&str], seen: &[&str]) -> ScannedBlock {
     ScannedBlock {
         height,
@@ -309,16 +314,21 @@ fn a_send_expires_once_the_chain_is_three_days_past_its_stamp() {
     let mut unstamped = pending_send("tx2", &["b"], &["out2"]);
     unstamped.timestamp_ms = 900_000;
     run(&mut state, |s| record_pending(s, unstamped));
+    // This device's clock far ahead: the chain's time decides.
+    let now = u64::MAX / 2;
 
-    assert!(run(&mut state, |s| expire_sends(s, 1_000 + SEND_LIFETIME_MS)).is_empty(), "not a moment early");
-    assert_eq!(run(&mut state, |s| expire_sends(s, 1_001 + SEND_LIFETIME_MS)), ["tx1"]);
+    persist(&mut state, &[block_at(121, 1_000 + SEND_LIFETIME_MS)]);
+    assert!(run(&mut state, |s| expire_sends(s, now)).is_empty(), "not a moment early");
+    persist(&mut state, &[block_at(122, 1_001 + SEND_LIFETIME_MS)]);
+    assert_eq!(run(&mut state, |s| expire_sends(s, now)), ["tx1"]);
     let sent = row(&state, "sent:tx1");
     assert_eq!((sent["status"].clone(), sent["error"].clone(), sent["expired"].clone()), (json!("failed"), json!(EXPIRED), json!(true)));
     assert_eq!(state.utxos["a"].pending_txid, None, "its coin is spendable again");
     assert_eq!(state.utxos["b"].pending_txid.as_deref(), Some("tx2"));
 
-    assert_eq!(run(&mut state, |s| expire_sends(s, 900_001 + SEND_LIFETIME_MS)), ["tx2"]);
-    assert!(expire_sends(&state, u64::MAX).value.is_empty(), "each only once");
+    persist(&mut state, &[block_at(123, 900_001 + SEND_LIFETIME_MS)]);
+    assert_eq!(run(&mut state, |s| expire_sends(s, now)), ["tx2"]);
+    assert!(expire_sends(&state, now).value.is_empty(), "each only once");
 
     // A later spend of its coin in the mempool is another transaction, not this send come back.
     let written = run(&mut state, |s| record_outgoing(s, outgoing("m", &["a"])));
@@ -537,7 +547,8 @@ fn a_send_given_up_on_or_expired_is_watched_until_one_of_its_coins_is_spent() {
     run(&mut state, |s| record_pending(s, pending_send("two-coins", &["d", "e"], &["o3"])));
     run(&mut state, |s| forget_send(s, W, "given-up"));
     run(&mut state, |s| forget_send(s, W, "two-coins"));
-    assert_eq!(run(&mut state, |s| expire_sends(s, 2 + SEND_LIFETIME_MS)), ["expiring"]);
+    persist(&mut state, &[block_at(121, 2 + SEND_LIFETIME_MS)]);
+    assert_eq!(run(&mut state, |s| expire_sends(s, u64::MAX / 2)), ["expiring"]);
     let watched = |state: &WalletState| {
         let mut all = watched_commitments(state);
         all.sort();
@@ -546,7 +557,7 @@ fn a_send_given_up_on_or_expired_is_watched_until_one_of_its_coins_is_spent() {
     assert_eq!(watched(&state), ["c1", "o1", "o2", "o3"]);
 
     // Coins spent by other transactions: neither send can go through any more.
-    persist(&mut state, &[block(121, vec![], &["b", "d"], &["other"])]);
+    persist(&mut state, &[block(122, vec![], &["b", "d"], &["other"])]);
     assert_eq!(watched(&state), ["c1", "o1"]);
     // A spend of its other coin seen coming is not that send come back.
     assert!(run(&mut state, |s| record_outgoing(s, outgoing("m", &["e"]))));
@@ -617,8 +628,9 @@ fn a_send_that_expired_and_went_through_after_all_is_sent() {
     let mut state = wallet();
     persist(&mut state, &[block(120, vec![coin("a", 10, 120)], &[], &[])]);
     run(&mut state, |s| record_pending(s, pending_send("tx", &["a"], &["o1"])));
-    assert_eq!(run(&mut state, |s| expire_sends(s, 2 + SEND_LIFETIME_MS)), ["tx"]);
-    persist(&mut state, &[block(121, vec![], &["a"], &["o1"])]);
+    persist(&mut state, &[block_at(121, 2 + SEND_LIFETIME_MS)]);
+    assert_eq!(run(&mut state, |s| expire_sends(s, u64::MAX / 2)), ["tx"]);
+    persist(&mut state, &[block(122, vec![], &["a"], &["o1"])]);
     let sent = row(&state, "sent:tx");
     assert_eq!((sent["status"].clone(), sent["error"].clone(), sent["expired"].clone()), (json!("confirmed"), Value::Null, Value::Null));
 }
@@ -641,8 +653,26 @@ fn a_send_whose_block_was_rolled_back_waits_again_and_never_expires_by_time() {
     assert_eq!(state.utxos["b"].pending_txid.as_deref(), Some("tx2"), "held again");
 
     // Days later by the chain's clock: the send a block had confirmed waits on.
+    persist(&mut state, &[block_at(121, u64::MAX / 4)]);
     assert_eq!(run(&mut state, |s| expire_sends(s, u64::MAX / 2)), ["tx2"]);
     assert_eq!(row(&state, "sent:tx1")["status"], json!("pending"));
+}
+
+#[test]
+fn the_chain_s_time_is_the_newest_block_scanned_and_no_more_than_an_hour_past_this_device_s_clock() {
+    let mut state = wallet();
+    assert_eq!(chain_time(&state, 5), None, "nothing scanned yet");
+    persist(&mut state, &[block(120, vec![coin("a", 5, 120)], &[], &[])]);
+    run(&mut state, |s| record_pending(s, pending_send("tx", &["a"], &["o"])));
+
+    // A block timestamped far past this device's clock counts as an hour past it.
+    let far = 10 * SEND_LIFETIME_MS;
+    persist(&mut state, &[block_at(121, far)]);
+    assert_eq!(chain_time(&state, 1_000), Some(1_000 + 60 * 60 * 1000));
+    assert!(run(&mut state, |s| expire_sends(s, 1_000)).is_empty());
+    // Once this device's clock is there too, the send expires.
+    assert_eq!(chain_time(&state, far), Some(far));
+    assert_eq!(run(&mut state, |s| expire_sends(s, far)), ["tx"]);
 }
 
 #[test]

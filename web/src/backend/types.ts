@@ -205,8 +205,10 @@ export type LedgerOp =
   | { op: 'recordPending'; entry: HistoryRecord }
   | { op: 'discardPending'; txid: string }
   | { op: 'forgetSend'; txid: string }
-  /** Release the sends no block can take any more; answers their ids. */
-  | { op: 'expireSends'; tipTimestampMs: number }
+  /** Release the sends no block took in time, by the chain's time as this wallet checked it; `now` is this device's clock. Answers their ids. */
+  | { op: 'expireSends'; now: number }
+  /** The time of the newest block this wallet scanned, no more than an hour past `now`; null before one is kept. */
+  | { op: 'chainTime'; now: number }
   | { op: 'recordOutgoing'; row: HistoryRecord }
   | { op: 'recordIncoming'; row: HistoryRecord }
   | { op: 'dropRow'; key: string }
@@ -237,6 +239,7 @@ export interface LedgerAnswers {
   discardPending: null;
   forgetSend: null;
   expireSends: string[];
+  chainTime: number | null;
   /** Whether the row was written; false when it was there already. */
   recordOutgoing: boolean;
   recordIncoming: boolean;

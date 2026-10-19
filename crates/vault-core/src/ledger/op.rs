@@ -62,8 +62,11 @@ pub enum Op {
     RecordPending { entry: Value },
     DiscardPending { txid: String },
     ForgetSend { txid: String },
-    /// Release the sends no block can take any more, given the chain's newest block time.
-    ExpireSends { tip_timestamp_ms: u64 },
+    /// Release the sends no block took in time, by the chain's time as this
+    /// wallet checked it; `now` is this device's clock.
+    ExpireSends { now: u64 },
+    /// The chain's time as this wallet checked it (see `chain_time`).
+    ChainTime { now: u64 },
 
     // The mempool.
     RecordOutgoing { row: Value },
@@ -163,10 +166,11 @@ pub fn run(state: &WalletState, wallet_id: &str, op: Op, keys: Option<&mut Accou
         Op::RecordPending { entry } => wrote(record_pending(state, history_entry(entry)?)),
         Op::DiscardPending { txid } => wrote(discard_pending(state, wallet_id, &txid)),
         Op::ForgetSend { txid } => wrote(forget_send(state, wallet_id, &txid)),
-        Op::ExpireSends { tip_timestamp_ms } => {
-            let outcome = expire_sends(state, tip_timestamp_ms);
+        Op::ExpireSends { now } => {
+            let outcome = expire_sends(state, now);
             Ok(Outcome { changes: outcome.changes, value: json!(outcome.value) })
         }
+        Op::ChainTime { now } => read(chain_time(state, now)),
 
         Op::RecordOutgoing { row } => said(record_outgoing(state, history_entry(row)?)),
         Op::RecordIncoming { row } => said(record_incoming(state, history_entry(row)?)),

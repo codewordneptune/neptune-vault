@@ -290,9 +290,10 @@ export class SyncEngine {
       if (synced < tip.height) {
         return this.progress('error', synced, tip.height, `The node says its newest block is ${tip.height}, but it did not send the blocks after block ${synced}, so this wallet is not up to date. Try again later, or choose another node in Settings.`);
       }
-      // Sends of this device no block took in time, by the chain's clock:
-      // their coins are released and they are marked as expired.
-      const expired = typeof tip.timestamp === 'number' && tip.timestamp > 0 ? await this.ledger({ op: 'expireSends', tipTimestampMs: tip.timestamp }) : [];
+      // Sends of this device no block took in time, by the time of the
+      // newest block this wallet checked, not the node's word: their coins
+      // are released and they are marked as expired.
+      const expired = await this.ledger({ op: 'expireSends', now: Date.now() });
       return this.progress('done', synced, tip.height, undefined, expired.length > 0 ? { expired } : {});
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);

@@ -706,15 +706,28 @@ fn stamped_at(entry: &HistoryEntry) -> u64 {
     entry.extra.get("stampMs").and_then(Value::as_u64).unwrap_or(entry.timestamp_ms)
 }
 
-/// Pending sends of this device that no block took in time, now that the
-/// chain's newest block is timestamped `tip_timestamp_ms`: their coins are
-/// released and each is marked as expired. Not one whose confirming block
-/// was rolled back. Answers their transaction ids.
-pub fn expire_sends(state: &WalletState, tip_timestamp_ms: u64) -> Outcome<Vec<String>> {
+/// How far past this device's clock the chain's time is taken to be.
+const CLOCK_MARGIN_MS: u64 = 60 * 60 * 1000;
+
+/// The chain's time as this wallet checked it: the timestamp of the newest
+/// block it scanned, which links to the blocks before it and on Mainnet
+/// carries its proof of work, but no more than an hour past this device's
+/// clock `now`. None before a block is kept at the scan's position.
+pub fn chain_time(state: &WalletState, now: u64) -> Option<u64> {
+    let synced = u64::try_from(state.sync.as_ref()?.synced_height).ok()?;
+    Some(state.blocks.get(&synced)?.timestamp_ms.min(now.saturating_add(CLOCK_MARGIN_MS)))
+}
+
+/// Pending sends of this device that no block took in time, by the chain's
+/// time as this wallet checked it (`chain_time`): their coins are released
+/// and each is marked as expired. Not one whose confirming block was rolled
+/// back. Answers their transaction ids.
+pub fn expire_sends(state: &WalletState, now: u64) -> Outcome<Vec<String>> {
     let mut tx = Tx::new(state);
     let mut expired = Vec::new();
+    let Some(chain_now) = chain_time(state, now) else { return tx.done(expired) };
     for entry in state.history.values().filter(|h| own_send(h) && h.status == "pending" && !rolled_back(h)) {
-        if tip_timestamp_ms <= stamped_at(entry).saturating_add(SEND_LIFETIME_MS) {
+        if chain_now <= stamped_at(entry).saturating_add(SEND_LIFETIME_MS) {
             continue;
         }
         release_inputs(&mut tx, entry);

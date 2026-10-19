@@ -171,8 +171,10 @@ Operations are reads, scans, sync steps (`startPass`, `rollBack`,
 rows. A send's coins stay held from `recordPending` until a block confirms
 it, the node refuses it (`discardPending`), the person gives up on it
 (`forgetSend`), or it expires: `expireSends` frees them once the newest
-block is more than three days and an hour past the send's stamp
-(`SEND_LIFETIME_MS`), unless a block had confirmed it before a rollback.
+block the wallet scanned is more than three days and an hour past the
+send's stamp (`SEND_LIFETIME_MS`), unless a block had confirmed it before a
+rollback. That block's time (`chainTime`) counts no further than an hour
+past the device's clock, and the node's own word on the time is not used.
 A send given up on, or expired, stays watched until one of its coins is
 spent in a block: spent by the send itself, it becomes that send again;
 spent by another transaction, it can no longer go through. A spent coin is
@@ -528,7 +530,9 @@ for a block or confirmed less than a day ago, the review says so
 
 1. `chain_tipHeader`, for the time. The transaction is stamped with the
    device's clock but never later than the newest block, and a clock more
-   than nine hours behind stops the send here (`sendStamp`).
+   than nine hours behind stops the send here (`sendStamp`). The newest
+   block's time is the node's word, but never earlier than the newest block
+   the wallet scanned, so a node cannot date a send in the past.
 2. `plan_inputs` over the ledger's `spendable` coins, with a coin of each
    given-up send that may still go through among them (`givenUpRivals`,
    below). If one named on the review has no coin left to spend, it may
