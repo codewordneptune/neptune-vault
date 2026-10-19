@@ -1546,6 +1546,15 @@ main :is(h2, h3)[tabindex='-1']:focus {
 html {
   scrollbar-gutter: stable;
 }
+/* With a mouse, a thin scrollbar in the palette: a quiet thumb on a clear
+   track. The colour is inherited by any other native scrollbar. Touch
+   screens keep their own. */
+@media (pointer: fine) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--v-faint) transparent;
+  }
+}
 
 /* Sub-screen title with its back chevron. */
 .vault-title-row {
