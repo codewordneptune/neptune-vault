@@ -101,10 +101,10 @@ const PAGE = `
     $$('[role=tab]').find((element) => element.textContent.trim() === name)?.click();
     await sleep(1200);
   };
-  if (document.body.innerText.includes('Welcome back')) {
-    setValue($('input[type=password]'), PASSWORD);
+  if ($('.vault-lock')) {
+    setValue($('.vault-lock input[type=password]'), PASSWORD);
     byText('button', 'Unlock').click();
-    await until(() => !document.body.innerText.includes('Welcome back'), 120000);
+    await until(() => !$('.vault-lock'), 120000);
     await sleep(2500);
   }
 `;

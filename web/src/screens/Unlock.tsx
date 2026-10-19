@@ -102,9 +102,6 @@ export function Unlock() {
         >
           <Stack>
             <Stack gap={6} align="center">
-              <Text size="sm" c="dimmed">
-                Welcome back
-              </Text>
               {account && (
                 <Title order={2} ta="center" className="vault-lock-name">
                   <bdi>{walletName(account)}</bdi>
