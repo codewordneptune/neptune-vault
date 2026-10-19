@@ -32,7 +32,13 @@ export function isNative(): boolean {
 export async function createBackend(): Promise<Backend> {
   if (isNative()) {
     const [wallet, prover] = await Promise.all([import('./native/walletClient'), import('./native/proverClient')]);
-    return { core: new wallet.NativeWalletClient(), prover: new prover.NativeProverClient(), kind: 'native' };
+    const core = new wallet.NativeWalletClient();
+    // The shell keeps a wallet unlocked for as long as the app runs, and a
+    // page that starts again knows nothing of it: it starts from a locked
+    // wallet, as its lock screen says. The shell also locks as a page starts
+    // loading; this holds where that did not happen.
+    await core.lock().catch(() => {});
+    return { core, prover: new prover.NativeProverClient(), kind: 'native' };
   }
   const [wallet, prover] = await Promise.all([import('./browser/walletClient'), import('./browser/proverClient')]);
   return { core: new wallet.WalletWorkerClient(), prover: new prover.ProverClient(), kind: 'browser' };

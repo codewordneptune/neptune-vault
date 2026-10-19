@@ -11,6 +11,7 @@ use serde_json::Value;
 use tauri::ipc::Channel;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
+use tauri::webview::PageLoadEvent;
 use tauri::Manager;
 use tauri::State;
 use vault_bridge::envelope::{SealedBox, SeedEnvelope, SeedUnlock};
@@ -434,6 +435,18 @@ pub fn run() {
                 prover: Arc::new(Prover::new()),
             });
             Ok(())
+        })
+        // A page that starts again, from Reload on the error screen or a web
+        // view the system rebuilt, gets a locked wallet: the page that
+        // unlocked it is gone, and the new one shows a lock screen. A proof
+        // the old page started is abandoned with it.
+        .on_page_load(|webview, payload| {
+            if matches!(payload.event(), PageLoadEvent::Started) {
+                if let Some(app) = webview.try_state::<App>() {
+                    let _ = app.vault.lock();
+                    app.prover.cancel();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             wallet_core_version,
