@@ -5,7 +5,7 @@
 
 import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, PasswordInput, Progress, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
-import { IconAlertTriangle, IconCheck, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
+import { IconAlertTriangle, IconArrowsExchange, IconCheck, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -948,6 +948,9 @@ export function Send() {
   const running = Boolean(sendJob && !sendJob.done);
   // A send the node took shows on its own until Done, in place of the form.
   const sentShown = Boolean(sendJob?.done && sendJob.ending === 'sent' && sendJob.outcome);
+  // The one address it paid, and that address's contact, for the circle the review showed.
+  const sentTo = sendJob?.request.payments.length === 1 ? sendJob.request.payments[0].recipient.trim() : null;
+  const sentName = sentTo ? contactName(sentTo) : null;
   const p = sendJob?.progress.proving;
   const proving = sendJob?.progress.stage === 'proving';
   // The prover reports only between sub-proofs, which take minutes, so the
@@ -1442,23 +1445,33 @@ export function Send() {
             {/* What went where, in the words History uses for the send. The proof's time is in Diagnostics. */}
             {sentShown && (
               <div className="vault-sent">
-                <span className="vault-sent-mark" aria-hidden>
-                  <IconCheck size={30} stroke={2.5} />
-                </span>
-                <Text component="h3" fz="xl" fw={600}>
-                  Sent
-                </Text>
-                <Text fz="md" c="var(--v-text-2)">
-                  <Amount nau={paymentsTotalNau(sendJob.request)} hidden={hidden} figure /> to <bdi>{whoOf(sendJob.request)}</bdi>
-                </Text>
-                <Text size="sm" c="dimmed">
-                  Fee <Spoken text={hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} /> NPT · {WAITING_FOR_BLOCK.toLowerCase()}, usually within an hour
-                </Text>
-                {lastRecipient && !savedName && (
-                  <UnstyledButton onClick={() => setSaving(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
-                    Save recipient as a contact
-                  </UnstyledButton>
-                )}
+                {/* Who and how much as the review showed them, with a tick at the circle's corner. */}
+                <div className="vault-receipt vault-sent-what">
+                  {sentTo && sentName ? (
+                    <Avatar big name={sentName} address={sentTo} badge={<IconCheck size={14} stroke={3} />} />
+                  ) : (
+                    <span className="vault-row-icon out big" aria-hidden>
+                      {sentTo === null ? <IconUsers size={20} /> : isOwn(sentTo) ? <IconArrowsExchange size={20} /> : <IconUser size={20} />}
+                      <span className="vault-avatar-badge">
+                        <IconCheck size={14} stroke={3} />
+                      </span>
+                    </span>
+                  )}
+                  <Text component="h3" fz="md" fw={600}>
+                    Sent to <bdi>{whoOf(sendJob.request)}</bdi>
+                  </Text>
+                  <div className="vault-receipt-amount">
+                    <Amount nau={paymentsTotalNau(sendJob.request)} hidden={hidden} />
+                  </div>
+                  <Text size="sm" c="dimmed">
+                    Fee <Spoken text={hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} /> NPT · {WAITING_FOR_BLOCK.toLowerCase()}, usually within an hour
+                  </Text>
+                  {lastRecipient && !savedName && (
+                    <UnstyledButton onClick={() => setSaving(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+                      Save recipient as a contact
+                    </UnstyledButton>
+                  )}
+                </div>
                 <Group grow className="vault-sent-actions">
                   <Button variant="light" onClick={() => navigate('/')}>
                     See in History

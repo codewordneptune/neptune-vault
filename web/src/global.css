@@ -3135,10 +3135,12 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 .vault-send-result:focus {
   outline: none;
 }
-/* A send the node took, in place of the form until Done: a tick, what went
-   where, and the two ways on. The tick settles in once; with reduced motion
-   it is simply there. */
+/* A send the node took, in place of the form until Done: who and how much
+   as the review showed them, a tick at the circle's corner, and the two
+   ways on. The tick settles in once; with reduced motion it is simply
+   there. Its ring is the colour of what is behind it. */
 .vault-sent {
+  --vault-sent-ground: var(--v-surface);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3146,23 +3148,23 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   padding-top: 8px;
   text-align: center;
 }
-.vault-sent-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  margin-bottom: 6px;
-  border-radius: 50%;
-  color: var(--v-ok-text);
-  background: var(--v-surface-2);
-  background: color-mix(in srgb, var(--v-ok-text) 14%, transparent);
+.vault-sent .vault-row-icon {
+  position: relative;
+}
+.vault-sent .vault-avatar-badge {
+  right: -4px;
+  bottom: -4px;
+  width: 24px;
+  height: 24px;
+  background: var(--v-ok-text);
+  color: var(--v-page);
+  box-shadow: 0 0 0 3px var(--vault-sent-ground);
   animation: vault-sent-in 240ms ease-out;
 }
 @keyframes vault-sent-in {
   from {
     opacity: 0;
-    transform: scale(0.85);
+    transform: scale(0.6);
   }
 }
 .vault-sent p {
@@ -3171,6 +3173,20 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 .vault-sent-actions {
   align-self: stretch;
   margin-top: 14px;
+}
+/* On a phone the page reaches the tab bar (.vault-send-bare): who and how
+   much take its middle, and the two ways on its foot, where Review was. */
+.vault-send-bare .vault-send-result:has(> .vault-sent) {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+.vault-send-bare .vault-sent {
+  --vault-sent-ground: var(--v-page);
+  flex: 1 0 auto;
+}
+.vault-send-bare .vault-sent-what {
+  margin-block: auto;
 }
 
 /* Setup and settings (ux audit 2) */
