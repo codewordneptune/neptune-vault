@@ -4,15 +4,17 @@ members = ["crates/vault-prover", "crates/vault-core", "crates/vault-bridge", "c
 # Vendored crates are used through [patch.crates-io] below, not as members,
 # but they live inside the workspace tree and must be excluded explicitly so
 # `cargo test` can run inside them.
-exclude = ["crates/vendor/neptune-consensus", "crates/vendor/neptune-primitives", "crates/vendor/twenty-first", "crates/vendor/triton-vm"]
+exclude = ["crates/vendor/neptune-consensus", "crates/vendor/neptune-primitives", "crates/vendor/twenty-first", "crates/vendor/triton-vm", "crates/vendor/bfieldcodec_derive"]
 
-# Vendored copies of published crates with wasm32 gating.
+# Vendored copies of published crates with wasm32 gating, and a derive macro
+# that now emits the same code on every build.
 # See crates/vendor/VENDOR.md for the versions and the exact changes.
 [patch.crates-io]
 neptune-consensus = { path = "crates/vendor/neptune-consensus" }
 neptune-primitives = { path = "crates/vendor/neptune-primitives" }
 twenty-first = { path = "crates/vendor/twenty-first" }
 triton-vm = { path = "crates/vendor/triton-vm" }
+bfieldcodec_derive = { path = "crates/vendor/bfieldcodec_derive" }
 
 # Triton VM generates its constraint code in a build script, recursively and
 # deeply enough that an unoptimized build of it overflows the 1 MB stack a
