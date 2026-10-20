@@ -1069,7 +1069,7 @@ export function Send() {
     const agreeFirst = reviewed.feeHigh || reviewed.feeLow;
     const sendDisabled = running || passkeyBusy || feeNeedsAgreement || (needsApproval && !password);
     // The coins the core will pick (largest first, then oldest), so the
-    // review can say what stays spendable while the send is pending.
+    // review can show what stays spendable while the send is pending.
     const nowMs = Date.now();
     const coins = utxos
       .filter((u) => u.spentHeight === null && u.pendingTxid === null && (u.releaseDateMs === null || u.releaseDateMs <= nowMs))
@@ -1114,7 +1114,7 @@ export function Send() {
       const first = isOwn(to[0]) ? 'yourself' : (contactName(to[0]) ?? abbreviateAddress(to[0]));
       return to.length > 1 ? `${first} and ${to.length - 1} more` : first;
     };
-    // What stays spendable while it is pending, and the change on hold until it confirms: said only when there is change.
+    // What stays spendable while it is pending, and the change on hold until it confirms: shown only when there is change.
     const spendableWhile = balance.spendableNau - heldNau;
     const spendableAfter = balance.spendableNau - totalNau;
     reviewSheet = (
@@ -1218,6 +1218,23 @@ export function Send() {
               </Text>
             )}
           </div>
+          {/* Only when this send has change, and never while amounts are hidden. */}
+          {!hidden && spendableWhile !== spendableAfter && (
+            <div className="vault-review vault-receipt-after">
+              <div className="vault-review-row">
+                <span>Spendable while it is pending</span>
+                <b>
+                  <Amount nau={spendableWhile} figure />
+                </b>
+              </div>
+              <div className="vault-review-row">
+                <span>Change, on hold until it confirms</span>
+                <b>
+                  <Amount nau={spendableAfter - spendableWhile} figure />
+                </b>
+              </div>
+            </div>
+          )}
           {reviewFeeNote && (
             <Text size="sm" c="var(--v-warn-text)" className="vault-receipt-warn">
               <IconAlertTriangle size={16} aria-hidden />
@@ -1236,12 +1253,6 @@ export function Send() {
           <Text size="sm" c="dimmed">
             This send cannot be changed once it starts, and {estimate !== null ? `takes ${formatAbout(estimate)} on this device` : 'can take a few minutes'}.
           </Text>
-          {/* Only when this send has change, and never while amounts are hidden. */}
-          {!hidden && spendableWhile !== spendableAfter && (
-            <Text size="sm" c="dimmed">
-              <Spoken text={`While this send is pending, ${showNau(spendableWhile)} NPT stays spendable; its change of ${showNau(spendableAfter - spendableWhile)} NPT is on hold until it confirms.`} />
-            </Text>
-          )}
           {sameFor.length > 0 && (
             <Caution title="You sent this recently">
               {sameFor.map(({ address, latest, count }) => (

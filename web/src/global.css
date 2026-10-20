@@ -1062,6 +1062,20 @@ main :is(h2, h3)[tabindex='-1']:focus {
   padding-top: 0;
   border-top: 0;
 }
+/* Under the sums, quieter: what stays spendable while the send is pending
+   and its change on hold, their figures in line with the fee and total. */
+.vault-receipt-after {
+  gap: 4px;
+  padding-inline: 16px;
+}
+.vault-receipt-after > .vault-review-row {
+  padding-top: 0;
+  border-top: 0;
+}
+.vault-receipt-after b {
+  font-weight: 500;
+  color: var(--v-text-2);
+}
 .vault-receipt-warn {
   display: flex;
   align-items: flex-start;
