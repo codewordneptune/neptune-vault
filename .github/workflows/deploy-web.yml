@@ -4,6 +4,10 @@
 # after the maintainer approves it in the `prod` environment, the one
 # place the deployment token is kept (docs/HOSTING.md, security audit H4).
 #
+# The Rust tests and the two wasm packages build side by side, each on a
+# runner of its own. The web app is built once both packages are done, from
+# files checked against the hashes their jobs reported.
+#
 # Third-party actions are pinned to a commit, not a tag, so a moved tag cannot
 # change what runs here.
 
@@ -12,24 +16,30 @@ name: Deploy web app
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'crates/**', 'Cargo.*', '.cargo/**', 'rust-toolchain.toml', '.github/workflows/deploy-web.yml']
+    paths: ['web/**', 'crates/**', 'Cargo.*', '.cargo/**', 'rust-toolchain.toml', '.github/workflows/deploy-web.yml', '.github/actions/**']
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# A newer run replaces one of the same branch still building or waiting for
+# approval; a run by hand on another branch leaves main's alone.
 concurrency:
-  group: deploy-web
+  group: deploy-web-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job runs on a named image, with an exact Node where it needs one, so
+# that the same commit builds the same files next month as today. Nothing
+# comes from the Actions cache, for cargo or npm: any other run on main can
+# save an entry there, and this build would ship what it holds (security
+# audit R1).
 jobs:
-  build:
-    # A named image and an exact Node, so that the same commit builds the
-    # same files next month as today. Nothing comes from the Actions cache,
-    # for cargo or npm: any other run on main can save an entry there, and
-    # this build would ship what it holds (security audit R1).
+  # The wallet core's own tests, which the web tests cannot stand in for:
+  # key derivation, scanning, the chain checks held against real mainnet
+  # blocks, and sending. The deploy waits for them.
+  tests:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -40,45 +50,131 @@ jobs:
       - name: Rust toolchain
         run: rustup show
 
-      # The wallet core's own tests, which the web tests cannot stand in
-      # for: key derivation, scanning, the chain checks held against real
-      # mainnet blocks, and sending.
       - name: Rust tests
         run: cargo test --locked -p vault-core
 
-      # wasm-pack takes the wasm-bindgen and wasm-opt it finds on the PATH,
-      # and downloads its own, unchecked, only when it finds none. So all
-      # three are put there first: wasm-pack and the wasm-bindgen in
-      # Cargo.lock built from crates.io, which checks every crate against its
-      # checksum, and the Binaryen release wasm-pack 0.13.1 would fetch,
-      # checked against the SHA-256 below. Built outside the repository, so
-      # with the runner's stable Rust and none of the settings here.
-      - name: wasm tools
-        run: |
-          set -euo pipefail
-          bindgen=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
-          test -n "$bindgen"
-          cd "$RUNNER_TEMP"
-          cargo install --locked wasm-pack --version 0.13.1
-          cargo install --locked wasm-bindgen-cli --version "$bindgen"
-          curl -sSfL -o binaryen.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-x86_64-linux.tar.gz
-          echo "3dc677006555b355ea2da5e82602065a161d5e83eaefd3f759afa00b96e83212  binaryen.tar.gz" | sha256sum --check
-          mkdir binaryen
-          tar -xzf binaryen.tar.gz --strip-components=1 -C binaryen
-          echo "$RUNNER_TEMP/binaryen/bin" >> "$GITHUB_PATH"
-          wasm-pack --version
-          wasm-bindgen --version
-          binaryen/bin/wasm-opt --version
+  # The two wasm packages, each on a runner of its own: they share no
+  # compiled code, since each builds Triton VM with other features. Each
+  # reports one SHA-256, of the list of its files' hashes, which the web
+  # job checks before it uses them.
+  wasm-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      sha256: ${{ steps.hashes.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        run: rustup show
+
+      - uses: ./.github/actions/wasm-tools
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.20.0
 
-      - name: Build wasm packages
+      - name: Build
         working-directory: web
+        run: npm run wasm:core
+
+      - name: Hashes
+        id: hashes
+        working-directory: web/public/wasm/core
         run: |
-          npm run wasm:core
-          npm run wasm:prover
+          set -euo pipefail
+          hash=$(find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+          echo "sha256=$hash" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wasm-core
+          path: web/public/wasm/core
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  wasm-prover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      sha256: ${{ steps.hashes.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        run: rustup show
+
+      - uses: ./.github/actions/wasm-tools
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.20.0
+
+      - name: Build
+        working-directory: web
+        run: npm run wasm:prover
+
+      - name: Hashes
+        id: hashes
+        working-directory: web/public/wasm/prover
+        run: |
+          set -euo pipefail
+          hash=$(find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+          echo "sha256=$hash" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wasm-prover
+          path: web/public/wasm/prover
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  # The web app, from the two packages: every file checked against the hash
+  # its job reported, then installed, tested and built.
+  web:
+    needs: [wasm-core, wasm-prover]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # The build's licence notices list the crates through cargo.
+      - name: Rust toolchain
+        run: rustup show
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: wasm-core
+          path: web/public/wasm/core
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: wasm-prover
+          path: web/public/wasm/prover
+
+      - name: The packages their jobs built, and no others
+        env:
+          CORE: ${{ needs.wasm-core.outputs.sha256 }}
+          PROVER: ${{ needs.wasm-prover.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          listed() { (cd "web/public/wasm/$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1); }
+          test -n "$CORE"
+          test -n "$PROVER"
+          test "$(listed core)" = "$CORE"
+          test "$(listed prover)" = "$PROVER"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.20.0
 
       - name: Install, test, build
         working-directory: web
@@ -122,12 +218,13 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
-  # Only main's build goes out, and only once the maintainer approves it:
-  # the job waits in the prod environment, which only main may use
-  # and which alone holds the token. No checkout, and no build tool runs here.
+  # Only main's build goes out, once its Rust tests have passed and the
+  # maintainer approves it: the job waits in the prod environment, which
+  # only main may use and which alone holds the token. No checkout, and no
+  # build tool runs here.
   deploy:
     if: github.ref == 'refs/heads/main'
-    needs: build
+    needs: [tests, web]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:

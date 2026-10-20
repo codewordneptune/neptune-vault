@@ -1,0 +1,31 @@
+name: wasm tools
+description: wasm-pack, the wasm-bindgen in Cargo.lock and Binaryen's wasm-opt on the PATH, each checked.
+
+# wasm-pack takes the wasm-bindgen and wasm-opt it finds on the PATH, and
+# downloads its own, unchecked, only when it finds none. So all three are put
+# there first: wasm-pack and the wasm-bindgen in Cargo.lock built from
+# crates.io, which checks every crate against its checksum, and the Binaryen
+# release wasm-pack 0.13.1 would fetch, checked against the SHA-256 below.
+# Built outside the repository, so with the runner's stable Rust and none of
+# the settings here.
+
+runs:
+  using: composite
+  steps:
+    - name: wasm tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        bindgen=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
+        test -n "$bindgen"
+        cd "$RUNNER_TEMP"
+        cargo install --locked wasm-pack --version 0.13.1
+        cargo install --locked wasm-bindgen-cli --version "$bindgen"
+        curl -sSfL -o binaryen.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-x86_64-linux.tar.gz
+        echo "3dc677006555b355ea2da5e82602065a161d5e83eaefd3f759afa00b96e83212  binaryen.tar.gz" | sha256sum --check
+        mkdir binaryen
+        tar -xzf binaryen.tar.gz --strip-components=1 -C binaryen
+        echo "$RUNNER_TEMP/binaryen/bin" >> "$GITHUB_PATH"
+        wasm-pack --version
+        wasm-bindgen --version
+        binaryen/bin/wasm-opt --version
