@@ -766,11 +766,12 @@ native screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
   `cargo test --release -p vault-prover -- --ignored`.
 - CI runs only on a push to `main` that touches the app or the crates, or
   by hand; its Rust step is vault-core's tests only.
-  `.github/workflows/deploy-web.yml` runs the Rust tests, the wasm builds,
-  `npm ci --ignore-scripts`, the tests and the build, with no secret and
-  nothing from the Actions cache, and publishes a SHA-256 list; a job of
-  its own then deploys `main`'s build to Azure Static Web Apps once the
-  maintainer approves it. `.github/workflows/release-desktop.yml` builds
+  `.github/workflows/deploy-web.yml` runs the Rust tests and the two wasm
+  builds side by side, then `npm ci --ignore-scripts`, the tests and the
+  build from the packages, each checked against the hash its job reported,
+  with no secret and nothing from the Actions cache, and publishes a
+  SHA-256 list; a job of its own then deploys `main`'s build to Azure
+  Static Web Apps once the maintainer approves it. `.github/workflows/release-desktop.yml` builds
   `desktop-v*` tags in jobs that can only read the repository; a job of
   its own, running none of the build's code, drafts the pre-release with
   `SHA256SUMS` and a build provenance attestation.

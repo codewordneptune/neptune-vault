@@ -66,22 +66,27 @@ serves the same headers.
 
 `.github/workflows/deploy-web.yml` runs on every push to `main` that
 touches `web/`, `crates/`, the root Cargo files, `.cargo/`,
-`rust-toolchain.toml` or the workflow itself, and by hand from the Actions
-tab. A newer run cancels one still in progress, or still waiting for
-approval. It has two jobs.
+`rust-toolchain.toml`, the workflow or its action in `.github/actions/`,
+and by hand from the Actions tab. A newer run on the same branch cancels
+one still in progress, or still waiting for approval; a run by hand on
+another branch leaves `main`'s alone.
 
-The build job holds no secret and can only read the repository. It:
+Four jobs build. None holds a secret, and each can only read the
+repository. The first three run side by side:
 
-1. runs the wallet core's Rust tests (`cargo test -p vault-core`);
-2. installs wasm-pack 0.13.1 and the wasm-bindgen in `Cargo.lock` from
-   crates.io, and Binaryen's wasm-opt (version 117), checked against a
-   SHA-256 in the workflow;
-3. builds the two wasm packages with the pinned nightly;
-4. runs `npm ci --ignore-scripts`, the web tests and `npm run build`;
-5. publishes the SHA-256 of every file in `dist` (below), and keeps
-   `dist` for the deploy job for 14 days.
+1. **tests** runs the wallet core's Rust tests (`cargo test -p vault-core`);
+2. **wasm-core** and **wasm-prover** each install wasm-pack 0.13.1 and the
+   wasm-bindgen in `Cargo.lock` from crates.io, and Binaryen's wasm-opt
+   (version 117), checked against a SHA-256
+   (`.github/actions/wasm-tools`), build their package with the pinned
+   nightly, and report one SHA-256, of the list of its files' hashes;
+3. **web**, once both packages are done, checks every file of them
+   against what their jobs reported, runs `npm ci --ignore-scripts`, the
+   web tests and `npm run build`, publishes the SHA-256 of every file in
+   `dist` (below), and keeps `dist` for the deploy job for 14 days.
 
-The deploy job runs only for `main`, and waits in the `prod` environment
+The deploy job runs only for `main`, once the tests and the web job have
+passed, and waits in the `prod` environment
 until you approve it: GitHub notifies you, and the run's page
 offers Review deployments. It then checks the files against the build's
 list and uploads them. It checks out no code and runs no build tool, and
@@ -91,8 +96,9 @@ Every run builds its commit from nothing. It restores no Actions cache,
 for cargo or npm, because any run on `main` can save an entry there, and
 the deploy would ship what it holds. For the same reason the desktop and
 Android workflows stop at once when started on `main`. The build takes
-about 70 minutes: about 40 building the two wasm packages and about 20
-running the Rust tests. A run by hand
+about 17 minutes: the prover's job, the longest of the three side by
+side, takes about 16, and the web job about one more. A slow runner can
+take twice as long. A run by hand
 on another branch builds and tests that branch, and deploys nothing.
 
 To deploy from this PC instead, in an emergency only: it skips the
