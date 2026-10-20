@@ -176,11 +176,15 @@ these learns.
 
 Every deploy run lists the SHA-256 of each file it uploads, in the run's
 summary on GitHub and as an artifact named `dist-sha256-<commit>`, kept for
-90 days. Three things make that list worth comparing against:
+90 days. Four things make that list worth comparing against:
 
 - The build's date comes from the commit (or `SOURCE_DATE_EPOCH`), never
   from the clock in a git checkout, so the bundle does not change from one
   run to the next.
+- The Rust code comes out the same on every build: bfieldcodec_derive,
+  whose error types took a new order each time the compiler ran it, is
+  vendored with a fixed order (`crates/vendor/VENDOR.md`). Two runs of one
+  commit list the same hash for every file.
 - Absolute paths are trimmed from the wasm (`trim-paths` in
   `.cargo/config.toml` and the release profile), so the binaries do not
   carry the builder's directories, and a local build does not publish the
@@ -188,6 +192,11 @@ summary on GitHub and as an artifact named `dist-sha256-<commit>`, kept for
 - The Rust nightly, Node, wasm-pack, wasm-bindgen and wasm-opt are pinned
   exactly; the runner image is named by its Ubuntu version
   (`ubuntu-24.04`), which GitHub keeps updating.
+
+To compare two runs, compare the "SHA-256 of the list itself" in their
+summaries. The digests GitHub shows for the artifacts differ even when
+every file is the same: each artifact is a ZIP, which records when its
+files were written.
 
 To check a deploy, in Git Bash or another Unix shell: `version.json` names
 the commit the site serves, in its short form; the artifact's name carries

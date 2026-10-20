@@ -198,6 +198,8 @@ jobs:
             echo
             echo "$(wc -l < ../dist.sha256) files. SHA-256 of the list itself: $(sha256sum ../dist.sha256 | cut -d' ' -f1)"
             echo
+            echo "Compare this value between runs. The artifacts' own digests differ, because each ZIP records when its files were written."
+            echo
             echo '<details><summary>Every file</summary>'
             echo '<pre>'
             cat ../dist.sha256
