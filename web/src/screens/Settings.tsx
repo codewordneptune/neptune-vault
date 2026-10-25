@@ -761,7 +761,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
             <SettingItem name="Node">
               <TextInput
                 w="100%"
-                label="Node URL"
+                label="Address"
                 description={testNetsShown ? `Used on ${NETWORK_LABELS[network]}; each network has its own.` : undefined}
                 value={nodeUrl}
                 onChange={(e) => setNodeUrl(e.currentTarget.value)}
@@ -786,8 +786,10 @@ function SettingsSections({ section }: { section: SectionKey }) {
                   )}
                 </Group>
               )}
+            </SettingItem>
+            {/* Not about the node: which networks the wallet menu offers. */}
+            <SettingItem name="Networks">
               <Checkbox
-                mt="xs"
                 label="Developer networks"
                 description={`Lets you add wallets on Testnet and Regtest, and switch to them in the wallet menu. For developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
                 checked={testNets}
