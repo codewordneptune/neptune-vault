@@ -1031,10 +1031,12 @@ main :is(h2, h3)[tabindex='-1']:focus {
   font-size: var(--v-fs-sm);
   color: var(--v-muted);
 }
+/* A figure keeps its unit beside it; the label wraps instead. */
 .vault-review-row b {
   color: var(--v-text);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 /* The total is set off like a receipt: a stronger rule above, the label in
    the text colour, a heavier weight, the same size as the rows it sums. */
