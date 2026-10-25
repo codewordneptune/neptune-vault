@@ -1622,9 +1622,11 @@ html {
   color: var(--v-muted);
 }
 
-/* A figure's decimals, a step quieter than its whole part, in whatever
-   colour the figure has (Figure in components/Amount.tsx). */
-.vault-dec {
+/* The balance's decimals, a step quieter than its whole part, in whatever
+   colour the figure has (Figure in components/Amount.tsx). Smaller figures
+   keep them at full strength: there the decimals are often the whole value
+   (a fee of 0.3), and a quieter step drops green and grey ones below 4.5:1. */
+.vault-balance .vault-dec {
   opacity: 0.72;
   font-weight: 500;
 }

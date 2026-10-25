@@ -15,8 +15,8 @@ export function speakNau(nau: bigint, hidden = false): string {
 
 /**
  * A figure shown as a value (the balance, a History row, a receipt): the
- * whole part, then its decimals a step quieter. Inside a sentence an amount
- * stays plain.
+ * whole part, then its decimals, which the balance shows a step quieter.
+ * Inside a sentence an amount stays plain.
  */
 export function Figure({ text }: { text: string }) {
   const dot = text.indexOf('.');
