@@ -1940,7 +1940,7 @@ html {
   color: var(--v-muted);
   font-weight: 600;
   font-size: var(--v-fs-sm);
-  min-height: 40px;
+  min-height: var(--v-tap);
   padding: 10px 8px;
   border-bottom-width: 2px;
   margin-bottom: -1px;
