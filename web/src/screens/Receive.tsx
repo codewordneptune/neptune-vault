@@ -758,12 +758,12 @@ export function Receive() {
                           to that address, so anyone reading the chain can group them,
                           never seeing the amounts. */}
                       {!canNew ? (
-                        <Text span display="block" size="xs" c="dimmed">
+                        <Text span display="block" size="sm" c="dimmed">
                           More addresses open up once one of these has received a payment.
                         </Text>
                       ) : (
                         kind !== 'viewing' && (
-                          <Text span display="block" size="xs" c="dimmed">
+                          <Text span display="block" size="sm" c="dimmed">
                             Give each payer their own; anyone reading the blockchain can see which payments went to one address.
                           </Text>
                         )

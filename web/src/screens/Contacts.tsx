@@ -135,7 +135,7 @@ export function ContactsPanel() {
                   </div>
                 </div>
               ))}
-              <div className="vault-row vault-address-row">
+              <div className="vault-row vault-address-row vault-new-contact">
                 <UnstyledButton ref={addRef} className="vault-address-show vault-address-new" onClick={() => setAdding(true)}>
                   <span className="vault-address-mark" aria-hidden>
                     <IconPlus size={16} />

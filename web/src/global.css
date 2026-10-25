@@ -1185,6 +1185,27 @@ main :is(h2, h3)[tabindex='-1']:focus {
   display: inline-flex;
   width: 16px;
   color: var(--v-accent-text);
+  /* On the row's first line, however many lines follow it. */
+  align-self: flex-start;
+  margin-top: 2px;
+}
+/* New contact lines up with the contacts above it: its plus where their
+   circles are, its words where their names start. */
+.vault-new-contact .vault-address-show {
+  gap: 12px;
+}
+.vault-new-contact .vault-address-mark {
+  width: 36px;
+  justify-content: center;
+}
+/* Contacts' dividers run at the card's 20 px, as every other list's. */
+.vault-contact + .vault-contact::before {
+  left: 0;
+  right: 0;
+}
+.vault-contact + .vault-new-contact::before {
+  left: 20px;
+  right: 20px;
 }
 .vault-address-title {
   flex: 1;
@@ -2551,7 +2572,7 @@ html {
   align-items: center;
   gap: 12px;
   min-height: 52px;
-  padding: 8px 16px;
+  padding: 8px 20px;
   color: var(--v-text);
   text-decoration: none;
 }
@@ -2656,7 +2677,7 @@ html {
 }
 .vault-settings-group-label {
   color: var(--v-muted-on-glow);
-  padding-inline: 16px;
+  padding-inline: 20px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
