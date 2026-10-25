@@ -3102,6 +3102,11 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 .vault-choice-field.vault-choice-row:hover:not(:focus-visible, [aria-expanded='true']) {
   border-color: transparent;
 }
+/* The row's transparent edge would otherwise hide the focus edge every
+   field gets. */
+.vault-choice-field.vault-choice-row:is(:focus-visible, [aria-expanded='true']) {
+  border-color: var(--v-accent);
+}
 .vault-choice-row-label {
   color: var(--v-muted);
 }
