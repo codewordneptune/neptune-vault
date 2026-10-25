@@ -1516,8 +1516,9 @@ main :is(h2, h3)[tabindex='-1']:focus {
 
 /* Advice in one line (NoticeLine), a card on the page edged in the calm
    blue: its main action at the end, the reason behind the chevron. */
+/* Its icon at 16 px and its words at 46 px, as a caution's on the page. */
 .vault-noticeline {
-  padding: 4px 4px 4px 14px;
+  padding: 4px 4px 4px 16px;
   border: 1px solid color-mix(in srgb, var(--v-accent) 30%, var(--v-surface));
   border-radius: var(--mantine-radius-md);
   background: var(--v-surface);
