@@ -330,26 +330,25 @@ h3.mantine-Title-root.vault-prose-heading {
 }
 /* A step stronger under a mouse and while pressed; the red ones have their own below. */
 @media (hover: hover) and (pointer: fine) {
-  .mantine-Button-root[data-variant='light']:hover:not(:disabled):not([data-disabled]):not([style*='--mantine-color-red']) {
+  .mantine-Button-root[data-variant='light']:hover:not(:disabled):not([data-disabled]):not(.danger) {
     background: var(--v-row-press);
   }
 }
-.mantine-Button-root[data-variant='light']:active:not(:disabled):not([data-disabled]):not([style*='--mantine-color-red']) {
+.mantine-Button-root[data-variant='light']:active:not(:disabled):not([data-disabled]):not(.danger) {
   background: var(--v-row-press);
 }
-/* A light red button ("Give up on this send", the proving Cancel) is a
-   danger action, not an accent one: the rule above made it the same light
-   blue as Receive. The library names the colour only in the variables it
-   writes into the style attribute, so that is what is matched. Red text on
-   an 8% red tint, 6.6:1 dark and 5.0:1 light; a stronger tint under the
+/* A light red button (Stop, while a send is proven) is a danger action,
+   not an accent one, and says so with the class the red menu items carry:
+   the rule above would make it the light blue of Receive. Red text on an
+   8% red tint, 6.6:1 dark and 5.0:1 light; a stronger tint under the
    pointer. Filled red buttons carry no variant attribute and stay filled. */
-.mantine-Button-root[data-variant='light'][style*='--mantine-color-red'] {
+.mantine-Button-root[data-variant='light'].danger {
   background: var(--v-danger-hover);
   color: var(--v-danger-text);
   box-shadow: var(--v-danger-ring);
 }
 @media (hover: hover) and (pointer: fine) {
-  .mantine-Button-root[data-variant='light'][style*='--mantine-color-red']:hover {
+  .mantine-Button-root[data-variant='light'].danger:hover {
     background: var(--v-danger-hover-strong);
   }
 }

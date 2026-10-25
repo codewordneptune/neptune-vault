@@ -1061,7 +1061,7 @@ export function Send() {
                 : 'Keep the app open and in front until this finishes. Other screens are fine.'}
           </Text>
           {proving && (
-            <Button variant="light" color="red" onClick={() => setConfirmStop(true)} loading={stopping}>
+            <Button variant="light" color="red" className="danger" onClick={() => setConfirmStop(true)} loading={stopping}>
               {stopping ? 'Stopping…' : 'Stop'}
             </Button>
           )}
