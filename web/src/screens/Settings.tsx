@@ -435,6 +435,12 @@ function SettingsSections({ section }: { section: SectionKey }) {
           ? { ok: false, text: sync.message ?? 'The node is not answering.' }
           : null;
   const shown = testing || !fromSync || (probe?.at && fromSync.at && probe.at > fromSync.at) ? probe : fromSync;
+  const nodeSaid = (
+    <>
+      <Spoken text={shown?.text} />
+      {shown?.at && shown.text !== 'Testing…' ? ` · checked ${formatTime(shown.at)}` : ''}
+    </>
+  );
   // The way back after trying another node: it fills the field, and the
   // button then tests it before it is saved, like any other URL.
   const defaultUrl = DEFAULT_NODE_URLS[network];
@@ -769,10 +775,15 @@ function SettingsSections({ section }: { section: SectionKey }) {
                 placeholder="https://…"
               />
               {/* Always there, so what the test says as it runs and ends is announced. */}
-              <Text size="sm" c={shown && !shown.ok ? 'var(--v-danger-text)' : 'dimmed'} role="status" className={shown?.text ? undefined : 'sr-only'}>
-                <Spoken text={shown?.text} />
-                {shown?.at && shown.text !== 'Testing…' ? ` · checked ${formatTime(shown.at)}` : ''}
-              </Text>
+              <div role="status" className={shown?.text ? undefined : 'sr-only'}>
+                {shown && !shown.ok ? (
+                  <ErrorLine role="none">{nodeSaid}</ErrorLine>
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    {nodeSaid}
+                  </Text>
+                )}
+              </div>
               {(dirty || testing || (shown && !shown.ok) || offerDefault) && (
                 <Group>
                   {(dirty || testing || (shown && !shown.ok)) && (
@@ -1029,11 +1040,7 @@ function ConfirmSendsOff({ onClose }: { onClose: () => void }) {
             <Button leftSection={<IconFingerprint size={16} />} loading={passkeyBusy} onClick={() => void withPasskey()}>
               Turn off with passkey
             </Button>
-            {passkeyError && (
-              <Text size="sm" c="var(--v-danger-text)" role="alert">
-                {passkeyError}
-              </Text>
-            )}
+            {passkeyError && <ErrorLine>{passkeyError}</ErrorLine>}
             <Divider label="or use the password" labelPosition="center" />
           </>
         )}

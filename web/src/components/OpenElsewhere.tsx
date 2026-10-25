@@ -4,6 +4,7 @@ import { Button, Center, Stack, Text, Title } from '@mantine/core';
 import { useState } from 'react';
 
 import type { WindowOwner } from '../app/windowOwner';
+import { ErrorLine } from './Notice';
 
 export function OpenElsewhere({ owner, onHere }: { owner: WindowOwner; onHere: () => void }) {
   const [asking, setAsking] = useState(false);
@@ -26,9 +27,7 @@ export function OpenElsewhere({ owner, onHere }: { owner: WindowOwner; onHere: (
           Only one window can use it at a time, so they never overwrite each other. Using it here locks any wallet that is open in the other window.
         </Text>
         {refused && (
-          <Text c="var(--v-danger-text)" role="alert">
-            The other window is in the middle of a send, and a send is not interrupted. Try again when it has finished.
-          </Text>
+          <ErrorLine>The other window is in the middle of a send, and a send is not interrupted. Try again when it has finished.</ErrorLine>
         )}
         <Button onClick={() => void useHere()} loading={asking}>
           Use here

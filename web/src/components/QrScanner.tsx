@@ -26,6 +26,7 @@ import { Button, Group, Loader, Stack, Text, UnstyledButton } from '@mantine/cor
 import { IconBolt, IconBoltOff, IconCameraRotate, IconChevronRight, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { ErrorLine } from './Notice';
 import { Sheet } from './Sheet';
 import { useApp } from '../app/AppContext';
 import { NATIVE } from '../app/platform';
@@ -434,9 +435,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     <Sheet opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md" classNames={{ body: 'vault-scan-body' }}>
       <Stack>
         {error ? (
-          <Text c="var(--v-danger-text)" size="sm" role="alert">
-            {error}
-          </Text>
+          <ErrorLine>{error}</ErrorLine>
         ) : (
           <Text size="sm" c="dimmed">
             Fill the square with the code and hold steady. If it is blurry, move back a little. Dense codes can take a moment.

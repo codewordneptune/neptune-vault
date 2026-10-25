@@ -1107,7 +1107,6 @@ export function Home() {
         {removing && (
           <Stack>
             <Text size="sm">This send was not sent and can no longer go through, so removing it changes nothing in your balance. Its amount, recipient and note go with it.</Text>
-            {removeError && <ErrorLine title="It was not removed">{removeError}</ErrorLine>}
             <Group grow>
               <Button variant="default" onClick={closeRemove}>
                 Cancel
@@ -1116,6 +1115,7 @@ export function Home() {
                 {removeError ? 'Try again' : 'Remove'}
               </Button>
             </Group>
+            {removeError && <ErrorLine title="It was not removed">{removeError}</ErrorLine>}
           </Stack>
         )}
       </Sheet>
@@ -1148,7 +1148,6 @@ export function Home() {
               <Text size="sm" c="dimmed">
                 <Spoken text={`This send: ${showNau(BigInt(givingUpNow.amountNau))} NPT${givingUpNow.feeNau ? ` plus a ${showNau(BigInt(givingUpNow.feeNau))} NPT fee` : ''}. Giving up makes ${showNau(reservedFor(givingUpNow))} NPT spendable again.`} />
               </Text>
-              {giveUpError && <ErrorLine title="This send was not given up">{giveUpError}</ErrorLine>}
               <Group grow>
                 <Button variant="default" onClick={closeGiveUp}>
                   Cancel
@@ -1157,6 +1156,7 @@ export function Home() {
                   {giveUpError ? 'Try again' : 'Give up'}
                 </Button>
               </Group>
+              {giveUpError && <ErrorLine title="This send was not given up">{giveUpError}</ErrorLine>}
             </Stack>
           ))}
       </Sheet>
@@ -1271,11 +1271,7 @@ function RebuildNotice({ accountId, why }: { accountId: string; why: string }) {
           Rebuild from the chain
         </Button>
       </Group>
-      {error && (
-        <Text size="sm" c="var(--v-danger-text)" role="alert">
-          {error}
-        </Text>
-      )}
+      {error && <ErrorLine>{error}</ErrorLine>}
     </Caution>
   );
 }

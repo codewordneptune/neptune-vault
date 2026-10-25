@@ -14,6 +14,7 @@ import { showBlock } from '../app/AppContext';
 import type { NodeClient } from '../node/rpc';
 import type { Network } from '../storage/db';
 import { startOfDayMs } from '../util/blockdate';
+import { ErrorLine } from './Notice';
 import { Spoken } from './Spoken';
 
 export type StartLookup = 'idle' | 'looking' | 'found' | 'failed';
@@ -136,11 +137,16 @@ export function StartBlockPicker({
             />
           </Text>
         ) : (
-          <Text size="sm" c={lookup.kind === 'failed' ? 'var(--v-danger-text)' : 'dimmed'} role="status">
-            {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
-            {lookup.kind === 'found' && <Spoken text={`The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.${download}`} />}
-            {lookup.kind === 'failed' && lookup.message}
-          </Text>
+          <div role="status">
+            {lookup.kind === 'failed' ? (
+              <ErrorLine role="none">{lookup.message}</ErrorLine>
+            ) : (
+              <Text size="sm" c="dimmed">
+                {lookup.kind === 'looking' && 'Asking the node where that month starts…'}
+                {lookup.kind === 'found' && <Spoken text={`The scan starts at block ${showBlock(lookup.height)}, the first of ${monthName}, and runs on this device. The node learns nothing about your coins.${download}`} />}
+              </Text>
+            )}
+          </div>
         )}
       </Stack>
       <details className="vault-setting" open={lookup.kind === 'failed' || Boolean(error)}>

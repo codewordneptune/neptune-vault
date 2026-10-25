@@ -121,11 +121,7 @@ export function Unlock() {
                 <Button ref={passkeyRef} leftSection={<IconFingerprint size={16} />} loading={passkeyBusy} onClick={() => void unlockWithPasskey()}>
                   Unlock with passkey
                 </Button>
-                {passkeyError && (
-                  <Text size="sm" c="var(--v-danger-text)" role="alert">
-                    {passkeyError}
-                  </Text>
-                )}
+                {passkeyError && <ErrorLine>{passkeyError}</ErrorLine>}
                 <Divider label="or use the password" labelPosition="center" />
               </>
             )}
