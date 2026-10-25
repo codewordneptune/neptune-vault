@@ -227,10 +227,16 @@ body {
 h1, h2, h3 {
   letter-spacing: -0.01em;
 }
-/* Section titles inside cards read as quiet eyebrow labels. */
-h3.mantine-Title-root {
+/* Spaced capitals, one style wherever they label something: a card's
+   title (an h3, or .vault-eyebrow on another element), a menu's label and
+   the label over a field's list. */
+h3.mantine-Title-root,
+.vault-eyebrow,
+.mantine-Menu-label,
+.vault-picker-label {
   font-size: var(--v-fs-xs);
   font-weight: 600;
+  line-height: 1.5;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--v-muted);
@@ -477,12 +483,6 @@ h3.mantine-Title-root.vault-prose-heading {
   height: 16px;
   margin-inline-end: var(--mantine-spacing-xs);
 }
-.mantine-Menu-label {
-  font-size: var(--v-fs-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--v-muted);
-}
 
 /* The lists that drop from a field (Network, Lock after, Currency, Month,
    Year) are the same surface as the header's menu: the second surface, no
@@ -644,10 +644,6 @@ button.vault-network:focus-visible {
    line about all the choices, where one is given. */
 .vault-picker-label {
   padding: 5px 12px 3px;
-  font-size: var(--v-fs-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--v-muted);
 }
 .vault-picker-hint {
   padding: 0 12px 6px;
@@ -778,14 +774,6 @@ button.vault-network:focus-visible {
 }
 
 /* Key figures. */
-.vault-eyebrow {
-  font-size: var(--v-fs-xs);
-  font-weight: 600;
-  line-height: 1.5;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--v-muted);
-}
 /* 36 px where there is room; on a small phone it scales with the width
    (8.6vw is 27.5 px at 320 px), so "12 345.12345678", about 317 px wide at
    36 px in Inter, comes to about 243 and fits the card's 248. Should a
