@@ -1490,12 +1490,12 @@ export function Send() {
                 {/* Who and how much as the review showed them, with a tick at the circle's corner. */}
                 <div className="vault-receipt vault-sent-what">
                   {sentTo && sentName ? (
-                    <Avatar big name={sentName} address={sentTo} badge={<IconCheck size={14} stroke={3} />} />
+                    <Avatar big name={sentName} address={sentTo} badge={<IconCheck size={16} />} />
                   ) : (
                     <span className="vault-row-icon out big" aria-hidden>
                       {sentTo === null ? <IconUsers size={20} /> : isOwn(sentTo) ? <IconArrowsExchange size={20} /> : <IconUser size={20} />}
                       <span className="vault-avatar-badge">
-                        <IconCheck size={14} stroke={3} />
+                        <IconCheck size={16} />
                       </span>
                     </span>
                   )}
