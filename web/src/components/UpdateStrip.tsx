@@ -88,17 +88,18 @@ export function UpdateStrip() {
         </div>
         <div className="vault-updatestrip-actions">
           {words.compare ? (
-            <Anchor href={`${LINKS.compare}${words.compare}`} target="_blank" rel="noreferrer" size="xs" className="vault-tap-link">
+            <Anchor href={`${LINKS.compare}${words.compare}`} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               What changed
             </Anchor>
           ) : (
             <span />
           )}
           <Group gap="xs" wrap="nowrap">
-            <Button
-              size="compact-sm"
-              variant="subtle"
-              className="vault-tap"
+            <Anchor
+              component="button"
+              type="button"
+              size="sm"
+              className="vault-tap-link"
               onClick={(e) => {
                 const heading = headingNear(e.currentTarget);
                 setLater(true);
@@ -106,7 +107,7 @@ export function UpdateStrip() {
               }}
             >
               Later
-            </Button>
+            </Anchor>
             <Button size="compact-sm" className="vault-tap" onClick={() => void updateServiceWorker(true)}>
               Update
             </Button>

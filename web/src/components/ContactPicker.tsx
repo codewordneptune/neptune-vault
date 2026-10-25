@@ -1,6 +1,6 @@
 // Pick a saved recipient for the Send screen.
 
-import { Button, Group, Stack, Text, UnstyledButton } from '@mantine/core';
+import { Group, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconUsers } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -51,18 +51,19 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
             )}
           </UnstyledButton>
         ))}
-        <Button
-          variant="subtle"
-          mt="sm"
-          leftSection={<IconUsers size={16} />}
+        <UnstyledButton
+          c="var(--v-accent-text)"
+          fz="sm"
+          className="vault-tap-link vault-tap-link-start vault-link-icon"
           onClick={() => {
             onClose();
             // In place of the sheet's own history entry, so Back from Contacts returns to Send.
             navigate('/settings/contacts', { replace: true, state: { from: 'send' } });
           }}
         >
+          <IconUsers size={16} aria-hidden />
           Manage contacts
-        </Button>
+        </UnstyledButton>
       </Stack>
     </Sheet>
   );

@@ -2961,12 +2961,6 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   }
 }
 
-/* A quiet button that starts a line of its own: its icon lines up with the
-   text beneath it, the hover fill reaching out into the margin instead. */
-.vault-button-start.vault-button-start {
-  margin-left: calc(-1 * var(--button-padding-x, 8px));
-}
-
 /* The desktop app: its chrome is an app's, not a page's. Labels, buttons
    and the bars are not selectable text; amounts, addresses and anything
    else worth copying still are. */
@@ -3019,7 +3013,8 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 .vault-payee-head .vault-tap-link {
   margin-right: -4px;
 }
-.vault-add-payee {
+/* A tap-link led by its 16 px icon. */
+.vault-link-icon {
   gap: 6px;
 }
 /* Send's two extras on one line, another recipient at the start and a note

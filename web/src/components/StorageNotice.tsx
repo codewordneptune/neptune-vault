@@ -41,7 +41,7 @@ export function StorageNotice() {
       about="the storage warning"
       title="This browser may delete this wallet"
       action={
-        <UnstyledButton onClick={() => navigate('/settings/backup')} c="var(--v-accent-text)" fz="sm" fw={600} className="vault-tap-link">
+        <UnstyledButton onClick={() => navigate('/settings/backup')} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
           Back up
         </UnstyledButton>
       }

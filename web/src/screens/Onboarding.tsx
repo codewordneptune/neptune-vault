@@ -413,9 +413,10 @@ export function Onboarding() {
             {/* The button, then what copying means, beneath it at every width
                 (as a phone wraps it), not squeezed in beside it. */}
             <Stack gap={4} align="flex-start">
-              <Button variant="subtle" size="compact-sm" className="vault-button-start" leftSection={<IconCopy size={16} />} onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+              <UnstyledButton c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon" onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+                <IconCopy size={16} aria-hidden />
                 Copy words
-              </Button>
+              </UnstyledButton>
               <Text size="sm" c="dimmed">
                 {CLIPBOARD_RISK}
               </Text>

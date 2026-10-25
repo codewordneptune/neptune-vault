@@ -54,7 +54,6 @@ export function InstallNudge() {
           }}
           c="var(--v-accent-text)"
           fz="sm"
-          fw={600}
           className="vault-tap-link"
         >
           Install

@@ -22,7 +22,7 @@
 // line under Camera details says what the camera actually gave, because
 // which of these a given phone grants to a web page only that phone can tell.
 
-import { Button, Group, Stack, Text } from '@mantine/core';
+import { Button, Group, Loader, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconBolt, IconBoltOff, IconCameraRotate, IconChevronRight, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -477,19 +477,20 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
             if (chosen) void readImage(chosen);
           }}
         />
-        <Button
-          variant="subtle"
-          className="vault-tap"
-          leftSection={<IconPhoto size={16} />}
-          loading={reading}
+        <UnstyledButton
+          c={reading ? 'var(--v-faint)' : 'var(--v-accent-text)'}
+          fz="sm"
+          className="vault-tap-link vault-link-icon"
+          disabled={reading}
           onClick={() => {
             // A phone's picker may hide the page: the wallet must not lock under it.
             services.accounts.holdBackgroundLock();
             imageInput.current?.click();
           }}
         >
+          {reading ? <Loader size={16} color="var(--v-muted)" /> : <IconPhoto size={16} aria-hidden />}
           Scan from an image
-        </Button>
+        </UnstyledButton>
         <Group grow>
           <Button variant="default" onClick={onClose}>
             Cancel

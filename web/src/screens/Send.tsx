@@ -1380,7 +1380,7 @@ export function Send() {
       {(1 + extras.length < MAX_PAYMENTS || !showNote) && (
         <div className="vault-send-extras">
           {1 + extras.length < MAX_PAYMENTS && (
-            <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-add-payee">
+            <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon">
               <IconPlus size={16} aria-hidden />
               Add another recipient
             </UnstyledButton>
@@ -1394,7 +1394,7 @@ export function Send() {
               }}
               c="var(--v-accent-text)"
               fz="sm"
-              className="vault-tap-link vault-tap-link-start vault-add-payee"
+              className="vault-tap-link vault-tap-link-start vault-link-icon"
             >
               <IconPlus size={16} aria-hidden />
               Add a note
@@ -1655,9 +1655,16 @@ export function Send() {
               rightSectionWidth={extras.length === 0 ? 64 : undefined}
               rightSection={
                 extras.length === 0 ? (
-                  <Button variant="subtle" size="compact-sm" className="vault-tap" onClick={() => void sendAll()} disabled={balance.spendableNau <= 0n}>
+                  <UnstyledButton
+                    type="button"
+                    onClick={() => void sendAll()}
+                    disabled={balance.spendableNau <= 0n}
+                    c={balance.spendableNau <= 0n ? 'var(--v-faint)' : 'var(--v-accent-text)'}
+                    fz="sm"
+                    className="vault-tap-link"
+                  >
                     Max
-                  </Button>
+                  </UnstyledButton>
                 ) : undefined
               }
             />

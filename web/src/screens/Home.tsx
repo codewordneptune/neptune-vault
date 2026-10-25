@@ -956,17 +956,20 @@ export function Home() {
               </section>
             ))}
             {entries.length > shown && (
-              <Button
-                variant="subtle"
-                fullWidth
-                mt="xs"
+              <UnstyledButton
+                c="var(--v-accent-text)"
+                fz="sm"
+                display="flex"
+                w="fit-content"
+                mt={4}
+                className="vault-tap-link vault-tap-link-start"
                 onClick={() => {
                   firstNew.current = entries[shown]?.record.key ?? null;
                   setShown((n) => n + PAGE);
                 }}
               >
                 Show {Math.min(PAGE, entries.length - shown)} older
-              </Button>
+              </UnstyledButton>
             )}
           </div>
         )}

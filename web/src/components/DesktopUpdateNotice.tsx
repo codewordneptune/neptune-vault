@@ -11,7 +11,7 @@
 // or a pre-release, and opens that release's page by its tag, never a link
 // from GitHub's answer.
 
-import { Button, Group, Text } from '@mantine/core';
+import { Anchor, Button, Group, Text } from '@mantine/core';
 import { IconCircleArrowUp } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
@@ -104,10 +104,11 @@ export function DesktopUpdateNotice() {
         <div className="vault-updatestrip-actions">
           <span />
           <Group gap="xs" wrap="nowrap">
-            <Button
-              size="compact-sm"
-              variant="subtle"
-              className="vault-tap"
+            <Anchor
+              component="button"
+              type="button"
+              size="sm"
+              className="vault-tap-link"
               onClick={(e) => {
                 const heading = headingNear(e.currentTarget);
                 setLater(true);
@@ -115,7 +116,7 @@ export function DesktopUpdateNotice() {
               }}
             >
               Later
-            </Button>
+            </Anchor>
             <Button component="a" href={newer.url} target="_blank" rel="noreferrer" size="compact-sm" className="vault-tap">
               Download
             </Button>
