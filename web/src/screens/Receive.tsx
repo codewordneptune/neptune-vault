@@ -8,6 +8,7 @@ import { ActionIcon, Button, Group, Loader, Menu, Paper, Stack, Tabs, Text, Text
 import { IconArrowsMaximize, IconCheck, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconShare, IconTrash } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
+import { useMediaQuery } from '@mantine/hooks';
 import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 
 import { Sheet } from '../components/Sheet';
@@ -75,8 +76,10 @@ function addressTitle(kind: KeyKind, index: number): string {
 // never on it: a Standard address makes a code so dense that covering any
 // of it can stop a camera reading it.
 function QrCode({ src, alt, onOpen }: { src: string; alt: string; onOpen: () => void }) {
+  // Named by the words it shows first, for voice control: the same media query as the CSS that picks them.
+  const mouse = useMediaQuery('(hover: hover) and (pointer: fine)');
   return (
-    <UnstyledButton onClick={onOpen} aria-label="Show the QR code full screen" className="vault-qr-code">
+    <UnstyledButton onClick={onOpen} aria-label={`${mouse ? 'Click' : 'Tap'} to enlarge, ${alt}`} className="vault-qr-code">
       <img src={src} alt={alt} />
       <span className="vault-qr-foot" aria-hidden>
         <IconArrowsMaximize size={16} />
