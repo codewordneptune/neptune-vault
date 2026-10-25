@@ -389,13 +389,13 @@ export function Onboarding() {
           cannot get started: it holds the details a report needs. */}
       {step === 'welcome' && !adding && (
         <Group gap={6} justify="center">
-          <Anchor component="button" type="button" size="sm" className="vault-tap-link vault-inline-link" onClick={() => navigate('/privacy')}>
+          <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => navigate('/privacy')}>
             Privacy statement
           </Anchor>
           <Text span size="sm" c="dimmed" aria-hidden>
             ·
           </Text>
-          <Anchor component="button" type="button" size="sm" className="vault-tap-link vault-inline-link" onClick={() => navigate('/diagnostics')}>
+          <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => navigate('/diagnostics')}>
             Report a problem
           </Anchor>
         </Group>
