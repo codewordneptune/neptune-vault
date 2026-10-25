@@ -679,8 +679,7 @@ export function Home() {
             {/* The figure on screen is grouped; a screen reader is given plain digits, or "hidden". */}
             <div className="vault-balance">
               <span aria-hidden>
-                {loaded && ownReady ? <Figure text={balanceText} /> : '…'}
-                <small> NPT</small>
+                {loaded && ownReady ? <Figure text={balanceText} /> : '…'} <span className="vault-unit">NPT</span>
               </span>
               <span className="sr-only">{loaded && ownReady ? `Balance ${spoken(headlineNau)} NPT${unsynced ? ', not synced yet' : ''}` : 'Balance loading'}</span>
             </div>

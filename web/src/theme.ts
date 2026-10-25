@@ -3,9 +3,11 @@
 // dimmed text from dark[2], borders from dark[4], panels and inputs from
 // dark[6] and the page from dark[7]. Sizes and radii form one scale, shared
 // with global.css through CSS variables: four text sizes (12, 14, 16 and
-// 20 px, plus the balance), two weights (400 and 600), three radii (8, 12
-// and 16 px, plus pills), spacing on the steps global.css lists, and one
-// black for text in the light palette.
+// 20 px, plus the balance), two weights for words (400 and 600) and 650 for
+// the large figures and the avatars' initials (500 for a figure's quieter
+// part: the balance's decimals, the amounts under a receipt), three radii
+// (8, 12 and 16 px, plus pills), spacing on the steps global.css lists, and
+// one black for text in the light palette.
 
 import { createTheme, type MantineColorsTuple } from '@mantine/core';
 import { IconCheck, IconChevronDown, IconMinus, IconX } from '@tabler/icons-react';

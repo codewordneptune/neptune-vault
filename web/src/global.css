@@ -793,16 +793,10 @@ button.vault-network:focus-visible {
 .vault-balance {
   font-size: clamp(1.5rem, 8.6vw, 2.25rem);
   font-weight: 650;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.03em;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
-}
-.vault-balance small {
-  font-size: var(--v-fs-md);
-  font-weight: 400;
-  color: var(--v-muted);
-  margin-left: 6px;
 }
 
 /* History rows: hairline dividers only between rows. A row button has
@@ -1082,7 +1076,11 @@ main :is(h2, h3)[tabindex='-1']:focus {
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-.vault-receipt-amount .vault-unit {
+/* Beside a large figure (the balance, a receipt's amount, the amount being
+   typed) the unit is one style: 16 px, regular, muted. */
+.vault-balance .vault-unit,
+.vault-receipt-amount .vault-unit,
+.vault-amount-unit {
   font-size: var(--v-fs-md);
   font-weight: 400;
   letter-spacing: 0;
@@ -3202,12 +3200,6 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 /* Without a card, Send's label sits on the page's glow. */
 .vault-send-bare .vault-eyebrow {
   color: var(--v-muted-on-glow);
-}
-.vault-amount-unit {
-  font-size: 1.125rem;
-  font-weight: 500;
-  letter-spacing: 0;
-  color: var(--v-muted);
 }
 /* The fee as one row on that page: its label at the start, the choice and a
    chevron at the end (components/ChoiceField.tsx). */
