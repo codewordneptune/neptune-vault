@@ -119,6 +119,8 @@
   --v-radius-xs: 8px;
   --v-radius-sm: 12px;
   --v-radius-md: 16px;
+  /* The rail's width on a wide screen, the notch's inset aside. */
+  --v-rail-w: 88px;
   /* A sheet risen from a phone's foot: its top corners only. */
   --v-radius-lg: 24px;
   --v-fs-xs: 0.75rem;
@@ -2456,26 +2458,28 @@ html {
    same layout: along its foot the tab bar and the header took a third of
    the height. */
 @media (min-width: 900px), (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
-  /* The rail is 88 px plus, on an iPhone in landscape, the notch's inset:
-     its tabs keep their width clear of the notch, and the content column
-     keeps clear of an inset on the right. */
+  /* The rail is --v-rail-w plus, on an iPhone in landscape, the notch's
+     inset: its tabs keep their width clear of the notch, and the content
+     column keeps clear of an inset on the right. */
   .vault-shell.has-tabs {
     padding-bottom: 0;
-    padding-left: calc(88px + env(safe-area-inset-left));
+    padding-left: calc(var(--v-rail-w) + env(safe-area-inset-left));
     padding-right: env(safe-area-inset-right);
   }
   .vault-shell.has-tabs .vault-topbar {
-    margin-left: calc(-88px - env(safe-area-inset-left));
+    margin-left: calc(-1 * var(--v-rail-w) - env(safe-area-inset-left));
     margin-right: calc(-1 * env(safe-area-inset-right));
   }
+  /* The 26 px mark centred over the rail's icons. */
   .vault-topbar-inner.vault-topbar-inner {
     max-width: none;
-    padding-inline: 24px;
+    padding-left: calc((var(--v-rail-w) - 26px) / 2);
+    padding-right: 24px;
   }
   .vault-tabbar {
     top: 0;
     right: auto;
-    width: calc(88px + env(safe-area-inset-left));
+    width: calc(var(--v-rail-w) + env(safe-area-inset-left));
     z-index: 30;
     padding: calc(72px + env(safe-area-inset-top)) 0 0 env(safe-area-inset-left);
     border-top: 0;
