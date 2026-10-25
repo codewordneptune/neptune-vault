@@ -1181,12 +1181,16 @@ function DetailRow({ label, value, mono, copy, copyName, href, abbreviate, isola
   const shown = abbreviate && !full ? abbreviateAddress(value) : value;
   return (
     <div className="vault-detail-row">
-      <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
-        <Text size="xs" c="dimmed" className="vault-detail-label">
-          <Spoken text={label} />
+      <Text size="sm" c="dimmed" className="vault-detail-label">
+        <Spoken text={label} />
+      </Text>
+      {/* Copy and the explorer sit on the line they act on. */}
+      <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
+        <Text size="sm" className={mono ? 'vault-detail-mono' : isolate ? 'vault-bidi vault-link-meta-text' : undefined} dir={isolate ? 'auto' : undefined} style={{ fontVariantNumeric: 'tabular-nums', minWidth: 0 }}>
+          <Spoken text={shown} />
         </Text>
         {(copy || href) && (
-          <Group gap={2} wrap="nowrap">
+          <Group gap={2} wrap="nowrap" className="vault-detail-actions">
             {copy && (
               <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={copyName ?? `Copy ${spokenText(label.toLowerCase())}`} onClick={() => void copyText(value, copy)}>
                 <IconCopy size={20} />
@@ -1200,11 +1204,15 @@ function DetailRow({ label, value, mono, copy, copyName, href, abbreviate, isola
           </Group>
         )}
       </Group>
-      <Text size="sm" className={mono ? 'vault-detail-mono' : isolate ? 'vault-bidi vault-link-meta-text' : undefined} dir={isolate ? 'auto' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
-        <Spoken text={shown} />
-      </Text>
       {abbreviate && (
-        <UnstyledButton onClick={() => setFull((v) => !v)} c="var(--v-accent-text)" fz="xs" className="vault-tap-link vault-tap-link-start">
+        // Named for its row too: a send to several people shows one per recipient.
+        <UnstyledButton
+          onClick={() => setFull((v) => !v)}
+          aria-label={`${full ? 'Hide' : 'Show'} full address, ${spokenText(label)}`}
+          c="var(--v-accent-text)"
+          fz="sm"
+          className="vault-tap-link vault-tap-link-start"
+        >
           {full ? 'Hide full address' : 'Show full address'}
         </UnstyledButton>
       )}

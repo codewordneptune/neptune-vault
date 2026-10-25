@@ -874,6 +874,17 @@ button.vault-network:focus-visible {
   font-size: var(--v-fs-mono);
   word-break: break-all;
 }
+/* The buttons (40 px, 44 on touch) reach into the space around the line,
+   so it keeps its height and the button its centre on the first line. */
+.vault-detail-actions {
+  flex: none;
+  margin-block: -10px;
+}
+@media (pointer: coarse) {
+  .vault-detail-actions {
+    margin-block: -12px;
+  }
+}
 .vault-row-icon {
   width: 36px;
   height: 36px;
