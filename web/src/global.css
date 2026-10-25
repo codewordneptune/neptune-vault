@@ -96,10 +96,9 @@
   --v-hue-3-fg: #fda4af;
   --v-hue-4-bg: rgba(129, 140, 248, 0.18);
   --v-hue-4-fg: #a5b4fc;
-  /* Home's balance card: the accent's glow in its corner, its edge, and a
-     hairline of light along its top. */
+  /* Home's balance card: the accent's glow in its corner, and a hairline
+     of light along its top. */
   --v-hero-glow: rgba(58, 139, 243, 0.22);
-  --v-hero-edge: rgba(125, 180, 245, 0.16);
   --v-hero-highlight: rgba(255, 255, 255, 0.07);
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
@@ -231,7 +230,6 @@
   --v-hue-4-bg: rgba(79, 70, 229, 0.12);
   --v-hue-4-fg: #4338ca;
   --v-hero-glow: rgba(43, 125, 233, 0.1);
-  --v-hero-edge: rgba(43, 125, 233, 0.2);
   --v-hero-highlight: rgba(255, 255, 255, 0.85);
   --v-ok-text: #1a7a31;
   --v-warn-text: #8a5a00;
@@ -293,7 +291,7 @@ h3.mantine-Title-root.vault-prose-heading {
    and a soft shadow give them the edge the surface step alone does not. */
 .mantine-Paper-root {
   background: var(--v-surface);
-  border: 0 !important;
+  border: 0;
   box-shadow: var(--v-card-shadow);
 }
 
@@ -2362,7 +2360,6 @@ html {
 /* The balance card stands apart from the cards under it. */
 .vault-balance-card.vault-balance-card {
   background: radial-gradient(120% 95% at 0% 0%, var(--v-hero-glow), transparent 58%), var(--v-surface);
-  border: 1px solid var(--v-hero-edge);
   box-shadow: inset 0 1px 0 var(--v-hero-highlight), var(--v-card-shadow);
 }
 /* On a phone a sheet rises from the bottom (Sheet.tsx): the screen's
