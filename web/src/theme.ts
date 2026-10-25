@@ -135,12 +135,10 @@ export const theme = createTheme({
     Loader: { defaultProps: { color: 'var(--v-accent)' } },
     // Square, so a checkbox never reads as a radio button.
     Checkbox: { defaultProps: { radius: 'xs', icon: CheckboxTick } },
-    Alert: { defaultProps: { radius: 'sm', variant: 'light' } },
     // Every close button has a name: a banner's or a toast's said only
     // "button". A dialog's own ("Close") and a notice's still win. Its X is
     // at the size of the app's other icons in a button.
     CloseButton: { defaultProps: { 'aria-label': 'Dismiss', icon: createElement(IconX, { size: 20 }) } },
-    Code: { defaultProps: { radius: 'sm' } },
     // Opening a menu focuses its first item, as the ARIA menu pattern has it,
     // not an empty placeholder; that placeholder was also an element a menu
     // may not hold among its items. A chosen item shows the app's tick.
@@ -151,6 +149,5 @@ export const theme = createTheme({
     // is a page banner: every open dialog would give the page a second one.
     // It is only a row holding the title and the close button, so it says so.
     Modal: { defaultProps: { radius: 'md', centered: true, overlayProps: { blur: 2 }, closeButtonProps: { 'aria-label': 'Close' }, attributes: { header: { role: 'none' } } } },
-    Drawer: { defaultProps: { closeButtonProps: { 'aria-label': 'Close' }, attributes: { header: { role: 'none' } } } },
   },
 });
