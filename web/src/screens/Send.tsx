@@ -13,6 +13,7 @@ import { Sheet } from '../components/Sheet';
 import { formatNau, NAU_PER_COIN, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { clearSendDraft, keepSendDraft, sendDraft, type ExtraPayee, type SendDraft } from '../app/sendDraft';
 import { DESKTOP } from '../app/platform';
+import { PHONE, useLayout } from '../app/layout';
 import { formatAbout, formatDuration, timeAgo } from '../util/time';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
@@ -326,7 +327,7 @@ export function Send() {
   const [lastLabel, setLastLabel] = useState<string | null>(null);
   // A phone: the review's password field waits for a tap, and a send to one
   // person leads with the amount (AmountHero).
-  const phone = useMediaQuery('(max-width: 36em)', undefined, { getInitialValueInEffect: false });
+  const phone = useLayout(PHONE);
   const [saving, setSaving] = useState(false);
 
   // The wallet's contacts, so an address typed, pasted or scanned into a

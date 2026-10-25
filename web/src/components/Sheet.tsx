@@ -1,9 +1,9 @@
 import { Modal, type ModalProps } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
 import { IconChevronLeft } from '@tabler/icons-react';
 import { useRef, type PointerEvent } from 'react';
 
 import { useBackCloses } from '../app/backCloses';
+import { PHONE, useLayout } from '../app/layout';
 
 /** How far down a sheet is swiped before it closes, or how far and how fast for a flick; a tap that wobbles does not count. */
 const CLOSE_AFTER_PX = 96;
@@ -22,7 +22,7 @@ const CLOSE_FASTER_THAN = 0.6; // px per ms
  */
 export function Sheet({ back, ...given }: ModalProps & { back?: string }) {
   useBackCloses(given.opened, given.onClose);
-  const phone = useMediaQuery('(max-width: 36em)', undefined, { getInitialValueInEffect: false });
+  const phone = useLayout(PHONE);
   const drag = useRef<{ y: number; at: number; sheet: HTMLElement; pointer: number } | null>(null);
   const props: ModalProps = !back
     ? given

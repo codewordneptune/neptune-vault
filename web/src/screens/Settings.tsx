@@ -37,6 +37,7 @@ import { showBlock, showNau, useApp } from '../app/AppContext';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { Caution, Done, ErrorLine, Info } from '../components/Notice';
 import { DESKTOP, NATIVE } from '../app/platform';
+import { SETTINGS_SPLIT, useLayout } from '../app/layout';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
 import { LINKS } from '../app/links';
 import { confirmsSends, DEFAULT_NODE_URLS, offeredNetworks, requestPersistentStorage, showsTestNetworks, walletName, type AccountRecord, type ContactRecord, type HistoryRecord } from '../storage/db';
@@ -207,9 +208,8 @@ export function Settings() {
   // returns to the task it interrupted.
   const from = (useLocation().state as { from?: string } | null)?.from;
   const cameFrom = from === 'send' ? 'Send' : from === 'home' ? 'Home' : null;
-  // Side by side from here: a list of 320 px and a page of 600 px or so.
-  // Read at once, so a wide window does not flash the phone's layout first.
-  const wide = useMediaQuery('(min-width: 1100px)', undefined, { getInitialValueInEffect: false });
+  // Side by side from here: a list of 360 px and a page of 600 px or so.
+  const wide = useLayout(SETTINGS_SPLIT);
   const [, setRevision] = useState(0);
   const changed = useCallback(() => setRevision((n) => n + 1), []);
   if (section !== undefined && !isSection(section)) return <Navigate to="/settings" replace />;
