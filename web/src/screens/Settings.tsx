@@ -362,6 +362,11 @@ function SettingsSections({ section }: { section: SectionKey }) {
     void services.updateSettings({ developerNetworks: on });
   };
   const lastBackup = account?.lastBackupAt ? formatDate(account.lastBackupAt) : null;
+  const [passwordChangedAt, setPasswordChangedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (!account) return;
+    void services.accounts.passwordChangedAt(account.id).then(setPasswordChangedAt, () => setPasswordChangedAt(null));
+  }, [services, account]);
   const [nodeUrl, setNodeUrl] = useState(services.settings.nodeUrls[network] ?? '');
   const [probe, setProbe] = useState<{ ok: boolean; text: string; at?: number } | null>(services.settings.nodeProbe?.[network] ?? null);
   const [phrase, setPhrase] = useState<string[] | null>(null);
@@ -622,6 +627,10 @@ function SettingsSections({ section }: { section: SectionKey }) {
               <Text size="sm" c="dimmed">
                 {lastBackup ? `Saved ${lastBackup}.` : 'None saved yet.'} Also brings back contacts, address names, who each send paid with its note, and your notes on payments received.
               </Text>
+              {/* After a password change the saved file still opens with the old password, until a new one is saved. */}
+              {account?.lastBackupAt && passwordChangedAt !== null && passwordChangedAt > account.lastBackupAt && (
+                <Caution>The password changed on {formatDate(passwordChangedAt)}, after this file was saved, so it still opens with the old password. Export a new one if you keep one.</Caution>
+              )}
               <Button variant="light" leftSection={<IconDownload size={16} />} onClick={askExport} disabled={!account} aria-label="Export backup file">
                 Export
               </Button>
@@ -1520,7 +1529,7 @@ function RemoveWalletCard() {
     try {
       await services.accounts.verifyPassword(account.id, password);
       await removeAccount(account.id);
-      notifications.show({ message: `${name} was removed from this device.` });
+      notifications.show({ color: 'green', message: `${name} was removed from this device.` });
       navigate('/');
     } catch (e) {
       setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);

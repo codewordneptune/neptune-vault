@@ -270,7 +270,7 @@ export function Onboarding() {
       setAccount(record);
       if (record.network !== currentNetwork) {
         adoptNetwork(record.network);
-        notifications.show({ message: `Restored on ${NETWORK_LABELS[record.network]}. The app is now on ${NETWORK_LABELS[record.network]}.` });
+        notifications.show({ color: 'green', message: `Restored on ${NETWORK_LABELS[record.network]}. The app is now on ${NETWORK_LABELS[record.network]}.` });
       }
       // Files from before version 3 carry their contacts and their start
       // block unprotected: anyone who could write to where the file was

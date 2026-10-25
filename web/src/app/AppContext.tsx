@@ -497,7 +497,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         const seen = document.visibilityState === 'visible' && services.accounts.currentAccountId === accountId && !services.accounts.lockWaiting;
         noteLastSend(accountId, seen ? null : noteOf(outcome.txid, 'submitted'));
         if (window.location.pathname !== '/send' && document.visibilityState === 'visible') {
-          notifications.show({ title: SENT_WAITING, message: <Spoken text={`${sentText(paymentsTotalNau(request), BigInt(request.fee_nau ?? '0'), services.settings.hideBalance)} ${SENDING_UNTIL_CONFIRMED}`} /> });
+          notifications.show({ color: 'green', title: SENT_WAITING, message: <Spoken text={`${sentText(paymentsTotalNau(request), BigInt(request.fee_nau ?? '0'), services.settings.hideBalance)} ${SENDING_UNTIL_CONFIRMED}`} /> });
         }
         await refresh();
         return outcome;
@@ -539,7 +539,7 @@ export function AppProvider({ services, children }: { services: Services; childr
         // Refused by the node after its note was written: the note goes back to what it was.
         if (recorded) noteLastSend(accountId, earlierNote);
         if (message) noteSendFailure(accountId, { at: Date.now(), accountId, amount: showNau(paymentsTotalNau(request)), recipient: request.payments[0]?.recipient ?? '', others: request.payments.length - 1, message });
-        if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message: notSentReason(message) });
+        if (message && window.location.pathname !== '/send' && document.visibilityState === 'visible') notifications.show({ color: 'red', title: 'Not sent', message: notSentReason(message), autoClose: 10_000 });
         throw e;
       } finally {
         // However it ended, it is no longer running: the note that said so goes.
@@ -613,8 +613,8 @@ export function AppProvider({ services, children }: { services: Services; childr
       // does, without the amount while amounts are hidden.
       if (r.incoming > 0 && document.visibilityState === 'visible' && window.location.pathname !== '/' && window.location.pathname !== '/receive') {
         const hide = services.settings.hideBalance;
+        // On its way, not yet done: the colour of the notes that say so on Home.
         notifications.show({
-          color: 'green',
           title: 'Payment pending',
           message: hide
             ? 'A payment to you is pending until a block confirms it.'

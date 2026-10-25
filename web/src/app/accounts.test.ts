@@ -187,6 +187,17 @@ describe('the engine store, as the account service drives it', () => {
     expect(core.migrations).toHaveLength(3);
   });
 
+  it('notes in the sealed log when the password changed, so Backup can say an older file opens with the old one', async () => {
+    const { core, service } = await withStore();
+    const record = await service.createAccount(await service.generatePhrase(), 'old-password', 'regtest', 1);
+    const before = Date.now();
+    await service.changePassword(record.id, 'old-password', 'new-password');
+    const [note] = core.commits.at(-1) as { op: string; key: string; value: number }[];
+    expect(note.op).toBe('putPrivate');
+    expect(note.key).toBe('passwordChangedAt');
+    expect(note.value).toBeGreaterThanOrEqual(before);
+  });
+
   it('keeps the note about a failed send in the sealed log, and hands an older one from the settings to the move', async () => {
     const { core, service } = await withStore();
     const record = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);

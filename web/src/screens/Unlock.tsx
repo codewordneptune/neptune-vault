@@ -237,12 +237,13 @@ function ForgotPassword({ account, opened, onClose }: { account: AccountRecord; 
     setError(null);
     try {
       await services.accounts.resetPassword(account.id, words, password);
-      notifications.show({ message: 'Password changed. An older backup file still opens with the old password, so export a new one if you keep one.', autoClose: 10_000 });
+      // Advice stays until closed; Settings, Backup says it too until a new file is saved.
+      notifications.show({ color: 'green', message: 'Password changed. An older backup file still opens with the old password, so export a new one if you keep one.', autoClose: false });
       close();
     } catch (e) {
       // Overtaken by a lock after the new password was set: it stays set, and the wallet locked.
       if (e instanceof UnlockCancelledError) {
-        notifications.show({ message: 'Password changed. Unlock with the new one.', autoClose: 10_000 });
+        notifications.show({ color: 'green', message: 'Password changed. Unlock with the new one.', autoClose: 10_000 });
         close();
       } else setError((e as Error).message);
     } finally {

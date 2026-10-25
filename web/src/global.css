@@ -3309,6 +3309,9 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
      same in both themes: white on it is 5.6:1. */
   --mantine-color-red-filled: #c62828;
   --mantine-color-red-filled-hover: #a51d1d;
+  /* A toast's bar: done in the app's green, a caution in its amber. */
+  --mantine-color-green-filled: var(--v-ok-text);
+  --mantine-color-yellow-filled: var(--v-warn-text);
 }
 /* The one error pattern (Notice.tsx, ErrorLine): red text under the
    control that failed, with a close when it stays. */

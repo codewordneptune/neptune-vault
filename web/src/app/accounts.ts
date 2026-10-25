@@ -6,6 +6,8 @@ import { FRESH_KEY_INDICES, walletName, type AccountRecord, type ContactRecord, 
 
 /** The private note, in a wallet's sealed log, about its last failed send. */
 const LAST_SEND_FAILURE = 'lastSendFailure';
+/** The private note of when the password last changed: a backup file saved before then opens with the old one. */
+const PASSWORD_CHANGED = 'passwordChangedAt';
 const LAST_SEND = 'lastSend';
 /** The private note that a send has started and not yet ended: found at an unlock, it is a send the app was closed during. */
 const SEND_IN_PROGRESS = 'sendInProgress';
@@ -423,6 +425,19 @@ export class AccountService {
     return notes.find((n) => n.key === LAST_SEND_FAILURE)?.value ?? null;
   }
 
+  /** When this wallet's password last changed, from its sealed log; null if never, or while its notes cannot be read. */
+  async passwordChangedAt(accountId: string): Promise<number | null> {
+    if (this.engine.where(accountId, 'private') !== 'engine') return null;
+    const notes = (await this.core.storeRead!(accountId, 'private')) as { key: string; value: number }[];
+    return notes.find((n) => n.key === PASSWORD_CHANGED)?.value ?? null;
+  }
+
+  /** Notes that the password changed now. A failure here leaves the new password in place and only the note unwritten. */
+  private async notePasswordChanged(accountId: string): Promise<void> {
+    if (this.engine.where(accountId, 'private') !== 'engine') return;
+    await this.core.storeCommit!(accountId, [{ op: 'putPrivate', key: PASSWORD_CHANGED, value: Date.now() }]).catch(() => {});
+  }
+
   /** Keep, or with null clear, the note about this wallet's last failed send. Throws while locked. */
   async setLastSendFailure(accountId: string, failure: SendFailure | null): Promise<void> {
     if (this.engine.where(accountId, 'private') !== 'engine') return;
@@ -650,6 +665,7 @@ export class AccountService {
     await this.openStore(accountId);
     if (epoch !== this.epoch) throw new UnlockCancelledError();
     this.setUnlocked(accountId);
+    await this.notePasswordChanged(accountId);
   }
 
   /**
@@ -690,6 +706,7 @@ export class AccountService {
       return { ...current, envelope };
     });
     if (!replaced) throw new Error('The password was changed elsewhere in the meantime. Nothing was changed here; try again.');
+    await this.notePasswordChanged(accountId);
   }
 
   /**
