@@ -1218,6 +1218,16 @@ main :is(h2, h3)[tabindex='-1']:focus {
 .mantine-Modal-content[data-full-screen] {
   border-radius: 0;
 }
+/* A sheet scrolls under its sticky header (64 to 72 px): a control reached
+   by keyboard stops below it, as the page keeps clear of its own header. */
+.mantine-Modal-content {
+  scroll-padding-top: 76px;
+}
+@media (pointer: coarse) {
+  .mantine-Modal-content {
+    scroll-padding-top: 80px;
+  }
+}
 /* A full-screen view (the scanner, a code at full size) covers the status
    bar too on an installed iPhone: its title and close button start below the
    safe area's top inset, and never nearer the top than the usual 20 px. The
