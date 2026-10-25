@@ -246,6 +246,8 @@ export function ContactForm({
   // A name already taken is said at the name, like every other problem with a field.
   const [nameError, setNameError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  // What a scan did to the form, said in a region that is always there.
+  const [said, setSaid] = useState('');
   const [busy, setBusy] = useState(false);
   const { services, account } = useApp();
   // Whether the address is one of this wallet's own: allowed, and said.
@@ -363,6 +365,9 @@ export function ContactForm({
             </Button>
           </Group>
           {error && <ErrorLine>{error}</ErrorLine>}
+          <div role="status" className="sr-only">
+            {said}
+          </div>
         </Stack>
       </form>
       <QrScanner
@@ -375,6 +380,7 @@ export function ContactForm({
           else {
             // Checked at once: an "Enter the address" left from before the scan would keep Save disabled.
             setAddress(parsed.address);
+            setSaid('Address filled from the QR code.');
             void checkAddress(parsed.address);
           }
         }}

@@ -818,6 +818,11 @@ export function Send() {
   };
 
   const [formSaid, setFormSaid] = useState('');
+  // Why Review waits is said when it starts to: the caution under the form is only seen.
+  const waitReason = !online ? 'You are offline. Review works again once you are back online.' : nodeDown ? 'The node is not answering, so sending has to wait.' : '';
+  useEffect(() => {
+    if (waitReason) setFormSaid(waitReason);
+  }, [waitReason]);
   const onScanned = (text: string) => {
     const target = scanFor;
     setScanFor(null);

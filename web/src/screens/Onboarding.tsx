@@ -560,7 +560,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
           >
             Choose backup file
           </Button>
-          <Text size="sm" c={file ? undefined : 'dimmed'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <Text size="sm" c={file ? undefined : 'dimmed'} role="status" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {file ? (
               file.name
             ) : (

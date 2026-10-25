@@ -12,7 +12,7 @@ import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 
 import { Sheet } from '../components/Sheet';
 import { QrFullScreen } from '../components/QrFullScreen';
-import { Caution, Done, Info } from '../components/Notice';
+import { Caution, Done, ErrorLine, Info } from '../components/Notice';
 import { Spoken } from '../components/Spoken';
 import { ChoiceField } from '../components/ChoiceField';
 
@@ -215,6 +215,13 @@ export function Receive() {
     if (arrivedBefore.current !== null && arrivingNau > arrivedBefore.current) setSaid(hidden ? 'A payment to this address is pending.' : `${formatNau(arrivingNau - arrivedBefore.current)} NPT to this address is pending.`);
     arrivedBefore.current = arrivingNau;
   }, [arrivingNau, hidden, loaded]);
+  // And what a block confirms of it, the moment someone taking a payment waits for.
+  const confirmedBefore = useRef<bigint | null>(null);
+  useEffect(() => {
+    if (!loaded) return;
+    if (confirmedBefore.current !== null && visitConfirmedNau > confirmedBefore.current) setSaid(hidden ? 'A payment to this address is confirmed.' : `${formatNau(visitConfirmedNau - confirmedBefore.current)} NPT received.`);
+    confirmedBefore.current = visitConfirmedNau;
+  }, [visitConfirmedNau, hidden, loaded]);
 
   // The request: amount, name and note. They belong to this visit of the
   // screen: kept while switching tabs, gone when the screen is left.
@@ -540,11 +547,7 @@ export function Receive() {
                     <div className="vault-address-box" onCopy={copyWhole}>
                       <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
                     </div>
-                    {addressError && (
-                      <Text size="sm" c="var(--v-danger-text)">
-                        Could not derive this address: {addressError}
-                      </Text>
-                    )}
+                    {addressError && <ErrorLine>Could not derive this address: {addressError}</ErrorLine>}
                     {/* Its exposure cannot be taken back: read right before sharing. */}
                     {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
                     <Group className="vault-receive-actions">

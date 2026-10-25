@@ -349,10 +349,27 @@ export function Home() {
   const pull = usePullToSync(MOBILE && online, () => {
     if (!busy) askSync();
   });
+  // Unasked, the end of a restore or a long scan is said too, and so is a
+  // sync that fails or going offline, once each until something else is said.
+  const longRun = useRef(false);
+  const failureSaid = useRef('');
   useEffect(() => {
-    if (asked.current && (sync?.phase === 'done' || sync?.phase === 'error' || !online)) {
+    if (sync?.phase === 'restoring' || (sync?.phase === 'scanning' && sync.tipHeight - sync.syncedHeight > 100)) longRun.current = true;
+    const failed = !online ? 'You are offline. The balance shown is from the last sync.' : sync?.phase === 'error' ? syncText : '';
+    if (asked.current && (sync?.phase === 'done' || failed)) {
       asked.current = false;
-      setSaid(!online ? 'You are offline. The balance shown is from the last sync.' : syncText);
+      longRun.current = false;
+      failureSaid.current = failed;
+      setSaid(failed || syncText);
+    } else if (sync?.phase === 'done' && longRun.current) {
+      longRun.current = false;
+      failureSaid.current = '';
+      setSaid(syncText);
+    } else if (failed && failed !== failureSaid.current) {
+      failureSaid.current = failed;
+      setSaid(failed);
+    } else if (!failed) {
+      failureSaid.current = '';
     }
     // Only a change of phase is news.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -367,6 +384,23 @@ export function Home() {
     }
     incomingSeen.current = incomingNau;
   }, [incomingNau, loaded, hidden]);
+  // And when a block confirms a payment seen on its way here, that is said
+  // too: the confirmed total rising within a quarter of an hour of a pending
+  // one (a pending row and its confirmed row do not share a key; a restore
+  // or a rescan finding old payments is not news).
+  const receivedNau = history.filter((h) => h.kind === 'received' && h.status === 'confirmed').reduce((sum, h) => sum + BigInt(h.amountNau), 0n);
+  const incomingAt = useRef(0);
+  useEffect(() => {
+    if (incomingNau > 0n) incomingAt.current = Date.now();
+  }, [incomingNau]);
+  const receivedSeen = useRef<bigint | null>(null);
+  useEffect(() => {
+    if (!loaded) return;
+    if (receivedSeen.current !== null && receivedNau > receivedSeen.current && Date.now() - incomingAt.current < 15 * 60_000) {
+      setSaid(hidden ? 'A payment to you is confirmed.' : `${speakNau(receivedNau - receivedSeen.current)} NPT received.`);
+    }
+    receivedSeen.current = receivedNau;
+  }, [receivedNau, loaded, hidden]);
   // The sentence behind the readings under the balance opens from an ⓘ at
   // the end of the last one. A pending send without change shows no
   // reading; a link opens it then.

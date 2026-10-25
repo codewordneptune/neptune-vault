@@ -62,11 +62,10 @@ export function StorageNotice() {
         >
           Dismiss
         </UnstyledButton>
-        {asked && (
-          <Text size="sm" c="dimmed">
-            Not granted.
-          </Text>
-        )}
+        {/* Always there, so the answer is announced as it comes. */}
+        <Text size="sm" c="dimmed" role="status">
+          {asked ? 'Not granted.' : ''}
+        </Text>
       </Group>
     </NoticeLine>
   );

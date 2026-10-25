@@ -656,11 +656,10 @@ function SettingsSections({ section }: { section: SectionKey }) {
                           Ask again
                         </Button>
                       )}
-                      {persistAsked && (
-                        <Text size="sm" c="dimmed">
-                          Still not granted.
-                        </Text>
-                      )}
+                      {/* Always there, so the answer is announced as it comes. */}
+                      <Text size="sm" c="dimmed" role="status">
+                        {persistAsked ? 'Still not granted.' : ''}
+                      </Text>
                     </Group>
                   </Caution>
                 )}
@@ -1285,11 +1284,10 @@ function InstallCard() {
             Install app
           </Button>
         </Group>
-        {declined && (
-          <Text size="sm" c="dimmed">
-            Not installed. The option is also in the browser menu whenever you want it.
-          </Text>
-        )}
+        {/* Always there, so the answer is announced as it comes. */}
+        <Text size="sm" c="dimmed" role="status">
+          {declined ? 'Not installed. The option is also in the browser menu whenever you want it.' : ''}
+        </Text>
       </Stack>
     );
   }
