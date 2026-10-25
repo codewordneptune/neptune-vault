@@ -1068,32 +1068,30 @@ export function Home() {
             )}
             {/* Calm, as on Home's notice: the dialog it opens says why and holds the red button. */}
             {detail.kind !== 'received' && detail.record.status === 'pending' && (
-              <Group justify="flex-end" mt={4}>
-                <Button
-                  variant="light"
-                  onClick={() => {
-                    setGivingUp(detail.record);
-                    setDetail(null);
-                  }}
-                >
-                  Give up on this send
-                </Button>
-              </Group>
+              <Button
+                variant="light"
+                mt={4}
+                onClick={() => {
+                  setGivingUp(detail.record);
+                  setDetail(null);
+                }}
+              >
+                Give up on this send
+              </Button>
             )}
             {/* Once it can no longer go through, a send that was not sent can go; until then, it stays. */}
             {canRemove !== null &&
               (canRemove ? (
-                <Group justify="flex-end" mt={4}>
-                  <Button
-                    variant="light"
-                    onClick={() => {
-                      setRemoving(detail.record);
-                      setDetail(null);
-                    }}
-                  >
-                    Remove from History
-                  </Button>
-                </Group>
+                <Button
+                  variant="light"
+                  mt={4}
+                  onClick={() => {
+                    setRemoving(detail.record);
+                    setDetail(null);
+                  }}
+                >
+                  Remove from History
+                </Button>
               ) : (
                 <Text size="sm" c="dimmed">
                   It stays in History while it can still go through: until one of its coins is spent.

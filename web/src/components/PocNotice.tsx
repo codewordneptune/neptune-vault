@@ -3,7 +3,7 @@
 // the mark in the header, which opens the same text (the tag): a row on
 // Home every day was more than it needs, and dropping it was not honest.
 
-import { Button, Group, Stack, Text } from '@mantine/core';
+import { Button, Stack, Text } from '@mantine/core';
 import { IconChevronRight } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
@@ -70,11 +70,9 @@ export function PocTag() {
       <Sheet opened={open} onClose={() => setOpen(false)} title={POC_TITLE}>
         <Stack>
           <Text size="sm">{POC_TEXT}</Text>
-          <Group justify="flex-end">
-            <Button onClick={() => setOpen(false)} data-autofocus>
-              OK
-            </Button>
-          </Group>
+          <Button variant="default" onClick={() => setOpen(false)} data-autofocus>
+            OK
+          </Button>
         </Stack>
       </Sheet>
     </>

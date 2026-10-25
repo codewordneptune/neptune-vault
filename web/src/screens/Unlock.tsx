@@ -254,7 +254,9 @@ function ForgotPassword({ account, opened, onClose }: { account: AccountRecord; 
           <Text size="sm">This wallet was last unlocked by an older version of the app, so its seed phrase cannot unlock it here.</Text>
           {account.passkey && <Text size="sm">Unlock it with the passkey instead. From then on, the seed phrase can set a new password here.</Text>}
           <Text size="sm">Your money is not lost: restore the seed phrase {NATIVE ? 'in the web app or on another device' : 'in another browser or on another device'} to reach it.</Text>
-          <Button onClick={close}>Close</Button>
+          <Button variant="default" onClick={close}>
+            Close
+          </Button>
         </Stack>
       )}
       {canReset && step === 'phrase' && (
