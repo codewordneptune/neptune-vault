@@ -107,7 +107,8 @@
   --v-backdrop: rgba(9, 14, 21, 0.7);
   --v-segment-track: var(--v-field);
   --v-segment-active: var(--v-surface-2);
-  --v-segment-shadow: none;
+  /* No lift in the dark palette; a shadow, not none, as it joins a list. */
+  --v-segment-shadow: 0 0 transparent;
   --v-radius-xs: 8px;
   --v-radius-sm: 12px;
   --v-radius-md: 16px;
@@ -413,17 +414,17 @@ h3.mantine-Title-root.vault-prose-heading {
   box-shadow: var(--v-segment-ring);
   padding: 4px;
 }
+/* The chosen pill stands only 1.3:1 off its track, so it has an edge of
+   3:1, and its label is semibold over regular ones, as the side rail's
+   current tab is bold: a colour change alone is a cue by colour only. */
 .mantine-SegmentedControl-indicator {
   background: var(--v-segment-active);
-  box-shadow: var(--v-segment-shadow);
+  box-shadow: inset 0 0 0 1px var(--v-control-edge), var(--v-segment-shadow);
 }
 .mantine-SegmentedControl-label {
   color: var(--v-muted);
-  font-weight: 600;
+  font-weight: 400;
 }
-/* The chosen pill stands only 1.3:1 off its track, and a colour change of
-   the label alone is a cue by colour only: the label is semibold as well,
-   as the side rail's current tab is bold. */
 .mantine-SegmentedControl-label[data-active] {
   color: var(--v-text);
   font-weight: 600;
