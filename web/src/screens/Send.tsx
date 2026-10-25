@@ -289,7 +289,7 @@ export function Send() {
   const navigate = useNavigate();
   // `link`: a payment link opened from another app or a web page, in the
   // phone app (app/paymentLinks.ts), read below as a scanned code is.
-  const arrival = location.state as { recipient?: string; fresh?: boolean; link?: string } | null;
+  const arrival = location.state as { recipient?: string; fresh?: boolean; link?: string; refill?: boolean } | null;
   const prefill = arrival?.recipient;
   // "Send to" a contact, a new send by shortcut, or a payment link starts
   // with an empty form: a draft's amount or extra recipients were meant for
@@ -949,6 +949,29 @@ export function Send() {
     if (sendJob?.ending === 'failed') dismissSendFailure();
     dismissSendJob();
   };
+  // A send that failed sent nothing: its form comes back on request, for
+  // another try, through the review and the password again.
+  const refill = () => {
+    if (sendJob?.ending !== 'failed') return;
+    const [first, ...rest] = sendJob.request.payments;
+    const { note: sentNote, request } = sendJob;
+    clearForm();
+    setRecipient(first?.recipient ?? '');
+    setAmount(first?.amount ?? '');
+    setExtras(rest.map((p) => ({ id: nextExtraId.current++, recipient: p.recipient, amount: p.amount, recipientError: null, amountError: null })));
+    setFeePreset(FEE_PRESETS.find((p) => p.fee === request.fee)?.value ?? 'custom');
+    setFee(request.fee);
+    setNote(sentNote ?? '');
+    dismissResult();
+    setFormSaid('The form is filled in again from the send that failed. Nothing was sent.');
+  };
+  // Home's "Fill in the form again" lands here.
+  useEffect(() => {
+    if (!arrival?.refill) return;
+    refill();
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
   const maxFollowsFee = () => Boolean(maxExact && extras.length === 0 && amount === maxExact.text);
 
   const running = Boolean(sendJob && !sendJob.done);
@@ -1527,6 +1550,9 @@ export function Send() {
             {sendJob.ending === 'failed' && (
               <ErrorLine title="Not sent" onClose={dismissResult} role={undefined}>
                 {notSentReason(sendJob.error ?? '')}
+                <UnstyledButton onClick={refill} c="var(--v-accent-text)" fz="sm" display="block" mt={4} className="vault-tap-link vault-tap-link-start">
+                  Fill in the form again
+                </UnstyledButton>
               </ErrorLine>
             )}
           </div>

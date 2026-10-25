@@ -36,7 +36,7 @@ import { arrivals, type Listed } from '../util/arrivals';
 import { dayAhead, dayKey, dayLabel, formatAbout, formatDate, formatDateTime, formatTime, timeAgo, whenInSentence } from '../util/time';
 
 export function Home() {
-  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure, lastSend, dismissLastSend, screenAwake } = useApp();
+  const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure, lastSend, dismissLastSend, screenAwake, sendJob } = useApp();
   // A send that failed while the person was elsewhere is easy to miss as a
   // toast; it stays here until dismissed, and survives a reload.
   const dismissFailure = () => {
@@ -804,6 +804,12 @@ export function Home() {
             <Spoken text={hidden ? '••••' : failure.amount} /> NPT to <bdi>{contactFor(failure.recipient.toLowerCase())?.name ?? abbreviateAddress(failure.recipient)}</bdi>
             {failure.others ? ` and ${failure.others} more` : ''}. {notSentReason(failure.message)}
           </Text>
+          {/* While the send is still known in full (not after a reload), Send can take it up again. */}
+          {sendJob?.ending === 'failed' && (
+            <UnstyledButton onClick={() => navigate('/send', { state: { refill: true } })} c="var(--v-accent-text)" fz="sm" display="block" mt={4} className="vault-tap-link vault-tap-link-start">
+              Fill in the form again
+            </UnstyledButton>
+          )}
         </ErrorLine>
       )}
       {/* A send nodes no longer keep and no block took: it is not going

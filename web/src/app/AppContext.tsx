@@ -20,6 +20,8 @@ import { Spoken } from '../components/Spoken';
  * Send screen unmounting when the app locks on backgrounding. */
 export interface SendJob {
   request: SendRequest;
+  /** The note to self it was sent with, to fill the form in again if it fails. */
+  note: string | null;
   startedAt: number;
   /** When proving began, so the elapsed time survives leaving the Send screen. */
   provingSince: number | null;
@@ -415,7 +417,7 @@ export function AppProvider({ services, children }: { services: Services; childr
       sendAbort.current = abort;
       const service = services.sendService(accountId);
       services.accounts.setLockDeferred(true);
-      setSendJob({ request, startedAt: Date.now(), provingSince: null, progress: { stage: 'planning' }, done: false, outcome: null, error: null, ending: null });
+      setSendJob({ request, note, startedAt: Date.now(), provingSince: null, progress: { stage: 'planning' }, done: false, outcome: null, error: null, ending: null });
       const noteOf = (txid: string, state: LastSend['state']): LastSend => ({
         at: Date.now(),
         accountId,
