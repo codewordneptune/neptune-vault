@@ -1,7 +1,7 @@
 // Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Anchor, Button, Group, Paper, PasswordInput, Radio, Select, Stack, Text, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
+import { Anchor, Button, Group, Paper, Radio, Select, Stack, Text, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
 import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -24,6 +24,7 @@ import type { Network } from '../storage/db';
 import { notifications } from '@mantine/notifications';
 import { MAX_BACKUP_BYTES, parseBackupFile, WrongPasswordError } from '../storage/envelope';
 import { Spoken } from '../components/Spoken';
+import { PasswordField } from '../components/PasswordField';
 
 type Step = 'welcome' | 'existing' | 'show' | 'confirm' | 'password' | 'import' | 'file';
 
@@ -571,7 +572,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
           </Text>
         </Group>
         {/* The restored wallet keeps the file's password: said here, so an old password does not surprise at the next unlock. */}
-        <PasswordInput label="Backup file password" description="It also unlocks the wallet after restoring." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
+        <PasswordField label="Backup file password" description="It also unlocks the wallet after restoring." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
         {/* How to restore, as one line with its choice; Change opens the choice. */}
         {optionsOpen ? (
           <>
@@ -653,6 +654,7 @@ function PasswordStep({
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
   const [name, setName] = useState('');
+  const [checked, setChecked] = useState(0);
   const ok = newPasswordOk(password, again);
   return (
     <Paper>
@@ -680,8 +682,9 @@ function PasswordStep({
             }}
           />
         )}
-        <NewPasswordFields password={password} onPassword={setPassword} again={again} onAgain={setAgain} />
-        <Button disabled={!ok} loading={busy} onClick={() => onSubmit(password, name)}>{actionLabel}</Button>
+        <NewPasswordFields password={password} onPassword={setPassword} again={again} onAgain={setAgain} checked={checked} />
+        {/* Pressed early, it says what is missing rather than stay disabled without a reason. */}
+        <Button loading={busy} onClick={() => (ok ? onSubmit(password, name) : setChecked((n) => n + 1))}>{actionLabel}</Button>
         {error && <ErrorLine>{error}</ErrorLine>}
         <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>

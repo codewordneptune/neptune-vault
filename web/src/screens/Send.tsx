@@ -3,7 +3,7 @@
 // runs as a job in the app context so it survives this screen being
 // unmounted (backgrounding locks the app).
 
-import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, PasswordInput, Progress, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, Progress, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
 import { IconAlertTriangle, IconArrowsExchange, IconCheck, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react';
@@ -29,6 +29,7 @@ import { Caution, ErrorLine, headingNear, Info } from '../components/Notice';
 import { MAY_HAVE_GONE_OUT, notSentReason, PREPARING_SEND, sendStageText, WAITING_FOR_BLOCK } from '../app/words';
 import { usePendingSends } from '../app/pending';
 import { QrScanner } from '../components/QrScanner';
+import { PasswordField } from '../components/PasswordField';
 import { ContactForm } from './Contacts';
 import { abbreviateAddress, addressKindNote, parsePaymentText } from '../util/address';
 import { networkLabel } from '../util/network';
@@ -1309,7 +1310,7 @@ export function Send() {
                 </>
               )}
               {/* Where typing is how the send goes on (a wide screen, no passkey), the field has the focus. */}
-              <PasswordInput
+              <PasswordField
                 label="Password"
                 data-autofocus={!phone && !hasPasskey && !agreeFirst ? true : undefined}
                 value={password}

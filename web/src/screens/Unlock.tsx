@@ -1,4 +1,4 @@
-import { Badge, Button, Divider, Group, Menu, Paper, PasswordInput, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { Badge, Button, Divider, Group, Menu, Paper, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconFingerprint } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
@@ -12,6 +12,7 @@ import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordField
 import { ErrorLine } from '../components/Notice';
 import { PhraseField, phraseWords } from '../components/PhraseField';
 import { Sheet } from '../components/Sheet';
+import { PasswordField } from '../components/PasswordField';
 import { isCancellation } from '../app/passkey';
 import { NATIVE } from '../app/platform';
 import { byCreation, walletName, type AccountRecord } from '../storage/db';
@@ -127,7 +128,7 @@ export function Unlock() {
                 <Divider label="or use the password" labelPosition="center" />
               </>
             )}
-            <PasswordInput
+            <PasswordField
               ref={inputRef}
               label="Password"
               value={password}
@@ -197,6 +198,7 @@ function ForgotPassword({ account, opened, onClose }: { account: AccountRecord; 
   const [phraseError, setPhraseError] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
+  const [checked, setChecked] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const words = phraseWords(text);
@@ -284,19 +286,20 @@ function ForgotPassword({ account, opened, onClose }: { account: AccountRecord; 
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void reset();
+            if (newPasswordOk(password, again)) void reset();
+            else setChecked((n) => n + 1);
           }}
         >
           <Stack>
             <Text size="sm" c="dimmed">
               Seed phrase confirmed. Choose a new password for this wallet.
             </Text>
-            <NewPasswordFields password={password} onPassword={setPassword} again={again} onAgain={setAgain} label="New password (at least 8 characters)" repeatLabel="Repeat new password" autoFocus />
+            <NewPasswordFields password={password} onPassword={setPassword} again={again} onAgain={setAgain} label="New password (at least 8 characters)" repeatLabel="Repeat new password" autoFocus checked={checked} />
             <Group grow>
               <Button variant="default" onClick={close}>
                 Cancel
               </Button>
-              <Button type="submit" loading={busy} disabled={!newPasswordOk(password, again)}>
+              <Button type="submit" loading={busy}>
                 Save
               </Button>
             </Group>

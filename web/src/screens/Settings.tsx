@@ -4,7 +4,7 @@
 // appearance, currency, about (with its pages: report a problem, privacy,
 // open-source licences), removal.
 
-import { Anchor, Button, Checkbox, Divider, Group, Kbd, Paper, PasswordInput, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { Anchor, Button, Checkbox, Divider, Group, Kbd, Paper, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import {
   IconAdjustmentsHorizontal,
   IconChevronLeft,
@@ -45,6 +45,7 @@ import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { WordGrid } from '../components/WordGrid';
 import { Spoken } from '../components/Spoken';
+import { PasswordField } from '../components/PasswordField';
 import { ContactsPanel } from './Contacts';
 import { DeviceDetails } from './Diagnostics';
 import { PrivacyStatement } from './Privacy';
@@ -675,7 +676,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               >
                 <Stack>
                   <Text size="sm">The file restores this wallet, its contacts, its address names, who each send paid with its note, and your notes on payments received. It is encrypted with this password, which you will need to open it, and any change to it is detected. Keep it somewhere safe.</Text>
-                  <PasswordInput label="Password" value={exportPassword} onChange={(e) => setExportPassword(e.currentTarget.value)} error={exportPasswordError} errorProps={{ role: 'alert' }} autoComplete="current-password" data-autofocus />
+                  <PasswordField label="Password" value={exportPassword} onChange={(e) => setExportPassword(e.currentTarget.value)} error={exportPasswordError} errorProps={{ role: 'alert' }} autoComplete="current-password" data-autofocus />
                   <Group grow>
                     <Button variant="default" onClick={() => setExportAsking(false)}>
                       Cancel
@@ -696,7 +697,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               >
                 <Stack>
                   <Text size="sm">Anyone who sees these words can take everything in this wallet, from anywhere, for good. Make sure nobody is watching the screen.</Text>
-                  <PasswordInput label="Password" value={revealPassword} onChange={(e) => setRevealPassword(e.currentTarget.value)} error={revealError} errorProps={{ role: 'alert' }} autoComplete="current-password" data-autofocus />
+                  <PasswordField label="Password" value={revealPassword} onChange={(e) => setRevealPassword(e.currentTarget.value)} error={revealError} errorProps={{ role: 'alert' }} autoComplete="current-password" data-autofocus />
                   <Group grow>
                     <Button variant="default" onClick={() => setAsking(false)}>
                       Cancel
@@ -1023,7 +1024,7 @@ function ConfirmSendsOff({ onClose }: { onClose: () => void }) {
             <Divider label="or use the password" labelPosition="center" />
           </>
         )}
-        <PasswordInput
+        <PasswordField
           ref={inputRef}
           label="Password"
           value={password}
@@ -1053,6 +1054,8 @@ function ChangePassword() {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [again, setAgain] = useState('');
+  const [checked, setChecked] = useState(0);
+  const currentRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   // A wrong current password is said at that field; anything else under the buttons.
   const [currentError, setCurrentError] = useState<string | null>(null);
@@ -1072,6 +1075,16 @@ function ChangePassword() {
 
   const submit = async () => {
     if (!account) return;
+    // Pressed early: what is missing is said at its field, which gets the focus.
+    if (!current) {
+      setCurrentError('Enter the current password');
+      currentRef.current?.focus();
+      return;
+    }
+    if (!newPasswordOk(next, again)) {
+      setChecked((n) => n + 1);
+      return;
+    }
     setBusy(true);
     setError(null);
     setCurrentError(null);
@@ -1112,7 +1125,8 @@ function ChangePassword() {
       }}
     >
       <Stack>
-        <PasswordInput
+        <PasswordField
+          ref={currentRef}
           autoFocus
           label="Current password"
           value={current}
@@ -1124,12 +1138,12 @@ function ChangePassword() {
           errorProps={{ role: 'alert' }}
           autoComplete="current-password"
         />
-        <NewPasswordFields password={next} onPassword={setNext} again={again} onAgain={setAgain} label="New password (at least 8 characters)" repeatLabel="Repeat new password" />
+        <NewPasswordFields password={next} onPassword={setNext} again={again} onAgain={setAgain} label="New password (at least 8 characters)" repeatLabel="Repeat new password" checked={checked} />
         <Group grow>
           <Button variant="default" onClick={() => { setOpen(false); setError(null); setCurrentError(null); setCurrent(''); setNext(''); setAgain(''); }}>
             Cancel
           </Button>
-          <Button type="submit" loading={busy} disabled={!account || !current || !newPasswordOk(next, again)}>
+          <Button type="submit" loading={busy} disabled={!account}>
             Save
           </Button>
         </Group>
@@ -1391,7 +1405,7 @@ function PasskeyCard() {
       }}
     >
       <Stack>
-        <PasswordInput
+        <PasswordField
           label="Your password"
           description="Needed once, to connect the passkey to this wallet."
           value={password}
@@ -1548,7 +1562,7 @@ function RemoveWalletCard() {
             </Caution>
           )}
           <Checkbox label="I have this wallet's seed phrase or a backup file" checked={haveBackup} onChange={(e) => setHaveBackup(e.currentTarget.checked)} />
-          <PasswordInput label="This wallet's password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} error={error} errorProps={{ role: 'alert' }} autoComplete="current-password" />
+          <PasswordField label="This wallet's password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} error={error} errorProps={{ role: 'alert' }} autoComplete="current-password" />
           <Stack gap={4} align="flex-start">
             <Button type="submit" color="red" loading={busy} disabled={sending || !haveBackup || !password}>
               Remove from this device
