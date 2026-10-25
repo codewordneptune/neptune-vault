@@ -57,6 +57,11 @@
   --v-line: #212c3b;
   --v-card-shadow: none;
   --v-rail-tile-shadow: none;
+  /* What floats over the page (a dialog, the pull-to-refresh tile) casts a
+     shadow in the palette's own dark: black here, the text's blue-black in
+     the light palette. */
+  --v-dialog-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  --v-float-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
   /* Muted text on the page's glow at its strongest: the rail's other tabs'
      labels and the labels over Settings' groups. */
   --v-muted-on-glow: var(--v-muted);
@@ -164,6 +169,8 @@
   --v-line: #d3dbe6;
   --v-card-shadow: 0 0 0 1px rgba(21, 32, 46, 0.07), 0 1px 3px rgba(21, 32, 46, 0.06);
   --v-rail-tile-shadow: 0 0 0 1px rgba(21, 32, 46, 0.08), 0 1px 3px rgba(21, 32, 46, 0.08);
+  --v-dialog-shadow: 0 24px 60px rgba(21, 32, 46, 0.28);
+  --v-float-shadow: 0 0 0 1px rgba(21, 32, 46, 0.08), 0 4px 14px rgba(21, 32, 46, 0.16);
   /* The glow's blue darkens the page behind the rail's first tabs and the
      first Settings label: muted text there falls to 4.4:1, this keeps it
      above 4.8:1. */
@@ -1243,7 +1250,7 @@ main :is(h2, h3)[tabindex='-1']:focus {
 .mantine-Modal-content {
   background: var(--v-surface);
   border-radius: var(--v-radius-md);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--v-dialog-shadow);
   /* The content box is also a Paper and would take the card padding; it is
      the scroll container, and a sticky header inside a padded scroll
      container leaves the padding band above it uncovered. The Paper default
@@ -1345,7 +1352,7 @@ main :is(h2, h3)[tabindex='-1']:focus {
   border-radius: 50%;
   background: var(--v-surface);
   color: var(--v-muted);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--v-float-shadow);
   opacity: var(--pull);
   transform: translateY(var(--pulled)) rotate(calc(var(--pull) * 270deg));
   transition:
