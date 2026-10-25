@@ -675,7 +675,7 @@ export function Receive() {
                           {current && <IconCheck size={16} />}
                         </span>
                         <span className="vault-address-title">
-                          <Text span display="block" size="sm" fw={current ? 600 : 400}>
+                          <Text span size="sm" fw={current ? 600 : 400} className="vault-row-title">
                             {name ? <bdi>{name}</bdi> : number}
                           </Text>
                           {details && (
