@@ -26,7 +26,7 @@ export function WordGrid({ words, blanks = [], next, onClear, only }: { words: s
         const empty = blank && !w;
         const cell = (
           <Group gap={6} wrap="nowrap">
-            <Text size="xs" c="dimmed" ta="right" style={{ width: '1.8em', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }} aria-hidden={empty || undefined}>
+            <Text size="xs" c="dimmed" ta="right" className="vault-tabular" style={{ width: '1.8em', flexShrink: 0 }} aria-hidden={empty || undefined}>
               {i + 1}
             </Text>
             <Box className={`vault-word${blank ? ' slot' : ''}${empty ? ' empty' : ''}${empty && i === next ? ' next' : ''}`}>

@@ -1021,7 +1021,7 @@ export function Send() {
             <Text fw={600} tabIndex={-1} ref={runningTitle}>
               {PREPARING_SEND}
             </Text>
-            <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <Text size="sm" c="dimmed" className="vault-tabular">
               <Amount nau={paymentsTotalNau(request)} hidden={masked} /> to <span dir="auto" className="vault-bidi">{who}</span> · fee <Amount nau={BigInt(request.fee_nau ?? '0')} hidden={masked} />
             </Text>
           </Stack>
@@ -1043,7 +1043,7 @@ export function Send() {
           </div>
           {proving && p && <Progress value={Math.round(100 * (p.work ?? p.index / p.total))} animated={!reducedMotion} aria-label="Share of the proving work done" />}
           {proving && (
-            <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <Text size="sm" c="dimmed" className="vault-tabular">
               <Spoken text={estimate !== null ? `${capitalise(formatAbout(estimate))} on this device · ` : ''} />
               <Spoken text={`${formatDuration(provingSeconds)} so far`} />
               {p && ` · ${Math.round(100 * (p.work ?? p.index / p.total))} % done`}
@@ -1195,7 +1195,7 @@ export function Send() {
               </div>
               {/* As under the balance: the price's age once it is getting old, its source in Settings, Currency. */}
               {quote && (
-                <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <Text size="sm" c="dimmed" className="vault-tabular">
                   <Spoken text={`≈ ${formatFiat(fiatOf(reviewed.amountNau, NAU_PER_COIN, quote.price), quote.currency)}`} />
                   {Date.now() - quote.at > QUOTE_OLD_MS && <Spoken text={` · price from ${timeAgo(quote.at)}`} />}
                 </Text>
@@ -1250,7 +1250,7 @@ export function Send() {
               </b>
             </div>
             {payees.length > 1 && quote && (
-              <Text size="xs" c="dimmed" ta="right" mt={-6} style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <Text size="xs" c="dimmed" ta="right" mt={-6} className="vault-tabular">
                 <Spoken text={`≈ ${formatFiat(fiatOf(totalNau, NAU_PER_COIN, quote.price), quote.currency)}`} />
                 {Date.now() - quote.at > QUOTE_OLD_MS && <Spoken text={` · price from ${timeAgo(quote.at)}`} />}
               </Text>

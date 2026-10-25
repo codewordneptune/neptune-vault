@@ -42,7 +42,7 @@ export function SendStrip() {
           {PREPARING_SEND} · {detail}
         </Text>
         {elapsed !== null && (
-          <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          <Text size="xs" c="dimmed" className="vault-tabular">
             <Spoken text={formatDuration(elapsed)} />
           </Text>
         )}

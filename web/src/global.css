@@ -797,6 +797,12 @@ button.vault-network:focus-visible {
   color: var(--v-muted);
 }
 
+/* Figures that keep their places as they change or line up in a list:
+   a countdown, a share done, the times and amounts of rows. */
+.vault-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Key figures. */
 /* 36 px where there is room; on a small phone it scales with the width
    (8.6vw is 27.5 px at 320 px), so "12 345.12345678", about 317 px wide at

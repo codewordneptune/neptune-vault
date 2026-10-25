@@ -1270,7 +1270,7 @@ function FiatCard() {
         data={[{ value: 'off', label: 'Off' }, ...FIAT_CURRENCIES.map((c) => ({ value: c, label: FIAT_LABELS[c] })).sort((a, b) => a.label.localeCompare(b.label, 'en'))]}
       />
       {quote && (
-        <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+        <Text size="sm" c="dimmed" className="vault-tabular">
           Last price from {quote.source}, <Spoken text={timeAgo(quote.at)} />: <span style={{ whiteSpace: 'nowrap' }}>1 NPT ≈ <Spoken text={formatFiat(quote.price, quote.currency)} /></span>.
         </Text>
       )}

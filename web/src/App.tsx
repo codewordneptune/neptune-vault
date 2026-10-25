@@ -334,7 +334,7 @@ function IdleWarning({ onOpen }: { onOpen: (open: boolean) => void }) {
   return (
     <Sheet opened={deadline !== null} onClose={stay} title="The wallet is about to lock" withCloseButton={false}>
       <Stack>
-        <Text size="sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
+        <Text size="sm" className="vault-tabular">
           Nothing has happened here for a while, so the wallet locks in {seconds} {seconds === 1 ? 'second' : 'seconds'}.
         </Text>
         <Button onClick={stay} data-autofocus>

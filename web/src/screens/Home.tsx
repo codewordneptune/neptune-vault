@@ -920,7 +920,7 @@ export function Home() {
                             <Text size="sm" fw={600} className={!whoOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>
                               {whoOf(e) ? <bdi>{whoOf(e)}</bdi> : stateTitleOf(e)}
                             </Text>
-                            <Text size="xs" c="dimmed" className="vault-row-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            <Text size="xs" c="dimmed" className="vault-row-meta vault-tabular">
                               {formatTime(h.timestampMs)}
                               {stateWordOf(e) && (
                                 <>
@@ -946,7 +946,7 @@ export function Home() {
                         <div className="vault-row-amount">
                           {/* Nothing left the wallet: the figure is struck through, with no sign. A send that may
                               still go through has not left it either, but may: dimmed, with no sign, not struck through. */}
-                          <Text size="sm" fw={600} c={notSent(e) || mayGo(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in' : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          <Text size="sm" fw={600} c={notSent(e) || mayGo(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in vault-tabular' : 'vault-tabular'}>
                             {notSent(e) || mayGo(e) ? '' : incoming ? '+' : '−'}
                             <Figure text={amount(e.shownNau)} />{' '}
                             <span className="vault-unit">NPT</span>
@@ -1190,7 +1190,7 @@ function DetailRow({ label, value, mono, copy, copyName, href, abbreviate, isola
       </Text>
       {/* Copy and the explorer sit on the line they act on. */}
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
-        <Text size="sm" className={mono ? 'vault-detail-mono' : isolate ? 'vault-bidi vault-link-meta-text' : undefined} dir={isolate ? 'auto' : undefined} style={{ fontVariantNumeric: 'tabular-nums', minWidth: 0 }}>
+        <Text size="sm" className={mono ? 'vault-detail-mono vault-tabular' : isolate ? 'vault-bidi vault-link-meta-text vault-tabular' : 'vault-tabular'} dir={isolate ? 'auto' : undefined} style={{ minWidth: 0 }}>
           <Spoken text={shown} />
         </Text>
         {(copy || href) && (
