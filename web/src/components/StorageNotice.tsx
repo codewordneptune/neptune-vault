@@ -33,6 +33,7 @@ export function StorageNotice() {
     services.persistent = granted;
     setPersistent(granted);
     setAsked(true);
+    return granted;
   };
 
   return (
@@ -47,7 +48,16 @@ export function StorageNotice() {
     >
       <span>When space runs low, a browser can delete what a site keeps. A backup file, or the seed phrase, brings the wallet back.</span>
       <Group gap="md" align="center">
-        <UnstyledButton onClick={() => void ask()} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+        <UnstyledButton
+          onClick={(e) => {
+            // Granted, the notice goes: the focus goes to the heading near it.
+            const heading = headingNear(e.currentTarget);
+            void ask().then((granted) => granted && heading?.focus({ preventScroll: true }));
+          }}
+          c="var(--v-accent-text)"
+          fz="sm"
+          className="vault-tap-link vault-tap-link-start"
+        >
           Ask the browser to keep it
         </UnstyledButton>
         <UnstyledButton

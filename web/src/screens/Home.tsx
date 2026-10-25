@@ -24,7 +24,7 @@ import type { StoredUtxo } from '../backend/types';
 import type { AccountRecord, ContactRecord, HistoryRecord, SendDetails } from '../storage/db';
 import { InstallNudge } from '../components/InstallNudge';
 import { StorageNotice } from '../components/StorageNotice';
-import { Caution, ErrorLine, Info } from '../components/Notice';
+import { Caution, ErrorLine, headingNear, Info } from '../components/Notice';
 import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED, SENT_WAITING, WAITING_FOR_BLOCK } from '../app/words';
 import { DESKTOP, MOBILE, NATIVE } from '../app/platform';
 import { PULL_READY_PX, usePullToSync } from '../app/pullToSync';
@@ -1240,7 +1240,17 @@ function RebuildNotice({ accountId, why }: { accountId: string; why: string }) {
     <Caution title="This wallet's history could not be read">
       Its history on this device could not be read, so the wallet looks empty. {COINS_SAFE} Rebuild the history from the chain: what could not be read is kept aside, and nothing is deleted.
       <Group mt={4}>
-        <Button variant="light" size="compact-sm" className="vault-tap" loading={busy} onClick={() => void rebuild()}>
+        <Button
+          variant="light"
+          size="compact-sm"
+          className="vault-tap"
+          loading={busy}
+          onClick={(e) => {
+            // The notice goes once the rebuild starts.
+            const heading = headingNear(e.currentTarget);
+            void rebuild().then(() => heading?.isConnected && heading.focus({ preventScroll: true }));
+          }}
+        >
           Rebuild from the chain
         </Button>
       </Group>
@@ -1309,12 +1319,24 @@ function NoteEditor({ note, onSave }: { note: string | null; onSave: (text: stri
   const [text, setText] = useState(note ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The form goes with Save or Cancel: the focus goes back to the button that opened it.
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const backToButton = useRef(false);
+  useEffect(() => {
+    if (editing || !backToButton.current) return;
+    backToButton.current = false;
+    buttonRef.current?.focus();
+  }, [editing]);
+  const close = () => {
+    backToButton.current = true;
+    setEditing(false);
+  };
   const save = async () => {
     setBusy(true);
     setError(null);
     try {
       await onSave(text);
-      setEditing(false);
+      close();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1326,6 +1348,7 @@ function NoteEditor({ note, onSave }: { note: string | null; onSave: (text: stri
       <>
         {note && <DetailRow label="Note" value={note} isolate />}
         <UnstyledButton
+          ref={buttonRef}
           onClick={() => {
             setText(note ?? '');
             setEditing(true);
@@ -1349,7 +1372,7 @@ function NoteEditor({ note, onSave }: { note: string | null; onSave: (text: stri
       <Stack gap="xs">
         <TextInput label="Note to self" description="Only you see it, in History." placeholder="What it was for" value={text} maxLength={SEND_NOTE_MAX} onChange={(e) => setText(e.currentTarget.value)} autoFocus />
         <Group grow>
-          <Button variant="default" onClick={() => setEditing(false)}>
+          <Button variant="default" onClick={close}>
             Cancel
           </Button>
           <Button type="submit" loading={busy}>

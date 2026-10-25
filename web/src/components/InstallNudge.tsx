@@ -46,7 +46,17 @@ export function InstallNudge() {
       about="installing the app"
       title="Install Neptune Vault on this device"
       action={
-        <UnstyledButton onClick={() => void promptInstall()} c="var(--v-accent-text)" fz="sm" fw={600} className="vault-tap-link">
+        <UnstyledButton
+          onClick={(e) => {
+            // Installed, the nudge goes: the focus goes to the heading near it.
+            const heading = headingNear(e.currentTarget);
+            void promptInstall().then((ok) => ok && heading?.focus({ preventScroll: true }));
+          }}
+          c="var(--v-accent-text)"
+          fz="sm"
+          fw={600}
+          className="vault-tap-link"
+        >
           Install
         </UnstyledButton>
       }

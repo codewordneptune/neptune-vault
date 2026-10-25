@@ -64,11 +64,12 @@ export function Unlock() {
     }
   };
 
+  const passkeyRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (hasPasskey && !promptedThisLoad && !(services.settings.passkeyQuiet ?? []).includes(account?.id ?? '')) {
       promptedThisLoad = true;
       void unlockWithPasskey();
-    }
+    } else if (hasPasskey) passkeyRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.id]);
 
@@ -117,7 +118,7 @@ export function Unlock() {
             </Stack>
             {hasPasskey && (
               <>
-                <Button leftSection={<IconFingerprint size={16} />} loading={passkeyBusy} onClick={() => void unlockWithPasskey()}>
+                <Button ref={passkeyRef} leftSection={<IconFingerprint size={16} />} loading={passkeyBusy} onClick={() => void unlockWithPasskey()}>
                   Unlock with passkey
                 </Button>
                 {passkeyError && (

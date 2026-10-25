@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 
 import { useApp } from '../app/AppContext';
 import { LINKS } from '../app/links';
+import { headingNear } from './Notice';
 
 const RELEASES = 'https://api.github.com/repos/codewordneptune/neptune-vault/releases?per_page=20';
 const TAG_PREFIX = 'desktop-v';
@@ -103,7 +104,16 @@ export function DesktopUpdateNotice() {
         <div className="vault-updatestrip-actions">
           <span />
           <Group gap="xs" wrap="nowrap">
-            <Button size="compact-sm" variant="subtle" className="vault-tap" onClick={() => setLater(true)}>
+            <Button
+              size="compact-sm"
+              variant="subtle"
+              className="vault-tap"
+              onClick={(e) => {
+                const heading = headingNear(e.currentTarget);
+                setLater(true);
+                heading?.focus({ preventScroll: true });
+              }}
+            >
               Later
             </Button>
             <Button component="a" href={newer.url} target="_blank" rel="noreferrer" size="compact-sm" className="vault-tap">

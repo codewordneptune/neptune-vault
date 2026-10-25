@@ -3,7 +3,7 @@
 
 import { Anchor, Button, Group, Paper, Radio, Select, Stack, Text, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
 import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { WALLET_NAME_MAX, WalletNameTakenError } from '../app/accounts';
@@ -27,6 +27,13 @@ import { Spoken } from '../components/Spoken';
 import { PasswordField } from '../components/PasswordField';
 
 type Step = 'welcome' | 'existing' | 'show' | 'confirm' | 'password' | 'import' | 'file';
+
+/** Change is gone once pressed: the focus goes to the choice now made, in the card it was in. */
+function openChoice(e: MouseEvent<HTMLElement>, open: () => void) {
+  const card = e.currentTarget.closest('.mantine-Paper-root');
+  open();
+  requestAnimationFrame(() => card?.querySelector<HTMLInputElement>('input[type=radio]:checked')?.focus());
+}
 
 // A seed phrase being set up, new or typed in, lives only in this screen's
 // memory. Browsers write session and local storage to disk, where deleting
@@ -597,7 +604,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
             <Text size="sm" c="dimmed">
               {fast ? 'Restores in seconds. The node learns which payments are yours, but not the amounts.' : "Scans every block from the file's start on this device. The node learns nothing."}
             </Text>
-            <UnstyledButton onClick={() => setOptionsOpen(true)} aria-expanded={false} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+            <UnstyledButton onClick={(e) => openChoice(e, () => setOptionsOpen(true))} aria-expanded={false} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
               Change
             </UnstyledButton>
           </Stack>
@@ -795,7 +802,7 @@ function ImportStep({
             <Text size="sm" c="dimmed">
               <Spoken text={restoreSummary} />
             </Text>
-            <UnstyledButton onClick={() => setOptionsOpen(true)} aria-expanded={false} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+            <UnstyledButton onClick={(e) => openChoice(e, () => setOptionsOpen(true))} aria-expanded={false} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
               Change
             </UnstyledButton>
           </Stack>

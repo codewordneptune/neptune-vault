@@ -27,6 +27,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 
 import { useApp } from '../app/AppContext';
 import { LINKS } from '../app/links';
+import { headingNear } from './Notice';
 import { fetchWaitingBuild, updateWording, type BuildInfo } from './updateWording';
 
 /** How often an open app asks the host for a new build. */
@@ -94,7 +95,16 @@ export function UpdateStrip() {
             <span />
           )}
           <Group gap="xs" wrap="nowrap">
-            <Button size="compact-sm" variant="subtle" className="vault-tap" onClick={() => setLater(true)}>
+            <Button
+              size="compact-sm"
+              variant="subtle"
+              className="vault-tap"
+              onClick={(e) => {
+                const heading = headingNear(e.currentTarget);
+                setLater(true);
+                heading?.focus({ preventScroll: true });
+              }}
+            >
               Later
             </Button>
             <Button size="compact-sm" className="vault-tap" onClick={() => void updateServiceWorker(true)}>
