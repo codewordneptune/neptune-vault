@@ -121,8 +121,8 @@ export class AccountService {
   // and idle locks are deferred and applied once the send finishes.
   private lockDeferred = false;
   private lockPending = false;
-  /** While set, the idle lock waits: see holdIdleLock. */
-  private idleHeld = false;
+  /** Why the idle lock waits, if anything does: see holdIdleLock. */
+  private idleHolds = new Set<string>();
   // Counts locks. Unlocking takes seconds (the password hash), and a lock
   // can arrive in the middle: the person picks another wallet, or the app
   // goes to the background. Whatever was loading then must not end up
@@ -786,7 +786,7 @@ export class AccountService {
    * is about to. Also asked when the app comes back into view.
    */
   lockIfIdle(): void {
-    if (this.unlockedId === null || this.idleHeld) return;
+    if (this.unlockedId === null || this.idleHolds.size > 0) return;
     const idle = Date.now() - this.lastActivityAt;
     if (idle >= this.lockTimeoutMs) {
       this.requestLock();
@@ -801,14 +801,17 @@ export class AccountService {
   }
 
   /**
-   * Hold off the idle lock while a long scan runs: a restore or a rescan can
-   * take longer than the idle time, with nobody touching the screen. The
-   * background lock still applies. Let go, the idle time counts from then.
+   * Hold off the idle lock while nobody touches the screen for good reason:
+   * a long scan ('scan', a restore or a rescan can outlast the idle time), or
+   * a new seed phrase being written down while another wallet is open
+   * ('setup'). Each reason holds and lets go on its own. The background lock
+   * still applies. Once the last one lets go, the idle time counts from then.
    */
-  holdIdleLock(held: boolean): void {
-    if (this.idleHeld === held) return;
-    this.idleHeld = held;
-    if (!held) this.touch();
+  holdIdleLock(held: boolean, reason = 'scan'): void {
+    const wasHeld = this.idleHolds.size > 0;
+    if (held) this.idleHolds.add(reason);
+    else this.idleHolds.delete(reason);
+    if (wasHeld && this.idleHolds.size === 0) this.touch();
   }
 
   /**

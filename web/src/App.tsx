@@ -296,7 +296,8 @@ export function App() {
           </Container>
         </nav>
       )}
-      {showTabs && <IdleWarning onOpen={(open) => (warningOpen.current = open)} />}
+      {/* Setup too: adding a wallet keeps the open one unlocked. */}
+      {Boolean(account) && !locked && <IdleWarning onOpen={(open) => (warningOpen.current = open)} />}
       <CloseGuard />
     </Box>
   );

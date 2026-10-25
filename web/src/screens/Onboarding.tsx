@@ -67,6 +67,14 @@ export function Onboarding() {
   const [step, setStep] = useState<Step>('welcome');
   const [interrupted, setInterrupted] = useState(setupUnfinished);
   useEffect(dropLegacyDraft, []);
+  // Writing the words down by hand looks idle to the app, and a lock would
+  // take the new phrase with it: while it is shown or checked, the open
+  // wallet's idle lock waits.
+  useEffect(() => {
+    if (step !== 'show' && step !== 'confirm') return;
+    services.accounts.holdIdleLock(true, 'setup');
+    return () => services.accounts.holdIdleLock(false, 'setup');
+  }, [services, step]);
   // The network the new wallet goes on. Without Developer networks it is
   // Mainnet, and nobody is asked. With it, setup asks, starting on Mainnet,
   // or on the network picked in the wallet menu when that one has no wallet

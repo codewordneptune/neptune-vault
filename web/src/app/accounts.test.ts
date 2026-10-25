@@ -574,6 +574,28 @@ describe('account service', () => {
     }
   });
 
+  it('each reason holds the idle lock on its own: a scan ending does not let go of a seed phrase being written down', async () => {
+    const { core, service } = await setup(60_000);
+    const made = await service.createAccount(await service.generatePhrase(), 'pw', 'regtest', 1);
+    const realNow = Date.now;
+    try {
+      service.holdIdleLock(true, 'setup');
+      service.holdIdleLock(true);
+      service.holdIdleLock(false);
+      Date.now = () => realNow() + 10 * 60_000;
+      service.lockIfIdle();
+      await new Promise((r) => setTimeout(r, 5));
+      expect(service.currentAccountId).toBe(made.id);
+      service.holdIdleLock(false, 'setup');
+      Date.now = () => realNow() + 21 * 60_000;
+      service.lockIfIdle();
+      await new Promise((r) => setTimeout(r, 5));
+      expect(core.unlocked).toBeNull();
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
   it('a password change does not undo what the sync wrote meanwhile, and is not undone by it', async () => {
     const { core, service } = await setup();
     const made = await service.createAccount(await service.generatePhrase(), 'old-password', 'regtest', 1);
