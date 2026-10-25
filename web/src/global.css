@@ -2600,10 +2600,11 @@ html {
     padding-block: 6px;
   }
 }
-/* Settings' list beside its open page needs more than one column's width. */
+/* Settings' list beside its open page needs more than one column's width;
+   the strips under the header keep to the same column. */
 @media (min-width: 1100px) {
-  .vault-main.vault-main.vault-main-settings {
-    max-width: 960px;
+  .vault-shell:has(.vault-main-settings) {
+    --v-content-width: 960px;
   }
 }
 
