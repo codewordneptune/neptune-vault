@@ -12,7 +12,7 @@ export function FailureScreen({ title, said, error }: { title: string; said: str
   const details = () =>
     [`${title}: ${error}`, `Neptune Vault ${__APP_VERSION__} (${__APP_COMMIT__})`, `Cross-origin isolated: ${self.crossOriginIsolated ? 'yes' : 'no'}`, navigator.userAgent].join('\n');
   return (
-    <div style={{ maxWidth: 540, margin: '48px auto', padding: '0 16px' }}>
+    <div style={{ maxWidth: 540, margin: '24px auto', padding: '0 16px' }}>
       <Paper>
         <Stack>
           <Title order={2}>{title}</Title>

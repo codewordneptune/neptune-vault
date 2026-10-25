@@ -637,7 +637,8 @@ button.vault-network:focus-visible {
 }
 /* A choice from a short list (components/ChoiceField.tsx: Receive's address
    type, Send's fee): a field under its label, as every select is, the same
-   height, edge and text as the others. */
+   height, edge and text as the others, its text inset a third of its height
+   as the library's fields have it. */
 .vault-choice-field {
   display: flex;
   align-items: center;
@@ -645,7 +646,7 @@ button.vault-network:focus-visible {
   gap: 8px;
   width: 100%;
   min-height: 42px;
-  padding: 0 14px;
+  padding: 0 calc(42px / 3);
   border: 1px solid var(--v-field-border);
   border-radius: var(--mantine-radius-sm);
   background: var(--v-field);
@@ -678,7 +679,7 @@ button.vault-network:focus-visible {
 /* A select's list headed as a menu's label reads, and under the label a
    line about all the choices, where one is given. */
 .vault-picker-label {
-  padding: 5px 12px 3px;
+  padding: 6px 12px 4px;
 }
 .vault-picker-hint {
   padding: 0 12px 6px;
@@ -877,12 +878,7 @@ button.vault-network:focus-visible {
 .vault-contact-actions {
   flex: none;
   margin-left: auto;
-  margin-block: -11px;
-}
-@media (pointer: coarse) {
-  .vault-contact-actions {
-    margin-block: -13px;
-  }
+  margin-block: calc((18px - var(--v-tap)) / 2);
 }
 /* History's and the contact picker's rows run edge to edge, so their ring
    is drawn inside, as Settings' and Receive's rows are. */
@@ -905,12 +901,7 @@ button.vault-network:focus-visible {
    so it keeps its height and the button its centre on the first line. */
 .vault-detail-actions {
   flex: none;
-  margin-block: -10px;
-}
-@media (pointer: coarse) {
-  .vault-detail-actions {
-    margin-block: -12px;
-  }
+  margin-block: calc((20px - var(--v-tap)) / 2);
 }
 .vault-row-icon {
   width: 36px;
@@ -1576,7 +1567,8 @@ main :is(h2, h3)[tabindex='-1']:focus {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 0 10px 12px 30px;
+  /* Under the title: past the icon, the gap and the title's own 2 px. */
+  padding: 0 10px 12px calc(20px + 8px + 2px);
   font-size: var(--v-fs-sm);
   color: var(--v-text-2);
 }
@@ -1829,9 +1821,9 @@ html {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  min-height: 40px;
-  margin: -10px 0;
+  min-width: var(--v-tap);
+  min-height: var(--v-tap);
+  margin: calc((20px - var(--v-tap)) / 2) 0;
   padding: 0 4px;
 }
 /* A compact button keeps its own height, smaller than a regular one beside
@@ -1867,11 +1859,6 @@ html {
    screen's "Not this wallet?", menu rows and segmented choices grow to 44,
    and the tap-links take the extra room back outside as before. */
 @media (pointer: coarse) {
-  .vault-tap-link {
-    min-width: 44px;
-    min-height: 44px;
-    margin-block: -12px;
-  }
   .mantine-SegmentedControl-label.mantine-SegmentedControl-label,
   .mantine-Menu-item.mantine-Menu-item {
     min-height: 44px;
@@ -2501,7 +2488,7 @@ html {
     right: auto;
     width: calc(var(--v-rail-w) + env(safe-area-inset-left));
     z-index: 30;
-    padding: calc(var(--v-header-h) + 14px + env(safe-area-inset-top)) 0 0 env(safe-area-inset-left);
+    padding: calc(var(--v-header-h) + var(--mantine-spacing-md) + env(safe-area-inset-top)) 0 0 env(safe-area-inset-left);
     border-top: 0;
     border-right: 1px solid var(--v-line);
     /* The page's gradient runs on behind the rail: a flat fill showed as a
@@ -2850,7 +2837,7 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   margin: 0;
 }
 main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-Modal-content *, .vault-notice *):has(> .vault-notice-close) :is(.vault-notice-title, .vault-error-title) {
-  padding-right: 28px;
+  padding-right: calc(4px + var(--v-tap) - 16px);
 }
 
 /* A code on the Receive card, like a printed one: the code is the control
@@ -2951,7 +2938,7 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 /* The first row is pulled up 12 px for its hover fill (.vault-row-button:first-child);
    6 px more keep that fill clear of the label. */
 .vault-history-day-label {
-  margin: 0 0 18px;
+  margin: 0 0 calc(12px + 6px);
   font-size: var(--v-fs-sm);
   font-weight: 600;
   color: var(--v-muted);
@@ -3093,7 +3080,7 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   align-items: center;
   gap: 12px;
   min-height: 56px;
-  padding: 7px 8px 7px 14px;
+  padding: 6px 8px 6px calc(42px / 3);
   border: 1px solid var(--v-field-border);
   border-radius: var(--mantine-radius-sm);
   background: var(--v-field);
@@ -3325,7 +3312,7 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 }
 .vault-sent-actions {
   align-self: stretch;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 /* On a phone the page reaches the tab bar (.vault-send-bare): who and how
    much take its middle, and the two ways on its foot, where Review was. */
