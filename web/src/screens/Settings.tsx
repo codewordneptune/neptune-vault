@@ -1324,6 +1324,8 @@ function PasskeyCard() {
   const [busy, setBusy] = useState(false);
   // Set up just now, on this visit: said under where the button was.
   const [justEnabled, setJustEnabled] = useState(false);
+  // Turning it off is asked first, as removals are: a slip would take it at once.
+  const [confirmOff, setConfirmOff] = useState(false);
   const enabled = Boolean(account?.passkey);
   // Whichever button is showing takes the focus when the one pressed has gone.
   const actionRef = useRef<HTMLButtonElement>(null);
@@ -1383,9 +1385,27 @@ function PasskeyCard() {
         <Text size="sm" c="dimmed">
           On. The password still works, and backup files still use it.
         </Text>
-        <Button ref={actionRef} variant="light" aria-label="Turn off passkey unlock" onClick={() => void disable()}>
+        <Button ref={actionRef} variant="light" aria-label="Turn off passkey unlock" onClick={() => setConfirmOff(true)}>
           Turn off
         </Button>
+        <Sheet opened={confirmOff} onClose={() => setConfirmOff(false)} title="Turn off passkey unlock">
+          <Stack>
+            <Text size="sm">Unlocking then takes the password. Passkey unlock can be set up again here.</Text>
+            <Group grow>
+              <Button variant="default" onClick={() => setConfirmOff(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setConfirmOff(false);
+                  void disable();
+                }}
+              >
+                Turn off
+              </Button>
+            </Group>
+          </Stack>
+        </Sheet>
         {justEnabled && <Done onClose={() => setJustEnabled(false)} focusOnMount>Passkey set up. Next time, unlock with your fingerprint, face or device PIN.</Done>}
       </SettingItem>
     );

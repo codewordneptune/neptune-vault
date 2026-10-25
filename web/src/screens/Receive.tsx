@@ -151,6 +151,10 @@ export function Receive() {
   // After it closes, focus goes back to that row's menu or "Name it", or to
   // New address when the row has gone, and what happened is said.
   const [naming, setNaming] = useState<{ kind: KeyKind; index: number } | null>(null);
+  // Removing a name is asked first: History says who paid by it, and a slip
+  // in the menu would take it with nothing to bring it back.
+  const [unnaming, setUnnaming] = useState<{ kind: KeyKind; index: number } | null>(null);
+  const [unnameError, setUnnameError] = useState<string | null>(null);
   // The three kinds side by side, opened from the foot of the type list.
   const [comparing, setComparing] = useState(false);
   const moreButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -168,10 +172,11 @@ export function Receive() {
     try {
       await nameAddress(k, i, '');
       setSaid(`Name removed from ${addressTitle(k, i)}. Payments to it still arrive.`);
+      setUnnaming(null);
+      refocus(addressKey(k, i));
     } catch (e) {
-      notifications.show({ color: 'red', message: (e as Error).message });
+      setUnnameError((e as Error).message);
     }
-    refocus(addressKey(k, i));
   };
 
   // Payments on their way in are looked for every 10 s while this screen is
@@ -717,7 +722,15 @@ export function Receive() {
                                 </Menu.Item>
                               )}
                               {/* Red, as Remove is in every other menu. */}
-                              <Menu.Item leftSection={<IconTrash size={16} />} c="var(--v-danger-text)" className="danger" onClick={() => void removeName(kind, i)}>
+                              <Menu.Item
+                                leftSection={<IconTrash size={16} />}
+                                c="var(--v-danger-text)"
+                                className="danger"
+                                onClick={() => {
+                                  setUnnameError(null);
+                                  setUnnaming({ kind, index: i });
+                                }}
+                              >
                                 Remove name
                               </Menu.Item>
                             </Menu.Dropdown>
@@ -786,6 +799,38 @@ export function Receive() {
                 setNaming(null);
               }}
             />
+          )}
+        </Sheet>
+        <Sheet
+          opened={unnaming !== null}
+          onClose={() => {
+            if (unnaming) refocus(addressKey(unnaming.kind, unnaming.index));
+            setUnnaming(null);
+          }}
+          title="Remove name"
+          returnFocus={false}
+        >
+          {unnaming && (
+            <Stack>
+              <Text size="sm">
+                Remove the name <bdi>{labels[addressKey(unnaming.kind, unnaming.index)]}</bdi> from {addressTitle(unnaming.kind, unnaming.index)}? Payments to it still arrive, and History no longer names it.
+              </Text>
+              <Group grow>
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    refocus(addressKey(unnaming.kind, unnaming.index));
+                    setUnnaming(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button color="red" onClick={() => void removeName(unnaming.kind, unnaming.index)}>
+                  Remove
+                </Button>
+              </Group>
+              {unnameError && <ErrorLine>{unnameError}</ErrorLine>}
+            </Stack>
           )}
         </Sheet>
         <Sheet opened={comparing} onClose={() => setComparing(false)} title="Address types">
