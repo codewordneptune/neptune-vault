@@ -870,7 +870,7 @@ export function Home() {
                           }
                         }}
                       >
-                        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+                        <Group gap="sm" wrap="nowrap" className="vault-row-who">
                           {rowAvatarOf(e)}
                           <div style={{ minWidth: 0 }}>
                             {/* A send not going through says so in its title when nothing else names it, in the caution colour. */}
