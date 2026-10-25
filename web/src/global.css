@@ -119,6 +119,8 @@
   --v-radius-xs: 8px;
   --v-radius-sm: 12px;
   --v-radius-md: 16px;
+  /* A sheet risen from a phone's foot: its top corners only. */
+  --v-radius-lg: 24px;
   --v-fs-xs: 0.75rem;
   --v-fs-sm: 0.875rem;
   --v-fs-md: 1rem;
@@ -2363,7 +2365,7 @@ html {
   flex: 0 0 100%;
   max-width: 100%;
   max-height: calc(100dvh - 24px - env(safe-area-inset-top));
-  border-radius: 24px 24px 0 0;
+  border-radius: var(--v-radius-lg) var(--v-radius-lg) 0 0;
   padding-bottom: env(safe-area-inset-bottom);
 }
 .vault-sheet-header.vault-sheet-header {
@@ -2958,10 +2960,11 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
-  /* It grows with the text size rather than clip its word. */
-  min-height: var(--badge-height);
+  /* As tall as the address-kind tag and the Beta tag (22 px), and grows
+     with the text size rather than clip its word. */
+  min-height: 22px;
   height: auto;
-  padding-block: 1px;
+  padding: 2px 8px;
 }
 
 /* On a wide screen a sentence stops at a readable length (about 70

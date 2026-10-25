@@ -6,8 +6,8 @@
 // 20 px, plus the balance), two weights for words (400 and 600) and 650 for
 // the large figures and the avatars' initials (500 for a figure's quieter
 // part: the balance's decimals, the amounts under a receipt), three radii
-// (8, 12 and 16 px, plus pills), spacing on the steps global.css lists, and
-// one black for text in the light palette.
+// (8, 12 and 16 px, plus pills, and 24 px atop a phone's sheet), spacing on
+// the steps global.css lists, and one black for text in the light palette.
 
 import { createTheme, type MantineColorsTuple } from '@mantine/core';
 import { IconCheck, IconChevronDown, IconMinus, IconX } from '@tabler/icons-react';
