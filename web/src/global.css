@@ -1997,12 +1997,13 @@ html {
   padding-left: 0;
 }
 /* A collapsible section inside a sheet: set off from the rows above it by a
-   line and some air, in the muted colour, with a chevron that turns. It is
-   a part of the sheet, and must not read as one more link. */
+   line and some air, in the muted colour, led by a chevron that turns, as
+   every disclosure is. It is a part of the sheet, and must not read as one
+   more link. */
 .vault-detail-section {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
   width: 100%;
   min-height: 44px;
   margin-top: 8px;

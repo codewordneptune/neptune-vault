@@ -1049,8 +1049,8 @@ export function Home() {
                 {/* A section of the sheet, not a link beside the address's own
                     link: a line above it, the muted colour, a chevron that turns. */}
                 <UnstyledButton onClick={() => setTech((v) => !v)} className="vault-detail-section" aria-expanded={tech}>
-                  <span>Technical details</span>
                   <IconChevronRight size={16} aria-hidden className={tech ? 'vault-chevron open' : 'vault-chevron'} />
+                  <span>Technical details</span>
                 </UnstyledButton>
                 {/* What the node said at its last check: the status above already says what it means. */}
                 {tech && nodeStatusOf(detail.record) && <DetailRow label="Node" value={nodeStatusOf(detail.record) as string} />}
