@@ -14,5 +14,8 @@ import { useMediaQuery } from '@mantine/hooks';
 export const PHONE = '(max-width: 559.98px)';
 export const SETTINGS_SPLIT = '(min-width: 1100px)';
 
+/** A field's section holding `icons` icon buttons: their targets, 4 px apart and 4 px clear of its sides. */
+export const iconSection = (icons: number): string => `calc(${icons} * var(--v-tap) + ${icons + 1} * 4px)`;
+
 /** Whether a query holds, read at once so a layout does not flash the other one first. */
 export const useLayout = (query: string): boolean => useMediaQuery(query, undefined, { getInitialValueInEffect: false });

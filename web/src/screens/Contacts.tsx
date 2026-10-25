@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
 import { MoreButton } from '../components/MoreButton';
+import { iconSection } from '../app/layout';
 import { Sheet } from '../components/Sheet';
 import { useApp } from '../app/AppContext';
 import { ownAddresses } from '../app/ownAddresses';
@@ -340,7 +341,7 @@ export function ContactForm({
               error={addressError}
               errorProps={{ role: 'alert' }}
               description={own && !addressError ? 'This is one of your own addresses.' : undefined}
-              rightSectionWidth={44}
+              rightSectionWidth={iconSection(1)}
               rightSection={
                 <Tooltip label="Scan a QR code" interactive>
                   <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Scan a QR code" onClick={() => setScanning(true)}>

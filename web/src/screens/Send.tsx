@@ -13,7 +13,7 @@ import { Sheet } from '../components/Sheet';
 import { formatNau, NAU_PER_COIN, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { clearSendDraft, keepSendDraft, sendDraft, type ExtraPayee, type SendDraft } from '../app/sendDraft';
 import { DESKTOP } from '../app/platform';
-import { PHONE, useLayout } from '../app/layout';
+import { iconSection, PHONE, useLayout } from '../app/layout';
 import { formatAbout, formatDuration, timeAgo } from '../util/time';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
@@ -1622,7 +1622,7 @@ export function Send() {
                 wrapperProps={{ onBlur: (e: FocusEvent<HTMLDivElement>) => !e.currentTarget.contains(e.relatedTarget) && leaveField(0) }}
                 error={recipientError}
                 inputWrapperOrder={['label', 'input', 'description', 'error']}
-                rightSectionWidth={contacts.length > 0 ? 84 : 48}
+                rightSectionWidth={iconSection(contacts.length > 0 ? 2 : 1)}
                 rightSection={<FieldActions contacts={contacts.length > 0} onPick={() => setPickFor(0)} onScan={() => setScanFor(0)} who={extras.length > 0 ? 'recipient 1' : null} />}
               />
               )}
@@ -1736,7 +1736,7 @@ export function Send() {
                     wrapperProps={{ onBlur: (e: FocusEvent<HTMLDivElement>) => !e.currentTarget.contains(e.relatedTarget) && leaveField(x.id) }}
                     error={x.recipientError}
                     inputWrapperOrder={['label', 'input', 'description', 'error']}
-                    rightSectionWidth={contacts.length > 0 ? 84 : 48}
+                    rightSectionWidth={iconSection(contacts.length > 0 ? 2 : 1)}
                     rightSection={<FieldActions contacts={contacts.length > 0} onPick={() => setPickFor(x.id)} onScan={() => setScanFor(x.id)} who={`recipient ${i + 2}`} />}
                   />
                   )}
