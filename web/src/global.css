@@ -2372,7 +2372,9 @@ html {
   background: var(--v-field-border);
 }
 /* A sheet that is a step of a task (Sheet's `back`): the way back is a link
-   at the header's start where the cross was, and the title is centred. */
+   at the header's start where the cross was, drawn as a page's way back is
+   (14 px regular, the chevron 4 px from its words), and the title is
+   centred. */
 .vault-sheet-backed .mantine-Modal-header {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -2384,7 +2386,7 @@ html {
 .vault-sheet-backed .mantine-Modal-close.vault-sheet-back {
   grid-area: 1 / 1;
   justify-self: start;
-  gap: 2px;
+  gap: 4px;
   width: auto;
   height: auto;
   min-width: 40px;
@@ -2394,7 +2396,7 @@ html {
   background: none;
   color: var(--v-accent-text);
   font-size: var(--v-fs-sm);
-  font-weight: 600;
+  font-weight: 400;
 }
 .vault-sheet-backed .mantine-Modal-close.vault-sheet-back:hover {
   background: none;
