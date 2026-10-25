@@ -1002,6 +1002,10 @@ main :is(h2, h3)[tabindex='-1']:focus {
   gap: 12px;
   margin: 0 auto 6px;
 }
+/* A progress bar's whole length shows: its track has a 3:1 edge. */
+.mantine-Progress-root {
+  box-shadow: inset 0 0 0 1px var(--v-control-edge);
+}
 .vault-sendstrip .mantine-Progress-root {
   margin: 0 auto;
 }
@@ -1746,6 +1750,12 @@ html {
   cursor: pointer;
 }
 .vault-tap-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* A tap-link inside a line of dimmed words (Max after what can be spent)
+   is underlined at rest: its colour alone barely sets it apart. */
+.vault-tap-link.vault-link-in-line:not(:disabled) {
   text-decoration: underline;
   text-underline-offset: 3px;
 }

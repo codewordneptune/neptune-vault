@@ -459,7 +459,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
               </Button>
             )}
             {cameras.length > 1 && (
-              <Button variant="light" size="compact-md" className="vault-tap" leftSection={<IconCameraRotate size={16} />} onClick={nextCamera}>
+              <Button variant="light" size="compact-md" className="vault-tap" leftSection={<IconCameraRotate size={16} />} onClick={nextCamera} aria-label={`Camera ${at + 1} of ${cameras.length}, switch camera`}>
                 Camera {at + 1} of {cameras.length}
               </Button>
             )}
@@ -507,7 +507,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
           )}
         </Group>
         {!error && status && (
-          <Text size="xs" c="dimmed" className="vault-scan-status" aria-live="off">
+          <Text size="xs" c="dimmed" className="vault-scan-status" role="status">
             {status}
           </Text>
         )}

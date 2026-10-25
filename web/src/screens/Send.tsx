@@ -88,13 +88,13 @@ function FieldActions({ contacts, onPick, onScan, who }: { contacts: boolean; on
   return (
     <Group gap={4} wrap="nowrap">
       {contacts && (
-        <Tooltip label="Choose contact">
+        <Tooltip label="Choose contact" interactive>
           <ActionIcon type="button" variant="subtle" size="lg" className="vault-tap" onMouseDown={(e) => e.preventDefault()} onClick={onPick} aria-label={who ? `Choose a contact for ${who}` : 'Choose contact'}>
             <IconUsers size={20} />
           </ActionIcon>
         </Tooltip>
       )}
-      <Tooltip label="Scan a QR code">
+      <Tooltip label="Scan a QR code" interactive>
         <ActionIcon type="button" variant="subtle" size="lg" className="vault-tap" onMouseDown={(e) => e.preventDefault()} onClick={onScan} aria-label={who ? `Scan a QR code for ${who}` : 'Scan a QR code'}>
           <IconScan size={20} />
         </ActionIcon>
@@ -237,7 +237,7 @@ function AmountHero({
           <Spoken text={spendable} />
         </span>
         {' · '}
-        <UnstyledButton type="button" onClick={onMax} disabled={maxDisabled} c={maxDisabled ? 'var(--v-faint)' : 'var(--v-accent-text)'} fz="sm" className="vault-tap-link">
+        <UnstyledButton type="button" onClick={onMax} disabled={maxDisabled} c={maxDisabled ? 'var(--v-faint)' : 'var(--v-accent-text)'} fz="sm" className="vault-tap-link vault-link-in-line">
           Max
         </UnstyledButton>
       </Text>
@@ -1043,6 +1043,7 @@ export function Send() {
             <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
               <Spoken text={estimate !== null ? `${capitalise(formatAbout(estimate))} on this device · ` : ''} />
               <Spoken text={`${formatDuration(provingSeconds)} so far`} />
+              {p && ` · ${Math.round(100 * (p.work ?? p.index / p.total))} % done`}
             </Text>
           )}
           <Text size="sm">

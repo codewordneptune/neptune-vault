@@ -5,6 +5,7 @@ import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'reac
 
 import { Sheet } from './components/Sheet';
 import { useApp } from './app/AppContext';
+import type { AccountRecord } from './storage/db';
 import { DESKTOP, MOBILE, NATIVE } from './app/platform';
 import { DesktopUpdateNotice } from './components/DesktopUpdateNotice';
 import { Logo } from './components/Logo';
@@ -18,7 +19,7 @@ import { Onboarding } from './screens/Onboarding';
 import { Privacy } from './screens/Privacy';
 import { Receive } from './screens/Receive';
 import { Send } from './screens/Send';
-import { Settings } from './screens/Settings';
+import { Settings, settingsPageTitle } from './screens/Settings';
 import { Unlock } from './screens/Unlock';
 
 const TABS = [
@@ -39,14 +40,17 @@ const SCREEN_NAMES: Record<string, string> = {
 };
 
 /** The screen a path shows, for the page title; null for a path about to be redirected. */
-function screenName(pathname: string, hasWallet: boolean, locked: boolean): string | null {
+function screenName(pathname: string, hasWallet: boolean, locked: boolean, account: AccountRecord | null): string | null {
   // Privacy is open to all; every other screen of a wallet waits behind the lock.
   if (pathname === '/privacy') return SCREEN_NAMES[pathname];
   if (hasWallet && locked) return 'Locked';
   // With no wallet, only setup and the device facts are shown; the rest redirect.
   if (!hasWallet && pathname !== '/onboarding' && pathname !== '/diagnostics') return null;
-  // Settings' pages share its name: the page's own heading says which one.
-  if (pathname.startsWith('/settings/')) return SCREEN_NAMES['/settings'];
+  // A Settings page is named before Settings, as its heading reads.
+  if (pathname.startsWith('/settings/')) {
+    const page = settingsPageTitle(pathname.split('/')[2], account);
+    return page ? `${page} · ${SCREEN_NAMES['/settings']}` : SCREEN_NAMES['/settings'];
+  }
   return SCREEN_NAMES[pathname] ?? null;
 }
 
@@ -73,9 +77,9 @@ export function App() {
   // reader all say where the app is, not only "Neptune Vault".
   const hasWallet = Boolean(account);
   useEffect(() => {
-    const name = screenName(pathname, hasWallet, locked);
+    const name = screenName(pathname, hasWallet, locked, account);
     document.title = name ? `${name} · Neptune Vault` : 'Neptune Vault';
-  }, [pathname, hasWallet, locked]);
+  }, [pathname, hasWallet, locked, account]);
 
   // A new screen takes focus at its heading (every screen has an h2, some
   // visually hidden), so a keyboard or screen-reader user starts there and

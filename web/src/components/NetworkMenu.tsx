@@ -78,13 +78,15 @@ export function NetworkMenu() {
           <>
             <Menu.Label>{testNets ? `Wallets on ${NETWORK_LABELS[network]}` : 'Wallets'}</Menu.Label>
             {/* Radio items, so a screen reader hears which wallet is open, as the tick shows it. */}
-            <Menu.RadioGroup value={account.id} onChange={(id) => void switchAccount(id)}>
-              {onThisNetwork.map((a) => (
-                <Menu.RadioItem key={a.id} value={a.id} disabled={sending} closeMenuOnClick>
-                  <bdi>{walletName(a)}</bdi>
-                </Menu.RadioItem>
-              ))}
-            </Menu.RadioGroup>
+            <div role="group" aria-label={testNets ? `Wallets on ${NETWORK_LABELS[network]}` : 'Wallets'}>
+              <Menu.RadioGroup value={account.id} onChange={(id) => void switchAccount(id)}>
+                {onThisNetwork.map((a) => (
+                  <Menu.RadioItem key={a.id} value={a.id} disabled={sending} closeMenuOnClick>
+                    <bdi>{walletName(a)}</bdi>
+                  </Menu.RadioItem>
+                ))}
+              </Menu.RadioGroup>
+            </div>
             <Menu.Item disabled={sending} leftSection={<IconPlus size={16} />} onClick={() => navigate('/onboarding?add=1')}>
               Add a wallet
             </Menu.Item>
@@ -101,13 +103,15 @@ export function NetworkMenu() {
         )}
         {testNets && <Menu.Label>Network</Menu.Label>}
         {testNets && (
-          <Menu.RadioGroup value={network} onChange={(n) => choose(n as Network)}>
-            {networks.map((n) => (
-              <Menu.RadioItem key={n} value={n} disabled={sending} closeMenuOnClick rightSection={<span className="vault-network-hint">{hint(n)}</span>}>
-                {NETWORK_LABELS[n]}
-              </Menu.RadioItem>
-            ))}
-          </Menu.RadioGroup>
+          <div role="group" aria-label="Network">
+            <Menu.RadioGroup value={network} onChange={(n) => choose(n as Network)}>
+              {networks.map((n) => (
+                <Menu.RadioItem key={n} value={n} disabled={sending} closeMenuOnClick rightSection={<span className="vault-network-hint">{hint(n)}</span>}>
+                  {NETWORK_LABELS[n]}
+                </Menu.RadioItem>
+              ))}
+            </Menu.RadioGroup>
+          </div>
         )}
       </Menu.Dropdown>
       <Sheet opened={pending !== null} onClose={cancelSwitch} returnFocus={false} title={pending ? `Switch to ${NETWORK_LABELS[pending]}?` : ''}>

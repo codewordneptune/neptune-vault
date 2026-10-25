@@ -595,6 +595,7 @@ export function Receive() {
                 <TextInput
                   label="Your name (optional)"
                   description="Shown to the sender as an unverified name."
+                  autoComplete="name"
                   value={requestLabel}
                   onChange={(e) => setRequestLabel(e.currentTarget.value)}
                   error={labelError}

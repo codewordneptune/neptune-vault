@@ -191,6 +191,8 @@ function shownAddress(href: string): string {
 /** A row's label and its page's title; removal names the wallet it removes. */
 const titleOf = (key: SectionKey, account: AccountRecord | null): string => (key === 'remove' && account ? `Remove ${walletName(account)}` : SECTION_TITLES[key]);
 const isSection = (key: string | undefined): key is SectionKey => key !== undefined && Object.hasOwn(SECTION_TITLES, key);
+/** A Settings page's own title, as its heading reads, for the window's title; null for no page. */
+export const settingsPageTitle = (section: string | undefined, account: AccountRecord | null): string | null => (isSection(section) ? titleOf(section, account) : null);
 
 // A page changed a value the list shows (the lock time, the currency): the
 // list beside it on a wide window shows the new one.
