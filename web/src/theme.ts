@@ -130,6 +130,9 @@ export const theme = createTheme({
       },
     },
     SegmentedControl: { defaultProps: { radius: 'sm', size: 'md' } },
+    // A loader standing alone turns in the accent at the library's size; one
+    // beside words is set muted at 16 px, the size of an icon beside text.
+    Loader: { defaultProps: { color: 'var(--v-accent)' } },
     // Square, so a checkbox never reads as a radio button.
     Checkbox: { defaultProps: { radius: 'xs', icon: CheckboxTick } },
     Alert: { defaultProps: { radius: 'sm', variant: 'light' } },

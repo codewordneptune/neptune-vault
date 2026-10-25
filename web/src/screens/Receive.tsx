@@ -102,7 +102,7 @@ function QrPending({ waiting = true }: { waiting?: boolean }) {
   return (
     <div className="vault-qr-code" style={{ cursor: 'default' }} aria-hidden>
       <div style={{ aspectRatio: '1', display: 'grid', placeItems: 'center' }}>
-        {waiting && <Loader size="sm" color="gray" />}
+        {waiting && <Loader />}
       </div>
       <span className="vault-qr-foot">&nbsp;</span>
     </div>

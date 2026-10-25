@@ -1033,7 +1033,7 @@ export function Send() {
                 turning mark says the app is at work, not stuck. */}
             {!(proving && p) && (
               <Group gap="xs" wrap="nowrap" align="center">
-                <Loader size={14} color="var(--v-muted)" aria-hidden />
+                <Loader size={16} color="var(--v-muted)" aria-hidden />
                 <Text size="sm">{sendStageText(sendJob.progress.stage, true)}…</Text>
               </Group>
             )}
