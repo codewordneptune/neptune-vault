@@ -88,7 +88,7 @@ export function ChoiceField({
             {label}
           </div>
           {hint && (
-            <Text size="xs" c="dimmed" className="vault-picker-hint" aria-hidden>
+            <Text size="sm" c="dimmed" className="vault-picker-hint" aria-hidden>
               {hint}
             </Text>
           )}
@@ -103,7 +103,7 @@ export function ChoiceField({
                     {c.name}
                   </Text>
                   {c.note && (
-                    <Text span display="block" size="xs" c="dimmed">
+                    <Text span display="block" size="sm" c="dimmed">
                       {c.note}
                     </Text>
                   )}

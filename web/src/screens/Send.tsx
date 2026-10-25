@@ -1028,7 +1028,7 @@ export function Send() {
             {!(proving && p) && (
               <Group gap="xs" wrap="nowrap" align="center">
                 <Loader size={14} color="var(--v-muted)" aria-hidden />
-                <Text>{sendStageText(sendJob.progress.stage, true)}…</Text>
+                <Text size="sm">{sendStageText(sendJob.progress.stage, true)}…</Text>
               </Group>
             )}
             {/* Why the steps started over, when they did: a block arrived. */}

@@ -96,7 +96,7 @@ export function DesktopUpdateNotice() {
             <Text size="sm" fw={600}>
               Version {newer.version} of the desktop app is out
             </Text>
-            <Text size="xs" c="dimmed">
+            <Text size="sm" c="dimmed">
               You are on {__APP_VERSION__}. Install the new version over this one; your wallets stay.
             </Text>
           </div>

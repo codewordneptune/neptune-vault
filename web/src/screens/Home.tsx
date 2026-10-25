@@ -658,7 +658,7 @@ export function Home() {
       {/* A long scan stops when the screen turns off and the wallet locks: said
           while one runs, in full only when the app could not keep the screen on. */}
       {longScan && !DESKTOP && (
-        <Text size="xs" c="dimmed" mt={-8}>
+        <Text size="sm" c="dimmed" mt={-8}>
           {screenAwake === 'held' ? 'Keep the app open until the scan finishes. It pauses if the wallet locks, and goes on at the next unlock.' : 'Keep the app open with the screen on: the scan pauses when the screen turns off, and goes on at the next unlock.'}
         </Text>
       )}
@@ -1303,7 +1303,7 @@ function SearchedFrom({ account }: { account: AccountRecord }) {
   }, [services, from, account.restoredAt]);
   if (account.restoredAt) {
     return (
-      <Text c="dimmed" size="xs">
+      <Text c="dimmed" size="sm">
         A fast restore checked the whole chain and found no payments to this wallet.
       </Text>
     );
@@ -1311,10 +1311,10 @@ function SearchedFrom({ account }: { account: AccountRecord }) {
   if (from <= 1 || date === undefined) return null;
   if (date !== null && dayKey(date) === dayKey(account.createdAt)) return null;
   return (
-    <Text c="dimmed" size="xs">
+    <Text c="dimmed" size="sm">
       This wallet looks for payments from block <Spoken text={showBlock(from)} />
       {date ? ` (${formatDate(date)})` : ''}. Expecting an older one?{' '}
-      <UnstyledButton onClick={() => navigate('/settings/advanced#rescan', { state: { from: 'home' } })} fz="xs" className="vault-inline-link">
+      <UnstyledButton onClick={() => navigate('/settings/advanced#rescan', { state: { from: 'home' } })} fz="sm" className="vault-inline-link">
         Rescan from an earlier date
       </UnstyledButton>
     </Text>
