@@ -932,9 +932,9 @@ export function Send() {
     if (!sendJob || sendJob.done) setStopping(false);
   }, [sendJob]);
 
-  // Focus follows the screen: to the proving view's title when it starts,
-  // and to the result when it ends.
-  const runningTitle = useRef<HTMLHeadingElement>(null);
+  // Focus follows the screen: to the proving view's first line when it
+  // starts, and to the result when it ends.
+  const runningTitle = useRef<HTMLParagraphElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   const isRunning = Boolean(sendJob && !sendJob.done);
   const isDone = Boolean(sendJob?.done && sendJob.ending);
@@ -1012,12 +1012,18 @@ export function Send() {
     return (
       <Paper>
         <Stack>
-          <Title order={2} tabIndex={-1} ref={runningTitle}>
-            {PREPARING_SEND}
+          {/* The screen's heading as the form has it; what is happening leads the card. */}
+          <Title order={2} className="vault-eyebrow">
+            Send
           </Title>
-          <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            <Amount nau={paymentsTotalNau(request)} hidden={masked} /> to <span dir="auto" className="vault-bidi">{who}</span> · fee <Amount nau={BigInt(request.fee_nau ?? '0')} hidden={masked} />
-          </Text>
+          <Stack gap={4} mt={-8}>
+            <Text fw={600} tabIndex={-1} ref={runningTitle}>
+              {PREPARING_SEND}
+            </Text>
+            <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <Amount nau={paymentsTotalNau(request)} hidden={masked} /> to <span dir="auto" className="vault-bidi">{who}</span> · fee <Amount nau={BigInt(request.fee_nau ?? '0')} hidden={masked} />
+            </Text>
+          </Stack>
           {/* One signal of progress at a time, in plain words: a line while the
               send is being got ready and handed over, the bar while it is
               proven (measured by the work done, so it never disagrees with a
