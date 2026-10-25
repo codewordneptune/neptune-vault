@@ -352,8 +352,10 @@ h3.mantine-Title-root.vault-prose-heading {
   color: var(--v-danger-text);
   box-shadow: var(--v-danger-ring);
 }
-.mantine-Button-root[data-variant='light'][style*='--mantine-color-red']:hover {
-  background: var(--v-danger-hover-strong);
+@media (hover: hover) and (pointer: fine) {
+  .mantine-Button-root[data-variant='light'][style*='--mantine-color-red']:hover {
+    background: var(--v-danger-hover-strong);
+  }
 }
 .mantine-Button-root[data-variant='default'] {
   background: var(--v-surface-2);
@@ -541,12 +543,9 @@ h3.mantine-Title-root.vault-prose-heading {
   border-radius: var(--v-radius-xs);
   font-size: var(--v-fs-sm);
 }
-@media (hover: hover) {
-  :root[data-mantine-color-scheme='dark'] :is(.mantine-Select-option, .mantine-Combobox-option):hover:not([data-combobox-selected], [data-combobox-disabled]) {
-    background-color: var(--mantine-color-dark-4);
-  }
-  :root[data-mantine-color-scheme='light'] :is(.mantine-Select-option, .mantine-Combobox-option):hover:not([data-combobox-selected], [data-combobox-disabled]) {
-    background-color: var(--mantine-color-gray-1);
+@media (hover: hover) and (pointer: fine) {
+  :is(.mantine-Select-option, .mantine-Combobox-option):hover:not([data-combobox-selected], [data-combobox-disabled]) {
+    background-color: var(--v-accent-soft);
   }
 }
 
@@ -1319,9 +1318,11 @@ main :is(h2, h3)[tabindex='-1']:focus {
   color: var(--v-muted);
   border-radius: var(--v-radius-xs);
 }
-.mantine-Modal-close:hover {
-  background: var(--v-surface-2);
-  color: var(--v-text);
+@media (hover: hover) and (pointer: fine) {
+  .mantine-Modal-close:hover {
+    background: var(--v-surface-2);
+    color: var(--v-text);
+  }
 }
 /* The cross (theme.ts) at the share of its button the library's own took. */
 .mantine-CloseButton-root > svg {
@@ -1618,8 +1619,10 @@ main :is(h2, h3)[tabindex='-1']:focus {
   font-weight: 600;
   line-height: 20px;
 }
-.vault-beta:hover span {
-  background: var(--v-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .vault-beta:hover span {
+    background: var(--v-surface-2);
+  }
 }
 .vault-beta:focus-visible {
   outline: none;
@@ -2113,9 +2116,11 @@ html {
 /* The view is white in both themes, so its close button's hover is too: the
    general hover takes the theme's surface, which in the dark theme is a dark
    square on the white. */
-.vault-qr-full-header .mantine-Modal-close:hover {
-  background: #e9edf2;
-  color: #15202e;
+@media (hover: hover) and (pointer: fine) {
+  .vault-qr-full-header .mantine-Modal-close:hover {
+    background: #e9edf2;
+    color: #15202e;
+  }
 }
 /* The title names the code, so it sits on the code's axis: centred across the
    whole width, with the close button taken out of the flow and the same room
