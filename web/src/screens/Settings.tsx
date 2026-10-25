@@ -611,7 +611,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
                 <Stack gap="xs" mt="xs" w="100%">
                   <WordGrid words={phrase} />
                   {/* The button, then what copying means, beneath it, as on the setup step. */}
-                  <Stack gap={4} align="flex-start">
+                  <Stack gap={6} align="flex-start">
                     <UnstyledButton c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon" onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
                       <IconCopy size={16} aria-hidden />
                       Copy words
@@ -744,7 +744,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
           <Stack>
             <AutoLockSetting />
             {/* Not during a send: a lock takes the keys the send is using, and it would end without a word. */}
-            <Stack gap={4} align="flex-start">
+            <Stack gap={6} align="flex-start">
               <Button variant="light" onClick={() => void services.accounts.lock()} disabled={sending}>
                 Lock wallet
               </Button>
@@ -1602,7 +1602,7 @@ function RemoveWalletCard() {
           )}
           <Checkbox label="I have this wallet's seed phrase or a backup file" checked={haveBackup} onChange={(e) => setHaveBackup(e.currentTarget.checked)} />
           <PasswordField label="This wallet's password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} error={error} errorProps={{ role: 'alert' }} autoComplete="current-password" />
-          <Stack gap={4} align="flex-start">
+          <Stack gap={6} align="flex-start">
             <Button type="submit" color="red" loading={busy} disabled={sending || !haveBackup || !password}>
               Remove from this device
             </Button>
@@ -1694,7 +1694,7 @@ function RescanCard() {
       <Text size="sm" c="dimmed">
         <Spoken text={how} />
       </Text>
-      <Group>
+      <Stack gap={6} align="flex-start">
         <Button
           variant="light"
           disabled={sending}
@@ -1713,7 +1713,7 @@ function RescanCard() {
             {NOT_DURING_SEND}
           </Text>
         )}
-      </Group>
+      </Stack>
       {started && (
         <Done onClose={() => setStarted(false)} focusOnMount>Rescan started. The balance and history fill in again as it runs.</Done>
       )}

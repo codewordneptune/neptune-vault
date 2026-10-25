@@ -128,7 +128,7 @@ export function ChoiceField({
         </span>
       )}
       {shownReading && (
-        <Text id={readingId} size="sm" c="dimmed" mt={5}>
+        <Text id={readingId} size="sm" c="dimmed" mt={6}>
           {shownReading}
         </Text>
       )}

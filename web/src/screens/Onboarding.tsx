@@ -412,7 +412,7 @@ export function Onboarding() {
             <WordGrid words={phrase} />
             {/* The button, then what copying means, beneath it at every width
                 (as a phone wraps it), not squeezed in beside it. */}
-            <Stack gap={4} align="flex-start">
+            <Stack gap={6} align="flex-start">
               <UnstyledButton c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon" onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
                 <IconCopy size={16} aria-hidden />
                 Copy words
@@ -583,7 +583,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
         <PasswordField label="Backup file password" description="It also unlocks the wallet after restoring." value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" />
         {/* How to restore, as one line with its choice; Change opens the choice. */}
         {optionsOpen ? (
-          <>
+          <Stack gap={6}>
             <SegmentedControl
               aria-label="How to restore"
               fullWidth
@@ -599,9 +599,9 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
                 ? FAST_SCAN
                 : 'Every block from the start block in the file is downloaded and scanned on this device. The node learns nothing about your coins.'}
             </Text>
-          </>
+          </Stack>
         ) : (
-          <Stack gap={2}>
+          <Stack gap={6}>
             <Text size="sm" c="dimmed">
               {fast ? 'Restores in seconds. The node learns which payments are yours, but not the amounts.' : "Scans every block from the file's start on this device. The node learns nothing."}
             </Text>
@@ -799,7 +799,7 @@ function ImportStep({
             restore everything, fast, and need decide nothing. Change opens
             the question people can answer, instead of a block number. */}
         {!optionsOpen && (
-          <Stack gap={2}>
+          <Stack gap={6}>
             <Text size="sm" c="dimmed">
               <Spoken text={restoreSummary} />
             </Text>
@@ -818,7 +818,7 @@ function ImportStep({
         </Radio.Group>
         )}
         {optionsOpen && when === 'unknown' && (
-          <>
+          <Stack gap={6}>
             <SegmentedControl
               aria-label="How to find everything"
               fullWidth
@@ -834,7 +834,7 @@ function ImportStep({
                 ? FAST_SCAN
                 : 'Every block from the first is downloaded and scanned on this device: about 8 to 10 GB on Mainnet. The node learns nothing about your coins.'}
             </Text>
-          </>
+          </Stack>
         )}
         {optionsOpen && when === 'month' && (
           <StartBlockPicker
