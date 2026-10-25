@@ -9,6 +9,16 @@ import { Textarea } from '@mantine/core';
 import { useEffect } from 'react';
 
 import { useSecureScreen } from '../app/secureScreen';
+import { suggestWords } from '../util/seedWords';
+
+/** The core's 'Word 7, "abandom", is not in the word list.', with the list's nearest words. */
+function withSuggestion(problem: string): string {
+  const typed = /"([^"]+)"/.exec(problem)?.[1];
+  const near = typed ? suggestWords(typed) : [];
+  if (near.length === 0) return problem;
+  const quoted = near.map((w) => `"${w}"`);
+  return `${problem} Did you mean ${quoted.length === 1 ? quoted[0] : `${quoted.slice(0, -1).join(', ')} or ${quoted.at(-1)}`}?`;
+}
 
 /** The words of what was typed, lower case. */
 export function phraseWords(text: string): string[] {
@@ -44,7 +54,7 @@ export function PhraseField({
     const t = setTimeout(() => {
       const padded = [...finished, ...Array<string>(18 - finished.length).fill('abandon')];
       void checkPhrase(padded).then(
-        (problem) => onError(problem && problem.startsWith('Word ') ? problem : null),
+        (problem) => onError(problem && problem.startsWith('Word ') ? withSuggestion(problem) : null),
         () => undefined,
       );
     }, 400);
