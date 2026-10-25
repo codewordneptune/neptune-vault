@@ -1103,12 +1103,12 @@ main :is(h2, h3)[tabindex='-1']:focus {
   font-weight: 500;
   color: var(--v-text-2);
 }
-.vault-receipt-warn {
+.vault-warn-line {
   display: flex;
   align-items: flex-start;
   gap: 8px;
 }
-.vault-receipt-warn > svg {
+.vault-warn-line > svg {
   flex: none;
   margin-top: 2px;
 }

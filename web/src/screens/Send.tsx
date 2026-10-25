@@ -5,7 +5,7 @@
 
 import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, Progress, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
-import { IconAlertTriangle, IconArrowsExchange, IconCheck, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
+import { IconArrowsExchange, IconCheck, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -25,7 +25,7 @@ import { Amount } from '../components/Amount';
 import { Avatar } from '../components/Avatar';
 import { Spoken } from '../components/Spoken';
 import { ChoiceField } from '../components/ChoiceField';
-import { Caution, ErrorLine, headingNear, Info } from '../components/Notice';
+import { Caution, ErrorLine, headingNear, Info, WarnLine } from '../components/Notice';
 import { MAY_HAVE_GONE_OUT, notSentReason, PREPARING_SEND, sendStageText, WAITING_FOR_BLOCK } from '../app/words';
 import { usePendingSends } from '../app/pending';
 import { QrScanner } from '../components/QrScanner';
@@ -1032,11 +1032,7 @@ export function Send() {
               </Group>
             )}
             {/* Why the steps started over, when they did: a block arrived. */}
-            {sendJob.progress.note && (
-              <Text size="sm" c="var(--v-warn-text)" mt={4}>
-                {sendJob.progress.note}
-              </Text>
-            )}
+            {sendJob.progress.note && <WarnLine mt={4}>{sendJob.progress.note}</WarnLine>}
           </div>
           {proving && p && <Progress value={Math.round(100 * (p.work ?? p.index / p.total))} animated={!reducedMotion} aria-label="Share of the proving work done" />}
           {proving && (
@@ -1271,10 +1267,7 @@ export function Send() {
             </div>
           )}
           {reviewFeeNote && (
-            <Text size="sm" c="var(--v-warn-text)" className="vault-receipt-warn">
-              <IconAlertTriangle size={16} aria-hidden />
-              <span>{reviewFeeNote}</span>
-            </Text>
+            <WarnLine>{reviewFeeNote}</WarnLine>
           )}
           {reviewed.note && (
             <Text size="sm">
@@ -1454,11 +1447,7 @@ export function Send() {
           ref={customFeeRef}
         />
       )}
-      {formFeeNote && (
-        <Text size="sm" c="var(--v-warn-text)">
-          {formFeeNote}
-        </Text>
-      )}
+      {formFeeNote && <WarnLine>{formFeeNote}</WarnLine>}
     </>
   );
 

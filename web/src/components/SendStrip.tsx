@@ -9,6 +9,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { PREPARING_SEND, sendStageText } from '../app/words';
 import { formatDuration } from '../util/time';
+import { WarnLine } from './Notice';
 import { Spoken } from './Spoken';
 
 export function SendStrip() {
@@ -46,11 +47,7 @@ export function SendStrip() {
           </Text>
         )}
       </div>
-      {sendJob.progress.note && (
-        <Text size="xs" c="dimmed" mb={6}>
-          {sendJob.progress.note}
-        </Text>
-      )}
+      {sendJob.progress.note && <WarnLine mb={6}>{sendJob.progress.note}</WarnLine>}
       <Progress value={value} size="xs" animated={!p} aria-label="Share of the send's work done" />
     </UnstyledButton>
     </div>

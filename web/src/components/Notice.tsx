@@ -23,7 +23,7 @@
 // their own (a payment arriving, a send finishing on another screen) are
 // toasts; errors from a form sit under the form's button.
 
-import { ActionIcon, CloseButton } from '@mantine/core';
+import { ActionIcon, CloseButton, Text, type TextProps } from '@mantine/core';
 import { IconAlertTriangle, IconChevronRight, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
 import { useEffect, useId, useRef, useState, type HTMLAttributes, type ReactNode } from 'react';
 
@@ -42,6 +42,20 @@ type NoticeProps = {
    */
   focusOnMount?: boolean;
 } & Omit<HTMLAttributes<HTMLDivElement>, 'title'>;
+
+/**
+ * A short caution under a field or a step, in one amber line with its
+ * triangle: the fee against the amount, why proving started over. Anything
+ * longer, or with an action, is a Caution.
+ */
+export function WarnLine({ children, ...rest }: { children: ReactNode } & TextProps) {
+  return (
+    <Text size="sm" c="var(--v-warn-text)" className="vault-warn-line" {...rest}>
+      <IconAlertTriangle size={16} aria-hidden />
+      <span>{children}</span>
+    </Text>
+  );
+}
 
 /**
  * Where focus goes when a notice closes itself: the heading of the card it
