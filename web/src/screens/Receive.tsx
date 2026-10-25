@@ -4,8 +4,8 @@
 // be mistaken for one another. Key 0 of a kind is its main address; "next
 // unused" derives the next key of that kind.
 
-import { ActionIcon, Button, Group, Loader, Menu, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowsMaximize, IconCheck, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconShare, IconTrash } from '@tabler/icons-react';
+import { Button, Group, Loader, Menu, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconArrowsMaximize, IconCheck, IconCopy, IconPencil, IconPlus, IconShare, IconTrash } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
 import { useMediaQuery } from '@mantine/hooks';
@@ -13,6 +13,7 @@ import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 
 import { Sheet } from '../components/Sheet';
 import { QrFullScreen } from '../components/QrFullScreen';
+import { MoreButton } from '../components/MoreButton';
 import { Caution, Done, ErrorLine, Info } from '../components/Notice';
 import { Spoken } from '../components/Spoken';
 import { ChoiceField } from '../components/ChoiceField';
@@ -702,20 +703,13 @@ export function Receive() {
                         )}
                         {name && (
                           <Menu position="bottom-end">
-                            <Menu.Target>
-                              <ActionIcon
-                                variant="subtle"
-                                size="lg"
-                                className="vault-tap"
-                                aria-label={`More for ${title}`}
-                                ref={(el: HTMLButtonElement | null) => {
-                                  if (el) moreButtons.current.set(k, el);
-                                  else moreButtons.current.delete(k);
-                                }}
-                              >
-                                <IconDotsVertical size={20} />
-                              </ActionIcon>
-                            </Menu.Target>
+                            <MoreButton
+                              label={`More for ${title}`}
+                              buttonRef={(el: HTMLButtonElement | null) => {
+                                if (el) moreButtons.current.set(k, el);
+                                else moreButtons.current.delete(k);
+                              }}
+                            />
                             <Menu.Dropdown>
                               {nameable && (
                                 <Menu.Item leftSection={<IconPencil size={16} />} onClick={() => setNaming({ kind, index: i })}>

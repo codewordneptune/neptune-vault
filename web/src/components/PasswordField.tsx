@@ -2,7 +2,7 @@
 // click, as any button does (Mantine's own acts on the press, so a slip
 // shows the password), and the field marked invalid while it shows an error.
 
-import { ActionIcon, PasswordInput, type PasswordInputProps } from '@mantine/core';
+import { ActionIcon, PasswordInput, Tooltip, type PasswordInputProps } from '@mantine/core';
 import { IconEye, IconEyeOff } from '@tabler/icons-react';
 import { forwardRef, useState } from 'react';
 
@@ -16,20 +16,22 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordInputProps>(fu
       visible={visible}
       onVisibilityChange={setVisible}
       rightSection={
-        <ActionIcon
-          variant="subtle"
-          color="gray"
-          size="lg"
-          className="vault-tap"
-          aria-label="Show or hide the password"
-          aria-pressed={visible}
-          disabled={props.disabled}
-          // The focus stays in the field.
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setVisible((v) => !v)}
-        >
-          {visible ? <IconEyeOff size={20} /> : <IconEye size={20} />}
-        </ActionIcon>
+        <Tooltip label={visible ? 'Hide the password' : 'Show the password'} interactive>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="lg"
+            className="vault-tap"
+            aria-label="Show or hide the password"
+            aria-pressed={visible}
+            disabled={props.disabled}
+            // The focus stays in the field.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setVisible((v) => !v)}
+          >
+            {visible ? <IconEyeOff size={20} /> : <IconEye size={20} />}
+          </ActionIcon>
+        </Tooltip>
       }
     />
   );

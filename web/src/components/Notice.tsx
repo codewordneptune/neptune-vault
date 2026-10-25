@@ -23,7 +23,7 @@
 // their own (a payment arriving, a send finishing on another screen) are
 // toasts; errors from a form sit under the form's button.
 
-import { ActionIcon, CloseButton, Text, type TextProps } from '@mantine/core';
+import { ActionIcon, CloseButton, Text, Tooltip, type TextProps } from '@mantine/core';
 import { IconAlertTriangle, IconChevronRight, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
 import { useEffect, useId, useRef, useState, type HTMLAttributes, type ReactNode } from 'react';
 
@@ -167,9 +167,11 @@ export function NoticeLine({ title, action, about, children }: { title: ReactNod
         <span className="vault-noticeline-title">{title}</span>
         {action}
         {children && (
-          <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-expanded={open} aria-controls={moreId} aria-label={(open ? 'Less about ' : 'More about ') + about} onClick={() => setOpen((v) => !v)}>
-            <IconChevronRight size={20} className={open ? 'vault-chevron open' : 'vault-chevron'} />
-          </ActionIcon>
+          <Tooltip label={(open ? 'Less about ' : 'More about ') + about} interactive>
+            <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-expanded={open} aria-controls={moreId} aria-label={(open ? 'Less about ' : 'More about ') + about} onClick={() => setOpen((v) => !v)}>
+              <IconChevronRight size={20} className={open ? 'vault-chevron open' : 'vault-chevron'} />
+            </ActionIcon>
+          </Tooltip>
         )}
       </div>
       {children && open && (

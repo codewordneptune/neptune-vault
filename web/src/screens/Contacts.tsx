@@ -3,11 +3,12 @@
 // gives it its title and the way back.
 
 import { ActionIcon, Button, Group, Menu, Paper, Stack, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core';
-import { IconArrowUpRight, IconCopy, IconDotsVertical, IconPencil, IconPlus, IconScan, IconTrash } from '@tabler/icons-react';
+import { IconArrowUpRight, IconCopy, IconPencil, IconPlus, IconScan, IconTrash } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
+import { MoreButton } from '../components/MoreButton';
 import { Sheet } from '../components/Sheet';
 import { useApp } from '../app/AppContext';
 import { ownAddresses } from '../app/ownAddresses';
@@ -94,20 +95,13 @@ export function ContactsPanel() {
                           </ActionIcon>
                         </Tooltip>
                         <Menu position="bottom-end">
-                          <Menu.Target>
-                            <ActionIcon
-                              variant="subtle"
-                              size="lg"
-                              className="vault-tap"
-                              aria-label={`More for ${c.name}`}
-                              ref={(el: HTMLButtonElement | null) => {
-                                if (el) moreButtons.current.set(c.key, el);
-                                else moreButtons.current.delete(c.key);
-                              }}
-                            >
-                              <IconDotsVertical size={20} />
-                            </ActionIcon>
-                          </Menu.Target>
+                          <MoreButton
+                            label={`More for ${c.name}`}
+                            buttonRef={(el: HTMLButtonElement | null) => {
+                              if (el) moreButtons.current.set(c.key, el);
+                              else moreButtons.current.delete(c.key);
+                            }}
+                          />
                           <Menu.Dropdown>
                             {/* The row shows the address shortened; this copies it whole, to hand on or paste into another wallet. */}
                             <Menu.Item leftSection={<IconCopy size={16} />} onClick={() => void copyText(c.address, 'Address copied')}>

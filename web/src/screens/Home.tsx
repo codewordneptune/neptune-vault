@@ -1,6 +1,6 @@
 // Balance, sync status and history.
 
-import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useReducedMotion } from '@mantine/hooks';
 import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
@@ -408,9 +408,11 @@ export function Home() {
   const explained = incomingNau > 0n || balance.reservedNau > 0n || balance.lockedNau > 0n;
   const explainAfter = (reading: string) =>
     explained && readings[readings.length - 1] === reading ? (
-      <ActionIcon variant="transparent" size="sm" className="vault-tap vault-info-button" aria-label="What does this mean?" aria-expanded={why} onClick={() => setWhy((v) => !v)}>
-        <IconInfoCircle size={16} />
-      </ActionIcon>
+      <Tooltip label="What does this mean?" interactive>
+        <ActionIcon variant="transparent" size="sm" className="vault-tap vault-info-button" aria-label="What does this mean?" aria-expanded={why} onClick={() => setWhy((v) => !v)}>
+          <IconInfoCircle size={16} />
+        </ActionIcon>
+      </Tooltip>
     ) : null;
   /** A send that failed, or was given up on and can no longer go through: nothing left the wallet. */
   const notSent = (e: HistoryEntry) => e.kind !== 'received' && e.record.status === 'failed' && !stillGoes(e.record);
@@ -672,9 +674,11 @@ export function Home() {
                 One name, and the pressed state says whether amounts are hidden. */}
             <div className="vault-balance-head">
               <span className="vault-eyebrow">Balance</span>
-              <ActionIcon variant="subtle" size="lg" className="vault-tap" my={-10} mr={-8} aria-label="Hide amounts" aria-pressed={hidden} onClick={toggleHidden}>
-                {hidden ? <IconEyeOff size={20} /> : <IconEye size={20} />}
-              </ActionIcon>
+              <Tooltip label={hidden ? 'Show amounts' : 'Hide amounts'} interactive>
+                <ActionIcon variant="subtle" size="lg" className="vault-tap" my={-10} mr={-8} aria-label="Hide amounts" aria-pressed={hidden} onClick={toggleHidden}>
+                  {hidden ? <IconEyeOff size={20} /> : <IconEye size={20} />}
+                </ActionIcon>
+              </Tooltip>
             </div>
             {/* The figure on screen is grouped; a screen reader is given plain digits, or "hidden". */}
             <div className="vault-balance">
@@ -1192,14 +1196,18 @@ function DetailRow({ label, value, mono, copy, copyName, href, abbreviate, isola
         {(copy || href) && (
           <Group gap={2} wrap="nowrap" className="vault-detail-actions">
             {copy && (
-              <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={copyName ?? `Copy ${spokenText(label.toLowerCase())}`} onClick={() => void copyText(value, copy)}>
-                <IconCopy size={20} />
-              </ActionIcon>
+              <Tooltip label="Copy" interactive>
+                <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={copyName ?? `Copy ${spokenText(label.toLowerCase())}`} onClick={() => void copyText(value, copy)}>
+                  <IconCopy size={20} />
+                </ActionIcon>
+              </Tooltip>
             )}
             {href && (
-              <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="lg" className="vault-tap" aria-label={`Open ${spokenText(label.toLowerCase())} in the explorer`}>
-                <IconExternalLink size={20} />
-              </ActionIcon>
+              <Tooltip label="Open in the explorer" interactive>
+                <ActionIcon component="a" href={href} target="_blank" rel="noreferrer" variant="subtle" size="lg" className="vault-tap" aria-label={`Open ${spokenText(label.toLowerCase())} in the explorer`}>
+                  <IconExternalLink size={20} />
+                </ActionIcon>
+              </Tooltip>
             )}
           </Group>
         )}
