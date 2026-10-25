@@ -119,8 +119,6 @@
   --v-radius-xs: 8px;
   --v-radius-sm: 12px;
   --v-radius-md: 16px;
-  /* The rail's width on a wide screen, the notch's inset aside. */
-  --v-rail-w: 88px;
   /* A sheet risen from a phone's foot: its top corners only. */
   --v-radius-lg: 24px;
   --v-fs-xs: 0.75rem;
@@ -136,6 +134,29 @@
      and on a phone on its side, which takes the rail too.
      The send and update strips under the header line up with it. */
   --v-content-width: 540px;
+  /* The bars, the safe-area insets aside: the rail's width on a wide screen;
+     the sticky header's height, its 33 px row (44 on a touch screen) between
+     12 px paddings (4 px on a phone on its side) and its 1 px line; and the
+     tab bar's height at the default text size. Offsets that clear a bar are
+     worked out from these. */
+  --v-rail-w: 88px;
+  --v-header-h: 58px;
+  --v-tabbar-h: 62px;
+}
+@media (pointer: coarse) {
+  :root {
+    --v-header-h: 69px;
+  }
+}
+@media (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
+  :root {
+    --v-header-h: 42px;
+  }
+}
+@media (pointer: coarse) and (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
+  :root {
+    --v-header-h: 53px;
+  }
 }
 @media (min-width: 900px), (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
   :root {
@@ -2244,10 +2265,12 @@ html {
   }
 }
 
-/* The lock screen: one card in the middle of the space under the header,
-   not a card pinned to the top with the rest of the window empty. */
+/* The lock screen: one card in the middle of the window, not a card pinned
+   to the top with the rest of it empty. The box is the window less what is
+   above it (the header and the page's padding), taken off twice, so its
+   middle is the window's. */
 .vault-lock {
-  min-height: calc(100dvh - 140px);
+  min-height: calc(100dvh - 2 * (var(--v-header-h) + var(--mantine-spacing-md) + env(safe-area-inset-top)));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2317,7 +2340,7 @@ html {
    which a fixed 84 px did not leave room for. 1em more keeps a gap, and
    grows with a larger text setting, as the bar's label does. */
 .vault-shell.has-tabs {
-  padding-bottom: calc(62px + env(safe-area-inset-bottom) + 1em);
+  padding-bottom: calc(var(--v-tabbar-h) + env(safe-area-inset-bottom) + 1em);
 }
 /* While a field takes typing on a touch screen, the bar steps aside. On
    Android an installed app's page shrinks to the space above the keyboard,
@@ -2482,7 +2505,7 @@ html {
     right: auto;
     width: calc(var(--v-rail-w) + env(safe-area-inset-left));
     z-index: 30;
-    padding: calc(72px + env(safe-area-inset-top)) 0 0 env(safe-area-inset-left);
+    padding: calc(var(--v-header-h) + 14px + env(safe-area-inset-top)) 0 0 env(safe-area-inset-left);
     border-top: 0;
     border-right: 1px solid var(--v-line);
     /* The page's gradient runs on behind the rail: a flat fill showed as a
@@ -2568,7 +2591,6 @@ html {
     padding-block: 4px;
   }
   .vault-tabbar {
-    padding-top: calc(56px + env(safe-area-inset-top));
     overflow-y: auto;
   }
   .vault-tabs.vault-tabs {
@@ -2696,7 +2718,7 @@ html {
 }
 .vault-settings-split .vault-settings-list {
   position: sticky;
-  top: calc(80px + env(safe-area-inset-top, 0px));
+  top: calc(var(--v-header-h) + var(--mantine-spacing-md) + env(safe-area-inset-top, 0px));
 }
 /* A group of rows under a small label, in line with the rows' text. */
 .vault-settings-group {
@@ -3122,15 +3144,8 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
    the recipient and the fee, and Review at the foot, where the thumb is:
    the window less the header (taller on a touch screen), the page's
    padding and the tab bar's room. */
-@media (pointer: coarse) {
-  .mantine-Paper-root.vault-send-bare {
-    min-height: calc(100dvh - 179px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  }
-}
-@media (pointer: fine) {
-  .mantine-Paper-root.vault-send-bare {
-    min-height: calc(100dvh - 168px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  }
+.mantine-Paper-root.vault-send-bare {
+  min-height: calc(100dvh - var(--v-header-h) - 2 * var(--mantine-spacing-md) - var(--v-tabbar-h) - 1em - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 .vault-send-bare > .mantine-Stack-root,
 .vault-send-bare .vault-send-form > .mantine-Stack-root,
@@ -3352,11 +3367,6 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   line-height: 1.5;
 }
 
-/* A card reached by a link (Settings, Backup) clears the sticky header. */
-.vault-anchored {
-  scroll-margin-top: calc(80px + env(safe-area-inset-top, 0px));
-}
-
 /* The desktop app's keyboard shortcuts in Settings, App: keys, then what
    they do, in two columns that stay lined up. */
 .vault-shortcuts {
@@ -3442,17 +3452,12 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 /* Keyboard focus is never brought into view under the fixed bars: scrolling
    to a control leaves room for the header above and the tab bar below. */
 html {
-  scroll-padding-top: calc(70px + env(safe-area-inset-top, 0px));
-  scroll-padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  scroll-padding-top: calc(var(--v-header-h) + 12px + env(safe-area-inset-top, 0px));
+  scroll-padding-bottom: calc(var(--v-tabbar-h) + 8px + env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 900px), (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
   html {
     scroll-padding-bottom: 0;
-  }
-}
-@media (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
-  html {
-    scroll-padding-top: calc(56px + env(safe-area-inset-top, 0px));
   }
 }
 /* So little height (a laptop at 400% zoom) that the two bars would cover

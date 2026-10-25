@@ -1690,7 +1690,7 @@ function RescanCard() {
   };
 
   return (
-    <SettingItem name="Rescan" id="rescan" className="vault-anchored">
+    <SettingItem name="Rescan" id="rescan">
       <Text size="sm" c="dimmed">
         <Spoken text={how} />
       </Text>
