@@ -664,7 +664,9 @@ button.vault-network:focus-visible {
   padding-top: 2px;
   color: var(--v-accent-text);
 }
-.vault-choice-option[data-combobox-selected] {
+/* The plain selects' lists (Lock after, Currency, Month, Year) take it too. */
+.vault-choice-option[data-combobox-selected],
+.mantine-Select-option[data-combobox-selected] {
   background-color: transparent;
   color: inherit;
   box-shadow: inset 0 0 0 2px var(--v-accent);
