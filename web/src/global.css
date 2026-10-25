@@ -39,6 +39,8 @@
   --v-text-2: #c9d4e2;
   --v-muted: #9aa9bc;
   --v-faint: #5f7390;
+  /* A large prompt such as the amount's "0": 3:1 where the page is. */
+  --v-prompt: var(--v-faint);
   --v-accent: #3a8bf3;
   --v-accent-2: #1f6fe0;
   --v-accent-deep: #1a5fc4;
@@ -151,6 +153,7 @@
   --v-text-2: #2f3f52;
   --v-muted: #5a6a7e;
   --v-faint: #8896a8;
+  --v-prompt: #7a889b;
   --v-accent: #2b7de9;
   --v-accent-2: #1f6fe0;
   --v-accent-deep: #1a5fc4;
@@ -3130,8 +3133,16 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   outline: none;
 }
 .vault-amount-field > input::placeholder {
-  color: var(--v-faint);
+  color: var(--v-prompt);
   opacity: 1;
+}
+/* An empty field is only as wide as its "0": the whole line takes the tap. */
+.vault-amount-line {
+  cursor: text;
+}
+/* Without a card, Send's label sits on the page's glow. */
+.vault-send-bare .vault-eyebrow {
+  color: var(--v-muted-on-glow);
 }
 .vault-amount-unit {
   font-size: 1.125rem;

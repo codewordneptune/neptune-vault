@@ -196,17 +196,22 @@ function AmountHero({
   const estimateId = useId();
   const spendableId = useId();
   const errorId = useId();
+  const input = useRef<HTMLInputElement | null>(null);
   return (
     <div className="vault-amount-hero">
       <label htmlFor={id} className="sr-only">
         Amount (NPT)
       </label>
-      <div className="vault-amount-line" style={{ '--chars': Math.max(4, value.length) } as CSSProperties}>
+      {/* A tap anywhere on the figure or its unit is a tap on the field. */}
+      <div className="vault-amount-line" style={{ '--chars': Math.max(4, value.length) } as CSSProperties} onClick={() => input.current?.focus()}>
         <span className="vault-amount-field">
           <span aria-hidden>{value || '0'}</span>
           <input
             id={id}
-            ref={inputRef}
+            ref={(el) => {
+              input.current = el;
+              inputRef(el);
+            }}
             inputMode="decimal"
             autoComplete="off"
             placeholder="0"
