@@ -448,17 +448,17 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
         {!error && (torchAvailable || zoomRange || cameras.length > 1) && (
           <Group gap="xs" justify="center">
             {torchAvailable && (
-              <Button variant="light" size="compact-md" className="vault-tap" leftSection={torchOn ? <IconBoltOff size={16} /> : <IconBolt size={16} />} onClick={() => void toggleTorch()}>
+              <Button variant="light" size="compact-sm" className="vault-tap" leftSection={torchOn ? <IconBoltOff size={16} /> : <IconBolt size={16} />} onClick={() => void toggleTorch()}>
                 {torchOn ? 'Torch off' : 'Torch on'}
               </Button>
             )}
             {zoomRange && (
-              <Button variant="light" size="compact-md" className="vault-tap" leftSection={zoomed ? <IconZoomOut size={16} /> : <IconZoomIn size={16} />} onClick={() => void toggleZoom()}>
+              <Button variant="light" size="compact-sm" className="vault-tap" leftSection={zoomed ? <IconZoomOut size={16} /> : <IconZoomIn size={16} />} onClick={() => void toggleZoom()}>
                 {zoomed ? 'Zoom out' : 'Zoom in'}
               </Button>
             )}
             {cameras.length > 1 && (
-              <Button variant="light" size="compact-md" className="vault-tap" leftSection={<IconCameraRotate size={16} />} onClick={nextCamera} aria-label={`Camera ${at + 1} of ${cameras.length}, switch camera`}>
+              <Button variant="light" size="compact-sm" className="vault-tap" leftSection={<IconCameraRotate size={16} />} onClick={nextCamera} aria-label={`Camera ${at + 1} of ${cameras.length}, switch camera`}>
                 Camera {at + 1} of {cameras.length}
               </Button>
             )}
