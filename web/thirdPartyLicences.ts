@@ -141,16 +141,13 @@ function withoutHolder(text: string): string {
 
 /**
  * The standard texts, for packages that name a licence but carry no text of
- * it: MIT, Apache-2.0 and GPL-2.0 from this repository, any other from the
+ * it: MIT and Apache-2.0 from this repository, any other from the
  * first package in `items` that carries that licence alone.
  */
 function standardTexts(items: Item[]): Map<string, string> {
-  const gpl2 = normalise(readFileSync(join(REPO, 'crates/vendor/twenty-first/LICENSE'), 'utf8'));
   const texts = new Map([
     ['MIT', withoutHolder(normalise(readFileSync(join(REPO, 'LICENSE-MIT'), 'utf8')))],
     ['Apache-2.0', normalise(readFileSync(join(REPO, 'LICENSE-APACHE'), 'utf8'))],
-    ['GPL-2.0', gpl2],
-    ['GPL-2.0-only', gpl2],
   ]);
   for (const item of items) {
     if (texts.has(item.licence) || item.texts.length !== 1 || /[\s/()]/.test(item.licence)) continue;

@@ -12,20 +12,21 @@ apply.
 |-------|---------|---------|
 | neptune-consensus | 0.19.0 | `Cargo.toml`: tokio's `process` and `rt-multi-thread` features only on non-wasm targets, `web-time` on wasm32. `lib.rs`: `web-time`'s `Instant` on wasm32. `triton_vm_job_queue.rs`: a current-thread runtime on wasm32. `prover_job.rs`: the external-process prover, `process_util` and the tests compiled out on wasm32, where `ProverJob::prove` panics (proving goes through vault-prover instead). |
 | neptune-primitives | 0.19.0 | tokio `fs` feature only on non-wasm targets; `data_directory` module compiled out on wasm32; `web-time` for `SystemTime` in `timestamp.rs` on wasm32. |
-| twenty-first | 3.0.0 | `[lib] crate-type` reduced to `rlib` (the cdylib output of a path dependency has no hash in its name and collides between the build-script and normal builds). Nothing else: 3.0.0 computes `XFieldElement::inverse` without allocating, which Vault patched in for 1.1.0. |
-| bfieldcodec_derive | 0.7.1 | `src/lib.rs`: the variants of the error enum the macro derives for each type are kept in a `BTreeMap` instead of a `HashMap`, so they come out in the same order on every build. A `HashMap`'s order changes each time the compiler runs the macro, so every build laid those enums out differently and the two wasm packages never came out the same twice. Nothing else changes. |
+| twenty-first | 3.0.1 | `[lib] crate-type` reduced to `rlib` (the cdylib output of a path dependency has no hash in its name and collides between the build-script and normal builds). Nothing else: since 3.0.0 it computes `XFieldElement::inverse` without allocating, which Vault patched in for 1.1.0. |
+| bfieldcodec_derive | 0.7.2 | `src/lib.rs`: the variants of the error enum the macro derives for each type are kept in a `BTreeMap` instead of a `HashMap`, so they come out in the same order on every build. A `HashMap`'s order changes each time the compiler runs the macro, so every build laid those enums out differently and the two wasm packages never came out the same twice. Nothing else changes. |
 | triton-vm | 9.0.0 | `no_profile` removed from the default features, so the phase profiler is compiled in. (vault-prover is the only crate that takes triton-vm's defaults, so `default-features = false, features = ["jemalloc"]` there would do the same.) Idle cost: a thread-local check where each phase starts and stops. `jemalloc` stays a default: it makes jemalloc the global allocator on Linux and macOS only (so the desktop app there, not Android, Windows or the browser), which is upstream's choice for proving speed. `[lib] crate-type` reduced to `rlib` for the same collision reason as twenty-first. |
 
 Reproduce: copy the crate from `~/.cargo/registry/src/*/<crate>-<version>`,
 delete `.cargo-ok`, then apply the changes above.
 
-Licence files: the published crates carry none, so each folder holds its
-upstream repository's: `LICENSE` from Neptune-Crypto/neptune-core (Apache-2.0)
-in the two Neptune crates, `LICENSE` from Neptune-Crypto/twenty-first
-(GPL-2.0) in twenty-first and bfieldcodec_derive, and `LICENSE-MIT` and
-`LICENSE-APACHE` from TritonVM/triton-vm. Keep them when replacing a folder.
-bfieldcodec_derive's `src/lib.rs` also says, at its top, what was changed
-and when, as GPL-2.0 asks of a changed file.
+Licence files: twenty-first and bfieldcodec_derive carry their own
+(`LICENSE-MIT` and `LICENSE-APACHE`). The other three crates as published
+carry none, so their folders hold their upstream repository's: `LICENSE`
+from Neptune-Crypto/neptune-core (Apache-2.0) in the two Neptune crates, and
+`LICENSE-MIT` and `LICENSE-APACHE` from TritonVM/triton-vm. Keep those when
+replacing a folder. bfieldcodec_derive's `src/lib.rs` also says, at its
+top, what was changed and when, as the Apache-2.0 licence asks of a changed
+file.
 
 Update: raise the version in the vault-* manifests that use the crate. The
 old copy then no longer matches (cargo warns that the patch is unused), so
