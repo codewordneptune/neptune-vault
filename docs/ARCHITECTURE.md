@@ -71,8 +71,9 @@ Rust crates (root `Cargo.toml` workspace):
 
 The native shell (`shells/tauri/src/lib.rs`) has no wallet logic of its
 own: each wallet, store and prover command decodes its arguments, calls
-`vault_bridge`, and returns the result. Three more are the shell's own:
-`app_save_file`, `app_open_url` and `app_secure_screen` (section 6). Bytes
+`vault_bridge`, and returns the result. Five more are the shell's own:
+`app_save_file`, `app_open_url`, `app_secure_screen`, `app_insets` and
+`app_read_qr` (section 6). Bytes
 travel as base64 (`web/src/backend/native/bridge.ts` says why).
 Errors keep a name, and the page rebuilds `WrongPasswordError` and
 `WalletLockedError` from it; a cancelled proof is settled by the page itself
@@ -696,7 +697,11 @@ Native shell (`shells/tauri/src/lib.rs`). Beyond the wallet it does little:
   neptune.cash, neptunefundamentals.org for the explorer), kept in step with
   `web/src/app/links.ts`.
 - Screen: `app_secure_screen` sets or clears Android's FLAG_SECURE, and
-  does nothing elsewhere.
+  does nothing elsewhere. `app_insets` gives the space Android's system
+  bars and a camera cutout take on each side, in CSS pixels, and zeros
+  elsewhere.
+- QR codes: `app_read_qr` reads a camera frame or picture (greyscale, as
+  base64) with vault-qr.
 - Storage: sealed logs under `<app data dir>/logs`.
 - Permissions: the window may use `core:default`, set its page zoom, and
   close itself once a close during a send is confirmed
@@ -722,7 +727,12 @@ Send (`web/src/app/paymentLinks.ts`) once: the link is then taken off its
 history entry, so neither Back nor Send coming back after an unlock fills
 it in again. While a seed phrase is shown or typed,
 `app_secure_screen` keeps the window out of screenshots and the recent-apps
-preview (FLAG_SECURE, `web/src/app/secureScreen.ts`). A pull down from the
+preview (FLAG_SECURE, `web/src/app/secureScreen.ts`). The app draws under
+the status and navigation bars, as Tauri's Android template sets it up; the
+page keeps clear of them through `--v-safe-*` in `global.css`, the larger
+of `env(safe-area-inset-*)` and what `app_insets` measures, because the
+web view reports them as 0 or wrongly before version 140
+(`web/src/app/systemBars.ts`). A pull down from the
 top of Home syncs (`web/src/app/pullToSync.ts`). The window and the web view
 start in the app's navy (`shells/tauri/tauri.android.conf.json`, and the
 theme `android-test.yml` patches in), so the launch is not white. There is

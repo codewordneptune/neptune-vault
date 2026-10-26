@@ -6380,6 +6380,7 @@ dependencies = [
 name = "vault-shell"
 version = "0.1.0"
 dependencies = [
+ "jni",
  "serde",
  "serde_json",
  "tauri",

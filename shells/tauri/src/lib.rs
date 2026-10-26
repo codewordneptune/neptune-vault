@@ -411,6 +411,83 @@ fn app_secure_screen(app: tauri::AppHandle, on: bool) -> Result<()> {
     Ok(())
 }
 
+/// The space the phone's status and navigation bars, and a camera cutout,
+/// take on each side, in the page's CSS pixels.
+#[derive(Clone, Copy, Default, serde::Serialize)]
+struct Insets {
+    top: f64,
+    right: f64,
+    bottom: f64,
+    left: f64,
+}
+
+/// The system bars' sizes, for the page to keep clear of them. The Android
+/// app draws under the bars, and Android's web view gives
+/// env(safe-area-inset-*) as 0 or wrongly before version 140. Zero where
+/// they cannot be read, and on the desktop, where nothing is drawn under them.
+#[tauri::command]
+async fn app_insets(app: tauri::AppHandle) -> Result<Insets> {
+    #[cfg(target_os = "android")]
+    let insets = android_insets(app).await;
+    #[cfg(not(target_os = "android"))]
+    let insets = {
+        let _ = app;
+        Insets::default()
+    };
+    Ok(insets)
+}
+
+#[cfg(target_os = "android")]
+async fn android_insets(app: tauri::AppHandle) -> Insets {
+    let Some(window) = app.get_webview_window("main") else {
+        return Insets::default();
+    };
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    let asked = window.with_webview(move |webview| {
+        // Runs on Android's UI thread, where the window's insets are read.
+        webview.jni_handle().exec(move |env, activity, _webview| {
+            let read = (|| -> jni::errors::Result<Insets> {
+                let window = env.call_method(activity, "getWindow", "()Landroid/view/Window;", &[])?.l()?;
+                let decor = env.call_method(&window, "getDecorView", "()Landroid/view/View;", &[])?.l()?;
+                let insets = env.call_method(&decor, "getRootWindowInsets", "()Landroid/view/WindowInsets;", &[])?.l()?;
+                if insets.is_null() {
+                    return Ok(Insets::default());
+                }
+                let sdk = env.get_static_field("android/os/Build$VERSION", "SDK_INT", "I")?.i()?;
+                let px = if sdk >= 30 {
+                    // The bars and the cutout, never the keyboard.
+                    let bars = env.call_static_method("android/view/WindowInsets$Type", "systemBars", "()I", &[])?.i()?;
+                    let cutout = env.call_static_method("android/view/WindowInsets$Type", "displayCutout", "()I", &[])?.i()?;
+                    let sides = env.call_method(&insets, "getInsets", "(I)Landroid/graphics/Insets;", &[(bars | cutout).into()])?.l()?;
+                    let mut side = |name: &str| env.get_field(&sides, name, "I").and_then(|v| v.i());
+                    [side("top")?, side("right")?, side("bottom")?, side("left")?]
+                } else {
+                    let mut side = |name: &str| env.call_method(&insets, name, "()I", &[]).and_then(|v| v.i());
+                    [side("getStableInsetTop")?, side("getStableInsetRight")?, side("getStableInsetBottom")?, side("getStableInsetLeft")?]
+                };
+                let resources = env.call_method(activity, "getResources", "()Landroid/content/res/Resources;", &[])?.l()?;
+                let metrics = env.call_method(&resources, "getDisplayMetrics", "()Landroid/util/DisplayMetrics;", &[])?.l()?;
+                let density = f64::from(env.get_field(&metrics, "density", "F")?.f()?);
+                let css = |px: i32| f64::from(px) / density;
+                Ok(Insets { top: css(px[0]), right: css(px[1]), bottom: css(px[2]), left: css(px[3]) })
+            })();
+            // A Java exception left pending would break the next call into Java.
+            if read.is_err() && env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+            }
+            let _ = tx.send(read.ok());
+        });
+    });
+    if asked.is_err() {
+        return Insets::default();
+    }
+    tauri::async_runtime::spawn_blocking(move || rx.recv_timeout(std::time::Duration::from_secs(2)).ok().flatten())
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+}
+
 // ---------------------------------------------------------------------------
 
 /// The app. The desktop binary calls it from main.rs; Android and iOS load
@@ -496,6 +573,7 @@ pub fn run() {
             app_save_file,
             app_open_url,
             app_secure_screen,
+            app_insets,
             app_read_qr,
         ])
         .run(tauri::generate_context!())

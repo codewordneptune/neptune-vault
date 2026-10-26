@@ -55,6 +55,12 @@ A high-trust app that needs no personal registration with Google:
   recent-apps preview: the page asks the shell (`app_secure_screen`), which
   sets Android's FLAG_SECURE, and clears it once the phrase is off the
   screen. Not yet tried on a phone.
+- **System bars.** The app draws under Android's status and navigation
+  bars. Sheets (Review, Show the seed phrase) and the pages without a tab
+  bar keep their foot clear of the navigation bar, which covered the end of
+  every sheet in the test build of 2026-10-26. Where the web view is older
+  than version 140 and reports the bars' sizes wrongly, the shell measures
+  them (`app_insets`). Not yet tried on a phone.
 - **Payment links.** A `neptunecash:` link tapped in another app or on a
   web page opens the app (Tauri's deep-link plugin, phones only; when
   several apps take such links, Android asks which one). Send is filled in

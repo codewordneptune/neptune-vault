@@ -34,3 +34,8 @@ tauri-plugin-single-instance = "2"
 # A payment link (neptunecash:) tapped in another app or on a web page opens
 # the phone app. 2.4 is the line that fits this Tauri; 2.5 needs Tauri 2.12.
 tauri-plugin-deep-link = "~2.4.10"
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Reading the system bars' sizes from Android (app_insets), with the JNI
+# crate version wry uses.
+jni = "0.21"

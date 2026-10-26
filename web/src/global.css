@@ -25,6 +25,13 @@
    component library's own (10, 12, 16, 20). Anything else is a structural
    size (a bar's height, a target's 40 px), not spacing. */
 :root {
+  /* The phone's system bars and a camera cutout on each side: env() in a
+     browser, or the Android app's own measure (app/systemBars.ts), which
+     its web view needs before version 140, whichever is larger. */
+  --v-safe-top: max(env(safe-area-inset-top, 0px), var(--v-inset-top, 0px));
+  --v-safe-right: max(env(safe-area-inset-right, 0px), var(--v-inset-right, 0px));
+  --v-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--v-inset-bottom, 0px));
+  --v-safe-left: max(env(safe-area-inset-left, 0px), var(--v-inset-left, 0px));
   --v-page: #111923;
   --v-page-end: #0d131c;
   /* Cards stand off the page by their fill: 1.13:1 on the page, 1.19:1 at
@@ -540,7 +547,7 @@ h3.mantine-Title-root.vault-prose-heading {
    status bar, not behind the clock. The library's rule sits in :where(), so
    the position attribute alone is enough to outrank it. */
 .mantine-Notifications-root[data-position^='top'] {
-  top: calc(var(--mantine-spacing-md) + env(safe-area-inset-top));
+  top: calc(var(--mantine-spacing-md) + var(--v-safe-top));
 }
 
 /* Header: translucent, sticky; brand mark and a quiet network selector.
@@ -555,9 +562,9 @@ h3.mantine-Title-root.vault-prose-heading {
   z-index: 40;
   background: var(--v-page);
   border-bottom: 1px solid var(--v-line);
-  padding-top: env(safe-area-inset-top);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
+  padding-top: var(--v-safe-top);
+  padding-left: var(--v-safe-left);
+  padding-right: var(--v-safe-right);
 }
 .vault-topbar-inner {
   padding-block: var(--mantine-spacing-sm);
@@ -712,9 +719,9 @@ button.vault-network:focus-visible {
   z-index: 40;
   background: var(--v-page-end);
   border-top: 1px solid var(--v-line);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
+  padding-bottom: var(--v-safe-bottom);
+  padding-left: var(--v-safe-left);
+  padding-right: var(--v-safe-right);
 }
 .vault-tab {
   display: flex;
@@ -1288,14 +1295,14 @@ main :is(h2, h3)[tabindex='-1']:focus {
    safe area's top inset, and never nearer the top than the usual 20 px. The
    sides and the foot keep clear of the notch and the home indicator. */
 .mantine-Modal-content[data-full-screen] .mantine-Modal-header {
-  padding-top: max(20px, env(safe-area-inset-top));
-  padding-left: max(20px, env(safe-area-inset-left));
-  padding-right: max(20px, env(safe-area-inset-right));
+  padding-top: max(20px, var(--v-safe-top));
+  padding-left: max(20px, var(--v-safe-left));
+  padding-right: max(20px, var(--v-safe-right));
 }
 .mantine-Modal-content[data-full-screen] .mantine-Modal-body {
-  padding-left: max(20px, env(safe-area-inset-left));
-  padding-right: max(20px, env(safe-area-inset-right));
-  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  padding-left: max(20px, var(--v-safe-left));
+  padding-right: max(20px, var(--v-safe-right));
+  padding-bottom: max(20px, var(--v-safe-bottom));
 }
 .mantine-Modal-header {
   background: var(--v-surface);
@@ -1356,7 +1363,7 @@ main :is(h2, h3)[tabindex='-1']:focus {
    accent once letting go would sync. */
 .vault-pull {
   position: fixed;
-  top: calc(env(safe-area-inset-top) + 24px);
+  top: calc(var(--v-safe-top) + 24px);
   left: 50%;
   z-index: 30;
   display: grid;
@@ -2016,7 +2023,7 @@ html {
      bottom, so on a phone, whose guide is measured on the width, the guide
      still matches the square that is read, and with a landscape camera it
      falls inside that square. */
-  max-height: max(200px, calc(100dvh - 380px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  max-height: max(200px, calc(100dvh - 380px - var(--v-safe-top) - var(--v-safe-bottom)));
   object-fit: cover;
 }
 /* A column of a readable width in a wide window, centred. */
@@ -2094,8 +2101,8 @@ html {
    its place against the title below the status bar and clear of the notch. */
 .vault-qr-full-header .mantine-Modal-close {
   position: absolute;
-  top: calc(max(20px, env(safe-area-inset-top)) - 4px);
-  right: calc(max(20px, env(safe-area-inset-right)) - 4px);
+  top: calc(max(20px, var(--v-safe-top)) - 4px);
+  right: calc(max(20px, var(--v-safe-right)) - 4px);
 }
 .vault-qr-full-code {
   display: block;
@@ -2212,7 +2219,7 @@ html {
    above it (the header and the page's padding), taken off twice, so its
    middle is the window's. */
 .vault-lock {
-  min-height: calc(100dvh - 2 * (var(--v-header-h) + var(--mantine-spacing-md) + env(safe-area-inset-top)));
+  min-height: calc(100dvh - 2 * (var(--v-header-h) + var(--mantine-spacing-md) + var(--v-safe-top)));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2281,7 +2288,12 @@ html {
    which a fixed 84 px did not leave room for. 1em more keeps a gap, and
    grows with a larger text setting, as the bar's label does. */
 .vault-shell.has-tabs {
-  padding-bottom: calc(var(--v-tabbar-h) + env(safe-area-inset-bottom) + 1em);
+  padding-bottom: calc(var(--v-tabbar-h) + var(--v-safe-bottom) + 1em);
+}
+/* Without the tab bar (setup, the lock screen) the page's foot still keeps
+   clear of the home indicator and Android's navigation bar. */
+.vault-shell:not(.has-tabs) {
+  padding-bottom: var(--v-safe-bottom);
 }
 /* While a field takes typing on a touch screen, the bar steps aside. On
    Android an installed app's page shrinks to the space above the keyboard,
@@ -2332,9 +2344,11 @@ html {
 .vault-sheet.vault-sheet {
   flex: 0 0 100%;
   max-width: 100%;
-  max-height: calc(100dvh - 24px - env(safe-area-inset-top));
+  max-height: calc(100dvh - 24px - var(--v-safe-top));
   border-radius: var(--v-radius-lg) var(--v-radius-lg) 0 0;
-  padding-bottom: env(safe-area-inset-bottom);
+  /* Important to win over the dialogs' padding: 0 !important: the sheet's
+     foot keeps clear of the home indicator and Android's navigation bar. */
+  padding-bottom: var(--v-safe-bottom) !important;
 }
 .vault-sheet-header.vault-sheet-header {
   padding-top: 24px;
@@ -2427,12 +2441,12 @@ html {
      column keeps clear of an inset on the right. */
   .vault-shell.has-tabs {
     padding-bottom: 0;
-    padding-left: calc(var(--v-rail-w) + env(safe-area-inset-left));
-    padding-right: env(safe-area-inset-right);
+    padding-left: calc(var(--v-rail-w) + var(--v-safe-left));
+    padding-right: var(--v-safe-right);
   }
   .vault-shell.has-tabs .vault-topbar {
-    margin-left: calc(-1 * var(--v-rail-w) - env(safe-area-inset-left));
-    margin-right: calc(-1 * env(safe-area-inset-right));
+    margin-left: calc(-1 * var(--v-rail-w) - var(--v-safe-left));
+    margin-right: calc(-1 * var(--v-safe-right));
   }
   /* The 26 px mark centred over the rail's icons. */
   .vault-topbar-inner.vault-topbar-inner {
@@ -2443,9 +2457,9 @@ html {
   .vault-tabbar {
     top: 0;
     right: auto;
-    width: calc(var(--v-rail-w) + env(safe-area-inset-left));
+    width: calc(var(--v-rail-w) + var(--v-safe-left));
     z-index: 30;
-    padding: calc(var(--v-header-h) + var(--mantine-spacing-md) + env(safe-area-inset-top)) 0 0 env(safe-area-inset-left);
+    padding: calc(var(--v-header-h) + var(--mantine-spacing-md) + var(--v-safe-top)) 0 0 var(--v-safe-left);
     border-top: 0;
     border-right: 1px solid var(--v-line);
     /* The page's gradient runs on behind the rail: a flat fill showed as a
@@ -2659,7 +2673,7 @@ html {
 }
 .vault-settings-split .vault-settings-list {
   position: sticky;
-  top: calc(var(--v-header-h) + var(--mantine-spacing-md) + env(safe-area-inset-top, 0px));
+  top: calc(var(--v-header-h) + var(--mantine-spacing-md) + var(--v-safe-top));
 }
 /* A group of rows under a small label, in line with the rows' text. */
 .vault-settings-group {
@@ -3086,7 +3100,7 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
    the window less the header (taller on a touch screen), the page's
    padding and the tab bar's room. */
 .mantine-Paper-root.vault-send-bare {
-  min-height: calc(100dvh - var(--v-header-h) - 2 * var(--mantine-spacing-md) - var(--v-tabbar-h) - 1em - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  min-height: calc(100dvh - var(--v-header-h) - 2 * var(--mantine-spacing-md) - var(--v-tabbar-h) - 1em - var(--v-safe-top) - var(--v-safe-bottom));
 }
 .vault-send-bare > .mantine-Stack-root,
 .vault-send-bare .vault-send-form > .mantine-Stack-root,
@@ -3388,8 +3402,8 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 /* Keyboard focus is never brought into view under the fixed bars: scrolling
    to a control leaves room for the header above and the tab bar below. */
 html {
-  scroll-padding-top: calc(var(--v-header-h) + 12px + env(safe-area-inset-top, 0px));
-  scroll-padding-bottom: calc(var(--v-tabbar-h) + 8px + env(safe-area-inset-bottom, 0px));
+  scroll-padding-top: calc(var(--v-header-h) + 12px + var(--v-safe-top));
+  scroll-padding-bottom: calc(var(--v-tabbar-h) + 8px + var(--v-safe-bottom));
 }
 @media (min-width: 900px), (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
   html {
@@ -3429,7 +3443,7 @@ html {
 .vault-skip {
   position: absolute;
   left: 8px;
-  top: calc(8px + env(safe-area-inset-top, 0px));
+  top: calc(8px + var(--v-safe-top));
   z-index: 1000;
   padding: 8px 12px;
   border-radius: var(--v-radius-sm);

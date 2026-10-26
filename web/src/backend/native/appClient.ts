@@ -22,3 +22,8 @@ export function openUrl(url: string): Promise<void> {
 export function secureScreen(on: boolean): Promise<void> {
   return call<void>('app_secure_screen', { on });
 }
+
+/** On Android, the space the system bars and a camera cutout take on each side, in CSS pixels. */
+export function insets(): Promise<Record<'top' | 'right' | 'bottom' | 'left', number>> {
+  return call('app_insets');
+}

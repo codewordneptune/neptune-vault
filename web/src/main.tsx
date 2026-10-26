@@ -16,6 +16,7 @@ import { captureInstallPrompt } from './app/install';
 import { installNativeBehaviour, NATIVE } from './app/platform';
 import { AppProvider } from './app/AppContext';
 import { createServices, type Services } from './app/services';
+import { followSystemBars } from './app/systemBars';
 import { browserWindowOwner } from './app/windowOwner';
 import { theme } from './theme';
 
@@ -69,6 +70,8 @@ function Root() {
 captureInstallPrompt();
 // In the desktop app: links to the system's browser, no reload or print.
 installNativeBehaviour();
+// In the Android app: the page kept clear of the phone's system bars.
+followSystemBars();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
