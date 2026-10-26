@@ -578,12 +578,8 @@ export function Receive() {
 
             <Tabs.Panel value="request">
               <Stack>
-                {/* Said once for the three fields, not on each label. */}
-                <Text size="sm" c="dimmed">
-                  All three are optional.
-                </Text>
                 <TextInput
-                  label="Amount (NPT)"
+                  label="Amount (NPT, optional)"
                   inputMode="decimal"
                   value={requestAmount}
                   onChange={(e) => {
@@ -598,7 +594,7 @@ export function Receive() {
                 {/* All three shown from the start: a request is written before it is
                     shared, so they read as what a request can hold, not a hidden extra. */}
                 <TextInput
-                  label="Your name"
+                  label="Your name (optional)"
                   description="Shown to the sender as an unverified name."
                   autoComplete="name"
                   value={requestLabel}
@@ -607,7 +603,7 @@ export function Receive() {
                   maxLength={255}
                 />
                 <TextInput
-                  label="Note for the sender"
+                  label="Note for the sender (optional)"
                   description="Shown to the sender only; it does not reach you."
                   value={requestNote}
                   onChange={(e) => setRequestNote(e.currentTarget.value)}
