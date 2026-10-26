@@ -7,9 +7,8 @@
 // Bytes go as base64. Tauri turns a Uint8Array inside a JSON payload into an
 // array of numbers, which for a witness of a megabyte is four megabytes of
 // text to write and parse. Base64 is a third of that and needs no special
-// handling on either side. Passing the whole body raw is faster still, and
-// worth doing if this ever shows up in a measurement, but it allows only one
-// argument per command, which most of these need more than.
+// handling on either side. A raw request body would be quicker still, but
+// Tauri on Android cannot read one and sends it as that array of numbers.
 //
 // Errors keep their name. The app distinguishes a wrong password from a
 // broken one, and a call cut off by locking from a call that failed, so the

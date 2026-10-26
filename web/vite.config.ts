@@ -97,7 +97,7 @@ function licencesFile(mode: string): Plugin {
     name: 'vault-third-party-licences',
     generateBundle() {
       const workbox = web ? WORKBOX_RUNTIME.map((name) => fileURLToPath(new URL(`./node_modules/${name}`, import.meta.url))) : [];
-      const source = thirdPartyLicences(web ? ['vault-core', 'vault-prover'] : ['vault-shell'], targetOf(web), [...bundledPackages, ...workbox]);
+      const source = thirdPartyLicences(web ? ['vault-core', 'vault-prover', 'vault-qr'] : ['vault-shell'], targetOf(web), [...bundledPackages, ...workbox]);
       this.emitFile({ type: 'asset', fileName: 'third-party-licences.txt', source });
     },
     configureServer(server) {

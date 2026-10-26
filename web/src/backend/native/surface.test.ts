@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const shell = readFileSync(new URL('../../../../shells/tauri/src/lib.rs', import.meta.url), 'utf8');
-const clients = ['walletClient.ts', 'proverClient.ts', 'appClient.ts']
+const clients = ['walletClient.ts', 'proverClient.ts', 'appClient.ts', 'qrClient.ts']
   .map((f) => readFileSync(new URL(f, import.meta.url), 'utf8'))
   .join('\n');
 

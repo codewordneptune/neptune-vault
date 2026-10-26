@@ -234,7 +234,8 @@ rather than in a browser's.
 web/                    the app: Vite, React, Mantine; wasm packages under public/wasm
 crates/vault-core       wallet engine (keys, scanning, transactions, storage format), Rust to wasm
 crates/vault-prover     transaction prover, Rust to wasm with threads
-crates/vault-bridge     vault-core and the prover as native code, for the desktop and Android apps
+crates/vault-qr         QR code reader (rxing), Rust to wasm for the web app, native for the apps
+crates/vault-bridge     vault-core, the prover and the QR reader as native code, for the desktop and Android apps
 crates/vault-fixtures   deterministic witnesses for the prover benchmark (web/prover-bench)
 crates/vendor           neptune-consensus, neptune-primitives, triton-vm, twenty-first,
                         with small patches (see crates/vendor/VENDOR.md)
@@ -257,6 +258,7 @@ cd web
 npm ci
 npm run wasm:core      # crates/vault-core   -> web/public/wasm/core
 npm run wasm:prover    # crates/vault-prover -> web/public/wasm/prover
+npm run wasm:qr        # crates/vault-qr     -> web/public/wasm/qr
 npm run dev            # http://localhost:4400
 ```
 
@@ -275,6 +277,7 @@ cd web && npm run typecheck
 cargo test -p vault-core                             # wallet engine, native
 cargo test -p vault-bridge                           # the native bridge the desktop and Android apps use
 cargo test -p vault-prover                           # the prover's quick checks
+cargo test -p vault-qr                               # the QR reader, native
 cargo test --release -p vault-prover -- --ignored    # full proof round trip, takes minutes
 ```
 

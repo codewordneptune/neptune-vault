@@ -178,6 +178,13 @@ pub fn assemble_submission(kernel: &[u8], proof_collection: &[u8]) -> Result<Val
     to_value(&request)
 }
 
+/// The text of the QR code in a greyscale camera frame or picture, or none.
+/// A panic in the reader counts as no code: one odd frame must not take the
+/// app down, or leave the page waiting for an answer that never comes.
+pub fn read_qr(luma: Vec<u8>, width: u32, height: u32) -> Option<String> {
+    std::panic::catch_unwind(move || vault_qr::read_luma(luma, width, height)).unwrap_or(None)
+}
+
 // ---------------------------------------------------------------------------
 // The unlocked account
 // ---------------------------------------------------------------------------

@@ -22,13 +22,14 @@ Last reviewed 2026-10-07 against the code.
             React 19 + Mantine 9 interface (web/src): screens, AppContext,
             services, sync, mempool watcher, send flow
                                    |
-              WalletCore + Prover interfaces (web/src/backend/types.ts)
+         WalletCore, Prover and QrReader interfaces (web/src/backend/types.ts)
                                    |
          +-------------------------+--------------------------+
          | browser                                            | desktop and Android (Tauri 2)
          | wallet worker: vault-core as wasm                  | shells/tauri: thin commands
-         | prover worker: vault-prover as wasm                | vault-bridge: vault-core and
-         |                                                    |   vault-prover, native
+         | prover worker: vault-prover as wasm                | vault-bridge: vault-core,
+         | QR worker: vault-qr as wasm                        |   vault-prover and vault-qr,
+         |                                                    |   native
          | IndexedDB: app database + sealed logs              | IndexedDB (web view): app database
          |                                                    | sealed logs as files
          +-------------------------+--------------------------+
@@ -44,7 +45,9 @@ implementation answers. `web/src/backend/index.ts` decides once at start-up:
 `isNative()` is true when Tauri has put `__TAURI_INTERNALS__` on the window,
 and `createBackend()` then imports either `backend/browser/*` (wasm in
 workers) or `backend/native/*` (shell commands). Each side is loaded on
-demand, so neither ships in the other's bundle. React state is plain context
+demand, so neither ships in the other's bundle. The QR scanner reads through
+a `QrReader` from `openQrReader()` the same way: vault-qr in a worker, or
+the shell's `app_read_qr`. React state is plain context
 (`web/src/app/AppContext.tsx`); long-lived objects are wired in
 `web/src/app/services.ts`.
 
@@ -55,7 +58,9 @@ Rust crates (root `Cargo.toml` workspace):
 - `crates/vault-prover`: ProofCollection proving with Triton VM 9, threaded
   through wasm-bindgen-rayon in the browser. Every proof is checked the way a
   node checks it before it leaves the prover.
-- `crates/vault-bridge`: the engine and prover for a native shell. Holds the
+- `crates/vault-qr`: the QR reader, rxing (a Rust port of ZXing), as wasm
+  for the web app's scanner and natively through vault-bridge.
+- `crates/vault-bridge`: the engine, prover and QR reader for a native shell. Holds the
   unlocked account behind a mutex, opens seed envelopes (`src/envelope.rs`),
   keeps logs as files (`src/wallet_store.rs`); knows nothing about Tauri.
 - `crates/vault-fixtures`: writes deterministic `PrimitiveWitness` fixtures
@@ -671,7 +676,7 @@ not a guarantee.
 
 Security headers (`web/public/staticwebapp.config.json`, also sent by
 `vite preview`): COOP `same-origin` and COEP `require-corp` (cross-origin
-isolation, without which neither wasm package can load); CORP
+isolation, without which no wasm package can load); CORP
 `same-origin`; a CSP with `default-src 'none'`,
 `script-src 'self' 'wasm-unsafe-eval'`, workers from `'self' blob:`,
 fonts from `'self'` only (the app ships Inter, in `web/src/assets/fonts`),
@@ -726,9 +731,9 @@ native screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
 
 ## 7. Build and test
 
-- `npm run wasm:core` and `wasm:prover` (in `web/`) run wasm-pack into
-  `web/public/wasm/{core,prover}`, served untransformed and imported by
-  absolute URL.
+- `npm run wasm:core`, `wasm:prover` and `wasm:qr` (in `web/`) run
+  wasm-pack into `web/public/wasm/{core,prover,qr}`, served untransformed
+  and imported by absolute URL.
 - `rust-toolchain.toml` pins `nightly-2026-07-09`. `.cargo/config.toml`
   builds wasm32 with `build-std`, `+atomics,+bulk-memory,+mutable-globals,+simd128`,
   explicit `--shared-memory` and `--import-memory`, and a 4 GiB memory
@@ -761,12 +766,14 @@ native screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
   `web/src/storage/vector.test.ts` and vault-bridge's tests share the
   envelope vector. Rust: `cargo test -p vault-core` (chain checks against
   real Mainnet blocks included), `cargo test -p vault-bridge` (store,
-  envelope, lock), `cargo test -p vault-prover` (the proof check), and the
+  envelope, lock), `cargo test -p vault-prover` (the proof check),
+  `cargo test -p vault-qr` (codes it writes, a Standard address among
+  them, read back), and the
   full prove-and-verify round trip with
   `cargo test --release -p vault-prover -- --ignored`.
 - CI runs only on a push to `main` that touches the app or the crates, or
-  by hand; its Rust step is vault-core's tests only.
-  `.github/workflows/deploy-web.yml` runs the Rust tests and the two wasm
+  by hand; its Rust step is vault-core's and vault-qr's tests.
+  `.github/workflows/deploy-web.yml` runs the Rust tests and the three wasm
   builds side by side, then `npm ci --ignore-scripts`, the tests and the
   build from the packages, each checked against the hash its job reported,
   with no secret and nothing from the Actions cache, and publishes a
@@ -835,7 +842,7 @@ native screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
   checked for their exact lengths before decryption (`assertEnvelope`,
   `assertSeedUnlock`); the passkey's wrapping is not checked yet.
 - Without COOP and COEP a browser gives the page no `SharedArrayBuffer`, and
-  the web app does not start: both wasm packages use shared memory
+  the web app does not start: the wasm packages all use shared memory
   (`.cargo/config.toml`), and `web/src/main.tsx` stops with a message
 (`FailureScreen`). The
   native apps need neither header. The node needs CORS either way, because

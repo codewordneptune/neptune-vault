@@ -1,8 +1,8 @@
 # Desktop releases
 
 The desktop apps are the Tauri shell in `shells/tauri` around the same web
-page, talking to the native wallet engine and prover (`crates/vault-bridge`)
-instead of the wasm packages. `.github/workflows/release-desktop.yml` builds
+page, talking to the native wallet engine, prover and QR reader
+(`crates/vault-bridge`) instead of the wasm packages. `.github/workflows/release-desktop.yml` builds
 them for Windows (x64), Linux (x64) and macOS (Apple silicon and Intel).
 The Android app is built from the same shell; see [ANDROID.md](ANDROID.md).
 

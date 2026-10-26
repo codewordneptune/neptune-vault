@@ -1,13 +1,13 @@
 # Hosting on Azure Static Web Apps
 
 The web app is static files: `web/dist` after `npm run build`, with the
-two wasm packages under `wasm/` (`core` and `prover`). The site is
+three wasm packages under `wasm/` (`core`, `prover` and `qr`). The site is
 `https://vault.dev.useneptune.org`. The desktop and Android apps carry
 their own files and do not use this hosting at all.
 
 Any static host works if it can set these response headers on every file.
-The first two are required: the wallet engine and the prover need shared
-memory, which a page only gets when it is cross-origin isolated. Without
+The first two are required: the wallet engine, the prover and the QR
+reader need shared memory, which a page only gets when it is cross-origin isolated. Without
 them the app stops at start and says so.
 
 ```
@@ -71,16 +71,17 @@ and by hand from the Actions tab. A newer run on the same branch cancels
 one still in progress, or still waiting for approval; a run by hand on
 another branch leaves `main`'s alone.
 
-Four jobs build. None holds a secret, and each can only read the
-repository. The first three run side by side:
+Five jobs build. None holds a secret, and each can only read the
+repository. The first four run side by side:
 
-1. **tests** runs the wallet core's Rust tests (`cargo test -p vault-core`);
-2. **wasm-core** and **wasm-prover** each install wasm-pack 0.13.1 and the
+1. **tests** runs the wallet core's and the QR reader's Rust tests
+   (`cargo test -p vault-core -p vault-qr`);
+2. **wasm-core**, **wasm-prover** and **wasm-qr** each install wasm-pack 0.13.1 and the
    wasm-bindgen in `Cargo.lock` from crates.io, and Binaryen's wasm-opt
    (version 117), checked against a SHA-256
    (`.github/actions/wasm-tools`), build their package with the pinned
    nightly, and report one SHA-256, of the list of its files' hashes;
-3. **web**, once both packages are done, checks every file of them
+3. **web**, once all three packages are done, checks every file of them
    against what their jobs reported, runs `npm ci --ignore-scripts`, the
    web tests and `npm run build`, publishes the SHA-256 of every file in
    `dist` (below), and keeps `dist` for the deploy job for 14 days.
@@ -96,7 +97,7 @@ Every run builds its commit from nothing. It restores no Actions cache,
 for cargo or npm, because any run on `main` can save an entry there, and
 the deploy would ship what it holds. For the same reason the desktop and
 Android workflows stop at once when started on `main`. The build takes
-about 17 minutes: the prover's job, the longest of the three side by
+about 17 minutes: the prover's job, the longest of the four side by
 side, takes about 16, and the web job about one more. A slow runner can
 take twice as long. A run by hand
 on another branch builds and tests that branch, and deploys nothing.
@@ -104,7 +105,7 @@ on another branch builds and tests that branch, and deploys nothing.
 To deploy from this PC instead, in an emergency only: it skips the
 approval and publishes no hash list, so the site serves files no run has
 listed until the next deploy from `main`. From a clean checkout of a
-pushed commit, after `cargo test -p vault-core` at the root, in Git Bash.
+pushed commit, after `cargo test -p vault-core -p vault-qr` at the root, in Git Bash.
 Paste the token from the Azure portal (Overview, "Manage deployment
 token") when `read` asks for it, which keeps it out of the shell's
 history:
@@ -114,6 +115,7 @@ cd web
 npm ci --ignore-scripts
 npm run wasm:core
 npm run wasm:prover
+npm run wasm:qr
 npm test
 npm run build
 read -rsp 'Deployment token: ' SWA_CLI_DEPLOYMENT_TOKEN && export SWA_CLI_DEPLOYMENT_TOKEN

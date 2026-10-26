@@ -4,8 +4,8 @@
 # after the maintainer approves it in the `prod` environment, the one
 # place the deployment token is kept (docs/HOSTING.md, security audit H4).
 #
-# The Rust tests and the two wasm packages build side by side, each on a
-# runner of its own. The web app is built once both packages are done, from
+# The Rust tests and the three wasm packages build side by side, each on a
+# runner of its own. The web app is built once all three are done, from
 # files checked against the hashes their jobs reported.
 #
 # Third-party actions are pinned to a commit, not a tag, so a moved tag cannot
@@ -36,7 +36,7 @@ concurrency:
 jobs:
   # The wallet core's own tests, which the web tests cannot stand in for:
   # key derivation, scanning, the chain checks held against real mainnet
-  # blocks, and sending. The deploy waits for them.
+  # blocks, and sending; and the QR reader's. The deploy waits for them.
   tests:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -51,12 +51,13 @@ jobs:
         run: rustup show
 
       - name: Rust tests
-        run: cargo test --locked -p vault-core
+        run: cargo test --locked -p vault-core -p vault-qr
 
-  # The two wasm packages, each on a runner of its own: they share no
-  # compiled code, since each builds Triton VM with other features. Each
-  # reports one SHA-256, of the list of its files' hashes, which the web
-  # job checks before it uses them.
+  # The three wasm packages, each on a runner of its own: they share no
+  # compiled code, since the wallet core and the prover build Triton VM
+  # with other features and the QR reader does without it. Each reports
+  # one SHA-256, of the list of its files' hashes, which the web job checks
+  # before it uses them.
   wasm-core:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -135,10 +136,49 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # The web app, from the two packages: every file checked against the hash
-  # its job reported, then installed, tested and built.
+  wasm-qr:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      sha256: ${{ steps.hashes.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        run: rustup show
+
+      - uses: ./.github/actions/wasm-tools
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.20.0
+
+      - name: Build
+        working-directory: web
+        run: npm run wasm:qr
+
+      - name: Hashes
+        id: hashes
+        working-directory: web/public/wasm/qr
+        run: |
+          set -euo pipefail
+          hash=$(find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+          echo "sha256=$hash" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wasm-qr
+          path: web/public/wasm/qr
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  # The web app, from the three packages: every file checked against the
+  # hash its job reported, then installed, tested and built.
   web:
-    needs: [wasm-core, wasm-prover]
+    needs: [wasm-core, wasm-prover, wasm-qr]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -160,17 +200,25 @@ jobs:
           name: wasm-prover
           path: web/public/wasm/prover
 
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: wasm-qr
+          path: web/public/wasm/qr
+
       - name: The packages their jobs built, and no others
         env:
           CORE: ${{ needs.wasm-core.outputs.sha256 }}
           PROVER: ${{ needs.wasm-prover.outputs.sha256 }}
+          QR: ${{ needs.wasm-qr.outputs.sha256 }}
         run: |
           set -euo pipefail
           listed() { (cd "web/public/wasm/$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1); }
           test -n "$CORE"
           test -n "$PROVER"
+          test -n "$QR"
           test "$(listed core)" = "$CORE"
           test "$(listed prover)" = "$PROVER"
+          test "$(listed qr)" = "$QR"
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:

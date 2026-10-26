@@ -369,6 +369,17 @@ fn app_open_url(app: tauri::AppHandle, url: String) -> Result<()> {
         .map_err(|e| app_error(format!("The link could not be opened: {e}")))
 }
 
+/// Reads the QR code in a camera frame or picture: greyscale pixels, one
+/// byte each, rows from the top. None when there is no code to read.
+#[tauri::command]
+async fn app_read_qr(luma: String, width: u32) -> Result<Option<String>> {
+    let luma = bytes("frame", &luma)?;
+    let height = luma.len().checked_div(width as usize).unwrap_or(0) as u32;
+    tauri::async_runtime::spawn_blocking(move || vault_bridge::read_qr(luma, width, height))
+        .await
+        .map_err(|e| app_error(format!("The frame could not be read: {e}")))
+}
+
 /// Keeps the window out of screenshots, screen recordings and the
 /// recent-apps preview while `on` (Android's FLAG_SECURE): the page asks
 /// for it while a seed phrase is shown or typed. Elsewhere it does nothing.
@@ -485,6 +496,7 @@ pub fn run() {
             app_save_file,
             app_open_url,
             app_secure_screen,
+            app_read_qr,
         ])
         .run(tauri::generate_context!())
         .expect("the app could not start");

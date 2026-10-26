@@ -17,10 +17,11 @@
 //   to move and decode than the whole frame.
 //
 // Two readers look at each square: the browser's own detector where there is
-// one (fast, weak on dense codes), and zxing in a worker (slower, strong on
-// them), so nothing heavy runs on the thread that draws the preview. A dim
-// line under Camera details says what the camera actually gave, because
-// which of these a given phone grants to a web page only that phone can tell.
+// one (fast, weak on dense codes), and vault-qr (rxing, strong on them), in a
+// worker in a browser and natively in the apps, so nothing heavy runs on the
+// thread that draws the preview. A dim line under Camera details says what
+// the camera actually gave, because which of these a given phone grants to a
+// web page only that phone can tell.
 
 import { Button, Group, Loader, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconBolt, IconBoltOff, IconCameraRotate, IconChevronRight, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
@@ -30,8 +31,8 @@ import { ErrorLine } from './Notice';
 import { Sheet } from './Sheet';
 import { useApp } from '../app/AppContext';
 import { NATIVE } from '../app/platform';
-import { decodeQr } from '../util/qrDecode';
-import type { QrWorkerRequest, QrWorkerResponse } from '../util/qrWorker';
+import { openQrReader } from '../backend';
+import type { QrReader } from '../backend/types';
 
 interface Detector {
   detect(source: ImageBitmapSource): Promise<{ rawValue: string }[]>;
@@ -202,36 +203,21 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     let stream: MediaStream | null = null;
     let stopped = false;
     const detector = window.BarcodeDetector ? new window.BarcodeDetector({ formats: ['qr_code'] }) : null;
-    let worker: Worker | null = null;
-    let workerBusy = false;
-    let workerBroken = false;
-    let readerMillis = 0;
-    try {
-      worker = new Worker(new URL('../util/qrWorker.ts', import.meta.url), { type: 'module' });
-    } catch {
-      workerBroken = true;
-    }
+    // Ready a moment after the camera, at worst: until then the detector looks alone.
+    let reader: QrReader | null = null;
+    let readerBusy = false;
+    void openQrReader()
+      .then((r) => {
+        if (stopped) r.close();
+        else reader = r;
+      })
+      .catch(() => {});
 
     const finish = (text: string) => {
       if (stopped) return;
       stopped = true;
       onResultRef.current(text);
     };
-
-    if (worker) {
-      worker.onmessage = ({ data }: MessageEvent<QrWorkerResponse>) => {
-        workerBusy = false;
-        readerMillis = data.millis;
-        // A worker that cannot decode (no OffscreenCanvas, say) is set aside
-        // and the page decodes instead: slower, but it reads.
-        if (data.error) workerBroken = true;
-        else if (data.text) finish(data.text);
-      };
-      worker.onerror = () => {
-        workerBusy = false;
-        workerBroken = true;
-      };
-    }
 
     const stopStream = () => {
       stream?.getTracks().forEach((t) => t.stop());
@@ -245,8 +231,8 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
       const size = video && video.videoWidth ? `${video.videoWidth} × ${video.videoHeight}` : 'starting';
       const focus = options.current.focus ? 'continuous' : caps.focusMode && caps.focusMode.length > 0 ? `not continuous (${caps.focusMode.join(', ')})` : 'not offered';
       const zoom = options.current.zoom !== null ? `${options.current.zoom}×` : caps.zoom ? 'off' : 'not offered';
-      const readers = [detector ? 'built-in' : null, worker && !workerBroken ? 'zxing' : workerBroken ? 'zxing on the page' : null].filter(Boolean).join(' + ');
-      const pace = passes > 0 ? ` · ${Math.round(passMillis)} ms a look${readerMillis ? `, zxing ${Math.round(readerMillis)} ms` : ''}` : '';
+      const readers = [detector ? 'built-in' : null, reader?.name].filter(Boolean).join(' + ');
+      const pace = passes > 0 ? ` · ${Math.round(passMillis)} ms a look${reader?.lastMillis ? `, rxing ${Math.round(reader.lastMillis)} ms` : ''}` : '';
       const which = count > 1 ? `camera ${index + 1} of ${count}` : 'the only camera';
       setStatus('');
       setReadout(`${size} · ${which}${track.label ? ` (${track.label})` : ''} · focus: ${focus} · zoom: ${zoom} · ${readers}${pace}`);
@@ -270,22 +256,19 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
               const codes = await detector.detect(bitmap);
               if (codes.length > 0) return finish(codes[0].rawValue);
             }
-            if (worker && !workerBroken && !workerBusy) {
-              workerBusy = true;
-              const request: QrWorkerRequest = { id: passes, bitmap };
-              worker.postMessage(request, [bitmap]);
+            // One read at a time; the frames that come meanwhile are let go.
+            if (reader && !readerBusy) {
+              readerBusy = true;
               handedOver = true;
-            } else if (workerBroken) {
-              // No worker to hand to: read the square here.
-              const canvas = document.createElement('canvas');
-              canvas.width = side;
-              canvas.height = side;
-              const ctx = canvas.getContext('2d', { willReadFrequently: true });
-              if (ctx) {
-                ctx.drawImage(bitmap, 0, 0);
-                const text = await decodeQr(ctx.getImageData(0, 0, side, side));
-                if (text) return finish(text);
-              }
+              void reader
+                .read(bitmap)
+                .then((text) => {
+                  if (text) finish(text);
+                })
+                .catch(() => {})
+                .finally(() => {
+                  readerBusy = false;
+                });
             }
           } finally {
             if (!handedOver) bitmap.close();
@@ -422,7 +405,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
     return () => {
       stopped = true;
       stopStream();
-      worker?.terminate();
+      reader?.close();
       trackRef.current = null;
     };
     // applyOptions reads refs only; it is not a reason to restart the camera.
@@ -533,6 +516,7 @@ const IMAGE_MAX_SIDE = 2000;
 /** The text of the QR code in an image file, or null when it holds none. */
 async function decodeImage(blob: Blob): Promise<string | null> {
   const bitmap = await createImageBitmap(blob);
+  let prepared: ImageBitmap;
   try {
     const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
@@ -540,15 +524,21 @@ async function decodeImage(blob: Blob): Promise<string | null> {
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext('2d');
     if (!ctx) return null;
     // A transparent PNG reads as black on black without a white ground.
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(bitmap, 0, 0, width, height);
-    return await decodeQr(ctx.getImageData(0, 0, width, height));
+    prepared = await createImageBitmap(canvas);
   } finally {
     bitmap.close();
+  }
+  const reader = await openQrReader();
+  try {
+    return await reader.read(prepared);
+  } finally {
+    reader.close();
   }
 }
 

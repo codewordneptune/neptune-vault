@@ -9,7 +9,7 @@
 // us, and both sides are loaded on demand so that neither ships in the
 // other's bundle.
 
-import type { Prover, WalletCore } from './types';
+import type { Prover, QrReader, WalletCore } from './types';
 
 export interface Backend {
   core: WalletCore;
@@ -42,4 +42,14 @@ export async function createBackend(): Promise<Backend> {
   }
   const [wallet, prover] = await Promise.all([import('./browser/walletClient'), import('./browser/proverClient')]);
   return { core: new wallet.WalletWorkerClient(), prover: new prover.ProverClient(), kind: 'browser' };
+}
+
+/** A QR reader for this platform, loaded on first use. Close it when done. */
+export async function openQrReader(): Promise<QrReader> {
+  if (isNative()) {
+    const { NativeQrReader } = await import('./native/qrClient');
+    return new NativeQrReader();
+  }
+  const { BrowserQrReader } = await import('./browser/qrClient');
+  return new BrowserQrReader();
 }

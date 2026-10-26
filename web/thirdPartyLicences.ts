@@ -164,20 +164,8 @@ function standardFor(expression: string, standard: Map<string, string>): string[
 }
 
 /** Code that reaches the build without a package of its own. */
-function others(packages: Item[]): Item[] {
-  const items: Item[] = [{ group: 'Other', name: 'Inter typeface', version: '', licence: 'OFL-1.1', texts: [normalise(readFileSync(join(WEB, 'src/assets/fonts/Inter-LICENSE.txt'), 'utf8'))] }];
-  if (packages.some((p) => p.name === 'zxing-wasm')) {
-    // The QR reader's WebAssembly is zxing-cpp's C++ compiled by zxing-wasm,
-    // whose package carries only its own MIT licence.
-    items.push({
-      group: 'Other',
-      name: 'zxing-cpp, in the zxing-wasm reader (https://github.com/zxing-cpp/zxing-cpp)',
-      version: '',
-      licence: 'Apache-2.0',
-      texts: [normalise(readFileSync(join(REPO, 'LICENSE-APACHE'), 'utf8'))],
-    });
-  }
-  return items;
+function others(): Item[] {
+  return [{ group: 'Other', name: 'Inter typeface', version: '', licence: 'OFL-1.1', texts: [normalise(readFileSync(join(WEB, 'src/assets/fonts/Inter-LICENSE.txt'), 'utf8'))] }];
 }
 
 /**
@@ -188,7 +176,7 @@ function others(packages: Item[]): Item[] {
  */
 export function thirdPartyLicences(roots: string[], target: string, npmDirs: Iterable<string>): string {
   const packages = [...new Set(npmDirs)].map(npmPackage);
-  const items = [...crates(roots, target), ...packages, ...others(packages)];
+  const items = [...crates(roots, target), ...packages, ...others()];
   const order = ['Rust crates', 'JavaScript packages', 'Other'];
   items.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group) || byCodePoint(a.name, b.name) || byCodePoint(a.version, b.version));
   const standard = standardTexts(items);

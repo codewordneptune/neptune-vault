@@ -1,0 +1,28 @@
+[package]
+name = "vault-qr"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+description = "Reads QR codes for Neptune Vault: as WebAssembly in the browser, natively in the desktop and Android apps"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The QR reader only, with the character sets a code's text can come in.
+rxing = { version = "0.9.3", default-features = false, features = ["qrcode", "decoders", "encoding_rs"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# rxing stamps each result with the time, which a browser gives only through JavaScript.
+rxing = { version = "0.9.3", default-features = false, features = ["qrcode", "decoders", "encoding_rs", "wasm_support"] }
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
+# The tests write the codes they read.
+rxing = { version = "0.9.3", default-features = false, features = ["qrcode", "decoders", "encoding_rs", "encoders"] }
+
+[package.metadata.wasm-pack.profile.release]
+# The workspace builds wasm32 with threads and SIMD (.cargo/config.toml), so
+# wasm-opt must be told to accept them.
+wasm-opt = ["-O3", "--enable-threads", "--enable-bulk-memory", "--enable-simd", "--enable-mutable-globals"]

@@ -401,3 +401,18 @@ export interface Prover {
   /** How many threads to ask for, as this implementation counts them. */
   defaultThreads(): number;
 }
+
+/**
+ * Reads QR codes from camera frames and pictures: vault-qr (rxing, built from
+ * this repository), as wasm in a worker in a browser and natively in a shell.
+ */
+export interface QrReader {
+  /** What the scanner's readout calls it. */
+  readonly name: string;
+  /** How long the last read took, in milliseconds. */
+  readonly lastMillis: number;
+  /** The text of the QR code in `bitmap`, or null when there is none to read. The bitmap is closed. */
+  read(bitmap: ImageBitmap): Promise<string | null>;
+  /** Lets go of what the reader holds, such as its worker. */
+  close(): void;
+}
