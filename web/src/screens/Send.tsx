@@ -1021,11 +1021,11 @@ export function Send() {
     // comes.
     const request = sendJob.request;
     const stage = sendJob.progress.stage;
-    const handing = stage === 'confirming' || stage === 'submitting';
+    const handing = stage === 'confirming' || stage === 'offline' || stage === 'submitting';
     const percent = proving && p ? Math.round(100 * (p.work ?? p.index / p.total)) : null;
     // Time left from this device's last proof, until the proof runs past it.
     const left = estimate !== null && provingSeconds < estimate ? estimate - provingSeconds : null;
-    const line = proving ? `Proving on this device · ${left !== null ? `${formatAbout(left)} left` : `${formatDuration(provingSeconds)} so far`}` : handing ? 'Handing it to the node' : PREPARING_SEND;
+    const line = proving ? `Proving on this device · ${left !== null ? `${formatAbout(left)} left` : `${formatDuration(provingSeconds)} so far`}` : stage === 'offline' ? 'Offline: it goes to the node once you are back online' : handing ? 'Handing it to the node' : PREPARING_SEND;
     return (
       <Paper className={phone ? 'vault-send-bare' : undefined} p={phone ? 0 : undefined}>
         <Stack>
@@ -1063,7 +1063,7 @@ export function Send() {
                       ? 'Keep the app running until this finishes.'
                       : 'Keep the app open and in front until this finishes. Other screens are fine.'}
                 </Text>
-                {proving && (
+                {(proving || stage === 'offline') && (
                   <UnstyledButton type="button" onClick={() => setConfirmStop(true)} disabled={stopping} c="var(--v-danger-text)" fw={600} className="vault-tap-link">
                     {stopping ? 'Stopping…' : 'Stop'}
                   </UnstyledButton>
@@ -1874,11 +1874,11 @@ function SendRing({ progress = null, done = false, children }: { progress?: numb
  * node has the send; the one under way says what is happening.
  */
 function SendProgressSteps({ stage, percent = null }: { stage: SendStage; percent?: number | null }) {
-  const at = stage === 'planning' || stage === 'membership-proofs' || stage === 'building' ? 0 : stage === 'proving' ? 1 : stage === 'confirming' || stage === 'submitting' ? 2 : 3;
+  const at = stage === 'planning' || stage === 'membership-proofs' || stage === 'building' ? 0 : stage === 'proving' ? 1 : stage === 'confirming' || stage === 'offline' || stage === 'submitting' ? 2 : 3;
   const steps: { done: string; now: string; when?: string }[] = [
     { done: 'Coins chosen and checked', now: sendStageText(stage, true) },
     { done: 'Signed and proved', now: 'Proving', when: percent !== null ? `${percent} %` : undefined },
-    { done: 'Taken by the node', now: 'Handing it to the node' },
+    { done: 'Taken by the node', now: stage === 'offline' ? sendStageText(stage) : 'Handing it to the node' },
     { done: 'In a block', now: 'In a block', when: at === 3 ? 'usually within an hour' : 'within an hour' },
   ];
   return (

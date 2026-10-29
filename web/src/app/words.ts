@@ -26,6 +26,8 @@ export function sendStageText(stage: string, onSend = false): string {
       return 'Proving';
     case 'confirming':
       return onSend ? 'Ready: confirm it' : 'Ready: confirm it on Send';
+    case 'offline':
+      return 'Waiting for a connection';
     case 'submitting':
       return 'Submitting to the node';
     case 'done':

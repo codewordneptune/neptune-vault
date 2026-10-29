@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { NodeError, type NodeClient } from '../node/rpc';
 import { openVaultDb, type AccountRecord, type HistoryRecord, type UtxoRecord, type VaultDb } from '../storage/db';
@@ -343,6 +343,47 @@ describe('send service', () => {
     expect(node.submitted).toHaveLength(0);
     expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
     expect((await service.spendable()).map((u) => u.hash).sort()).toEqual(['a', 'b']);
+  });
+
+  it('waits while the device is offline, holding nothing, and hands the send over once it is back online', async () => {
+    const { node, service } = await setup();
+    const net = new EventTarget();
+    let online = false;
+    vi.stubGlobal('navigator', { onLine: false });
+    vi.stubGlobal('window', net);
+    try {
+      const stages: string[] = [];
+      const sending = service.send(request, (p) => {
+        stages.push(p.stage);
+        if (p.stage === 'offline') online = true;
+      });
+      await vi.waitFor(() => expect(online).toBe(true));
+      expect(node.submitted).toHaveLength(0);
+      expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
+      vi.stubGlobal('navigator', { onLine: true });
+      net.dispatchEvent(new Event('online'));
+      expect((await sending).txid).toBe('tx-abc');
+      expect(stages.slice(-3)).toEqual(['offline', 'submitting', 'done']);
+      expect(node.submitted).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('Stop while waiting to be back online sends nothing and holds nothing', async () => {
+    const { node, service } = await setup();
+    vi.stubGlobal('navigator', { onLine: false });
+    vi.stubGlobal('window', new EventTarget());
+    try {
+      const abort = new AbortController();
+      const sending = service.send(request, (p) => p.stage === 'offline' && abort.abort(), { signal: abort.signal });
+      await expect(sending).rejects.toBeInstanceOf(SendCancelledError);
+      expect(node.submitted).toHaveLength(0);
+      expect(await view.get('history', 'acc:sent:tx-abc')).toBeUndefined();
+      expect((await service.spendable()).map((u) => u.hash).sort()).toEqual(['a', 'b']);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('cancel after the transaction was handed over is not honoured: the send goes through and says so', async () => {

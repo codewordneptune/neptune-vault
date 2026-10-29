@@ -14,7 +14,33 @@ import type { LedgerAnswer, LedgerOp, Prover, ProveOutcome, ProveProgress } from
 import type { HistoryRecord } from '../storage/db';
 import type { InputPlan, SendPlan, SendRequest, StoredUtxo, WalletCore } from '../backend/types';
 
-export type SendStage = 'planning' | 'membership-proofs' | 'building' | 'proving' | 'confirming' | 'submitting' | 'done';
+export type SendStage = 'planning' | 'membership-proofs' | 'building' | 'proving' | 'confirming' | 'offline' | 'submitting' | 'done';
+
+/**
+ * How long a proved send waits for the device to come back online before
+ * it ends with nothing sent: the wallet's auto-lock waits for the send, and
+ * an unattended device should not stay unlocked for long.
+ */
+export const OFFLINE_WAIT_MS = 10 * 60 * 1000;
+
+/** Resolves once the browser says it is online; Stop, or the time limit, ends the wait with nothing sent. */
+function onlineAgain(signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (navigator.onLine) return resolve();
+    if (signal?.aborted) return reject(new SendCancelledError());
+    const end = (settle: () => void) => {
+      window.removeEventListener('online', back);
+      signal?.removeEventListener('abort', stop);
+      clearTimeout(timer);
+      settle();
+    };
+    const back = () => end(resolve);
+    const stop = () => end(() => reject(new SendCancelledError()));
+    const timer = setTimeout(() => end(() => reject(new Error(`Nothing was sent: this device stayed offline for ${OFFLINE_WAIT_MS / 60_000} minutes. Send it again once you are back online.`))), OFFLINE_WAIT_MS);
+    window.addEventListener('online', back);
+    signal?.addEventListener('abort', stop, { once: true });
+  });
+}
 
 export interface SendProgress {
   stage: SendStage;
@@ -428,6 +454,16 @@ export class SendService {
 
       const moved = async () => (await this.node.tipHeaderRaw()).height !== tipHeader.height;
       const transaction = await this.core.assembleSubmission(built.kernel, proving.proofCollection);
+      // A device that says it is offline cannot reach the node: handed
+      // over now, the send would end as one that may have gone out, its
+      // coins held for days. It keeps its proof and waits for the
+      // connection instead; a node that then finds the proof too old is
+      // the refusal below, which proves again.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        onProgress({ stage: 'offline', note: again });
+        await onlineAgain(signal);
+        onProgress({ stage: 'submitting', note: again });
+      }
       // The last moment Cancel means anything.
       stopIfCancelled();
       // The send is written down, and its coins held, before the node hears
