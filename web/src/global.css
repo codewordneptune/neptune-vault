@@ -2199,6 +2199,33 @@ html {
   object-fit: cover;
 }
 /* A column of a readable width in a wide window, centred. */
+/* The scanner without a camera (QrScanner): what happened and what to do,
+   calmly, in place of the preview, with the other ways to fill the field. */
+.vault-scan-off {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 4px 8px;
+  text-align: center;
+}
+.vault-scan-off-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--v-surface-2);
+  color: var(--v-text-2);
+}
+.vault-scan-off-title.vault-scan-off-title {
+  margin: 6px 0 6px;
+  font-size: var(--mantine-font-size-lg);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--v-text);
+}
 .vault-scan-body.vault-scan-body {
   width: 100%;
   max-width: 640px;

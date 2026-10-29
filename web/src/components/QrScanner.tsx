@@ -23,8 +23,8 @@
 // the camera actually gave, because which of these a given phone grants to a
 // web page only that phone can tell.
 
-import { Button, Group, Loader, Stack, Text, UnstyledButton } from '@mantine/core';
-import { IconBolt, IconBoltOff, IconCameraRotate, IconChevronRight, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
+import { Button, Group, Loader, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { IconBolt, IconBoltOff, IconCameraOff, IconCameraRotate, IconChevronRight, IconPhoto, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { ErrorLine } from './Notice';
@@ -92,7 +92,10 @@ function openCamera(deviceId: string | null): Promise<MediaStream> {
 export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onClose: () => void; onResult: (text: string) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<MediaStreamTrack | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Why the camera did not start: in place of the preview, said calmly, with the other ways to fill the field.
+  const [error, setError] = useState<CameraProblem | null>(null);
+  // An image that held no code, or did not read: said under its button, whatever the camera does.
+  const [imageError, setImageError] = useState<string | null>(null);
   // Bumped by "Try again": a dismissed permission prompt asks again; a
   // blocked one refuses at once, and the message says where to allow it.
   const [attempt, setAttempt] = useState(0);
@@ -119,12 +122,13 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
   const [reading, setReading] = useState(false);
   const readImage = async (blob: Blob) => {
     setReading(true);
+    setImageError(null);
     try {
       const text = await decodeImage(blob);
       if (text) onResult(text);
-      else setError('No QR code found in that image. Try a sharper or closer picture of the code.');
+      else setImageError('No QR code found in that image. Try a sharper or closer picture of the code.');
     } catch {
-      setError('That file could not be read as an image.');
+      setImageError('That file could not be read as an image.');
     } finally {
       setReading(false);
     }
@@ -414,21 +418,88 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
 
   const at = cameras.findIndex((c) => c.deviceId === cameraId);
 
+  // The other ways to fill the field, offered on both screens: an image of
+  // the code, and in a camera's place the address itself, pasted into the
+  // field this closes back to.
+  const imageInputs = (
+    <>
+      <input
+        ref={imageInput}
+        type="file"
+        accept="image/*"
+        aria-label="Image with a QR code"
+        hidden
+        onChange={(e) => {
+          const chosen = e.currentTarget.files?.[0];
+          e.currentTarget.value = '';
+          if (chosen) void readImage(chosen);
+        }}
+      />
+      <UnstyledButton
+        c={reading ? 'var(--v-faint)' : 'var(--v-accent-text)'}
+        fz="sm"
+        className="vault-tap-link vault-link-icon"
+        disabled={reading}
+        onClick={() => {
+          // A phone's picker may hide the page: the wallet must not lock under it.
+          services.accounts.holdBackgroundLock();
+          imageInput.current?.click();
+        }}
+      >
+        {reading ? <Loader size={16} color="var(--v-muted)" /> : <IconPhoto size={16} aria-hidden />}
+        Scan from an image
+      </UnstyledButton>
+      {imageError && <ErrorLine>{imageError}</ErrorLine>}
+    </>
+  );
+
+  if (error) {
+    return (
+      <Sheet opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md" classNames={{ body: 'vault-scan-body' }}>
+        <div className="vault-scan-off">
+          <span className="vault-scan-off-icon" aria-hidden>
+            <IconCameraOff size={20} />
+          </span>
+          <div role="alert">
+            <Title order={3} className="vault-scan-off-title">
+              {error.title}
+            </Title>
+            <Text size="sm" c="dimmed" maw={320} mx="auto">
+              {error.text}
+            </Text>
+          </div>
+          {error.retry && (
+            <Button
+              fullWidth
+              mt="sm"
+              onClick={() => {
+                setError(null);
+                setAttempt((n) => n + 1);
+              }}
+            >
+              Try again
+            </Button>
+          )}
+          {imageInputs}
+          <UnstyledButton c="var(--v-muted)" fz="sm" className="vault-tap-link" onClick={onClose}>
+            Paste the address instead
+          </UnstyledButton>
+        </div>
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet opened={opened} onClose={onClose} title="Scan a QR code" fullScreen padding="md" classNames={{ body: 'vault-scan-body' }}>
       <Stack>
-        {error ? (
-          <ErrorLine>{error}</ErrorLine>
-        ) : (
-          <Text size="sm" c="dimmed">
-            Fill the square with the code and hold steady. If it is blurry, move back a little. Dense codes can take a moment.
-          </Text>
-        )}
+        <Text size="sm" c="dimmed">
+          Fill the square with the code and hold steady. If it is blurry, move back a little. Dense codes can take a moment.
+        </Text>
         <div className="vault-scan">
           <video ref={videoRef} playsInline muted />
-          {!error && <div className={portrait ? 'vault-scan-guide portrait' : 'vault-scan-guide'} style={{ ['--guide' as string]: `${GUIDE * 100}%` }} aria-hidden />}
+          <div className={portrait ? 'vault-scan-guide portrait' : 'vault-scan-guide'} style={{ ['--guide' as string]: `${GUIDE * 100}%` }} aria-hidden />
         </div>
-        {!error && (torchAvailable || zoomRange || cameras.length > 1) && (
+        {(torchAvailable || zoomRange || cameras.length > 1) && (
           <Group gap="xs" justify="center">
             {torchAvailable && (
               <Button variant="light" size="compact-sm" className="vault-tap" leftSection={torchOn ? <IconBoltOff size={16} /> : <IconBolt size={16} />} onClick={() => void toggleTorch()}>
@@ -447,54 +518,16 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
             )}
           </Group>
         )}
-        <input
-          ref={imageInput}
-          type="file"
-          accept="image/*"
-          aria-label="Image with a QR code"
-          hidden
-          onChange={(e) => {
-            const chosen = e.currentTarget.files?.[0];
-            e.currentTarget.value = '';
-            if (chosen) void readImage(chosen);
-          }}
-        />
-        <UnstyledButton
-          c={reading ? 'var(--v-faint)' : 'var(--v-accent-text)'}
-          fz="sm"
-          className="vault-tap-link vault-link-icon"
-          disabled={reading}
-          onClick={() => {
-            // A phone's picker may hide the page: the wallet must not lock under it.
-            services.accounts.holdBackgroundLock();
-            imageInput.current?.click();
-          }}
-        >
-          {reading ? <Loader size={16} color="var(--v-muted)" /> : <IconPhoto size={16} aria-hidden />}
-          Scan from an image
-        </UnstyledButton>
-        <Group grow>
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          {error && (
-            <Button
-              variant="light"
-              onClick={() => {
-                setError(null);
-                setAttempt((n) => n + 1);
-              }}
-            >
-              Try again
-            </Button>
-          )}
-        </Group>
-        {!error && status && (
+        {imageInputs}
+        <Button variant="default" onClick={onClose}>
+          Cancel
+        </Button>
+        {status && (
           <Text size="xs" c="dimmed" className="vault-scan-status" role="status">
             {status}
           </Text>
         )}
-        {!error && readout && (
+        {readout && (
           <details className="vault-setting vault-scan-details">
             <summary>
               <IconChevronRight size={16} className="vault-setting-chevron" aria-hidden />
@@ -542,17 +575,31 @@ async function decodeImage(blob: Blob): Promise<string | null> {
   }
 }
 
+/** Why the camera did not start, and whether trying again can help. */
+interface CameraProblem {
+  title: string;
+  text: string;
+  retry: boolean;
+}
+
 /** The browser's refusal, said in terms of what the person can do. */
-function cameraProblem(e: unknown): string {
+function cameraProblem(e: unknown): CameraProblem {
   const name = (e as { name?: string }).name ?? '';
   const message = (e as Error).message ?? String(e);
   if (name === 'NotAllowedError' || /denied/i.test(message)) {
-    return NATIVE
-      ? "Camera access is blocked. Allow it for Neptune Vault in the system's privacy settings, then try again, or scan from an image or paste the address instead."
-      : "Camera access is blocked for this site. Allow it in the browser's site settings (the lock icon by the address, or the app's permissions on the phone), then try again, or scan from an image or paste the address instead.";
+    const installed = matchMedia('(display-mode: standalone)').matches;
+    return {
+      title: 'The camera is off for this app',
+      text: NATIVE
+        ? "To scan, allow the camera for Neptune Vault in the system's privacy settings, then try again."
+        : installed
+          ? "To scan, allow the camera for this app in the phone's settings, then try again."
+          : "To scan, allow the camera in the browser's site settings (the icon left of the address), then try again.",
+      retry: true,
+    };
   }
-  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'No camera was found on this device. Scan from an image, or paste the address instead.';
-  if (name === 'NotReadableError') return 'The camera is in use by another app. Close it and try again, or paste the address instead.';
-  if (!navigator.mediaDevices?.getUserMedia) return 'This browser does not offer the camera to web apps here (it needs a secure https address). Paste the address instead.';
-  return `Camera not available: ${message}. Paste the address instead.`;
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return { title: 'No camera found', text: 'This device has no camera the app can use. Scan the code from an image instead.', retry: true };
+  if (name === 'NotReadableError') return { title: 'The camera is in use', text: 'Another app is using the camera. Close it, then try again.', retry: true };
+  if (!navigator.mediaDevices?.getUserMedia) return { title: 'The camera is not available here', text: 'This browser offers the camera only on a secure (https) address. Scan the code from an image instead.', retry: false };
+  return { title: 'The camera did not start', text: `The browser said: ${message}`, retry: true };
 }
