@@ -16,10 +16,12 @@ import { PHONE, useLayout } from '../app/layout';
 export function WordGrid({ words, blanks = [], next, onClear, only }: { words: string[]; blanks?: number[]; next?: number; onClear?: (i: number) => void; only?: number[] }) {
   useSecureScreen();
   const phone = useLayout(PHONE);
+  // A phrase only shown, not checked, is never pressed: its rows are shorter, so it and the button after it fit on a phone.
+  const shown = blanks.length === 0;
   // A numbered list to a screen reader. The role is explicit: without
   // list markers some browsers stop announcing a list as one.
   return (
-    <SimpleGrid component="ol" role="list" className="vault-word-list" cols={phone ? 2 : 3} spacing="xs">
+    <SimpleGrid component="ol" role="list" className={shown ? 'vault-word-list compact' : 'vault-word-list'} cols={phone ? 2 : 3} spacing="xs" verticalSpacing={shown ? 6 : 'xs'}>
       {(only ?? words.map((_, i) => i)).map((i) => {
         const w = words[i] ?? '';
         const blank = blanks.includes(i);

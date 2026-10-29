@@ -2,7 +2,7 @@
 // confirm it word by word, set a password.
 
 import { Anchor, Button, Group, Paper, Radio, Select, Stack, Text, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
-import { IconChevronRight, IconCopy, IconFileUpload } from '@tabler/icons-react';
+import { IconChevronRight, IconCopy, IconEye, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -153,11 +153,25 @@ export function Onboarding() {
   // Words go into the empty slots in order; this is the one that fills next.
   const nextSlot = checks.find((i) => slots[i] === undefined);
 
+  // A new phrase is covered until "Show the words"; shown once, it stays
+  // shown when the person comes back to it from the check.
+  const [revealed, setRevealed] = useState(false);
+  const [revealAsked, setRevealAsked] = useState(false);
+  const wordsRef = useRef<HTMLDivElement>(null);
+  const showRef = useRef<HTMLButtonElement>(null);
+  const reveal = () => {
+    setRevealed(true);
+    // The button goes with the cover: the words take the focus, to be read from the start.
+    setTimeout(() => wordsRef.current?.focus(), 0);
+  };
+
   const startCreate = async () => {
     setBusy(true);
     try {
       const words = await services.accounts.generatePhrase();
       setPhrase(words);
+      setRevealed(false);
+      setRevealAsked(false);
       setImported(false);
       markUnfinished(true);
       setInterrupted(false);
@@ -409,20 +423,47 @@ export function Onboarding() {
               Write down these 18 words
             </Title>
             <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your coins. {NATIVE ? 'If this device is lost, only what you write down brings the wallet back.' : 'Clearing the browser deletes everything except what you write down.'}</Text>
-            <WordGrid words={phrase} />
-            {/* The button, then what copying means, beneath it at every width
-                (as a phone wraps it), not squeezed in beside it. */}
-            <Stack gap={6} align="flex-start">
-              <UnstyledButton c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon" onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
-                <IconCopy size={16} aria-hidden />
-                Copy words
-              </UnstyledButton>
-              <Text size="sm" c="dimmed">
-                {CLIPBOARD_RISK}
-              </Text>
-            </Stack>
-            <Button onClick={startConfirm}>I have written them down</Button>
-            <Button variant="subtle" onClick={() => { markUnfinished(false); setPhrase([]); setStep('welcome'); }}>
+            {/* Covered until asked for, so whoever is looking, or a recording
+                of the screen, gets nothing until the person is ready: the
+                cells hold dots meanwhile, not the words. */}
+            <div className="vault-words-cover-host" ref={wordsRef} tabIndex={-1} aria-label={revealed ? 'Your seed phrase' : undefined}>
+              <div inert={!revealed || undefined} aria-hidden={!revealed || undefined}>
+                <WordGrid words={revealed ? phrase : phrase.map(() => '••••••')} />
+              </div>
+              {!revealed && (
+                <div className="vault-words-cover">
+                  <Button ref={showRef} radius="xl" leftSection={<IconEye size={16} />} onClick={reveal} aria-describedby="words-cover-note">
+                    Show the words
+                  </Button>
+                  <Text id="words-cover-note" size="sm" c="dimmed" maw={260}>
+                    {revealAsked ? 'Show the words first, and write them down. Check that no one can see your screen.' : 'Check that no one can see your screen.'}
+                  </Text>
+                </div>
+              )}
+            </div>
+            {/* Pressed before the words were shown, it says so rather than wait disabled. */}
+            <Button
+              onClick={() => {
+                if (revealed) return startConfirm();
+                setRevealAsked(true);
+                showRef.current?.focus();
+              }}
+            >
+              I have written them down
+            </Button>
+            {/* Under the step's button, so the words and the way on share the first screen; then what copying means. */}
+            {revealed && (
+              <Stack gap={6} align="flex-start">
+                <UnstyledButton c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon" onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
+                  <IconCopy size={16} aria-hidden />
+                  Copy words
+                </UnstyledButton>
+                <Text size="sm" c="dimmed">
+                  {CLIPBOARD_RISK}
+                </Text>
+              </Stack>
+            )}
+            <Button variant="subtle" onClick={() => { markUnfinished(false); setPhrase([]); setRevealed(false); setStep('welcome'); }}>
               Cancel
             </Button>
           </Stack>

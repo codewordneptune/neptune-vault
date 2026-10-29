@@ -798,8 +798,34 @@ button.vault-network:focus-visible {
   border-radius: var(--v-radius-xs);
   background: var(--v-well);
 }
+.vault-word-list.compact .vault-word {
+  min-height: 36px;
+}
 .vault-word.slot {
   background: var(--v-accent-soft);
+}
+/* A new seed phrase, covered until asked for (Onboarding): the cells hold
+   dots meanwhile, under a frosted layer with the one button. */
+.vault-words-cover-host {
+  position: relative;
+}
+.vault-words-cover-host:focus {
+  outline: none;
+}
+.vault-words-cover {
+  position: absolute;
+  inset: -6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--v-radius-sm);
+  background: color-mix(in srgb, var(--v-surface) 55%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  text-align: center;
 }
 /* An empty slot of the seed-phrase check is drawn with the controls' edge
    (3:1 or more), not the faint line of a divider. */
