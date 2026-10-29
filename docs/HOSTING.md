@@ -20,9 +20,9 @@ The rest are the site's security policy and belong on any host too:
 - `Cross-Origin-Resource-Policy: same-origin`
 - a strict `Content-Security-Policy`: scripts only from the site (which
   may compile wasm), fonts only from the site (the app ships its own,
-  Inter), and connections only to the site, to any `https:`
-  address (nodes and the price sites), and to nodes on `localhost` or
-  `127.0.0.1`
+  Inter and Geist Mono), and connections only to the site, to any
+  `https:` address (nodes and the price sites), and to nodes on
+  `localhost` or `127.0.0.1`
 - `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and
   `Referrer-Policy: no-referrer`
 - a `Permissions-Policy` that allows the camera, clipboard writes, wake

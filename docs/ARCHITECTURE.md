@@ -680,11 +680,11 @@ Security headers (`web/public/staticwebapp.config.json`, also sent by
 isolation, without which no wasm package can load); CORP
 `same-origin`; a CSP with `default-src 'none'`,
 `script-src 'self' 'wasm-unsafe-eval'`, workers from `'self' blob:`,
-fonts from `'self'` only (the app ships Inter, in `web/src/assets/fonts`),
-`frame-ancestors 'none'`, `form-action 'none'`; `X-Frame-Options: DENY`;
-`nosniff`; `Referrer-Policy: no-referrer`; and a `Permissions-Policy`
-granting only camera, clipboard write, screen wake lock, web share and
-passkeys.
+fonts from `'self'` only (the app ships Inter and Geist Mono, in
+`web/src/assets/fonts`), `frame-ancestors 'none'`, `form-action 'none'`;
+`X-Frame-Options: DENY`; `nosniff`; `Referrer-Policy: no-referrer`; and a
+`Permissions-Policy` granting only camera, clipboard write, screen wake
+lock, web share and passkeys.
 
 Native shell (`shells/tauri/src/lib.rs`). Beyond the wallet it does little:
 

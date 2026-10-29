@@ -402,9 +402,9 @@ inclusion in Neptune Vault, as defined in the Apache-2.0 licence, is licensed
 as above, without any additional terms or conditions.
 
 Code from others keeps its own licence. The vendored crates in
-`crates/vendor` keep theirs. The Inter typeface the app ships, in
-`web/src/assets/fonts`, is under the SIL Open Font License
-(`Inter-LICENSE.txt` there).
+`crates/vendor` keep theirs. The Inter and Geist Mono typefaces the
+app ships, in `web/src/assets/fonts`, are under the SIL Open Font License
+(`Inter-LICENSE.txt` and `GeistMono-LICENSE.txt` there).
 
 Every build ships the list of third-party software it contains, with each
 licence text: `third-party-licences.txt` next to the page, shown in the app

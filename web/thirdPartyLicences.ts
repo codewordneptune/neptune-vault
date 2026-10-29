@@ -165,7 +165,8 @@ function standardFor(expression: string, standard: Map<string, string>): string[
 
 /** Code that reaches the build without a package of its own. */
 function others(): Item[] {
-  return [{ group: 'Other', name: 'Inter typeface', version: '', licence: 'OFL-1.1', texts: [normalise(readFileSync(join(WEB, 'src/assets/fonts/Inter-LICENSE.txt'), 'utf8'))] }];
+  const font = (name: string, file: string): Item => ({ group: 'Other', name, version: '', licence: 'OFL-1.1', texts: [normalise(readFileSync(join(WEB, 'src/assets/fonts', file), 'utf8'))] });
+  return [font('Inter typeface', 'Inter-LICENSE.txt'), font('Geist Mono typeface', 'GeistMono-LICENSE.txt')];
 }
 
 /**

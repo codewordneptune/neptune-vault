@@ -22,6 +22,18 @@
   src: url('./assets/fonts/inter-latin-opsz-normal.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+/* Geist Mono (SIL Open Font License, assets/fonts/GeistMono-LICENSE.txt),
+   the monospace useneptune.org uses, for addresses and identifiers: the same
+   face on every device rather than each system's own. Latin only, 23 KB, as
+   an address needs nothing more. */
+@font-face {
+  font-family: 'Geist Mono Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('./assets/fonts/geist-mono-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 /* Spacing steps: 2, 4, 6, 8, 10, 12, 16, 20 and 24 px, which include the
    component library's own (10, 12, 16, 20). Anything else is a structural

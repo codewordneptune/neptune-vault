@@ -86,7 +86,7 @@ export const theme = createTheme({
   // figures look the same on every device; the system's face while it loads.
   fontFamily: '"Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   // The one monospace stack; global.css reads it as --mantine-font-family-monospace.
-  fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  fontFamilyMonospace: '"Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   fontSizes: { xs: '0.75rem', sm: '0.875rem', md: '1rem', lg: '1.25rem', xl: '1.25rem' },
   // Spacing on the declared steps (global.css): the library's xl was 32 px.
   spacing: { xs: '0.625rem', sm: '0.75rem', md: '1rem', lg: '1.25rem', xl: '1.5rem' },
