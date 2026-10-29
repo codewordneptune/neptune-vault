@@ -1176,7 +1176,6 @@ function ReceiptRow({ label, figure, total }: { label: string; figure: string; t
   );
 }
 
-/** A label and its value in the detail sheet; long values wrap and can be copied. */
 /**
  * A send on its way, as the steps it takes: proved on this device and
  * handed to the node (the send is kept from then on), then in a block. A
@@ -1227,6 +1226,7 @@ function SendSteps({ sentAt, stuck, again }: { sentAt: number; stuck: boolean; a
   );
 }
 
+/** A label and its value in the detail sheet; long values wrap and can be copied. */
 function DetailRow({ label, value, mono, copy, copyName, href, abbreviate, isolate }: { label: string; value: string; mono?: boolean; copy?: string; copyName?: string; href?: string; abbreviate?: boolean; isolate?: boolean }) {
   // Long values (a generation address is about 3,500 characters) show
   // abbreviated with a toggle; copying always takes the full value.
