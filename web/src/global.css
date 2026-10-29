@@ -2138,11 +2138,39 @@ html {
 /* The start-up spinner, shown before there is a page to sit in: the middle
    of the screen, where a loading state is looked for, not the corner it
    happened to fall into. */
+/* While the app starts (index.html, then App.tsx until the wallet is looked
+   up): the mark in the middle of the page, on its colours, with a slow glow
+   behind it, where the phone app's splash leaves off. */
 .vault-starting {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  translate: -50% -50%;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.vault-starting-glow {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 132px;
+  height: 132px;
+}
+.vault-starting-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--v-accent) 24%, transparent) 0%, transparent 70%);
+  animation: vault-glow 2.4s ease-in-out infinite alternate;
+}
+@keyframes vault-glow {
+  from {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vault-starting-glow::before {
+    animation: none;
+  }
 }
 
 /* A tap-link that belongs to the value above it sits under that value, at

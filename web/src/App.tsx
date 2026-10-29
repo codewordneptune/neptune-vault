@@ -1,4 +1,4 @@
-import { Box, Button, Container, Group, Loader, Stack, Text } from '@mantine/core';
+import { Box, Button, Container, Group, Stack, Text } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
@@ -204,7 +204,14 @@ export function App() {
 
   // Do not route until the stored account has been looked up, or a reload
   // would bounce an existing account to onboarding.
-  if (!ready) return <Loader className="vault-starting" role="status" aria-label="Starting" />;
+  if (!ready)
+    return (
+      <div className="vault-starting" role="status" aria-label="Starting">
+        <span className="vault-starting-glow">
+          <Logo size={64} />
+        </span>
+      </div>
+    );
 
   // Any interaction postpones the idle lock, and from the first one on a
   // change of screen moves focus to its heading.
