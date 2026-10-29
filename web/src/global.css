@@ -1222,6 +1222,45 @@ main :is(h2, h3)[tabindex='-1']:focus {
   font-weight: 500;
   color: var(--v-text-2);
 }
+/* A payment's details open as its receipt (Home): the head sits up under
+   the sheet's close button, and where the payment stands is a pill under
+   the amount. A send that did not go out is struck through, as on its
+   row; one that may still go through is dimmed. */
+.vault-detail-head {
+  margin: -12px 0 8px;
+}
+/* Its title is in the head, so the close button keeps to the end on its own. */
+.vault-close-end > .mantine-Modal-close {
+  margin-inline-start: auto;
+}
+.vault-receipt-amount.struck {
+  color: var(--v-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+.vault-receipt-amount.dim {
+  color: var(--v-muted);
+}
+.vault-receipt-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 12px 4px 10px;
+  border-radius: 999px;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+.vault-receipt-state.ok {
+  color: var(--v-ok-text);
+  background: color-mix(in srgb, var(--v-ok-text) 14%, transparent);
+}
+.vault-receipt-state.wait {
+  color: var(--v-accent-text);
+  background: var(--v-accent-soft);
+}
 .vault-warn-line {
   display: flex;
   align-items: flex-start;

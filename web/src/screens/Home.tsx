@@ -2,7 +2,7 @@
 
 import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useReducedMotion } from '@mantine/hooks';
-import { IconAlertCircle, IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconCircleCheck, IconCircleDot, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconWifiOff } from '@tabler/icons-react';
+import { IconAlertCircle, IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCheck, IconChevronRight, IconCircleCheck, IconCircleDot, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,7 +15,7 @@ import { readSentNotes, sentCoinOf, sentNoteOf, writeSentNote, type SentNotes } 
 import { usePendingSends } from '../app/pending';
 import { readSendDetails, withSendDetails } from '../app/sendDetails';
 import { fixedNau, useCountUp } from '../app/countUp';
-import { Figure, speakNau } from '../components/Amount';
+import { Amount, Figure, speakNau } from '../components/Amount';
 import { Avatar } from '../components/Avatar';
 import { Spoken, spokenText } from '../components/Spoken';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
@@ -548,28 +548,37 @@ export function Home() {
   // The explorer knows Mainnet only.
   const explorer = account?.network === 'main' ? LINKS.explorerOutput : null;
 
-  // Confirmed, and how many blocks have come since: what "wait for several
-  // blocks" is counted in.
-  const statusOf = (h: HistoryRecord) => {
+  // Where a payment stands, under its amount in the details: confirmed, and
+  // how many blocks have come since (what "wait for several blocks" is
+  // counted in), or a payment still coming in, as a pill. A send on its way
+  // shows its steps instead (SendSteps). One that did not go out is named
+  // by its title already ("Not sent", "Given up"); a sentence says why.
+  const stateOf = (h: HistoryRecord): { pill: string; tone: 'ok' | 'wait' } | { note: string; tone: 'warn' | 'bad' } | null => {
     const since = blocksSince(h);
-    return h.status === 'confirmed'
-      ? h.height !== null
-        ? since === null
-          ? `Confirmed in block ${showBlock(h.height)}`
-          : since === 0
-            ? `Confirmed in the newest block (block ${showBlock(h.height)})`
-            : `Confirmed ${showBlock(since)} ${since === 1 ? 'block' : 'blocks'} ago (block ${showBlock(h.height)})`
-        : 'Confirmed'
-      : h.status === 'pending'
-        ? // A payment coming in; a send on its way shows its steps instead (SendSteps).
-          'Pending'
-        : h.kind === 'sent'
-          ? stillGoes(h)
-            ? 'It may still go through: until one of its coins is spent, a block can take it, and then it shows here as Sent.'
-            : h.givenUp || h.expired
-              ? 'Not sent. One of its coins has since been spent by another transaction, so it can no longer go through.'
-              : 'Not sent. Nothing left this wallet.'
-          : 'Failed';
+    if (h.status === 'confirmed') {
+      const block = h.height !== null ? showBlock(h.height) : null;
+      const pill =
+        block === null
+          ? 'Confirmed'
+          : since === null
+            ? `Confirmed in block ${block}`
+            : since === 0
+              ? `Confirmed in the newest block · block ${block}`
+              : `Confirmed ${showBlock(since)} ${since === 1 ? 'block' : 'blocks'} ago · block ${block}`;
+      return { pill, tone: 'ok' };
+    }
+    if (h.status === 'pending') return h.kind === 'received' ? { pill: 'Pending', tone: 'wait' } : null;
+    if (h.kind !== 'sent') return null;
+    if (stillGoes(h)) return { note: 'It may still go through: until one of its coins is spent, a block can take it, and then it shows here as Sent.', tone: 'warn' };
+    return { note: h.givenUp || h.expired ? 'One of its coins has since been spent by another transaction, so it can no longer go through.' : 'Nothing left this wallet.', tone: 'bad' };
+  };
+  /** The figure at the top of the details: what came in, or what a send paid, its fee apart. */
+  const headNauOf = (e: HistoryEntry) => (e.kind === 'received' ? e.shownNau : BigInt(e.record.amountNau));
+  /** The circle at the top of the details, as on the row: a contact's, or the direction in a plain one. */
+  const headCircleOf = (e: HistoryEntry) => {
+    const contact = e.kind === 'sent' && !severalOf(e) && e.record.recipient ? contactFor(e.record.recipient) : undefined;
+    if (contact) return <Avatar big name={contact.name} address={contact.address} badge={<IconArrowUpRight size={16} />} />;
+    return <span className={`vault-row-icon${e.kind === 'received' ? '' : ' out'}`}>{rowIconOf(e)}</span>;
   };
   const nodeStatusOf = (h: HistoryRecord) => {
     if (h.kind !== 'sent' || h.status !== 'pending' || !h.mempoolCheckedAt) return null;
@@ -973,29 +982,50 @@ export function Home() {
         </Stack>
       </Paper>
 
-      <Sheet opened={detail !== null} onClose={() => setDetail(null)} title={detail ? titleOf(detail) : ''}>
+      {/* The title is the dialog's name; on screen it is part of the receipt's head. */}
+      <Sheet opened={detail !== null} onClose={() => setDetail(null)} title={detail ? titleOf(detail) : ''} classNames={{ title: 'sr-only', header: 'vault-close-end' }}>
         {detail && (
           <Stack gap="sm">
-            {/* A send on its way shows the steps it takes; once a block has it, or it ended, a line says how. */}
-            {detail.record.kind === 'sent' && detail.record.status === 'pending' ? (
-              <SendSteps sentAt={detail.record.timestampMs} stuck={isStuck(detail.record)} again={Boolean(detail.record.rolledBack)} />
-            ) : (
-              <DetailRow label="Status" value={statusOf(detail.record)} />
-            )}
-            <DetailRow label="When" value={formatDateTime(detail.record.timestampMs)} />
-            {/* The figures as the review showed them before the send: a
-                receipt, each on one line, the total set off beneath. */}
-            <div className="vault-review">
-              {detail.kind === 'received' && <ReceiptRow label="Amount" figure={amount(detail.shownNau)} />}
-              {detail.kind === 'sent' && (
-                <ReceiptRow label={detail.record.txid === '' || detail.record.recipient === null ? 'Amount plus fee' : severalOf(detail) ? 'Amounts together' : 'Amount'} figure={amount(BigInt(detail.record.amountNau))} />
+            {/* Opens as the review and the sent moment do: who, how much,
+                large, and where it stands. A send on its way shows the
+                steps it takes. */}
+            <div className="vault-receipt vault-detail-head">
+              {headCircleOf(detail)}
+              <Text fw={600} c="var(--v-text-2)" aria-hidden>
+                <bdi>{titleOf(detail)}</bdi>
+              </Text>
+              {/* Nothing left the wallet: struck through, as on its row; one that may still go through, dimmed. */}
+              <div className={notSent(detail) ? 'vault-receipt-amount struck' : mayGo(detail) ? 'vault-receipt-amount dim' : 'vault-receipt-amount'}>
+                <Amount nau={headNauOf(detail)} hidden={hidden} />
+              </div>
+              {detail.record.kind === 'sent' && detail.record.status === 'pending' ? (
+                <SendSteps sentAt={detail.record.timestampMs} stuck={isStuck(detail.record)} again={Boolean(detail.record.rolledBack)} />
+              ) : (
+                (() => {
+                  const state = stateOf(detail.record);
+                  if (!state) return null;
+                  return 'pill' in state ? (
+                    <span className={`vault-receipt-state ${state.tone}`}>
+                      {state.tone === 'ok' ? <IconCheck size={16} aria-hidden /> : <IconHourglass size={16} aria-hidden />}
+                      {state.pill}
+                    </span>
+                  ) : (
+                    <Text size="sm" className={state.tone === 'warn' ? 'vault-state-warn' : 'vault-state-failed'} maw={340}>
+                      {state.note}
+                    </Text>
+                  );
+                })()
               )}
-              {detail.kind === 'self' && <ReceiptRow label="Moved" figure={amount(BigInt(detail.record.amountNau))} />}
-              {detail.kind !== 'received' && detail.record.feeNau && <ReceiptRow label="Fee" figure={amount(BigInt(detail.record.feeNau))} />}
-              {/* The figure on the row, where it is made of two: what left the wallet. */}
-              {/* When some of it paid this wallet's own addresses, the amounts and the fee add up to more than what left, so the row says which it is. */}
-              {detail.kind === 'sent' && detail.record.feeNau && <ReceiptRow total label={detail.ownPayments.length > 0 ? 'Left this wallet' : 'Total'} figure={amount(detail.shownNau)} />}
             </div>
+            <DetailRow label="When" value={formatDateTime(detail.record.timestampMs)} />
+            {/* The fee and the total, as the review showed them, the total set off beneath. */}
+            {detail.kind !== 'received' && detail.record.feeNau && (
+              <div className="vault-review">
+                <ReceiptRow label="Fee" figure={amount(BigInt(detail.record.feeNau))} />
+                {/* What left the wallet. When some of it paid this wallet's own addresses, the amounts and the fee add up to more than what left, so the row says which it is. */}
+                {detail.kind === 'sent' && <ReceiptRow total label={detail.ownPayments.length > 0 ? 'Left this wallet' : 'Total'} figure={amount(detail.shownNau)} />}
+              </div>
+            )}
             {labelOf(detail.record) && <DetailRow label="Paid to" value={`Your address for ${labelOf(detail.record)}`} isolate />}
             {lockOf(detail.record) !== null && (
               <DetailRow label="Spendable from" value={`${formatDateTime(lockOf(detail.record) as number)}. The sender set this date; confirmations do not bring it forward.`} />
@@ -1185,11 +1215,8 @@ function ReceiptRow({ label, figure, total }: { label: string; figure: string; t
 function SendSteps({ sentAt, stuck, again }: { sentAt: number; stuck: boolean; again: boolean }) {
   const time = formatTime(sentAt);
   return (
-    <div className="vault-detail-row">
-      <Text size="sm" c="dimmed" className="vault-detail-label">
-        Status
-      </Text>
-      <ol className="vault-steps">
+    <>
+      <ol className="vault-steps vault-send-steps">
         <li className="done">
           <IconCircleCheck size={20} aria-hidden />
           <span>
@@ -1222,7 +1249,7 @@ function SendSteps({ sentAt, stuck, again }: { sentAt: number; stuck: boolean; a
           A block had confirmed it, but that block is no longer on the node's chain.
         </Text>
       )}
-    </div>
+    </>
   );
 }
 
