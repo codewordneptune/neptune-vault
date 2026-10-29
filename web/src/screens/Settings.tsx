@@ -43,6 +43,7 @@ import { confirmsSends, DEFAULT_NODE_URLS, offeredNetworks, requestPersistentSto
 import { abbreviateAddress } from '../util/address';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
+import { MethodChoice } from '../components/MethodChoice';
 import { CopyWords, WordGrid } from '../components/WordGrid';
 import { Spoken } from '../components/Spoken';
 import { PasswordField } from '../components/PasswordField';
@@ -1727,16 +1728,7 @@ function RescanCard() {
             {waiting > 0 && ` ${waiting === 1 ? '1 send is' : `${waiting} sends are`} still pending: the rescan keeps ${waiting === 1 ? 'it' : 'them'} as ${waiting === 1 ? 'it is' : 'they are'}.`}
           </Text>
           <Stack gap={6}>
-            <SegmentedControl
-              fullWidth
-              aria-label="How to rescan"
-              value={fast ? 'fast' : 'private'}
-              onChange={(v) => setFast(v === 'fast')}
-              data={[
-                { value: 'fast', label: 'Fast rescan' },
-                { value: 'private', label: 'Private rescan' },
-              ]}
-            />
+            <MethodChoice what="rescan" fast={fast} onChange={setFast} />
             {/* For a private rescan, the same question as a private restore: the month, with the block number behind a disclosure. */}
             <Text size="sm" c="dimmed">
               {fast ? FAST_SCAN : 'When did this wallet first receive a payment? Every block from then is downloaded and scanned here, so an earlier month takes longer.'}

@@ -1,7 +1,7 @@
 // Account creation and import: generate or enter a phrase,
 // confirm it word by word, set a password.
 
-import { Anchor, Button, Group, Paper, Radio, Select, Stack, Text, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
+import { Anchor, Button, Group, Paper, Radio, Select, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { IconChevronRight, IconCode, IconEye, IconFileUpload, IconLock, IconUserOff } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -16,6 +16,7 @@ import { PhraseField, phraseWords } from '../components/PhraseField';
 import { Caution, ErrorLine, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
+import { MethodChoice } from '../components/MethodChoice';
 import { CopyWords, WordGrid } from '../components/WordGrid';
 import { CLIPBOARD_RISK, FAST_LEARNS, FAST_SCAN } from '../app/words';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
@@ -238,9 +239,9 @@ export function Onboarding() {
     setError(null);
     setNameError(null);
     try {
-      // The coin index finds everything whatever the date, so it is offered only when the date is not known.
-      const fastRestore = imported && fast && when === 'unknown';
-      const fromTip = when === 'never';
+      // The coin index finds everything whatever the date: the date is asked only for a private restore.
+      const fastRestore = imported && fast;
+      const fromTip = !fast && when === 'never';
       // A start above the chain was refused on the seed phrase step, before the password was asked for.
       let height = imported && (fromTip || fastRestore) ? 0 : when === 'unknown' ? 1 : Number(birthday) || 1;
       if (!imported) {
@@ -672,16 +673,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
         {/* How to restore, as one line with its choice; Change opens the choice. */}
         {optionsOpen ? (
           <Stack gap={6}>
-            <SegmentedControl
-              aria-label="How to restore"
-              fullWidth
-              value={fast ? 'fast' : 'private'}
-              onChange={(v) => setFast(v === 'fast')}
-              data={[
-                { value: 'fast', label: 'Fast restore' },
-                { value: 'private', label: 'Private restore' },
-              ]}
-            />
+            <MethodChoice what="restore" fast={fast} onChange={setFast} />
             <Text size="sm" c="dimmed">
               {fast
                 ? FAST_SCAN
@@ -834,11 +826,10 @@ function ImportStep({
   // How to restore, folded until asked for, and said in one line meanwhile.
   const [optionsOpen, setOptionsOpen] = useState(false);
   const monthName = /^\d{4}-\d{2}$/.test(month) ? new Date(`${month}-01T00:00:00`).toLocaleString('en-GB', { month: 'long', year: 'numeric' }) : null;
-  const restoreSummary =
-    when === 'unknown'
-      ? fast
-        ? `Finds all your payments in seconds. ${FAST_LEARNS}`
-        : 'Finds all your payments by scanning every block on this device, about 8 to 10 GB on Mainnet. The node learns nothing.'
+  const restoreSummary = fast
+    ? `Finds all your payments in seconds. ${FAST_LEARNS}`
+    : when === 'unknown'
+      ? 'Finds all your payments by scanning every block on this device, about 8 to 10 GB on Mainnet. The node learns nothing.'
       : when === 'month'
         ? `Looks for payments from ${monthName ?? (Number(birthday) > 1 ? `block ${showBlock(Number(birthday))}` : 'the date you choose')}.`
         : 'Starts now: this seed phrase has never received a payment.';
@@ -847,7 +838,7 @@ function ImportStep({
   // A start above the chain, found before the password step rather than after it.
   const [startError, setStartError] = useState<string | null>(null);
   // A month, or a block typed instead, before the scan has somewhere to start.
-  const startKnown = when !== 'month' || (lookup !== 'looking' && (lookup === 'found' || Number(birthday) > 1));
+  const startKnown = fast || when !== 'month' || (lookup !== 'looking' && (lookup === 'found' || Number(birthday) > 1));
 
   const continueWithPhrase = async () => {
     setChecking(true);
@@ -857,7 +848,7 @@ function ImportStep({
         setPhraseError(problem);
         return;
       }
-      if (when === 'month') {
+      if (!fast && when === 'month') {
         try {
           const tip = await node().probe();
           if ((Number(birthday) || 1) > tip) {
@@ -885,7 +876,8 @@ function ImportStep({
         <PhraseField text={text} onText={setText} error={phraseError} onError={setPhraseError} checkPhrase={checkPhrase} />
         {/* How to restore, as one line with its current choice: most people
             restore everything, fast, and need decide nothing. Change opens
-            the question people can answer, instead of a block number. */}
+            the method first; a private restore then asks the question
+            people can answer, instead of a block number. */}
         {!optionsOpen && (
           <Stack gap={6}>
             <Text size="sm" c="dimmed">
@@ -897,34 +889,23 @@ function ImportStep({
           </Stack>
         )}
         {optionsOpen && (
-        <Radio.Group label="When did this wallet first receive a payment?" value={when} onChange={(v) => setWhen(v as FirstFunds)}>
-          <Stack gap="xs" mt="xs">
-            <Radio value="unknown" label="I don't know: find everything" />
-            <Radio value="month" label="I know roughly when" />
-            <Radio value="never" label="Never: this seed phrase is new" />
-          </Stack>
-        </Radio.Group>
-        )}
-        {optionsOpen && when === 'unknown' && (
           <Stack gap={6}>
-            <SegmentedControl
-              aria-label="How to find everything"
-              fullWidth
-              value={fast ? 'fast' : 'private'}
-              onChange={(v) => setFast(v === 'fast')}
-              data={[
-                { value: 'fast', label: 'Fast restore' },
-                { value: 'private', label: 'Private restore' },
-              ]}
-            />
+            <MethodChoice what="restore" fast={fast} onChange={setFast} />
             <Text size="sm" c="dimmed">
-              {fast
-                ? FAST_SCAN
-                : 'Every block from the first is downloaded and scanned on this device: about 8 to 10 GB on Mainnet. The node learns nothing about your coins.'}
+              {fast ? FAST_SCAN : 'Blocks are downloaded and scanned on this device, from the date you choose below. The node learns nothing about your coins.'}
             </Text>
           </Stack>
         )}
-        {optionsOpen && when === 'month' && (
+        {optionsOpen && !fast && (
+          <Radio.Group label="When did this wallet first receive a payment?" value={when} onChange={(v) => setWhen(v as FirstFunds)}>
+            <Stack gap="xs" mt="xs">
+              <Radio value="unknown" label="I don't know: scan every block" description="About 8 to 10 GB on Mainnet." />
+              <Radio value="month" label="I know roughly when" />
+              <Radio value="never" label="Never: this seed phrase is new" />
+            </Stack>
+          </Radio.Group>
+        )}
+        {optionsOpen && !fast && when === 'month' && (
           <StartBlockPicker
             value={birthday}
             onChange={(v) => {
@@ -939,7 +920,7 @@ function ImportStep({
             error={startError}
           />
         )}
-        {optionsOpen && when === 'never' && (
+        {optionsOpen && !fast && when === 'never' && (
           <Text size="sm" c="dimmed">
             The wallet starts at the current block. Anything paid to this seed phrase before now would not show.
           </Text>
