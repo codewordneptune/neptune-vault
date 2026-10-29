@@ -8,12 +8,12 @@
 // them. The same facts on both, so a report copies what Diagnostics shows.
 
 import { Anchor, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
-import { IconCopy } from '@tabler/icons-react';
+import { IconCheck, IconCopy } from '@tabler/icons-react';
 
 import { useApp } from '../app/AppContext';
 import { LINKS } from '../app/links';
 import { ANDROID, DESKTOP, NATIVE } from '../app/platform';
-import { copyText } from '../util/clipboard';
+import { useCopied } from '../util/clipboard';
 import { showInt } from '../util/format';
 import { formatDateTime } from '../util/time';
 import { Spoken } from '../components/Spoken';
@@ -31,6 +31,7 @@ export function DeviceDetails({ report = false }: { report?: boolean }) {
   const installed = matchMedia('(display-mode: standalone)').matches;
   const memoryGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
   const last = services.settings.lastProving;
+  const [copied, copy] = useCopied();
 
   // Each verdict is said in words, not only by the colour of its dot.
   const facts: FactRow[] = [
@@ -79,8 +80,8 @@ export function DeviceDetails({ report = false }: { report?: boolean }) {
       <Stack>
         {report && <Text size="sm">Copy these details into your report.</Text>}
         <Group>
-          <Button leftSection={<IconCopy size={16} />} onClick={() => void copyText(details(), 'Details copied')}>
-            Copy details
+          <Button className={copied ? 'vault-copied' : undefined} leftSection={copied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={() => void copy(details(), 'Details copied')}>
+            {copied ? 'Copied' : 'Copy details'}
           </Button>
         </Group>
         {report && (

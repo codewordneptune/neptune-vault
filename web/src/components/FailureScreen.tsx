@@ -3,12 +3,13 @@
 // a report, copied only when asked, as Report a problem does.
 
 import { Anchor, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
-import { IconCopy } from '@tabler/icons-react';
+import { IconCheck, IconCopy } from '@tabler/icons-react';
 
 import { LINKS } from '../app/links';
-import { copyText } from '../util/clipboard';
+import { useCopied } from '../util/clipboard';
 
 export function FailureScreen({ title, said, error }: { title: string; said: string; error: string }) {
+  const [copied, copy] = useCopied();
   const details = () =>
     [`${title}: ${error}`, `Neptune Vault ${__APP_VERSION__} (${__APP_COMMIT__})`, `Cross-origin isolated: ${self.crossOriginIsolated ? 'yes' : 'no'}`, navigator.userAgent].join('\n');
   return (
@@ -24,8 +25,8 @@ export function FailureScreen({ title, said, error }: { title: string; said: str
           </Text>
           <Button onClick={() => location.reload()}>Reload</Button>
           <Group gap="md" style={{ rowGap: 24 }}>
-            <Button variant="light" leftSection={<IconCopy size={16} />} onClick={() => void copyText(details(), 'Details copied')}>
-              Copy details
+            <Button variant="light" className={copied ? 'vault-copied' : undefined} leftSection={copied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={() => void copy(details(), 'Details copied')}>
+              {copied ? 'Copied' : 'Copy details'}
             </Button>
             <Anchor href={LINKS.issues} target="_blank" rel="noreferrer" size="sm" className="vault-tap-link">
               Report a problem on GitHub

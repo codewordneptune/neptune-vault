@@ -2,7 +2,7 @@
 // confirm it word by word, set a password.
 
 import { Anchor, Button, Group, Paper, Radio, Select, Stack, Text, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
-import { IconChevronRight, IconCopy, IconEye, IconFileUpload } from '@tabler/icons-react';
+import { IconChevronRight, IconEye, IconFileUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -15,8 +15,7 @@ import { PhraseField, phraseWords } from '../components/PhraseField';
 import { Caution, ErrorLine, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
-import { WordGrid } from '../components/WordGrid';
-import { copyText } from '../util/clipboard';
+import { CopyWords, WordGrid } from '../components/WordGrid';
 import { CLIPBOARD_RISK, FAST_SCAN } from '../app/words';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import type { NodeClient } from '../node/rpc';
@@ -454,10 +453,7 @@ export function Onboarding() {
             {/* Under the step's button, so the words and the way on share the first screen; then what copying means. */}
             {revealed && (
               <Stack gap={6} align="flex-start">
-                <UnstyledButton c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon" onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
-                  <IconCopy size={16} aria-hidden />
-                  Copy words
-                </UnstyledButton>
+                <CopyWords words={phrase} />
                 <Text size="sm" c="dimmed">
                   {CLIPBOARD_RISK}
                 </Text>

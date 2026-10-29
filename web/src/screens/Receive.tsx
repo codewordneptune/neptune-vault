@@ -26,7 +26,7 @@ import { decimalsProblem } from '../util/amount';
 import { fiatOfTyped, formatFiat } from '../util/fiat';
 import { nextKeyIndicesOf } from '../storage/db';
 import { abbreviateAddress, metaProblem, paymentQrPayload, paymentUri } from '../util/address';
-import { copyText } from '../util/clipboard';
+import { useCopied } from '../util/clipboard';
 import { groupDigits, showInt } from '../util/format';
 import { KEY_LOOKAHEAD, type KeyKind } from '../backend/types';
 
@@ -385,10 +385,12 @@ export function Receive() {
   // The text on this screen is the shortened address, so a failed copy points
   // to what carries it in full, never to long-pressing the text.
   const copyFailed = canShare ? 'Could not copy. Use Share instead, or let the sender scan the code.' : 'Could not copy. Try again, or let the sender scan the code.';
-  // Whatever hands the address on gives it out, on either tab.
+  // Whatever hands the address on gives it out, on either tab. Copy says it copied on itself.
+  const [addressCopied, copyAddress] = useCopied();
+  const [requestCopied, copyLink] = useCopied();
   const copy = () => {
     giveOut(kind, index);
-    void copyText(address, 'Address copied', copyFailed);
+    void copyAddress(address, 'Address copied', copyFailed);
   };
   const shareAddress = async () => {
     giveOut(kind, index);
@@ -400,7 +402,7 @@ export function Receive() {
   };
   const copyRequest = () => {
     giveOut(kind, index);
-    void copyText(paymentLink, 'Payment request copied', copyFailed);
+    void copyLink(paymentLink, 'Payment request copied', copyFailed);
   };
   // Shown only where the system share sheet exists, as on the Address tab:
   // elsewhere it would only copy, which Copy already does.
@@ -562,8 +564,8 @@ export function Receive() {
                     <Group className="vault-receive-actions">
                       {/* One word, as Share is: the code says what it copies, and
                           so does the note it leaves. A screen reader hears it whole. */}
-                      <Button leftSection={<IconCopy size={16} />} onClick={copy} disabled={!address} aria-label="Copy address" aria-describedby={cautionId}>
-                        Copy
+                      <Button className={addressCopied ? 'vault-copied' : undefined} leftSection={addressCopied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copy} disabled={!address} aria-label={addressCopied ? 'Address copied' : 'Copy address'} aria-describedby={cautionId}>
+                        {addressCopied ? 'Copied' : 'Copy'}
                       </Button>
                       {canShare && (
                         <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby={cautionId}>
@@ -623,8 +625,8 @@ export function Receive() {
                     )}
                     {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
                     <Group className="vault-receive-actions">
-                      <Button leftSection={<IconCopy size={16} />} onClick={copyRequest} disabled={requestInvalid} aria-label="Copy request" aria-describedby={cautionId}>
-                        Copy
+                      <Button className={requestCopied ? 'vault-copied' : undefined} leftSection={requestCopied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copyRequest} disabled={requestInvalid} aria-label={requestCopied ? 'Request copied' : 'Copy request'} aria-describedby={cautionId}>
+                        {requestCopied ? 'Copied' : 'Copy'}
                       </Button>
                       {canShare && (
                         <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareRequest()} disabled={requestInvalid} aria-describedby={cautionId}>

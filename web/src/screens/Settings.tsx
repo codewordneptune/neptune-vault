@@ -11,7 +11,6 @@ import {
   IconChevronRight,
   IconCircleHalf2,
   IconCoin,
-  IconCopy,
   IconDownload,
   IconExternalLink,
   IconFingerprint,
@@ -44,7 +43,7 @@ import { confirmsSends, DEFAULT_NODE_URLS, offeredNetworks, requestPersistentSto
 import { abbreviateAddress } from '../util/address';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
-import { WordGrid } from '../components/WordGrid';
+import { CopyWords, WordGrid } from '../components/WordGrid';
 import { Spoken } from '../components/Spoken';
 import { PasswordField } from '../components/PasswordField';
 import { ContactsPanel } from './Contacts';
@@ -53,7 +52,6 @@ import { PrivacyStatement } from './Privacy';
 import { ThirdPartyLicences } from './Licences';
 import { usePendingSends } from '../app/pending';
 import { isCancellation } from '../app/passkey';
-import { copyText } from '../util/clipboard';
 import { CLIPBOARD_RISK, FAST_SCAN, INSTALL_BENEFITS, NOT_DURING_SEND } from '../app/words';
 import { FIAT_CURRENCIES, FIAT_LABELS, formatFiat, isFiatCurrency } from '../util/fiat';
 import { useQuote } from '../app/price';
@@ -612,10 +610,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
                   <WordGrid words={phrase} />
                   {/* The button, then what copying means, beneath it, as on the setup step. */}
                   <Stack gap={6} align="flex-start">
-                    <UnstyledButton c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon" onClick={() => void copyText(phrase.join(' '), 'Seed phrase copied')}>
-                      <IconCopy size={16} aria-hidden />
-                      Copy words
-                    </UnstyledButton>
+                    <CopyWords words={phrase} />
                     <Text size="sm" c="dimmed">
                       {CLIPBOARD_RISK}
                     </Text>

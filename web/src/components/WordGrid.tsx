@@ -6,10 +6,11 @@
 // lands somewhere the person did not expect.
 
 import { Box, Group, SimpleGrid, Text, UnstyledButton } from '@mantine/core';
-import { IconX } from '@tabler/icons-react';
+import { IconCheck, IconCopy, IconX } from '@tabler/icons-react';
 
 import { useSecureScreen } from '../app/secureScreen';
 import { PHONE, useLayout } from '../app/layout';
+import { useCopied } from '../util/clipboard';
 
 // `only` shows just those places, by their numbers: the confirmation's
 // missing words, without the rest of the phrase on screen again.
@@ -57,5 +58,16 @@ export function WordGrid({ words, blanks = [], next, onClear, only }: { words: s
         );
       })}
     </SimpleGrid>
+  );
+}
+
+/** Copy words, under a shown phrase: it says Copied on itself for a moment. */
+export function CopyWords({ words }: { words: string[] }) {
+  const [copied, copy] = useCopied();
+  return (
+    <UnstyledButton c={copied ? 'var(--v-ok-text)' : 'var(--v-accent-text)'} fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon" onClick={() => void copy(words.join(' '), 'Seed phrase copied')}>
+      {copied ? <IconCheck size={16} aria-hidden /> : <IconCopy size={16} aria-hidden />}
+      {copied ? 'Copied' : 'Copy words'}
+    </UnstyledButton>
   );
 }

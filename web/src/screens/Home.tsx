@@ -30,7 +30,7 @@ import { DESKTOP, MOBILE, NATIVE } from '../app/platform';
 import { PULL_READY_PX, usePullToSync } from '../app/pullToSync';
 import { LINKS } from '../app/links';
 import { abbreviateAddress } from '../util/address';
-import { copyText } from '../util/clipboard';
+import { useCopied } from '../util/clipboard';
 import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/history';
 import { arrivals, type Listed } from '../util/arrivals';
 import { dayAhead, dayKey, dayLabel, formatAbout, formatDate, formatDateTime, formatTime, timeAgo, whenInSentence } from '../util/time';
@@ -1259,6 +1259,7 @@ function DetailRow({ label, value, mono, copy, copyName, href, abbreviate, isola
   // abbreviated with a toggle; copying always takes the full value.
   const [full, setFull] = useState(false);
   const shown = abbreviate && !full ? abbreviateAddress(value) : value;
+  const [copied, copyNow] = useCopied();
   return (
     <div className="vault-detail-row">
       <Text size="sm" c="dimmed" className="vault-detail-label">
@@ -1272,9 +1273,9 @@ function DetailRow({ label, value, mono, copy, copyName, href, abbreviate, isola
         {(copy || href) && (
           <Group gap={2} wrap="nowrap" className="vault-detail-actions">
             {copy && (
-              <Tooltip label="Copy" interactive>
-                <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label={copyName ?? `Copy ${spokenText(label.toLowerCase())}`} onClick={() => void copyText(value, copy)}>
-                  <IconCopy size={20} />
+              <Tooltip label={copied ? 'Copied' : 'Copy'} interactive>
+                <ActionIcon variant="subtle" size="lg" className={copied ? 'vault-tap vault-copied-icon' : 'vault-tap'} aria-label={copied ? 'Copied' : (copyName ?? `Copy ${spokenText(label.toLowerCase())}`)} onClick={() => void copyNow(value, copy)}>
+                  {copied ? <IconCheck size={20} /> : <IconCopy size={20} />}
                 </ActionIcon>
               </Tooltip>
             )}

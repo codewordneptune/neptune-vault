@@ -2580,6 +2580,16 @@ html {
     margin-block: -12px;
   }
 }
+/* A Copy button that has just copied: green, with a tick, for a moment
+   (util/clipboard.ts). The green carries white text at 5.4:1. */
+.mantine-Button-root.vault-copied,
+.mantine-Button-root.vault-copied:hover {
+  background: #1f7a34;
+  color: #fff;
+}
+.mantine-ActionIcon-root.vault-copied-icon {
+  color: var(--v-ok-text);
+}
 /* Send and Receive as pills. */
 .vault-balance-actions .vault-pill {
   border-radius: 999px;
