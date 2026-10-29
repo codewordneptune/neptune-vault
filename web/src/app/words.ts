@@ -64,5 +64,8 @@ export const INSTALL_BENEFITS = 'An installed app keeps its storage, works full 
 /** Beside a control that waits while a send runs. */
 export const NOT_DURING_SEND = 'Not while a send is running.';
 
+/** What the node learns from a fast restore or rescan, in every line that offers one. */
+export const FAST_LEARNS = 'The node learns which payments are yours, including later ones to these addresses, but not the amounts.';
+
 /** What a fast restore or rescan does, and what the node learns from it. */
-export const FAST_SCAN = 'Usually takes seconds: only the blocks holding your payments are fetched. The node learns which payments are yours, including later ones to these addresses, but not the amounts.';
+export const FAST_SCAN = `Usually takes seconds: only the blocks holding your payments are fetched. ${FAST_LEARNS}`;

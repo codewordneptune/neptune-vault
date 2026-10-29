@@ -17,7 +17,7 @@ import { Caution, ErrorLine, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { CopyWords, WordGrid } from '../components/WordGrid';
-import { CLIPBOARD_RISK, FAST_SCAN } from '../app/words';
+import { CLIPBOARD_RISK, FAST_LEARNS, FAST_SCAN } from '../app/words';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import type { NodeClient } from '../node/rpc';
 import type { Network } from '../storage/db';
@@ -691,7 +691,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
         ) : (
           <Stack gap={6}>
             <Text size="sm" c="dimmed">
-              {fast ? 'Restores in seconds. The node learns which payments are yours, but not the amounts.' : "Scans every block from the file's start on this device. The node learns nothing."}
+              {fast ? `Restores in seconds. ${FAST_LEARNS}` : "Scans every block from the file's start on this device. The node learns nothing."}
             </Text>
             <UnstyledButton onClick={(e) => openChoice(e, () => setOptionsOpen(true))} aria-expanded={false} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
               Change
@@ -837,7 +837,7 @@ function ImportStep({
   const restoreSummary =
     when === 'unknown'
       ? fast
-        ? 'Finds all your payments in seconds. The node learns which payments are yours, but not the amounts.'
+        ? `Finds all your payments in seconds. ${FAST_LEARNS}`
         : 'Finds all your payments by scanning every block on this device, about 8 to 10 GB on Mainnet. The node learns nothing.'
       : when === 'month'
         ? `Looks for payments from ${monthName ?? (Number(birthday) > 1 ? `block ${showBlock(Number(birthday))}` : 'the date you choose')}.`
