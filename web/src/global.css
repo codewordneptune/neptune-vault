@@ -1744,10 +1744,6 @@ main.vault-main {
   color: var(--v-text-2);
 }
 
-/* The not-yet-audited notice collapses to its title after the first visit. */
-.vault-poc {
-  cursor: pointer;
-}
 /* Setup's network line, under the card with the footer links: centred like
    them while closed, the card's width once open. */
 .vault-setup-network {
@@ -1756,15 +1752,19 @@ main.vault-main {
 .vault-setup-network[open] {
   align-self: stretch;
 }
-.vault-poc:focus-visible {
-  outline: 2px solid var(--v-accent);
-  outline-offset: 2px;
+/* The not-yet-audited warning at setup: a line in the caution colour
+   under the ways in, which opens the full text; its sentence under it the
+   first time on a device. */
+.vault-poc-line {
+  align-self: center;
+  gap: 6px;
+  font-size: var(--mantine-font-size-sm);
+  color: var(--v-warn-text);
 }
-.vault-poc-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.vault-poc-first {
+  margin-top: -8px;
+  color: var(--v-warn-text);
+  text-wrap: balance;
 }
 /* The same warning as a tag by the mark: small and grey, so the caution
    colour stays for what needs care now, inside a button that is a full
@@ -3721,12 +3721,58 @@ html {
   outline-offset: 2px;
 }
 
-/* The app's name on the first screen, where a narrow header leaves it out. */
-.vault-welcome-name {
-  display: none;
+/* The first screen, as an introduction (Onboarding): the mark, the name
+   and what the app is, three facts, and the two ways in at the foot. On a
+   phone it takes the screen's height, so the ways in are where the thumb
+   is; a wider screen keeps them under the facts. */
+.vault-welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
 }
-@media (max-width: 399.98px) {
-  .vault-welcome-name {
-    display: block;
+@media (max-width: 559.98px) {
+  .vault-welcome {
+    min-height: calc(100dvh - var(--v-header-h) - 2 * var(--mantine-spacing-md) - var(--v-safe-top) - var(--v-safe-bottom));
   }
+  .vault-welcome-foot {
+    margin-top: auto;
+  }
+}
+.vault-welcome-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 5vh;
+  text-align: center;
+}
+.vault-welcome-hero h2 {
+  margin-top: 10px;
+  font-size: 1.75rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.vault-welcome-facts {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  width: min(100%, 18rem);
+}
+.vault-welcome-facts li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--v-text-2);
+}
+.vault-welcome-facts li > span {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--v-accent-soft);
+  color: var(--v-accent-text);
 }

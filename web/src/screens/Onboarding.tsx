@@ -2,14 +2,15 @@
 // confirm it word by word, set a password.
 
 import { Anchor, Button, Group, Paper, Radio, Select, Stack, Text, TextInput, Title, SegmentedControl, UnstyledButton } from '@mantine/core';
-import { IconChevronRight, IconEye, IconFileUpload } from '@tabler/icons-react';
+import { IconChevronRight, IconCode, IconEye, IconFileUpload, IconLock, IconUserOff } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { WALLET_NAME_MAX, WalletNameTakenError } from '../app/accounts';
 import { showBlock, useApp } from '../app/AppContext';
 import { nodeFor } from '../app/services';
-import { PocNotice } from '../components/PocNotice';
+import { PocLine } from '../components/PocNotice';
+import { Logo } from '../components/Logo';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
 import { PhraseField, phraseWords } from '../components/PhraseField';
 import { Caution, ErrorLine, Info } from '../components/Notice';
@@ -304,43 +305,81 @@ export function Onboarding() {
     }
   };
 
+  const interruptedNotice = interrupted && (
+    <Caution
+      title="The last setup did not finish"
+      onClose={() => {
+        markUnfinished(false);
+        setInterrupted(false);
+      }}
+      closeLabel="Dismiss"
+    >
+      Its seed phrase was not kept. If you wrote it down, cross it out: it belongs to no wallet. A new wallet gets a new phrase.
+    </Caution>
+  );
+  // The network is asked only with Developer networks on (Settings,
+  // Advanced): other people never meet the question, and a first wallet
+  // goes on Mainnet. A quiet line, open when it is not Mainnet, so a tester
+  // sees where the wallet will go. Nothing changes until the wallet is
+  // made: the open wallet, when adding one, stays open until then.
+  const networkLine = (
+    <details className="vault-setting vault-setup-network" open={network !== 'main'}>
+      <summary>
+        <IconChevronRight size={16} className="vault-setting-chevron" aria-hidden />
+        Network: {NETWORK_LABELS[network]}
+      </summary>
+      <div className="vault-setting-body">
+        <Select
+          aria-label="Network"
+          data={NETWORK_OPTIONS}
+          value={network}
+          onChange={(v) => {
+            if (v) setChosen(v as Network);
+          }}
+        />
+      </div>
+    </details>
+  );
+
   return (
     <Stack gap="md" ref={stepsRef}>
-      {step === 'welcome' && !adding && <PocNotice />}
-      {step === 'welcome' && (
-        <Paper>
-          <Stack>
-            {!adding && <span className="vault-eyebrow vault-welcome-name">Neptune Vault</span>}
-            <Title order={2} tabIndex={-1} className="vault-step-title">{adding ? 'Add a wallet' : 'Set up your wallet'}</Title>
-            <Text size="sm" c="dimmed">
-              {adding ? 'Another wallet on this device, with its own seed phrase and password.' : 'Your keys stay on this device.'}
+      {/* The first screen, as an introduction: the mark, the name and what
+          the app is, three facts, and the two ways in at the foot, where
+          the thumb is, with the early-version warning under them. */}
+      {step === 'welcome' && !adding && (
+        <div className="vault-welcome">
+          <div className="vault-welcome-hero">
+            <Logo size={72} />
+            <Title order={2} tabIndex={-1} className="vault-step-title">
+              Neptune Vault
+            </Title>
+            <Text c="dimmed" maw={300}>
+              A Neptune Cash wallet that keeps your keys on this device.
             </Text>
-            {interrupted && (
-              <Caution
-                title="The last setup did not finish"
-                onClose={() => {
-                  markUnfinished(false);
-                  setInterrupted(false);
-                }}
-                closeLabel="Dismiss"
-              >
-                Its seed phrase was not kept. If you wrote it down, cross it out: it belongs to no wallet. A new wallet gets a new phrase.
-              </Caution>
-            )}
-            {/* Two doors: a new wallet, or one that exists; which way to bring
-                one back is asked behind the second door. */}
-            <Button onClick={startCreate} loading={busy}>Create a new wallet</Button>
-            {error && <ErrorLine>{error}</ErrorLine>}
-            <Button variant="light" onClick={() => setStep('existing')}>I already have a wallet</Button>
-            {/* Without Developer networks a wallet is added on Mainnet, even
-                beside a test network's wallet (still in the menu, to reach
-                it): said before it is made, as the app goes to Mainnet too. */}
-            {adding && !developer && currentNetwork !== 'main' && (
-              <Text size="sm" c="dimmed">
-                Adds to Mainnet. To add on {NETWORK_LABELS[currentNetwork]}, turn on Developer networks in Settings, Advanced.
-              </Text>
-            )}
-            {!adding && elsewhere.length > 0 && (
+          </div>
+          <ul className="vault-welcome-facts">
+            <li>
+              <span aria-hidden>
+                <IconLock size={20} />
+              </span>
+              Your keys never leave this device
+            </li>
+            <li>
+              <span aria-hidden>
+                <IconUserOff size={20} />
+              </span>
+              No account, no sign-up
+            </li>
+            <li>
+              <span aria-hidden>
+                <IconCode size={20} />
+              </span>
+              Open source
+            </li>
+          </ul>
+          <Stack gap="sm" className="vault-welcome-foot">
+            {interruptedNotice}
+            {elsewhere.length > 0 && (
               <Info>
                 Your {elsewhere.map((n) => NETWORK_LABELS[n]).join(' and ')} {elsewhere.length === 1 ? 'wallet is' : 'wallets are'} still on this device.
                 <Group gap="sm" mt={4}>
@@ -352,11 +391,62 @@ export function Onboarding() {
                 </Group>
               </Info>
             )}
-            {adding && (
-              <Button variant="subtle" onClick={() => (location.key !== 'default' ? navigate(-1) : navigate('/'))}>
-                Cancel
-              </Button>
+            {/* Two doors: a new wallet, or one that exists; which way to bring
+                one back is asked behind the second door. */}
+            <Button onClick={startCreate} loading={busy}>
+              Create a new wallet
+            </Button>
+            {error && <ErrorLine>{error}</ErrorLine>}
+            <Button variant="light" onClick={() => setStep('existing')}>
+              I already have a wallet
+            </Button>
+            {developer && networkLine}
+            <PocLine />
+            {/* Before a wallet exists there is no Settings to find these in.
+                Report a problem is open without a wallet on purpose, for whoever
+                cannot get started: it holds the details a report needs. */}
+            <Group gap={6} justify="center">
+              <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => navigate('/privacy')}>
+                Privacy statement
+              </Anchor>
+              <Text span size="sm" c="dimmed" aria-hidden>
+                ·
+              </Text>
+              <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => navigate('/diagnostics')}>
+                Report a problem
+              </Anchor>
+            </Group>
+          </Stack>
+        </div>
+      )}
+      {step === 'welcome' && adding && (
+        <Paper>
+          <Stack>
+            <Title order={2} tabIndex={-1} className="vault-step-title">
+              Add a wallet
+            </Title>
+            <Text size="sm" c="dimmed">
+              Another wallet on this device, with its own seed phrase and password.
+            </Text>
+            {interruptedNotice}
+            <Button onClick={startCreate} loading={busy}>
+              Create a new wallet
+            </Button>
+            {error && <ErrorLine>{error}</ErrorLine>}
+            <Button variant="light" onClick={() => setStep('existing')}>
+              I already have a wallet
+            </Button>
+            {/* Without Developer networks a wallet is added on Mainnet, even
+                beside a test network's wallet (still in the menu, to reach
+                it): said before it is made, as the app goes to Mainnet too. */}
+            {!developer && currentNetwork !== 'main' && (
+              <Text size="sm" c="dimmed">
+                Adds to Mainnet. To add on {NETWORK_LABELS[currentNetwork]}, turn on Developer networks in Settings, Advanced.
+              </Text>
             )}
+            <Button variant="subtle" onClick={() => (location.key !== 'default' ? navigate(-1) : navigate('/'))}>
+              Cancel
+            </Button>
           </Stack>
         </Paper>
       )}
@@ -373,46 +463,7 @@ export function Onboarding() {
           </Stack>
         </Paper>
       )}
-      {/* The network is asked only with Developer networks on (Settings,
-          Advanced): other people never meet the question, and a first
-          wallet goes on Mainnet. A quiet line under the card, open
-          when it is not Mainnet, so a tester sees where the wallet will go.
-          Nothing changes until the wallet is made: the open wallet, when
-          adding one, stays open until then. */}
-      {step === 'welcome' && developer && (
-        <details className="vault-setting vault-setup-network" open={network !== 'main'}>
-          <summary>
-            <IconChevronRight size={16} className="vault-setting-chevron" aria-hidden />
-            Network: {NETWORK_LABELS[network]}
-          </summary>
-          <div className="vault-setting-body">
-            <Select
-              aria-label="Network"
-              data={NETWORK_OPTIONS}
-              value={network}
-              onChange={(v) => {
-                if (v) setChosen(v as Network);
-              }}
-            />
-          </div>
-        </details>
-      )}
-      {/* Before a wallet exists there is no Settings to find these in.
-          Report a problem is open without a wallet on purpose, for whoever
-          cannot get started: it holds the details a report needs. */}
-      {step === 'welcome' && !adding && (
-        <Group gap={6} justify="center">
-          <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => navigate('/privacy')}>
-            Privacy statement
-          </Anchor>
-          <Text span size="sm" c="dimmed" aria-hidden>
-            ·
-          </Text>
-          <Anchor component="button" type="button" size="sm" className="vault-tap-link" onClick={() => navigate('/diagnostics')}>
-            Report a problem
-          </Anchor>
-        </Group>
-      )}
+      {step === 'welcome' && adding && developer && networkLine}
 
       {step === 'show' && (
         <Paper>
