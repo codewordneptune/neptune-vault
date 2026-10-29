@@ -1610,9 +1610,10 @@ main.vault-main {
 /* Sync status row above the balance card. */
 .vault-status {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 2px 12px;
   font-size: var(--v-fs-xs);
   color: var(--v-muted);
   padding: 0 4px;
@@ -1654,8 +1655,11 @@ main.vault-main {
 .vault-status-dot.bad {
   background: var(--v-danger-text);
 }
+/* A long sentence (a sync that failed) keeps the line's width, and its
+   actions go under it, at the end. */
 .vault-status-text {
   display: inline-flex;
+  flex: 1 1 16rem;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -1664,6 +1668,7 @@ main.vault-main {
   display: inline-flex;
   gap: 12px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 /* While all is well the status is a chip, drawn small inside a full touch
    target; a tap shows the block and the time in it. */

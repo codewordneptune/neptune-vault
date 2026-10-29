@@ -647,9 +647,14 @@ export function Home() {
         {online && (
           <span className="vault-status-actions">
             {sync?.phase === 'error' && !busy && (
-              <UnstyledButton onClick={() => navigate('/settings/advanced', { state: { from: 'home' } })} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
-                Settings
-              </UnstyledButton>
+              <>
+                <UnstyledButton onClick={() => navigate('/settings/report', { state: { from: 'home' } })} fz="xs" c="var(--v-accent-text)" className="vault-tap-link" aria-label="Report a problem">
+                  Report
+                </UnstyledButton>
+                <UnstyledButton onClick={() => navigate('/settings/advanced', { state: { from: 'home' } })} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
+                  Settings
+                </UnstyledButton>
+              </>
             )}
             <UnstyledButton onClick={() => !busy && askSync()} aria-disabled={busy} fz="xs" c={busy ? 'dimmed' : 'var(--v-accent-text)'} className="vault-tap-link">
               {busy ? 'Syncing…' : sync?.phase === 'error' ? 'Try again' : 'Sync'}
@@ -810,12 +815,17 @@ export function Home() {
             <Spoken text={hidden ? '••••' : failure.amount} /> NPT to <bdi>{contactFor(failure.recipient.toLowerCase())?.name ?? abbreviateAddress(failure.recipient)}</bdi>
             {failure.others ? ` and ${failure.others} more` : ''}. {notSentReason(failure.message)}
           </Text>
-          {/* While the send is still known in full (not after a reload), Send can take it up again. */}
-          {sendJob?.ending === 'failed' && (
-            <UnstyledButton onClick={() => navigate('/send', { state: { refill: true } })} c="var(--v-accent-text)" fz="sm" display="block" mt={4} className="vault-tap-link vault-tap-link-start">
-              Fill in the form again
+          {/* While the send is still known in full (not after a reload), Send can take it up again; a report is always offered. */}
+          <Group gap="sm" mt={4}>
+            {sendJob?.ending === 'failed' && (
+              <UnstyledButton onClick={() => navigate('/send', { state: { refill: true } })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+                Fill in the form again
+              </UnstyledButton>
+            )}
+            <UnstyledButton onClick={() => navigate('/settings/report', { state: { from: 'home' } })} c="var(--v-accent-text)" fz="sm" className={sendJob?.ending === 'failed' ? 'vault-tap-link' : 'vault-tap-link vault-tap-link-start'}>
+              Report a problem
             </UnstyledButton>
-          )}
+          </Group>
         </ErrorLine>
       )}
       {/* A send nodes no longer keep and no block took: it is not going

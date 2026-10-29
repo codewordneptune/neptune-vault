@@ -10,12 +10,14 @@
 import { Anchor, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
 import { IconCheck, IconCopy } from '@tabler/icons-react';
 
-import { useApp } from '../app/AppContext';
+import { showBlock, useApp } from '../app/AppContext';
 import { LINKS } from '../app/links';
 import { ANDROID, DESKTOP, NATIVE } from '../app/platform';
 import { useCopied } from '../util/clipboard';
 import { showInt } from '../util/format';
 import { formatDateTime } from '../util/time';
+import { NETWORK_LABELS } from '../util/network';
+import { DEFAULT_NODE_URLS } from '../storage/db';
 import { Spoken } from '../components/Spoken';
 import { BackLink } from './Privacy';
 
@@ -23,7 +25,7 @@ type FactRow = { label: string; value: string; state?: 'ok' | 'warn' };
 
 /** The facts and their Copy button, for a page that gives them a title; for a report, first what to do with them and where. */
 export function DeviceDetails({ report = false }: { report?: boolean }) {
-  const { services, account } = useApp();
+  const { services, account, sync, lastSyncedAt, sendFailure, sendJob } = useApp();
   const accountId = account?.id ?? null;
   const engine = services.accounts.engine;
   const isolated = self.crossOriginIsolated;
@@ -31,6 +33,27 @@ export function DeviceDetails({ report = false }: { report?: boolean }) {
   const installed = matchMedia('(display-mode: standalone)').matches;
   const memoryGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
   const last = services.settings.lastProving;
+  // Where the wallet talks to, and how it last went: what a report about a
+  // sync or a send needs first. The node's address is shown here, before
+  // anything is copied.
+  const network = account?.network ?? services.settings.network;
+  const nodeUrl = services.settings.nodeUrls[network] || DEFAULT_NODE_URLS[network];
+  const failedSend = sendFailure ?? (sendJob?.ending === 'failed' && sendJob.error ? { at: sendJob.startedAt, message: sendJob.error } : null);
+  const walletFacts: FactRow[] = account
+    ? [
+        {
+          label: 'Last sync',
+          value:
+            sync?.phase === 'error'
+              ? `Failed: ${sync.message ?? 'the node did not answer'}`
+              : lastSyncedAt
+                ? `Up to date at block ${showBlock(sync?.syncedHeight ?? 0)}, ${formatDateTime(lastSyncedAt)}`
+                : 'Not synced yet',
+          state: sync?.phase === 'error' ? 'warn' : lastSyncedAt ? 'ok' : undefined,
+        },
+        { label: 'Last send that failed', value: failedSend ? `${formatDateTime(failedSend.at)}: ${failedSend.message}` : 'None since the wallet was unlocked' },
+      ]
+    : [];
   const [copied, copy] = useCopied();
 
   // Each verdict is said in words, not only by the colour of its dot.
@@ -51,6 +74,9 @@ export function DeviceDetails({ report = false }: { report?: boolean }) {
     { label: 'Running as', value: NATIVE ? (DESKTOP ? 'Desktop app' : ANDROID ? 'Android app' : 'Phone app') : installed ? 'Installed app' : 'Browser tab: the browser may delete its data when space runs low', state: NATIVE || installed ? 'ok' : 'warn' },
     { label: 'App version', value: `${__APP_VERSION__} (${__APP_COMMIT__}), built ${formatDateTime(Date.parse(__APP_BUILT_AT__))}` },
     { label: 'Wallet core', value: services.backendKind === 'native' ? 'Native, in the app' : 'WebAssembly, in a worker' },
+    { label: 'Network', value: NETWORK_LABELS[network] },
+    { label: 'Node', value: `${nodeUrl}${nodeUrl === DEFAULT_NODE_URLS[network] ? ' (the default)' : ''}` },
+    ...walletFacts,
     ...(accountId ? engine.problems(accountId).map((problem): FactRow => ({ label: 'Did not move', value: problem, state: 'warn' })) : []),
   ];
   const proof: FactRow[] | null = last

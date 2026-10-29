@@ -1549,13 +1549,18 @@ export function Send() {
                 {sendJob.error}
               </Info>
             )}
-            {/* Under the title "Not sent", the reason without saying so again. */}
+            {/* Under the title "Not sent", the reason without saying so again; then another try, or a report. */}
             {sendJob.ending === 'failed' && (
               <ErrorLine title="Not sent" onClose={dismissResult} role={undefined}>
                 {notSentReason(sendJob.error ?? '')}
-                <UnstyledButton onClick={refill} c="var(--v-accent-text)" fz="sm" display="block" mt={4} className="vault-tap-link vault-tap-link-start">
-                  Fill in the form again
-                </UnstyledButton>
+                <Group gap="sm" mt={4}>
+                  <UnstyledButton onClick={refill} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+                    Fill in the form again
+                  </UnstyledButton>
+                  <UnstyledButton onClick={() => navigate('/settings/report', { state: { from: 'send' } })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
+                    Report a problem
+                  </UnstyledButton>
+                </Group>
               </ErrorLine>
             )}
           </div>
