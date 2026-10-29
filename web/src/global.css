@@ -898,6 +898,50 @@ button.vault-network:focus-visible {
   font-size: var(--v-fs-mono);
   word-break: break-all;
 }
+/* A send on its way (Home's details): its steps, joined by a line. */
+.vault-steps {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: grid;
+}
+.vault-steps li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  padding-block: 5px;
+  font-size: var(--mantine-font-size-md);
+}
+.vault-steps li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 9.5px;
+  top: 27px;
+  height: calc(100% - 22px);
+  width: 1px;
+  background: var(--v-ok-text);
+  opacity: 0.5;
+}
+.vault-steps .done svg {
+  color: var(--v-ok-text);
+}
+.vault-steps .now svg {
+  color: var(--v-accent-text);
+}
+.vault-steps .now > span:first-of-type {
+  font-weight: 600;
+}
+.vault-steps .warn {
+  color: var(--v-warn-text);
+  font-weight: 600;
+}
+.vault-step-when {
+  color: var(--v-muted);
+  font-size: var(--mantine-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
 /* The buttons (40 px, 44 on touch) reach into the space around the line,
    so it keeps its height and the button its centre on the first line. */
 .vault-detail-actions {

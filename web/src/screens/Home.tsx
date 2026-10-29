@@ -2,7 +2,7 @@
 
 import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useReducedMotion } from '@mantine/hooks';
-import { IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconWifiOff } from '@tabler/icons-react';
+import { IconAlertCircle, IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconChevronRight, IconCircleCheck, IconCircleDot, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -561,14 +561,8 @@ export function Home() {
             : `Confirmed ${showBlock(since)} ${since === 1 ? 'block' : 'blocks'} ago (block ${showBlock(h.height)})`
         : 'Confirmed'
       : h.status === 'pending'
-        ? // The row's words: a send waiting for a block says so, a payment coming in is Pending.
-          h.kind === 'sent'
-          ? isStuck(h)
-            ? 'Not going through'
-            : h.rolledBack
-              ? `${WAITING_FOR_BLOCK} again: a block had confirmed it, but that block is no longer on the node's chain.`
-              : WAITING_FOR_BLOCK
-          : 'Pending'
+        ? // A payment coming in; a send on its way shows its steps instead (SendSteps).
+          'Pending'
         : h.kind === 'sent'
           ? stillGoes(h)
             ? 'It may still go through: until one of its coins is spent, a block can take it, and then it shows here as Sent.'
@@ -982,7 +976,12 @@ export function Home() {
       <Sheet opened={detail !== null} onClose={() => setDetail(null)} title={detail ? titleOf(detail) : ''}>
         {detail && (
           <Stack gap="sm">
-            <DetailRow label="Status" value={statusOf(detail.record)} />
+            {/* A send on its way shows the steps it takes; once a block has it, or it ended, a line says how. */}
+            {detail.record.kind === 'sent' && detail.record.status === 'pending' ? (
+              <SendSteps sentAt={detail.record.timestampMs} stuck={isStuck(detail.record)} again={Boolean(detail.record.rolledBack)} />
+            ) : (
+              <DetailRow label="Status" value={statusOf(detail.record)} />
+            )}
             <DetailRow label="When" value={formatDateTime(detail.record.timestampMs)} />
             {/* The figures as the review showed them before the send: a
                 receipt, each on one line, the total set off beneath. */}
@@ -1178,6 +1177,56 @@ function ReceiptRow({ label, figure, total }: { label: string; figure: string; t
 }
 
 /** A label and its value in the detail sheet; long values wrap and can be copied. */
+/**
+ * A send on its way, as the steps it takes: proved on this device and
+ * handed to the node (the send is kept from then on), then in a block. A
+ * send the node no longer keeps stops at the last step, in the caution
+ * colour, in the words its row uses.
+ */
+function SendSteps({ sentAt, stuck, again }: { sentAt: number; stuck: boolean; again: boolean }) {
+  const time = formatTime(sentAt);
+  return (
+    <div className="vault-detail-row">
+      <Text size="sm" c="dimmed" className="vault-detail-label">
+        Status
+      </Text>
+      <ol className="vault-steps">
+        <li className="done">
+          <IconCircleCheck size={20} aria-hidden />
+          <span>
+            Signed and proved<span className="sr-only">, done</span>
+          </span>
+          <span className="vault-step-when">{time}</span>
+        </li>
+        <li className="done">
+          <IconCircleCheck size={20} aria-hidden />
+          <span>
+            Taken by the node<span className="sr-only">, done</span>
+          </span>
+          <span className="vault-step-when">{time}</span>
+        </li>
+        {stuck ? (
+          <li className="warn" aria-current="step">
+            <IconAlertCircle size={20} aria-hidden />
+            <span>Not going through</span>
+          </li>
+        ) : (
+          <li className="now" aria-current="step">
+            <IconCircleDot size={20} aria-hidden />
+            <span>In a block</span>
+            <span className="vault-step-when">{again ? 'again, usually within an hour' : 'usually within an hour'}</span>
+          </li>
+        )}
+      </ol>
+      {again && (
+        <Text size="sm" c="dimmed">
+          A block had confirmed it, but that block is no longer on the node's chain.
+        </Text>
+      )}
+    </div>
+  );
+}
+
 function DetailRow({ label, value, mono, copy, copyName, href, abbreviate, isolate }: { label: string; value: string; mono?: boolean; copy?: string; copyName?: string; href?: string; abbreviate?: boolean; isolate?: boolean }) {
   // Long values (a generation address is about 3,500 characters) show
   // abbreviated with a toggle; copying always takes the full value.
