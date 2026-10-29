@@ -49,6 +49,23 @@ function desktopTrim(): Plugin {
   };
 }
 
+// The README's screenshots (docs/screenshots), which Chrome's install sheet
+// shows beside the manifest's description: copied as they are, under fixed
+// names, by web builds only. They are not precached (webp is not in the
+// service worker's glob); only the browser's install sheet asks for them.
+const INSTALL_SCREENSHOTS = ['home.webp', 'send-review.webp', 'receive.webp', 'wide-home-dark.webp'];
+function installScreenshots(): Plugin {
+  return {
+    name: 'vault-install-screenshots',
+    apply: 'build',
+    generateBundle() {
+      for (const file of INSTALL_SCREENSHOTS) {
+        this.emitFile({ type: 'asset', fileName: `screenshots/${file}`, source: readFileSync(new URL(`../docs/screenshots/${file}`, import.meta.url)) });
+      }
+    },
+  };
+}
+
 function versionJson(): Plugin {
   const body = JSON.stringify({ version: pkg.version, commit, builtAt });
   return {
@@ -137,7 +154,7 @@ export default defineConfig(({ mode }) => ({
     versionJson(),
     collectPackages(),
     licencesFile(mode),
-    ...(mode === 'desktop' ? [desktopTrim()] : []),
+    ...(mode === 'desktop' ? [desktopTrim()] : [installScreenshots()]),
     VitePWA({
       disable: mode === 'desktop',
       // A new build is downloaded and offered, and never applied while the app
@@ -146,9 +163,13 @@ export default defineConfig(({ mode }) => ({
       registerType: 'prompt',
       includeAssets: ['icons/*.png', 'favicon.svg'],
       manifest: {
+        // The identity an installed copy keeps; the same as the one derived
+        // from start_url before it was set, so existing installs stay theirs.
+        id: '/',
         name: 'Neptune Vault',
         short_name: 'Neptune Vault',
-        description: 'Neptune Cash wallet that runs in your browser',
+        description: 'A Neptune Cash wallet that keeps your keys on this device.',
+        categories: ['finance'],
         theme_color: '#111923',
         background_color: '#111923',
         display: 'standalone',
@@ -157,6 +178,19 @@ export default defineConfig(({ mode }) => ({
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+        // With these, Chrome's install sheet shows the description and the
+        // screens (installScreenshots above) rather than a name alone.
+        screenshots: [
+          { src: 'screenshots/home.webp', sizes: '780x1688', type: 'image/webp', form_factor: 'narrow', label: 'Home: the balance and the latest payments' },
+          { src: 'screenshots/send-review.webp', sizes: '780x1688', type: 'image/webp', form_factor: 'narrow', label: 'Reviewing a send before it goes' },
+          { src: 'screenshots/receive.webp', sizes: '780x1688', type: 'image/webp', form_factor: 'narrow', label: 'Receive: the address as a QR code' },
+          { src: 'screenshots/wide-home-dark.webp', sizes: '1280x800', type: 'image/webp', form_factor: 'wide', label: 'Home on a wide screen' },
+        ],
+        // A long press on the installed app's icon.
+        shortcuts: [
+          { name: 'Send', url: '/send', icons: [{ src: 'icons/shortcut-send.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Receive', url: '/receive', icons: [{ src: 'icons/shortcut-receive.png', sizes: '192x192', type: 'image/png' }] },
         ],
       },
       workbox: {

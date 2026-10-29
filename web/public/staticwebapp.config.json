@@ -5,6 +5,7 @@
       "/assets/*",
       "/wasm/*",
       "/icons/*",
+      "/screenshots/*",
       "/*.js",
       "/*.webmanifest",
       "/*.json"

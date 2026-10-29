@@ -33,8 +33,8 @@ The rest are the site's security policy and belong on any host too:
 Azure Static Web Apps sets all of them through `globalHeaders` in
 `web/public/staticwebapp.config.json`, which Vite copies into `dist`. The
 same file maps `.wasm` and `.webmanifest` to their MIME types and routes
-unknown paths to `index.html` for the router (except assets, wasm, icons
-and top-level `.js`, `.json` and `.webmanifest` files). `vite preview`
+unknown paths to `index.html` for the router (except assets, wasm, icons,
+screenshots and top-level `.js`, `.json` and `.webmanifest` files). `vite preview`
 serves the same headers.
 
 ## One-time setup

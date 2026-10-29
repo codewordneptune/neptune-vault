@@ -13,5 +13,12 @@ saved as PNG): the mark in `#3a8bf3`, centred, about 57% of the width on
 the rounded tiles and 46% on the maskable one; the tiles' corners about 22%
 of the width.
 
+The manifest's two shortcuts, offered by a long press on the installed
+app's icon, have icons of their own: `shortcut-send.png` and
+`shortcut-receive.png`, 192 px, full bleed on the same gradient and glow,
+with Send's and Receive's arrows from Tabler (arrow-up-right,
+arrow-down-left) in `#3a8bf3`, drawn at four times their 24 px size with
+their stroke of 2, so 96 px across the middle.
+
 The Android app's launcher icon is made from these
 (`shells/tauri/icons/README.md`): after a change here, make it again.

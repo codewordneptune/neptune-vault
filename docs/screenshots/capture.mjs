@@ -2,6 +2,9 @@
 // screens (Home, Receive, the send review, Settings) and Home on a wide
 // screen, all in the dark theme, as WebP files in this folder. Dark reads
 // well on both of GitHub's themes; light ones melt into its white page.
+// The web build also copies Home, the review, Receive and the wide Home
+// into the site, where Chrome's install sheet shows them (web/vite.config.ts,
+// installScreenshots): retaking them updates both, at the same sizes.
 //
 // Once:
 // 1. Run the app and a Regtest node (README, "Run the web app" and "Local
