@@ -1389,41 +1389,36 @@ export function Send() {
     );
   }
 
-  // Another recipient and a note, then the fee; on a phone sending to one person the fee comes first.
-  const linksBlock = (
-    <>
-      {/* The two extras as links on one line: another recipient, and a note,
-          which most sends do without. The note opens where it is asked for. */}
-      {(1 + extras.length < MAX_PAYMENTS || !showNote) && (
-        <div className="vault-send-extras">
-          {1 + extras.length < MAX_PAYMENTS && (
-            <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon">
-              <IconPlus size={16} aria-hidden />
-              Add another recipient
-            </UnstyledButton>
-          )}
-          {!showNote && (
-            <UnstyledButton
-              type="button"
-              onClick={() => {
-                setNoteOpen(true);
-                setTimeout(() => noteRef.current?.focus(), 0);
-              }}
-              c="var(--v-accent-text)"
-              fz="sm"
-              className="vault-tap-link vault-tap-link-start vault-link-icon"
-            >
-              <IconPlus size={16} aria-hidden />
-              Add a note
-            </UnstyledButton>
-          )}
-        </div>
-      )}
-      {/* For the whole send, however many recipients: kept in History on this device, never sent. */}
-      {showNote && (
-        <TextInput ref={noteRef} label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
-      )}
-    </>
+  // Another recipient belongs with the recipients; the fee and a note
+  // belong to the whole send, so they come after, and with several
+  // recipients a line closes the last one. On a phone sending to one person
+  // the fee comes first, as a row under the amount, and the two links share
+  // the line under it. The note opens where it is asked for: most sends do
+  // without one.
+  const addRecipientLink = 1 + extras.length < MAX_PAYMENTS && (
+    <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon">
+      <IconPlus size={16} aria-hidden />
+      Add another recipient
+    </UnstyledButton>
+  );
+  const addNoteLink = !showNote && (
+    <UnstyledButton
+      type="button"
+      onClick={() => {
+        setNoteOpen(true);
+        setTimeout(() => noteRef.current?.focus(), 0);
+      }}
+      c="var(--v-accent-text)"
+      fz="sm"
+      className="vault-tap-link vault-tap-link-start vault-link-icon"
+    >
+      <IconPlus size={16} aria-hidden />
+      Add a note
+    </UnstyledButton>
+  );
+  // For the whole send, however many recipients: kept in History on this device, never sent.
+  const noteField = showNote && (
+    <TextInput ref={noteRef} label="Note to self (optional)" description="Only you see it, in History." placeholder="What it is for" value={note} maxLength={SEND_NOTE_MAX} onChange={(e) => setNote(e.currentTarget.value)} />
   );
   const feeBlock = (
     <>
@@ -1762,16 +1757,24 @@ export function Send() {
                 />
               </div>
             ))}
-            {/* On a phone sending to one person the fee comes first, as a row under the amount. */}
             {amountFirst ? (
               <>
                 {feeBlock}
-                {linksBlock}
+                {(addRecipientLink || addNoteLink) && (
+                  <div className="vault-send-extras">
+                    {addRecipientLink}
+                    {addNoteLink}
+                  </div>
+                )}
+                {noteField}
               </>
             ) : (
               <>
-                {linksBlock}
+                {addRecipientLink && <div className="vault-send-extras">{addRecipientLink}</div>}
+                {extras.length > 0 && <Divider className="vault-send-close" />}
                 {feeBlock}
+                {addNoteLink && <div className="vault-send-extras">{addNoteLink}</div>}
+                {noteField}
               </>
             )}
             {/* Why Review waits, one look for both reasons: a sentence, no

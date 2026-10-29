@@ -3257,6 +3257,11 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   padding-top: var(--mantine-spacing-md);
   border-top: 1px solid var(--v-line);
 }
+/* With several recipients, a line closes the last one, as one opens each:
+   the fee and the note under it are the whole send's. */
+.vault-send-close {
+  --divider-color: var(--v-line);
+}
 .vault-payee-head {
   display: flex;
   align-items: center;
