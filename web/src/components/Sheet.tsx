@@ -1,6 +1,6 @@
 import { Modal, type ModalProps } from '@mantine/core';
 import { IconChevronLeft } from '@tabler/icons-react';
-import { useRef, type PointerEvent } from 'react';
+import { useEffect, useRef, type PointerEvent } from 'react';
 
 import { useBackCloses } from '../app/backCloses';
 import { PHONE, useLayout } from '../app/layout';
@@ -9,6 +9,31 @@ import { PHONE, useLayout } from '../app/layout';
 const CLOSE_AFTER_PX = 96;
 const FLICK_AFTER_PX = 32;
 const CLOSE_FASTER_THAN = 0.6; // px per ms
+
+// The open sheets, oldest first. Escape closes only the newest, as Back
+// does: left to the library, every open dialog closed on one Escape, and
+// what was typed in the one under it went too.
+const escapeStack: { close: () => void }[] = [];
+function onEscape(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || event.isComposing) return;
+  // A list or a menu open in the sheet closes first, as the library has it.
+  if ((event.target as HTMLElement | null)?.getAttribute?.('data-mantine-stop-propagation') === 'true') return;
+  escapeStack[escapeStack.length - 1]?.close();
+}
+function useEscapeCloses(opened: boolean, onClose: () => void) {
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    if (!opened) return;
+    const entry = { close: () => close.current() };
+    escapeStack.push(entry);
+    if (escapeStack.length === 1) window.addEventListener('keydown', onEscape, { capture: true });
+    return () => {
+      escapeStack.splice(escapeStack.indexOf(entry), 1);
+      if (escapeStack.length === 0) window.removeEventListener('keydown', onEscape, { capture: true });
+    };
+  }, [opened]);
+}
 
 /**
  * A dialog that Back closes, without leaving the screen under it
@@ -22,12 +47,14 @@ const CLOSE_FASTER_THAN = 0.6; // px per ms
  */
 export function Sheet({ back, ...given }: ModalProps & { back?: string }) {
   useBackCloses(given.opened, given.onClose);
+  useEscapeCloses(given.opened && given.closeOnEscape !== false, given.onClose);
   const phone = useLayout(PHONE);
   const drag = useRef<{ y: number; at: number; sheet: HTMLElement; pointer: number } | null>(null);
   const props: ModalProps = !back
-    ? given
+    ? { ...given, closeOnEscape: false }
     : {
         ...given,
+        closeOnEscape: false,
         className: [given.className, 'vault-sheet-backed'].filter(Boolean).join(' '),
         closeButtonProps: { ...given.closeButtonProps, icon: <IconChevronLeft size={16} />, children: back, 'aria-label': back, className: 'vault-sheet-back' },
       };
