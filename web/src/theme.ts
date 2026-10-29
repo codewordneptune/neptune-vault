@@ -133,6 +133,8 @@ export const theme = createTheme({
     // A loader standing alone turns in the accent at the library's size; one
     // beside words is set muted at 16 px, the size of an icon beside text.
     Loader: { defaultProps: { color: 'var(--v-accent)' } },
+    // An on/off setting's switch: a plain thumb, at a size a finger finds.
+    Switch: { defaultProps: { size: 'md', withThumbIndicator: false } },
     // Square, so a checkbox never reads as a radio button.
     Checkbox: { defaultProps: { radius: 'xs', icon: CheckboxTick } },
     // Every close button has a name: a banner's or a toast's said only

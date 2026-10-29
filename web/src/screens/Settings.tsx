@@ -4,7 +4,7 @@
 // appearance, currency, about (with its pages: report a problem, privacy,
 // open-source licences), removal.
 
-import { Anchor, Button, Checkbox, Divider, Group, Kbd, Paper, SegmentedControl, Select, Stack, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { Anchor, Button, Checkbox, Divider, Group, Kbd, Paper, SegmentedControl, Select, Stack, Switch, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import {
   IconAdjustmentsHorizontal,
   IconChevronLeft,
@@ -796,7 +796,9 @@ function SettingsSections({ section }: { section: SectionKey }) {
             </SettingItem>
             {/* Not about the node: which networks the wallet menu offers. */}
             <SettingItem name="Networks">
-              <Checkbox
+              <Switch
+                labelPosition="left"
+                classNames={SWITCH_ROW}
                 label="Developer networks"
                 description={`Lets you add wallets on Testnet and Regtest, and switch to them in the wallet menu. For developers and testers.${testNetsWhy ? ` ${testNetsWhy}` : ''}`}
                 checked={testNets}
@@ -924,25 +926,31 @@ function AutoLockSetting() {
   );
 }
 
+// An on/off setting as phones show one: what it is on the left, the switch
+// at the row's end.
+const SWITCH_ROW = { body: 'vault-switch-row', labelWrapper: 'vault-switch-text' };
+
 // Each send asks for the password or passkey before it goes out, so an
 // unlocked device left alone cannot be emptied. On unless turned off, for
 // each wallet. Turning it off is proven the same way, or whoever holds the
-// unlocked device could turn it off and then send: the box stays ticked
+// unlocked device could turn it off and then send: the switch stays on
 // until then, as in a phone's settings. Turning it on needs nothing.
 function ConfirmSendsSetting() {
   const { services, account, refresh } = useApp();
   const on = confirmsSends(account);
   const [asking, setAsking] = useOpenForm('confirm-sends');
-  const boxRef = useRef<HTMLInputElement>(null);
-  // Proven or not, focus goes back to the box, which says which it was.
+  const switchRef = useRef<HTMLInputElement>(null);
+  // Proven or not, focus goes back to the switch, which says which it was.
   const close = useCallback(() => {
     setAsking(false);
-    boxRef.current?.focus();
+    switchRef.current?.focus();
   }, [setAsking]);
   return (
     <SettingItem>
-      <Checkbox
-        ref={boxRef}
+      <Switch
+        ref={switchRef}
+        labelPosition="left"
+        classNames={SWITCH_ROW}
         label="Confirm each send with the password or passkey"
         description={on ? 'Asked on the review, before anything leaves this wallet.' : 'Sends from this wallet go out as soon as they are ready. Anyone with the unlocked device can send.'}
         checked={on}

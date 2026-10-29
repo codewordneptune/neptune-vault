@@ -2580,6 +2580,15 @@ html {
     margin-block: -12px;
   }
 }
+/* An on/off setting (Settings): what it is, then the switch at the row's end. */
+.vault-switch-row {
+  justify-content: space-between;
+  gap: 16px;
+}
+.vault-switch-text {
+  flex: 1;
+  min-width: 0;
+}
 /* A Copy button that has just copied: green, with a tick, for a moment
    (util/clipboard.ts). The green carries white text at 5.4:1. */
 .mantine-Button-root.vault-copied,
