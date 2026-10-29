@@ -1176,7 +1176,7 @@ export function Home() {
                 Your next send, to anyone, spends one of its coins, so the two cannot both go through.
               </Text>
               <Text size="sm" c="dimmed">
-                <Spoken text={`This send: ${showNau(BigInt(givingUpNow.amountNau))} NPT${givingUpNow.feeNau ? ` plus a ${showNau(BigInt(givingUpNow.feeNau))} NPT fee` : ''}. Giving up makes ${showNau(reservedFor(givingUpNow))} NPT spendable again.`} />
+                <Spoken text={`This send: ${amount(BigInt(givingUpNow.amountNau))} NPT${givingUpNow.feeNau ? ` plus a ${amount(BigInt(givingUpNow.feeNau))} NPT fee` : ''}. Giving up makes ${amount(reservedFor(givingUpNow))} NPT spendable again.`} />
               </Text>
               <Group grow>
                 <Button variant="default" onClick={closeGiveUp}>
