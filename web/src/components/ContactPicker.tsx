@@ -35,7 +35,7 @@ export function ContactPicker({ opened, onClose, onPick }: { opened: boolean; on
             <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
               <Avatar name={c.name} address={c.address} />
               <div style={{ minWidth: 0 }}>
-                <Text size="sm" fw={600} className="vault-row-title">
+                <Text size="md" fw={600} className="vault-row-title">
                   <bdi>{c.name}</bdi>
                 </Text>
                 <Text fz="var(--v-fs-mono)" c="dimmed" ff="monospace">

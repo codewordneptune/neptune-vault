@@ -920,10 +920,10 @@ export function Home() {
                           {rowAvatarOf(e)}
                           <div style={{ minWidth: 0 }}>
                             {/* A send not going through says so in its title when nothing else names it, in the caution colour. */}
-                            <Text size="sm" fw={600} className={!whoOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>
+                            <Text size="md" fw={600} className={!whoOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>
                               {whoOf(e) ? <bdi>{whoOf(e)}</bdi> : stateTitleOf(e)}
                             </Text>
-                            <Text size="xs" c="dimmed" className="vault-row-meta vault-tabular">
+                            <Text size="sm" c="dimmed" className="vault-row-meta vault-tabular">
                               {formatTime(h.timestampMs)}
                               {stateWordOf(e) && (
                                 <>
@@ -949,7 +949,7 @@ export function Home() {
                         <div className="vault-row-amount">
                           {/* Nothing left the wallet: the figure is struck through, with no sign. A send that may
                               still go through has not left it either, but may: dimmed, with no sign, not struck through. */}
-                          <Text size="sm" fw={600} c={notSent(e) || mayGo(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in vault-tabular' : 'vault-tabular'}>
+                          <Text size="md" fw={600} c={notSent(e) || mayGo(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in vault-tabular' : 'vault-tabular'}>
                             {notSent(e) || mayGo(e) ? '' : incoming ? '+' : '−'}
                             <Figure text={amount(e.shownNau)} />{' '}
                             <span className="vault-unit">NPT</span>

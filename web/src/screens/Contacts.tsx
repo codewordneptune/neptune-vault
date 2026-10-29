@@ -85,7 +85,7 @@ export function ContactsPanel() {
                   <Avatar name={c.name} address={c.address} />
                   <div className="vault-contact-text">
                     <div className="vault-contact-head">
-                      <Text size="sm" fw={600} className="vault-row-title">
+                      <Text size="md" fw={600} className="vault-row-title">
                         <bdi>{c.name}</bdi>
                       </Text>
                       <Group gap={4} wrap="nowrap" className="vault-contact-actions">
