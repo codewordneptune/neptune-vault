@@ -949,6 +949,17 @@ button.vault-network:focus-visible {
   color: var(--v-warn-text);
   font-weight: 600;
 }
+/* Steps still ahead (a send being made): muted, joined by a quieter line. */
+.vault-steps .todo {
+  color: var(--v-muted);
+}
+.vault-steps .todo svg {
+  color: var(--v-faint);
+}
+.vault-steps li.now::after,
+.vault-steps li.todo::after {
+  background: var(--v-faint);
+}
 .vault-step-when {
   color: var(--v-muted);
   font-size: var(--mantine-font-size-sm);
@@ -1136,7 +1147,8 @@ main :is(h2, h3)[tabindex='-1']:focus {
 .vault-receipt > .vault-row-icon {
   margin-bottom: 4px;
 }
-.vault-receipt > .vault-row-icon {
+.vault-receipt > .vault-row-icon,
+.vault-send-ring > .vault-row-icon {
   width: 56px;
   height: 56px;
 }
@@ -3376,9 +3388,88 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 .vault-sent p {
   text-wrap: balance;
 }
+/* While the send is made, a ring round the circle fills with the proving
+   work; without a measure yet, a short arc turns. Once the node has the
+   send it is full and green, and fades as the tick settles in. It keeps
+   its room, so the lines under it stay where they were. */
+.vault-send-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 92px;
+}
+.vault-send-ring > svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+  fill: none;
+  stroke-width: 4;
+}
+.vault-send-ring-track {
+  stroke: var(--v-line);
+}
+.vault-send-ring-arc {
+  stroke: var(--v-accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 600ms ease;
+}
+.vault-send-ring.turning > svg {
+  animation: vault-ring-turn 1.4s linear infinite;
+}
+@keyframes vault-ring-turn {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
+}
+.vault-send-ring.done .vault-send-ring-arc {
+  stroke: var(--v-ok-text);
+}
+.vault-send-ring.done > svg {
+  animation: vault-ring-out 400ms ease-out 200ms forwards;
+}
+@keyframes vault-ring-out {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vault-send-ring.turning > svg {
+    animation: none;
+  }
+  .vault-send-ring.done > svg {
+    animation: none;
+    opacity: 0;
+  }
+}
+/* The steps under the amount, as a column of their own in the middle, as
+   wide in every state: the block they are in spans the card. */
+.vault-sent .vault-sent-what {
+  align-self: stretch;
+}
+.vault-send-steps {
+  width: min(100%, 20rem);
+  margin-top: 12px;
+  text-align: left;
+}
+/* The foot: what to keep doing and Stop while the send is made, then the
+   two ways on. Its room is kept from one to the other, so the middle does
+   not move when the buttons come. */
+.vault-sent-foot {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 6.5rem;
+  margin-top: 16px;
+}
 .vault-sent-actions {
   align-self: stretch;
-  margin-top: 16px;
 }
 /* On a phone the page reaches the tab bar (.vault-send-bare): who and how
    much take its middle, and the two ways on its foot, where Review was. */

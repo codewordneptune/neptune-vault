@@ -3,9 +3,9 @@
 // runs as a job in the app context so it survives this screen being
 // unmounted (backgrounding locks the app).
 
-import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Loader, Paper, Progress, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
-import { useMediaQuery, useReducedMotion } from '@mantine/hooks';
-import { IconArrowsExchange, IconCheck, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
+import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Paper, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
+import { IconArrowsExchange, IconCheck, IconCircle, IconCircleCheck, IconCircleDot, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -18,7 +18,7 @@ import { formatAbout, formatDuration, timeAgo } from '../util/time';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { decimalsProblem } from '../util/amount';
 import { fiatOf, fiatOfTyped, formatFiat } from '../util/fiat';
-import { cleanNote, givenUpRivals, MAX_PAYMENTS, paymentsTotalNau, SEND_NOTE_MAX, RequiresLustrationError, sameSentRecently, SendBusyError, SendUnconfirmedError } from '../app/send';
+import { cleanNote, givenUpRivals, MAX_PAYMENTS, paymentsTotalNau, SEND_NOTE_MAX, RequiresLustrationError, sameSentRecently, SendBusyError, SendUnconfirmedError, type SendStage } from '../app/send';
 import { isCancellation } from '../app/passkey';
 import { WrongPasswordError } from '../storage/envelope';
 import { ContactPicker } from '../components/ContactPicker';
@@ -27,7 +27,7 @@ import { Avatar } from '../components/Avatar';
 import { Spoken } from '../components/Spoken';
 import { ChoiceField } from '../components/ChoiceField';
 import { Caution, ErrorLine, headingNear, Info, WarnLine } from '../components/Notice';
-import { MAY_HAVE_GONE_OUT, notSentReason, PREPARING_SEND, sendStageText, WAITING_FOR_BLOCK } from '../app/words';
+import { MAY_HAVE_GONE_OUT, notSentReason, PREPARING_SEND, sendStageText } from '../app/words';
 import { usePendingSends } from '../app/pending';
 import { QrScanner } from '../components/QrScanner';
 import { PasswordField } from '../components/PasswordField';
@@ -282,7 +282,6 @@ export function Send() {
   // Amounts hidden on Home stay hidden here, the review and its errors included.
   const hidden = services.settings.hideBalance ?? false;
   const spendableText = `Spendable ${hidden ? '••••' : showNau(balance.spendableNau)} NPT`;
-  const reducedMotion = useReducedMotion();
   // The node did not answer as a node at the last sync: sending would fail the same way.
   const nodeDown = sync?.phase === 'error' && sync.nodeDown === true;
   // A mouse or trackpad: a computer, where advice about touching the screen reads as a bug.
@@ -935,7 +934,7 @@ export function Send() {
 
   // Focus follows the screen: to the proving view's first line when it
   // starts, and to the result when it ends.
-  const runningTitle = useRef<HTMLParagraphElement>(null);
+  const runningTitle = useRef<HTMLHeadingElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   const isRunning = Boolean(sendJob && !sendJob.done);
   const isDone = Boolean(sendJob?.done && sendJob.ending);
@@ -983,9 +982,19 @@ export function Send() {
   const running = Boolean(sendJob && !sendJob.done);
   // A send the node took shows on its own until Done, in place of the form.
   const sentShown = Boolean(sendJob?.done && sendJob.ending === 'sent' && sendJob.outcome);
-  // The one address it paid, and that address's contact, for the circle the review showed.
-  const sentTo = sendJob?.request.payments.length === 1 ? sendJob.request.payments[0].recipient.trim() : null;
-  const sentName = sentTo ? contactName(sentTo) : null;
+  // The circle the review showed: the contact a send pays, or a plain one
+  // for any other address, yourself, or several recipients.
+  const circleOf = (request: { payments: { recipient: string }[] }, badge: ReactNode) => {
+    const to = request.payments.length === 1 ? request.payments[0].recipient.trim() : null;
+    const name = to ? contactName(to) : null;
+    if (to && name) return <Avatar big name={name} address={to} badge={badge} />;
+    return (
+      <span className="vault-row-icon out big" aria-hidden>
+        {to === null ? <IconUsers size={20} /> : isOwn(to) ? <IconArrowsExchange size={20} /> : <IconUser size={20} />}
+        {badge && <span className="vault-avatar-badge">{badge}</span>}
+      </span>
+    );
+  };
   const p = sendJob?.progress.proving;
   const proving = sendJob?.progress.stage === 'proving';
   // The prover reports only between sub-proofs, which take minutes, so the
@@ -1005,66 +1014,67 @@ export function Send() {
   const estimate = last && !last.error && last.seconds > 0 ? last.seconds : null;
 
   if (running && sendJob) {
-    // What is being sent, for a second look while it proves: the amount,
-    // who gets it, and the fee.
+    // The review's composition, kept while the send is made: who, ringed by
+    // the proving work done, and how much, then one line on what is
+    // happening and how long is left, and the steps. Stop is quiet, at the
+    // foot. The sent moment takes the same places, so nothing moves when it
+    // comes.
     const request = sendJob.request;
-    const masked = hidden;
-    const who = whoOf(request);
+    const stage = sendJob.progress.stage;
+    const handing = stage === 'confirming' || stage === 'submitting';
+    const percent = proving && p ? Math.round(100 * (p.work ?? p.index / p.total)) : null;
+    // Time left from this device's last proof, until the proof runs past it.
+    const left = estimate !== null && provingSeconds < estimate ? estimate - provingSeconds : null;
+    const line = proving ? `Proving on this device · ${left !== null ? `${formatAbout(left)} left` : `${formatDuration(provingSeconds)} so far`}` : handing ? 'Handing it to the node' : PREPARING_SEND;
     return (
-      <Paper>
+      <Paper className={phone ? 'vault-send-bare' : undefined} p={phone ? 0 : undefined}>
         <Stack>
-          {/* The screen's heading as the form has it; what is happening leads the card. */}
-          <Title order={2} className="vault-eyebrow">
-            Send
-          </Title>
-          <Stack gap={4} mt={-8}>
-            <Text fw={600} tabIndex={-1} ref={runningTitle}>
-              {PREPARING_SEND}
-            </Text>
-            <Text size="sm" c="dimmed" className="vault-tabular">
-              <Amount nau={paymentsTotalNau(request)} hidden={masked} /> to <span dir="auto" className="vault-bidi">{who}</span> · fee <Amount nau={BigInt(request.fee_nau ?? '0')} hidden={masked} />
-            </Text>
-          </Stack>
-          {/* One signal of progress at a time, in plain words: a line while the
-              send is being got ready and handed over, the bar while it is
-              proven (measured by the work done, so it never disagrees with a
-              step count). */}
-          <div aria-live="polite">
-            {/* The steps that wait on the node have no measure of their own: a
-                turning mark says the app is at work, not stuck. */}
-            {!(proving && p) && (
-              <Group gap="xs" wrap="nowrap" align="center">
-                <Loader size={16} color="var(--v-muted)" aria-hidden />
-                <Text size="sm">{sendStageText(sendJob.progress.stage, true)}…</Text>
-              </Group>
-            )}
-            {/* Why the steps started over, when they did: a block arrived. */}
-            {sendJob.progress.note && <WarnLine mt={4}>{sendJob.progress.note}</WarnLine>}
+          <div className="vault-send-head">
+            <Title order={2} className="vault-eyebrow">
+              Send
+            </Title>
           </div>
-          {proving && p && <Progress value={Math.round(100 * (p.work ?? p.index / p.total))} animated={!reducedMotion} aria-label="Share of the proving work done" />}
-          {proving && (
-            <Text size="sm" c="dimmed" className="vault-tabular">
-              <Spoken text={estimate !== null ? `${capitalise(formatAbout(estimate))} on this device · ` : ''} />
-              <Spoken text={`${formatDuration(provingSeconds)} so far`} />
-              {p && ` · ${Math.round(100 * (p.work ?? p.index / p.total))} % done`}
-            </Text>
-          )}
-          <Text size="sm">
-            {screenAwake === 'refused'
-              ? DESKTOP
-                ? 'This computer would not promise to stay awake. Keep the app running and the computer awake until this finishes: sleep pauses the send.'
-                : finePointer
-                  ? 'This browser would not promise to keep the computer awake. Keep this tab open and the computer awake until this finishes: sleep pauses the send.'
-                  : 'This device would not keep the screen on. Keep the app open and touch the screen now and then until this finishes: a locked phone pauses the send.'
-              : DESKTOP
-                ? 'Keep the app running until this finishes.'
-                : 'Keep the app open and in front until this finishes. Other screens are fine.'}
-          </Text>
-          {proving && (
-            <Button variant="light" color="red" className="danger" onClick={() => setConfirmStop(true)} loading={stopping}>
-              {stopping ? 'Stopping…' : 'Stop'}
-            </Button>
-          )}
+          <div className="vault-send-result">
+            <div className="vault-sent">
+              <div className="vault-receipt vault-sent-what">
+                <SendRing progress={proving ? (percent ?? 0) / 100 : handing ? 1 : null}>{circleOf(sendJob.request, null)}</SendRing>
+                <Text component="h3" fz="md" fw={600} tabIndex={-1} ref={runningTitle}>
+                  Sending to <bdi>{whoOf(request)}</bdi>
+                </Text>
+                <div className="vault-receipt-amount">
+                  <Amount nau={paymentsTotalNau(request)} hidden={hidden} />
+                </div>
+                <Text size="sm" c="dimmed" className="vault-tabular">
+                  <Spoken text={line} />
+                </Text>
+                <SendProgressSteps stage={stage} percent={percent} />
+                {/* Why the steps started over, when they did: a block arrived. */}
+                {sendJob.progress.note && <WarnLine mt={4}>{sendJob.progress.note}</WarnLine>}
+              </div>
+              <div className="vault-sent-foot">
+                <Text size="sm" c="dimmed">
+                  {screenAwake === 'refused'
+                    ? DESKTOP
+                      ? 'This computer would not promise to stay awake. Keep the app running and the computer awake until this finishes: sleep pauses the send.'
+                      : finePointer
+                        ? 'This browser would not promise to keep the computer awake. Keep this tab open and the computer awake until this finishes: sleep pauses the send.'
+                        : 'This device would not keep the screen on. Keep the app open and touch the screen now and then until this finishes: a locked phone pauses the send.'
+                    : DESKTOP
+                      ? 'Keep the app running until this finishes.'
+                      : 'Keep the app open and in front until this finishes. Other screens are fine.'}
+                </Text>
+                {proving && (
+                  <UnstyledButton type="button" onClick={() => setConfirmStop(true)} disabled={stopping} c="var(--v-danger-text)" fw={600} className="vault-tap-link">
+                    {stopping ? 'Stopping…' : 'Stop'}
+                  </UnstyledButton>
+                )}
+              </div>
+            </div>
+          </div>
+          {/* The step under way, and why the steps started over, said as they change. */}
+          <div className="sr-only" aria-live="polite">
+            {sendStageText(stage, true)}. {sendJob.progress.note}
+          </div>
         </Stack>
         <Sheet opened={confirmStop} onClose={() => setConfirmStop(false)} title="Stop this send?">
           <Stack>
@@ -1487,18 +1497,11 @@ export function Send() {
             {/* What went where, in the words History uses for the send. The proof's time is in Diagnostics. */}
             {sentShown && (
               <div className="vault-sent">
-                {/* Who and how much as the review showed them, with a tick at the circle's corner. */}
+                {/* Who and how much where the send showed them while it was
+                    made, its ring closing into a tick at the circle's corner,
+                    and its steps, the last one now under way. */}
                 <div className="vault-receipt vault-sent-what">
-                  {sentTo && sentName ? (
-                    <Avatar big name={sentName} address={sentTo} badge={<IconCheck size={16} />} />
-                  ) : (
-                    <span className="vault-row-icon out big" aria-hidden>
-                      {sentTo === null ? <IconUsers size={20} /> : isOwn(sentTo) ? <IconArrowsExchange size={20} /> : <IconUser size={20} />}
-                      <span className="vault-avatar-badge">
-                        <IconCheck size={16} />
-                      </span>
-                    </span>
-                  )}
+                  <SendRing done>{circleOf(sendJob.request, <IconCheck size={16} />)}</SendRing>
                   <Text component="h3" fz="md" fw={600}>
                     Sent to <bdi>{whoOf(sendJob.request)}</bdi>
                   </Text>
@@ -1506,14 +1509,16 @@ export function Send() {
                     <Amount nau={paymentsTotalNau(sendJob.request)} hidden={hidden} />
                   </div>
                   <Text size="sm" c="dimmed">
-                    Fee <Spoken text={hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} /> NPT · {WAITING_FOR_BLOCK.toLowerCase()}, usually within an hour
+                    Fee <Spoken text={hidden ? '••••' : showNau(BigInt(sendJob.request.fee_nau ?? '0'))} /> NPT
                   </Text>
+                  <SendProgressSteps stage="done" />
+                </div>
+                <div className="vault-sent-foot">
                   {lastRecipient && !savedName && (
                     <UnstyledButton onClick={() => setSaving(true)} c="var(--v-accent-text)" fz="sm" className="vault-tap-link">
                       Save recipient as a contact
                     </UnstyledButton>
                   )}
-                </div>
                 <Group grow className="vault-sent-actions">
                   <Button variant="light" onClick={() => navigate('/')}>
                     See in History
@@ -1529,6 +1534,7 @@ export function Send() {
                     Done
                   </Button>
                 </Group>
+                </div>
               </div>
             )}
             {sendJob.ending === 'unconfirmed' && (
@@ -1842,8 +1848,59 @@ export function Send() {
   );
 }
 
-/** "about 2 min" at the start of a sentence. */
-function capitalise(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
+/**
+ * A ring round the recipient's circle while a send is made: it fills with
+ * the proving work done, turns while there is no measure (`progress` null),
+ * and once the node has the send closes, green, into the tick (`done`).
+ */
+function SendRing({ progress = null, done = false, children }: { progress?: number | null; done?: boolean; children: ReactNode }) {
+  const r = 43;
+  const length = 2 * Math.PI * r;
+  const shown = done ? 1 : (progress ?? 0.2);
+  return (
+    <span className={`vault-send-ring${done ? ' done' : progress === null ? ' turning' : ''}`}>
+      <svg viewBox="0 0 92 92" aria-hidden>
+        <circle className="vault-send-ring-track" cx="46" cy="46" r={r} />
+        <circle className="vault-send-ring-arc" cx="46" cy="46" r={r} strokeDasharray={length} strokeDashoffset={length * (1 - shown)} />
+      </svg>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Where a send is, as four steps: its coins, its proof, the node, a block.
+ * Done steps say what was done, as the details sheet on Home does once the
+ * node has the send; the one under way says what is happening.
+ */
+function SendProgressSteps({ stage, percent = null }: { stage: SendStage; percent?: number | null }) {
+  const at = stage === 'planning' || stage === 'membership-proofs' || stage === 'building' ? 0 : stage === 'proving' ? 1 : stage === 'confirming' || stage === 'submitting' ? 2 : 3;
+  const steps: { done: string; now: string; when?: string }[] = [
+    { done: 'Coins chosen and checked', now: sendStageText(stage, true) },
+    { done: 'Signed and proved', now: 'Proving', when: percent !== null ? `${percent} %` : undefined },
+    { done: 'Taken by the node', now: 'Handing it to the node' },
+    { done: 'In a block', now: 'In a block', when: at === 3 ? 'usually within an hour' : 'within an hour' },
+  ];
+  return (
+    <ol className="vault-steps vault-send-steps">
+      {steps.map((s, i) =>
+        i < at ? (
+          <li key={i} className="done">
+            <IconCircleCheck size={20} aria-hidden />
+            <span>
+              {s.done}
+              <span className="sr-only">, done</span>
+            </span>
+          </li>
+        ) : (
+          <li key={i} className={i === at ? 'now' : 'todo'} aria-current={i === at ? 'step' : undefined}>
+            {i === at ? <IconCircleDot size={20} aria-hidden /> : <IconCircle size={20} aria-hidden />}
+            <span>{s.now}</span>
+            {s.when && <span className="vault-step-when">{s.when}</span>}
+          </li>
+        ),
+      )}
+    </ol>
+  );
 }
 
