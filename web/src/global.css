@@ -1409,6 +1409,43 @@ main :is(h2, h3)[tabindex='-1']:focus {
   animation: vault-spin 1s linear infinite;
 }
 
+/* A change of screen (app/screenTransition.ts): the screen fades out and the
+   next rises in by a few pixels. The header and the tab bar belong to every
+   screen, so they are pictured apart and stay put. */
+.vault-topbar {
+  view-transition-name: vault-header;
+}
+.vault-tabbar {
+  view-transition-name: vault-tabs;
+}
+main.vault-main {
+  view-transition-name: vault-screen;
+}
+::view-transition-group(vault-screen) {
+  animation: none;
+}
+::view-transition-old(vault-screen) {
+  animation: vault-screen-out 90ms ease-out both;
+}
+::view-transition-new(vault-screen) {
+  animation: vault-screen-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 160ms;
+}
+@keyframes vault-screen-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes vault-screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 /* Less motion, when the system asks for it: every transition and animation
    ends at once, the library's own included (the theme's
    respectReducedMotion covers what it moves from script). A spinner stands

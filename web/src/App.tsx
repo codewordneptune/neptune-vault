@@ -1,12 +1,13 @@
 import { Box, Button, Container, Group, Loader, Stack, Text } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import { Sheet } from './components/Sheet';
 import { useApp } from './app/AppContext';
 import type { AccountRecord } from './storage/db';
 import { DESKTOP, MOBILE, NATIVE } from './app/platform';
+import { useScreenTransition } from './app/screenTransition';
 import { DesktopUpdateNotice } from './components/DesktopUpdateNotice';
 import { Logo } from './components/Logo';
 import { NetworkMenu } from './components/NetworkMenu';
@@ -65,11 +66,16 @@ function shortcutProps(label: string, digit: number): { title: string; 'aria-key
 
 export function App() {
   const { ready, account, locked, services } = useApp();
-  // A new screen starts at its top; the router alone keeps the old scroll position.
-  const { pathname, search } = useLocation();
+  // The screen on show, a view transition behind the router while screens
+  // glide (app/screenTransition.ts). The rest of App follows it, so nothing
+  // changes before the browser has pictured the old screen.
+  const shown = useScreenTransition(useLocation());
+  const { pathname, search } = shown;
   // Onboarding is closed once a wallet exists, except to add another.
   const addingWallet = new URLSearchParams(search).has('add');
-  useEffect(() => {
+  // A new screen starts at its top, already when the browser pictures it;
+  // the router alone keeps the old scroll position.
+  useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
 
@@ -267,7 +273,7 @@ export function App() {
       {/* On a wide screen every screen shares one width, so moving between
           them does not make the content jump; Home's balance becomes a band. */}
       <Container component="main" size="xs" py="md" className={!locked && account && pathname === '/' ? 'vault-main vault-main-home' : !locked && account && pathname.startsWith('/settings') ? 'vault-main vault-main-settings' : 'vault-main'}>
-        <Routes>
+        <Routes location={shown}>
           {/* Adding a wallet is for whoever can unlock the one that is there: a locked app offers nothing else. */}
           <Route path="/onboarding" element={account && !addingWallet ? <Navigate to="/" replace /> : account && locked ? <Unlock /> : <Onboarding />} />
           <Route path="/" element={gate(<Home />)} />
