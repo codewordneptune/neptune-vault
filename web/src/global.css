@@ -2017,6 +2017,17 @@ html {
   min-width: 40px;
   min-height: 40px;
 }
+/* On a touch screen the main buttons and the fields are 48 px tall, as
+   Android's guidance has it for main actions, where 42 suits a mouse; a
+   compact button keeps its own size. */
+@media (pointer: coarse) {
+  .mantine-Button-root {
+    --button-height-md: 48px;
+  }
+  .mantine-Input-wrapper {
+    --input-height-md: 48px;
+  }
+}
 /* On a touch screen a finger needs 44 px (Apple's guideline), where 40 is
    ample for a mouse: the small actions, the header's wallet pill, the lock
    screen's "Not this wallet?", menu rows and segmented choices grow to 44,
