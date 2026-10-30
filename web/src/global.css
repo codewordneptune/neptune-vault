@@ -2886,12 +2886,43 @@ html {
 .vault-settings-row.danger .vault-settings-row-label {
   color: var(--v-danger-text);
 }
+/* Each row's icon on a tile of its own colour, white on top, as phone
+   settings draw them, so a row is found by its colour before it is read.
+   The same colours in both themes. */
 .vault-settings-row-icon {
   flex: none;
-  color: var(--v-muted);
+  box-sizing: content-box;
+  padding: 7px;
+  border-radius: 9px;
+  color: #fff;
+  background: #5c6b7f;
 }
-.vault-settings-row.danger .vault-settings-row-icon {
-  color: var(--v-danger-text);
+.vault-settings-row-icon[data-tile='backup'] {
+  background: #c77d12;
+}
+.vault-settings-row-icon[data-tile='security'] {
+  background: #2b8a3e;
+}
+.vault-settings-row-icon[data-tile='contacts'] {
+  background: #1c7ed6;
+}
+.vault-settings-row-icon[data-tile='name'] {
+  background: #7c8796;
+}
+.vault-settings-row-icon[data-tile='autolock'] {
+  background: #5f3dc4;
+}
+.vault-settings-row-icon[data-tile='appearance'] {
+  background: #7048e8;
+}
+.vault-settings-row-icon[data-tile='currency'] {
+  background: #0c8599;
+}
+.vault-settings-row-icon[data-tile='about'] {
+  background: #1971c2;
+}
+.vault-settings-row-icon[data-tile='remove'] {
+  background: #d6336c;
 }
 .vault-settings-row-value {
   min-width: 0;
