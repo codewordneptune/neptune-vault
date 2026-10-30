@@ -1,7 +1,7 @@
 import { Box, Button, Container, Group, Stack, Text } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
-import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import { Sheet } from './components/Sheet';
 import { useApp } from './app/AppContext';
@@ -231,6 +231,12 @@ export function App() {
   // Setup, adding a wallet included, keeps the whole screen: a tab would
   // leave it and drop what was typed. Cancel and Back are the way out.
   const showTabs = Boolean(account) && !locked && pathname !== '/onboarding';
+  const brand = (
+    <>
+      <Logo size={26} />
+      <span className={DESKTOP ? 'sr-only' : 'vault-wordmark'}>Neptune Vault</span>
+    </>
+  );
 
   return (
     <Box onClick={touch} onKeyDown={touch} className={showTabs ? 'vault-shell has-tabs' : 'vault-shell'}>
@@ -258,8 +264,13 @@ export function App() {
                 the lock screen, which has no pill. */}
             <Group gap={6} wrap="nowrap">
               <h1 className="vault-brand">
-                <Logo size={26} />
-                <span className={DESKTOP ? 'sr-only' : 'vault-wordmark'}>Neptune Vault</span>
+                {showTabs ? (
+                  <Link to="/" className="vault-brand-link" aria-label="Neptune Vault, Home">
+                    {brand}
+                  </Link>
+                ) : (
+                  brand
+                )}
               </h1>
               {/* The early-version warning, on every screen: setup also shows it in full. */}
               <PocTag />

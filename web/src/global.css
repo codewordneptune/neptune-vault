@@ -606,6 +606,22 @@ h3.mantine-Title-root.vault-prose-heading {
   font-size: var(--v-fs-md);
   letter-spacing: -0.01em;
 }
+/* The mark leads Home once a wallet is open, a full target in the bar's row. */
+.vault-brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: var(--v-tap);
+  min-height: var(--v-tap);
+  margin-block: calc((26px - var(--v-tap)) / 2);
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--v-radius-xs);
+}
+.vault-brand-link:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 2px;
+}
 /* A value that opens a menu of the others, in muted text with a chevron:
    the header's wallet pill. */
 button.vault-network {
