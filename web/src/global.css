@@ -1038,6 +1038,15 @@ button.vault-network:focus-visible {
   font-size: var(--mantine-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
+/* With large text the time goes under its step, which keeps its words whole. */
+@media (max-width: 22em) {
+  .vault-steps li {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+  .vault-step-when {
+    grid-column: 2;
+  }
+}
 /* The buttons (40 px, 44 on touch) reach into the space around the line,
    so it keeps its height and the button its centre on the first line. */
 .vault-detail-actions {
@@ -3975,6 +3984,33 @@ html {
     text-align: center;
     overflow-wrap: break-word;
     hyphens: auto;
+  }
+}
+
+/* Text large for the screen: the wallet menu holds the Beta tag's warning,
+   so the header keeps one row (LARGE_TEXT in app/layout.ts). */
+@media (max-width: 19em) {
+  .vault-topbar:has(button.vault-network) .vault-beta {
+    display: none;
+  }
+  button.vault-network:has(.vault-test-network) .vault-network-wallet {
+    max-width: 5em;
+  }
+}
+/* At the largest sizes four labels no longer fit side by side: the current
+   tab keeps its label, and the others their icons and their names for a
+   screen reader. */
+@media (max-width: 14.5em) {
+  .vault-tab:not(.active) .vault-tab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 }
 

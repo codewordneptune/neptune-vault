@@ -5,21 +5,25 @@
 // that network's; choosing a wallet locks and opens that wallet.
 
 import { Button, Group, Menu, Stack, Text } from '@mantine/core';
-import { IconChevronDown, IconLock, IconPlus, IconWallet } from '@tabler/icons-react';
+import { IconAlertTriangle, IconChevronDown, IconLock, IconPlus, IconWallet } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { POC_TITLE, PocSheet } from './PocNotice';
 import { Sheet } from './Sheet';
 import { useApp } from '../app/AppContext';
+import { LARGE_TEXT, useLayout } from '../app/layout';
 import { byCreation, offeredNetworks, walletName, type AccountRecord, type Network } from '../storage/db';
 import { NETWORK_LABELS } from '../util/network';
 
 export function NetworkMenu() {
   const { services, network, switchNetwork, switchAccount, account, locked, sendJob } = useApp();
   const navigate = useNavigate();
+  const largeText = useLayout(LARGE_TEXT);
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [opened, setOpened] = useState(false);
   const [pending, setPending] = useState<Network | null>(null);
+  const [earlyVersion, setEarlyVersion] = useState(false);
   // The menu item that opened the dialog is gone when it closes: focus goes back to the pill.
   const pillRef = useRef<HTMLButtonElement>(null);
   const cancelSwitch = () => {
@@ -113,7 +117,24 @@ export function NetworkMenu() {
             </Menu.RadioGroup>
           </div>
         )}
+        {/* Where large text leaves the header's Beta tag no room, the warning is here. */}
+        {largeText && (
+          <>
+            <Menu.Divider />
+            <Menu.Item leftSection={<IconAlertTriangle size={16} />} onClick={() => setEarlyVersion(true)}>
+              {POC_TITLE}
+            </Menu.Item>
+          </>
+        )}
       </Menu.Dropdown>
+      <PocSheet
+        opened={earlyVersion}
+        returnFocus={false}
+        onClose={() => {
+          setEarlyVersion(false);
+          setTimeout(() => pillRef.current?.focus(), 0);
+        }}
+      />
       <Sheet opened={pending !== null} onClose={cancelSwitch} returnFocus={false} title={pending ? `Switch to ${NETWORK_LABELS[pending]}?` : ''}>
         {pending && (
           <Stack>

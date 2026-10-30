@@ -324,7 +324,7 @@ export function App() {
               {TABS.map(({ to, label, Icon }, i) => (
                 <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`} {...(DESKTOP ? shortcutProps(label, i + 1) : {})}>
                   <Icon size={20} />
-                  {label}
+                  <span className="vault-tab-label">{label}</span>
                 </NavLink>
               ))}
             </Group>

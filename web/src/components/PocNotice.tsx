@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { Sheet } from './Sheet';
 
 const SEEN_KEY = 'neptune-vault.poc-notice-seen';
-const POC_TITLE = 'Early version, not yet audited';
+export const POC_TITLE = 'Early version, not yet audited';
 // The title says it is not audited; the seed phrase comes on the next screen.
 const POC_TEXT = 'Prototype, for testing only. Not audited. Do not use it for real funds.';
 // Under the line, which already says it is not audited.
@@ -25,9 +25,9 @@ function seen(): boolean {
   }
 }
 
-function PocSheet({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+export function PocSheet({ opened, onClose, returnFocus }: { opened: boolean; onClose: () => void; returnFocus?: boolean }) {
   return (
-    <Sheet opened={opened} onClose={onClose} title={POC_TITLE}>
+    <Sheet opened={opened} onClose={onClose} returnFocus={returnFocus} title={POC_TITLE}>
       <Stack>
         <Text size="sm">{POC_TEXT}</Text>
         <Button variant="default" onClick={onClose} data-autofocus>
