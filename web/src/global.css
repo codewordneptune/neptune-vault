@@ -1633,6 +1633,11 @@ main :is(h2, h3)[tabindex='-1']:focus {
 main.vault-main {
   view-transition-name: vault-screen;
 }
+/* The header and the tab bar stay put, and a press cannot land until the
+   change is over: nothing runs longer than the screen itself. */
+::view-transition-group(*) {
+  animation-duration: 160ms;
+}
 ::view-transition-group(vault-screen) {
   animation: none;
 }
