@@ -79,7 +79,7 @@ function StartMonth({ at }: { at: number }) {
   return (
     <div className="vault-start-month">
       <Text size="sm" c="dimmed">
-        Month
+        Start month
       </Text>
       <Text size="sm" fw={600}>
         {formatMonth(at)}
