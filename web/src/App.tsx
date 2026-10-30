@@ -290,8 +290,8 @@ export function App() {
           phone app is updated by installing its next build. */}
       {DESKTOP ? <DesktopUpdateNotice /> : !NATIVE ? <UpdateStrip /> : null}
       <SendStrip />
-      {/* On a wide screen every screen shares one width, so moving between
-          them does not make the content jump; Home's balance becomes a band. */}
+      {/* On a wide screen every tab shares one width, so moving between them
+          does not make the content jump; Home's balance becomes a band. */}
       <Container component="main" size="xs" py="md" className={!locked && account && pathname === '/' ? 'vault-main vault-main-home' : !locked && account && pathname.startsWith('/settings') ? 'vault-main vault-main-settings' : 'vault-main'}>
         <Routes location={shown}>
           {/* Adding a wallet is for whoever can unlock the one that is there: a locked app offers nothing else. */}

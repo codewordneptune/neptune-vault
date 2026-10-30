@@ -3012,11 +3012,21 @@ html {
     padding-block: 6px;
   }
 }
-/* Settings' list beside its open page needs more than one column's width;
-   the strips under the header keep to the same column. */
+/* Every tab shares one column, so the content does not jump between them.
+   From 1100 px it is wide enough for Settings' list beside its open page and
+   for History's columns; a send's amount stays close to what it is for, in
+   a narrower column inside its card. The strips under the header keep to
+   the same column; setup and the lock screen, without tabs, keep their own. */
 @media (min-width: 1100px) {
-  .vault-shell:has(.vault-main-settings) {
+  .vault-shell.has-tabs {
     --v-content-width: 960px;
+  }
+  .vault-send-head,
+  .vault-send-form,
+  .vault-send-result {
+    width: 100%;
+    max-width: 640px;
+    margin-inline: auto;
   }
 }
 
