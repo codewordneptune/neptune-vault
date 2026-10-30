@@ -17,7 +17,7 @@ import type { Location } from 'react-router-dom';
 
 import { SETTINGS_SPLIT } from './layout';
 
-type Move = 'screen' | 'pane' | 'deeper' | 'back';
+type Move = 'screen' | 'pane' | 'deeper' | 'back' | 'fade';
 
 function moveOf(from: string, to: string): Move {
   const [fromTop, ...fromRest] = from.split('/').filter(Boolean);
@@ -48,6 +48,14 @@ function moveTo(move: Move, change: () => void): void {
     });
 }
 
+const canMove = () => typeof document.startViewTransition === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** A change over the whole window, such as the theme, as a cross-fade. */
+export function crossFade(change: () => void): void {
+  if (canMove()) moveTo('fade', change);
+  else change();
+}
+
 export function useScreenTransition(location: Location): Location {
   const [shown, setShown] = useState(location);
   useLayoutEffect(() => {
@@ -56,8 +64,7 @@ export function useScreenTransition(location: Location): Location {
     const glide =
       location.pathname !== shown.pathname &&
       !browserMoved &&
-      typeof document.startViewTransition === 'function' &&
-      !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      canMove();
     browserMoved = false;
     if (glide) moveTo(moveOf(shown.pathname, location.pathname), show);
     else show();

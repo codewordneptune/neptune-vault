@@ -28,6 +28,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useR
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { Sheet } from '../components/Sheet';
+import { crossFade } from '../app/screenTransition';
 import { Logo } from '../components/Logo';
 import { BACKGROUND_LOCK_CHOICES_MS, backgroundLockOf, LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, showNau, useApp } from '../app/AppContext';
@@ -1266,7 +1267,7 @@ function AppearanceCard() {
       </Text>
       {THEMES.map((t) => (
         <label key={t.value} className="vault-theme-tile">
-          <input type="radio" name="vault-theme" className="sr-only" checked={colorScheme === t.value} onChange={() => setColorScheme(t.value)} />
+          <input type="radio" name="vault-theme" className="sr-only" checked={colorScheme === t.value} onChange={() => crossFade(() => setColorScheme(t.value))} />
           <span className="vault-theme-preview" data-preview={t.value} aria-hidden>
             <i />
             <i />

@@ -1082,7 +1082,7 @@ export function Home() {
             </div>
           )
         ) : (
-          <div>
+          <div key={listing} className="vault-history-days">
             {days.map((day) => (
               <section key={day.key} className="vault-history-day">
                 <h4 className="vault-history-day-label">{day.label}</h4>

@@ -130,6 +130,15 @@ export function App() {
     return () => cancelAnimationFrame(frame);
   }, [locked]);
 
+  // Unlocking fades into the screen, with the tab bar it brings.
+  const lockedBefore = useRef(locked);
+  useLayoutEffect(() => {
+    const unlocked = lockedBefore.current && !locked;
+    lockedBefore.current = locked;
+    if (!unlocked || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    for (const el of document.querySelectorAll('main.vault-main, .vault-tabbar')) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+  }, [locked]);
+
   // Whether this device has a wallet on any network: the header's menu is
   // the way back from a network without one.
   const [anyWallet, setAnyWallet] = useState(false);

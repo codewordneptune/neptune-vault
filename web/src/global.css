@@ -1677,6 +1677,19 @@ html:is([data-move='deeper'], [data-move='back'])::view-transition-new(vault-scr
     transform: translateX(var(--v-move));
   }
 }
+/* A change of theme fades across the whole window. */
+html[data-move='fade']::view-transition-old(vault-screen) {
+  animation: vault-screen-out 160ms ease-out both;
+}
+html[data-move='fade']::view-transition-new(vault-screen) {
+  animation: vault-fade-in 160ms ease-out both;
+}
+/* Within a screen, a choice that swaps what it shows fades it in: Receive's
+   tabs, History's quick filters. */
+.mantine-Tabs-panel,
+.vault-history-days {
+  animation: vault-fade-in 160ms ease-out;
+}
 /* Within Settings on a wide window only its page changes: the list beside
    it stays as it is, and the page comes in where it stands. */
 html[data-move='pane'] .vault-settings-split .vault-settings-list {
