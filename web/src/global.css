@@ -1257,7 +1257,7 @@ main :is(h2, h3)[tabindex='-1']:focus {
   margin: -12px 0 8px;
 }
 /* Its title is in the head, so the close button keeps to the end on its own. */
-.vault-close-end > .mantine-Modal-close {
+.vault-close-end.vault-close-end > .mantine-Modal-close.mantine-Modal-close {
   margin-inline-start: auto;
 }
 .vault-receipt-amount.struck {
