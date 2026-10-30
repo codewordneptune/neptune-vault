@@ -689,8 +689,10 @@ lock, web share and passkeys.
 Native shell (`shells/tauri/src/lib.rs`). Beyond the wallet it does little:
 
 - Plugins: single-instance on the desktop (a second launch focuses the
-  running window), deep-link on phones (a `neptunecash:` link opens the
-  app), dialog (the Save dialog behind `app_save_file`, so the page never
+  running window, and hands over the payment link it was started with),
+  deep-link (a `neptunecash:` link opens the app; the desktop installers
+  register the scheme, and a development build registers it itself on
+  Windows and Linux), dialog (the Save dialog behind `app_save_file`, so the page never
   names a path) and opener (behind `app_open_url`).
 - Links: `app_open_url` opens only `https://` URLs whose host is in
   `LINK_HOSTS` (useneptune.org, t.me, talk.neptune.cash, github.com,
@@ -705,8 +707,8 @@ Native shell (`shells/tauri/src/lib.rs`). Beyond the wallet it does little:
 - Storage: sealed logs under `<app data dir>/logs`.
 - Permissions: the window may use `core:default`, set its page zoom, and
   close itself once a close during a send is confirmed
-  (`shells/tauri/capabilities/default.json`); on a phone it may also read
-  the payment link that opened the app (`capabilities/mobile.json`). Node
+  (`shells/tauri/capabilities/default.json`); it may also read the payment
+  link that opened the app (`capabilities/mobile.json`, `desktop.json`). Node
   requests are the page's own `fetch`, under the CSP in
   `shells/tauri/tauri.conf.json`.
 
@@ -722,7 +724,7 @@ view and is reported as unavailable when it is not.
 Android app. The same shell, built with `tauri android` (`lib.rs` has the
 mobile entry point). What differs is gated by `NATIVE`, `MOBILE`, `DESKTOP`
 and `ANDROID` in `web/src/app/platform.ts`. Payment links (`neptunecash:`)
-open the app through Tauri's deep-link plugin, phones only, and fill in
+open the app through Tauri's deep-link plugin, as on the desktop, and fill in
 Send (`web/src/app/paymentLinks.ts`) once: the link is then taken off its
 history entry, so neither Back nor Send coming back after an unlock fills
 it in again. While a seed phrase is shown or typed,

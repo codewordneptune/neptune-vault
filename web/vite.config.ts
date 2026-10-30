@@ -187,6 +187,10 @@ export default defineConfig(({ mode }) => ({
           { src: 'screenshots/receive.webp', sizes: '780x1688', type: 'image/webp', form_factor: 'narrow', label: 'Receive: the address as a QR code' },
           { src: 'screenshots/wide-home-dark.webp', sizes: '1280x800', type: 'image/webp', form_factor: 'wide', label: 'Home on a wide screen' },
         ],
+        // On Android, the installed app is offered in the share sheet: an
+        // address or a payment request shared from another app opens Send
+        // with it filled in (/share, App.tsx).
+        share_target: { action: '/share', method: 'GET', params: { title: 'title', text: 'text', url: 'url' } },
         // A long press on the installed app's icon.
         shortcuts: [
           { name: 'Send', url: '/send', icons: [{ src: 'icons/shortcut-send.png', sizes: '192x192', type: 'image/png' }] },

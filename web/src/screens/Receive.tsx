@@ -5,7 +5,7 @@
 // unused" derives the next key of that kind.
 
 import { Button, Group, Loader, Menu, Paper, Stack, Tabs, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconArrowsMaximize, IconCheck, IconCopy, IconPencil, IconPlus, IconShare, IconTrash } from '@tabler/icons-react';
+import { IconArrowsMaximize, IconCheck, IconCopy, IconPencil, IconPlus, IconShare, IconTrash, IconWorld } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import QRCode from 'qrcode';
 import { useMediaQuery } from '@mantine/hooks';
@@ -28,6 +28,9 @@ import { fiatOfTyped, formatFiat } from '../util/fiat';
 import { nextKeyIndicesOf } from '../storage/db';
 import { abbreviateAddress, metaProblem, paymentQrPayload, paymentUri } from '../util/address';
 import { useCopied } from '../util/clipboard';
+import { LINKS } from '../app/links';
+import { NATIVE } from '../app/platform';
+import { payLink } from '../app/sharedLinks';
 import { groupDigits, showInt } from '../util/format';
 import { KEY_LOOKAHEAD, type KeyKind } from '../backend/types';
 
@@ -393,6 +396,7 @@ export function Receive() {
   // Whatever hands the address on gives it out, on either tab. Copy says it copied on itself.
   const [addressCopied, copyAddress] = useCopied();
   const [requestCopied, copyLink] = useCopied();
+  const [webLinkCopied, copyWebLinkText] = useCopied();
   const copy = () => {
     giveOut(kind, index);
     void copyAddress(address, 'Address copied', copyFailed);
@@ -408,6 +412,13 @@ export function Receive() {
   const copyRequest = () => {
     giveOut(kind, index);
     void copyLink(paymentLink, 'Payment request copied', copyFailed);
+  };
+  // The same request as a web link, for a payer who uses Neptune Vault in a
+  // browser, where a neptunecash: link opens nothing: it opens their Vault
+  // at Send, filled in (app/sharedLinks.ts).
+  const copyWebLink = () => {
+    giveOut(kind, index);
+    void copyWebLinkText(payLink(NATIVE ? LINKS.webApp : location.origin, paymentLink), 'Web link copied', copyFailed);
   };
   // Shown only where the system share sheet exists, as on the Address tab:
   // elsewhere it would only copy, which Copy already does.
@@ -734,6 +745,7 @@ export function Receive() {
     </Text>
   );
   const requestActions = (
+    <>
     <Group className="vault-receive-actions">
       <Button className={requestCopied ? 'vault-copied' : undefined} leftSection={requestCopied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copyRequest} disabled={requestInvalid} aria-label={requestCopied ? 'Request copied' : 'Copy request'} aria-describedby={cautionId}>
         {requestCopied ? 'Copied' : 'Copy'}
@@ -744,6 +756,21 @@ export function Receive() {
         </Button>
       )}
     </Group>
+    <UnstyledButton
+      onClick={copyWebLink}
+      disabled={requestInvalid}
+      c={requestInvalid ? 'var(--v-faint)' : webLinkCopied ? 'var(--v-ok-text)' : 'var(--v-accent-text)'}
+      fz="sm"
+      className="vault-tap-link vault-link-icon vault-web-link"
+      aria-describedby="web-link-note"
+    >
+      {webLinkCopied ? <IconCheck size={16} aria-hidden /> : <IconWorld size={16} aria-hidden />}
+      {webLinkCopied ? 'Copied' : 'Copy as a web link'}
+    </UnstyledButton>
+    <Text id="web-link-note" size="sm" c="dimmed" ta="center" mt={-12}>
+      Opens Send in Neptune Vault, in the payer's browser.
+    </Text>
+    </>
   );
 
   return (

@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "On a computer the page may also read the payment link (neptunecash:) that started the app; the ones that arrive later come as an event, which core:default already lets it hear.",
+  "platforms": [
+    "windows",
+    "macOS",
+    "linux"
+  ],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "deep-link:default"
+  ]
+}

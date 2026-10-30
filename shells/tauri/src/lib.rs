@@ -505,15 +505,23 @@ pub fn run() {
             let _ = window.set_focus();
         }
     }));
-    // On a phone, a payment link (neptunecash:) tapped in another app or on
-    // a web page opens this one, and the page fills in Send from it. The
-    // scheme is in tauri.conf.json, which puts it in the Android manifest.
-    #[cfg(mobile)]
+    // A payment link (neptunecash:) tapped or clicked in another app or on a
+    // web page opens this one, and the page fills in Send from it. The scheme
+    // is in tauri.conf.json, which puts it in the Android manifest and has
+    // the desktop installers register it; on Windows and Linux a link starts
+    // a second copy of the app, which hands it to this one (single instance).
     let builder = builder.plugin(tauri_plugin_deep_link::init());
     builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            // A development build is not installed, so it registers the
+            // scheme itself, to try links with.
+            #[cfg(all(debug_assertions, any(windows, target_os = "linux")))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let _ = app.deep_link().register_all();
+            }
             // The wallet's sealed logs live in the app's own data folder, a
             // path this app chose, and not in the web view's storage.
             let logs = app.path().app_data_dir()?.join("logs");

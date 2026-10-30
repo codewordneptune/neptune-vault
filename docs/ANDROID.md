@@ -62,8 +62,8 @@ A high-trust app that needs no personal registration with Google:
   than version 140 and reports the bars' sizes wrongly, the shell measures
   them (`app_insets`). Not yet tried on a phone.
 - **Payment links.** A `neptunecash:` link tapped in another app or on a
-  web page opens the app (Tauri's deep-link plugin, phones only; when
-  several apps take such links, Android asks which one). Send is filled in
+  web page opens the app (Tauri's deep-link plugin; when several apps take
+  such links, Android asks which one). Send is filled in
   from it as from a scanned code, after the password if the wallet is
   locked, and nothing goes out without the review.
 - **Measured** on a Galaxy S24 (Exynos 2400, 10 cores), 2026-10-01:

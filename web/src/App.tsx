@@ -8,6 +8,7 @@ import { useApp } from './app/AppContext';
 import type { AccountRecord } from './storage/db';
 import { DESKTOP, MOBILE, NATIVE } from './app/platform';
 import { useScreenTransition } from './app/screenTransition';
+import { paymentTextIn, requestInFragment } from './app/sharedLinks';
 import { DesktopUpdateNotice } from './components/DesktopUpdateNotice';
 import { Logo } from './components/Logo';
 import { NetworkMenu } from './components/NetworkMenu';
@@ -70,7 +71,7 @@ export function App() {
   // glide (app/screenTransition.ts). The rest of App follows it, so nothing
   // changes before the browser has pictured the old screen.
   const shown = useScreenTransition(useLocation());
-  const { pathname, search } = shown;
+  const { pathname, search, hash } = shown;
   // Onboarding is closed once a wallet exists, except to add another.
   const addingWallet = new URLSearchParams(search).has('add');
   // A new screen starts at its top, already when the browser pictures it;
@@ -164,12 +165,13 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, services, navigate]);
 
-  // In the phone app, a payment link tapped in another app or on a web page
-  // opens Send, filled in from it (app/paymentLinks.ts). A locked wallet asks
-  // for its password first; with no wallet, setup comes first and the link
-  // is let go. Loaded only there: the web app never gets these links.
+  // In the phone and desktop apps, a payment link tapped in another app or
+  // on a web page opens Send, filled in from it (app/paymentLinks.ts). A
+  // locked wallet asks for its password first; with no wallet, setup comes
+  // first and the link is let go. Loaded only there: the web app gets
+  // payments from elsewhere through /share and /pay instead (below).
   useEffect(() => {
-    if (!MOBILE) return;
+    if (!NATIVE) return;
     let gone = false;
     let stop: (() => void) | undefined;
     void import('./app/paymentLinks').then(({ onPaymentLinks }) => {
@@ -296,6 +298,11 @@ export function App() {
               cannot get started needs the device facts to report why. */}
           <Route path="/diagnostics" element={account && locked ? <Unlock /> : <ReportProblemScreen />} />
           <Route path="/privacy" element={<Privacy />} />
+          {/* A payment from elsewhere: text another app shared into the
+              installed web app (the manifest's share_target), or a /pay web
+              link. Send fills in from it; nothing goes out without the review. */}
+          <Route path="/share" element={<Navigate to="/send" replace state={{ link: paymentTextIn([...new URLSearchParams(search).values()].join(' ')) }} />} />
+          <Route path="/pay" element={<Navigate to="/send" replace state={requestInFragment(hash) ? { link: requestInFragment(hash) } : null} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Container>

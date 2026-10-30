@@ -1,6 +1,6 @@
 // Payment links (neptunecash:) opened from other apps and web pages, in the
-// phone app: the one that started the app, and each one that arrives while
-// it runs (Tauri's deep-link plugin, shells/tauri). Each is handed on to be
+// phone and desktop apps: the one that started the app, and each one that
+// arrives while it runs (Tauri's deep-link plugin, shells/tauri). Each is handed on to be
 // read as a scanned code is, into Send; nothing is sent until the person
 // reviews it. A link is never logged: NIP-002 forbids it, since one can
 // carry a key.

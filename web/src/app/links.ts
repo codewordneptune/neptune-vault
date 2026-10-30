@@ -11,6 +11,8 @@ export const LINKS = {
   /** GitHub release page; append the tag. */
   release: 'https://github.com/codewordneptune/neptune-vault/releases/tag/',
   neptune: 'https://neptune.cash',
+  /** The web app, for links made in the phone and desktop apps that open it in a browser. */
+  webApp: 'https://vault.dev.useneptune.org',
   /** Explorer page for an output, by canonical commitment; Mainnet only. */
   explorerOutput: 'https://neptunefundamentals.org/output/',
 };
