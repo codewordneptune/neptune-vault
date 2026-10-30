@@ -2011,6 +2011,7 @@ html {
 .vault-row-amount .vault-unit,
 .vault-balance-fiat-value .vault-unit,
 .vault-amount-estimate .vault-unit,
+.vault-payee-figure .vault-unit,
 .vault-review-row b .vault-unit {
   font-weight: 400;
   color: var(--v-muted);
@@ -3586,22 +3587,23 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   }
 }
 
-/* A send to several: the recipients as rows under one label, each a card as
-   a single recipient's is, with its amount and a way to take it out. The
-   address field or the card comes first and the amount after them, under
-   the field and, once the card can spare the room, on its first line, the
-   width of what is typed. The review lists them with what each gets. */
+/* A send to several: one recipient open at a time, laid out as a send to one
+   is, under a heading with the way to take it out; the others fold into
+   rows of who and how much, and a press opens them. The review lists them
+   with what each gets. */
 .vault-payees {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 .vault-payee {
-  --payee-field: min(calc(var(--chars) * 0.6rem + 3.25rem), 11rem);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px 0;
-  padding: 8px 8px 8px calc(42px / 3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 6px 14px;
   border: 1px solid var(--v-field-border);
   border-radius: var(--mantine-radius-sm);
   background: var(--v-field);
@@ -3611,50 +3613,57 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   background: var(--v-surface);
   box-shadow: var(--v-card-shadow);
 }
-.vault-payee > :first-child {
-  grid-area: 1 / 1 / 2 / -1;
-}
-.vault-payee > :not(:first-child, .vault-payee-amount) {
-  grid-column: 1 / -1;
-}
-.vault-payee-amount {
+/* A name and a long amount that do not fit side by side take a line each. */
+.vault-payee-who {
   display: flex;
-  grid-area: 2 / 2;
-  align-items: center;
-  gap: 2px;
-}
-.vault-payee-amount .mantine-Input-wrapper {
-  width: var(--payee-field);
-}
-.vault-payee-amount input {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.vault-payee-amount .mantine-Input-section {
-  color: var(--v-muted);
-  font-size: var(--v-fs-sm);
-}
-/* A name next to an amount: "(unverified)" takes the next line rather than the name's room. */
-.vault-payee .vault-recipient-name {
+  flex: 1 1 5em;
   flex-wrap: wrap;
-  row-gap: 0;
+  align-items: baseline;
+  column-gap: 6px;
+  min-width: 0;
+  font-weight: 600;
 }
-/* The width of app/layout.ts's PAYEE_ROW. */
-@media (min-width: 22.5em) {
-  .vault-payee:has(.vault-recipient) > .vault-payee-amount {
-    grid-area: 1 / 2;
-    align-self: start;
-  }
-  .vault-payee .vault-recipient-head {
-    gap: 4px;
-  }
-  .vault-payee .vault-recipient-head:first-child {
-    min-height: 2.625rem;
-    padding-inline-end: calc(var(--payee-field) + var(--v-tap) + 14px);
-  }
-  .vault-payee .vault-recipient-head .vault-tap-link {
-    margin-right: -4px;
-  }
+.vault-payee-name {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vault-payee-address {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--v-fs-sm);
+  font-weight: 400;
+  color: var(--v-muted);
+}
+.vault-payee-quiet {
+  flex: none;
+  font-size: var(--v-fs-sm);
+  font-weight: 400;
+  color: var(--v-muted);
+}
+.vault-payee-figure {
+  min-width: 0;
+  margin-inline-start: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.vault-payee-open {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+}
+.vault-payee-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 1.5rem;
+}
+.vault-payee-head .vault-tap {
+  margin-block: -10px;
+  margin-right: -8px;
 }
 /* What the send comes to, and what there is to spend beside it. */
 .vault-send-total {
@@ -3773,13 +3782,6 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   border-color: transparent;
   background: var(--v-surface);
   box-shadow: var(--v-card-shadow);
-}
-.vault-payee .vault-recipient.vault-recipient {
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  box-shadow: none;
 }
 .vault-amount-hero {
   container-type: inline-size;

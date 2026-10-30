@@ -13,7 +13,7 @@ import { Sheet } from '../components/Sheet';
 import { formatNau, NAU_PER_COIN, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { clearSendDraft, keepSendDraft, sendDraft, type ExtraPayee, type SendDraft } from '../app/sendDraft';
 import { DESKTOP } from '../app/platform';
-import { iconSection, PAYEE_ROW, PHONE, useLayout } from '../app/layout';
+import { iconSection, PHONE, useLayout } from '../app/layout';
 import { formatAbout, formatDuration, timeAgo } from '../util/time';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { decimalsProblem, typedTotalNau } from '../util/amount';
@@ -111,21 +111,15 @@ function FieldActions({ contacts, onPick, onScan, who }: { contacts: boolean; on
  * of that line, which brings the field back with the address selected,
  * Choose contact and Scan beside it; under it the address, shortened as
  * everywhere, across the card; and its kind when it is not Standard, as on
- * the review. One of several (`inRow`) has the group's label for its own;
- * where its amount shares the first line, Change moves to the second.
+ * the review. `who` names it among several, where a heading stands for
+ * its label.
  */
-function RecipientCard({ address, name, requestName, who, onChange, changeRef, inRow = false }: { address: string; name: string | null; requestName: string | null; who: string | null; onChange: () => void; changeRef: (el: HTMLButtonElement | null) => void; inRow?: boolean }) {
+function RecipientCard({ address, name, requestName, who, onChange, changeRef }: { address: string; name: string | null; requestName: string | null; who: string | null; onChange: () => void; changeRef: (el: HTMLButtonElement | null) => void }) {
   const labelId = useId();
   const kind = addressKindNote(address);
   const shownName = name ?? requestName;
-  const changeBelow = useLayout(PAYEE_ROW) && inRow;
-  const change = (
-    <UnstyledButton ref={changeRef} type="button" onClick={onChange} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-label={who ? `Change ${who}` : 'Change the recipient'}>
-      Change
-    </UnstyledButton>
-  );
   return (
-    <Input.Wrapper label="Recipient address" labelElement="div" size="md" labelProps={{ id: labelId, className: inRow ? 'sr-only' : undefined }}>
+    <Input.Wrapper label="Recipient address" labelElement="div" size="md" labelProps={{ id: labelId, className: who ? 'sr-only' : undefined }}>
       <div className="vault-recipient" role="group" aria-labelledby={labelId}>
         {/* A saved contact shows as their circle; any other address as a plain
             one, and a name that came with a request says "unverified". */}
@@ -155,14 +149,13 @@ function RecipientCard({ address, name, requestName, who, onChange, changeRef, i
                 Not in your contacts
               </Text>
             )}
-            {!changeBelow && change}
+            <UnstyledButton ref={changeRef} type="button" onClick={onChange} c="var(--v-accent-text)" fz="sm" className="vault-tap-link" aria-label={who ? `Change ${who}` : 'Change the recipient'}>
+              Change
+            </UnstyledButton>
           </div>
-          <div className="vault-recipient-head">
-            <Text ff="monospace" size="sm" c={shownName ? 'dimmed' : undefined}>
-              {abbreviateAddress(address)}
-            </Text>
-            {changeBelow && change}
-          </div>
+          <Text ff="monospace" size="sm" c={shownName ? 'dimmed' : undefined}>
+            {abbreviateAddress(address)}
+          </Text>
           {kind && (
             <Badge size="sm" variant="outline" color="gray" mt={6} className="vault-kind">
               {kind}
@@ -184,13 +177,14 @@ function Estimate({ id, figure, code }: { id?: string; figure: string; code: str
 }
 
 /**
- * The amount of a send to one recipient: large and centred, the field as
+ * The amount of the recipient being filled in: large and centred, the field as
  * wide as what is typed and the unit after it, smaller as the figure grows;
  * under it its estimate in another currency, and the most it can be, which
  * a press fills in.
  */
 function AmountHero({
   inputRef,
+  who,
   value,
   onChange,
   onBlur,
@@ -201,6 +195,7 @@ function AmountHero({
   maxDisabled,
 }: {
   inputRef: (el: HTMLInputElement | null) => void;
+  who: string | null;
   value: string;
   onChange: (value: string) => void;
   onBlur: () => void;
@@ -218,7 +213,7 @@ function AmountHero({
   return (
     <div className="vault-amount-hero">
       <label htmlFor={id} className="sr-only">
-        Amount (NPT)
+        {who ? `Amount for ${who} (NPT)` : 'Amount (NPT)'}
       </label>
       {/* A tap anywhere on the figure or its unit is a tap on the field. */}
       <div className="vault-amount-line" style={{ '--chars': Math.max(4, value.length) } as CSSProperties} onClick={() => input.current?.focus()}>
@@ -266,49 +261,6 @@ function AmountHero({
           <Spoken text={error} />
         </Input.Error>
       )}
-    </div>
-  );
-}
-
-/**
- * The amount of one of several recipients, in its row, and the way to take
- * the row out. Its error is said under the row, so the field only points to it.
- */
-function PayeeAmount({ inputRef, who, value, invalid, describedBy, onChange, onBlur, onRemove }: {
-  inputRef: (el: HTMLInputElement | null) => void;
-  who: string;
-  value: string;
-  invalid: boolean;
-  describedBy: string | undefined;
-  onChange: (value: string) => void;
-  onBlur: () => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="vault-payee-amount">
-      <Input
-        ref={inputRef}
-        size="md"
-        radius="sm"
-        aria-label={`Amount for ${who} (NPT)`}
-        inputMode="decimal"
-        autoComplete="off"
-        placeholder="0"
-        value={value}
-        onChange={(e) => onChange(e.currentTarget.value)}
-        onBlur={onBlur}
-        error={invalid}
-        withAria={false}
-        aria-invalid={invalid ? true : undefined}
-        aria-describedby={describedBy}
-        rightSection="NPT"
-        rightSectionPointerEvents="none"
-      />
-      <Tooltip label="Remove" interactive>
-        <ActionIcon type="button" variant="subtle" color="gray" size="lg" className="vault-tap" onClick={onRemove} aria-label={`Remove ${who}`}>
-          <IconX size={16} />
-        </ActionIcon>
-      </Tooltip>
     </div>
   );
 }
@@ -479,15 +431,38 @@ export function Send() {
   const [extras, setExtras] = useState<ExtraPayee[]>(draft?.extras ?? []);
   const nextExtraId = useRef(1 + Math.max(0, ...(draft?.extras ?? []).map((x) => x.id)));
   const updateExtra = (id: number, patch: Partial<ExtraPayee>) => setExtras((all) => all.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  const changeAmount = (id: number, value: string) => {
+    if (id === 0) {
+      setAmount(value);
+      setAmountError(null);
+    } else updateExtra(id, { amount: value, amountError: null });
+  };
+  const setAmountErrorOf = (id: number, message: string) => (id === 0 ? setAmountError(message) : updateExtra(id, { amountError: message }));
+  // Every recipient, the first held on its own. With several, one is open,
+  // laid out as a send to one is, and the rest are folded into rows.
+  const payees = [{ id: 0, recipient, amount, recipientError, amountError }, ...extras];
+  const [openId, setOpenId] = useState(draft?.extras.at(-1)?.id ?? 0);
+  const openNow = payees.some((p) => p.id === openId) ? openId : payees[payees.length - 1].id;
   // The address field to take the focus as it comes: a recipient just added,
   // so its fields are where the person is and not somewhere below them
   // unseen, or a card's on Change and the first one's on Clear.
   const focusField = useRef<number | null>(null);
-  const addRecipient = () => {
+  // The open recipient comes first: what it still needs is said there, so the
+  // form never gathers empty rows.
+  const addRecipient = async () => {
+    const open = payees.find((p) => p.id === openNow) ?? payees[0];
+    const [addressOk, typed] = await Promise.all([open.id === 0 ? checkRecipient() : checkExtraRecipient(open.id), parsePositive(open.amount, 'amount')]);
+    if ('message' in typed) setAmountErrorOf(open.id, typed.message);
+    if (!addressOk || 'message' in typed) {
+      focusFirstInvalid();
+      return;
+    }
     const id = nextExtraId.current++;
     focusField.current = id;
     setExtras((all) => [...all, { id, recipient: '', amount: '', recipientError: null, amountError: null }]);
-    // Max means everything to one recipient; with two it would mean nothing.
+    setOpenId(id);
+    // Exact to the last nau only for one recipient: it follows the fee, and
+    // the others' amounts are what is typed.
     setMaxExact(null);
   };
 
@@ -623,7 +598,7 @@ export function Send() {
   // Every amount and the fee, against the spendable balance. On leaving a
   // field (`leaving`) an amount or a fee that is still empty is not an error
   // yet: the person may be on the way to it.
-  const checkAmounts = async (leaving = false): Promise<{ ok: boolean; totals: Totals | null }> => {
+  const checkAmounts = async (leaving = false): Promise<{ ok: boolean; totals: Totals | null; bad: number[] }> => {
     const typed = await parsePositive(amount, 'amount');
     // Max means everything: the exact figure, not the eight decimals on screen.
     const a = maxExact && extras.length === 0 && maxExact.text === amount && 'nau' in typed ? { nau: maxExact.nau } : typed;
@@ -645,8 +620,11 @@ export function Send() {
       if (total + f.nau > balance.spendableNau) {
         // The figure itself only while amounts are shown.
         const spendable = hidden ? 'the spendable balance' : `the spendable balance of ${showNau(balance.spendableNau)} NPT`;
+        // Said at the recipient open, the one being typed in.
+        const at = extras.findIndex((x) => x.id === openNow);
         if (extras.length === 0) amountMessage = `Amount plus fee exceeds ${spendable}`;
-        else moreMessages[moreMessages.length - 1] = `The amounts plus the fee exceed ${spendable}`;
+        else if (at < 0) amountMessage = `The amounts plus the fee exceed ${spendable}`;
+        else moreMessages[at] = `The amounts plus the fee exceed ${spendable}`;
       } else {
         // Unusual: more than 1 NPT, or more than the payments themselves and above every preset.
         const one = BigInt(await services.core.parseAmount('1'));
@@ -659,29 +637,38 @@ export function Send() {
     setAmountError(amountMessage);
     setExtras((all) => all.map((x, i) => ({ ...x, amountError: moreMessages[i] ?? null })));
     setFeeError(feeMessage);
-    return { ok: amountMessage === null && feeMessage === null && moreMessages.every((m) => m === null), totals };
+    const bad = [...(amountMessage ? [0] : []), ...extras.filter((_, i) => moreMessages[i]).map((x) => x.id)];
+    return { ok: amountMessage === null && feeMessage === null && moreMessages.every((m) => m === null), totals, bad };
   };
 
-  // Everything spendable minus the current fee; the fee must parse first.
+  // Everything spendable minus the current fee and what the others get; the fee must parse first.
   const sendAll = async () => {
     const f = await parsePositive(fee, 'fee');
     if ('message' in f) {
       setFeeError(f.message);
       return;
     }
-    const max = balance.spendableNau - f.nau;
+    const others = typedTotalNau(payees.filter((p) => p.id !== openNow).map((p) => p.amount), NAU_PER_COIN) ?? 0n;
+    const max = balance.spendableNau - f.nau - others;
     if (max <= 0n) {
-      setAmountError(hidden ? 'The fee alone exceeds the spendable balance' : `The fee alone exceeds the spendable balance of ${showNau(balance.spendableNau)} NPT`);
+      const spendable = hidden ? 'the spendable balance' : `the spendable balance of ${showNau(balance.spendableNau)} NPT`;
+      setAmountErrorOf(openNow, others > 0n ? `The fee and the other amounts take all of ${spendable}` : `The fee alone exceeds ${spendable}`);
       return;
     }
     const text = formatNau(max);
-    setAmount(text);
-    setMaxExact({ text, nau: max });
-    setAmountError(null);
+    changeAmount(openNow, text);
+    if (extras.length === 0) setMaxExact({ text, nau: max });
   };
 
   const formRef = useRef<HTMLFormElement>(null);
   const [reviewing, setReviewing] = useState(false);
+  // What stands in the way gets the focus: it may be below the fold.
+  const focusFirstInvalid = () =>
+    setTimeout(() => {
+      const first = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+      first?.focus();
+      first?.scrollIntoView({ block: 'center' });
+    }, 0);
   const review = async () => {
     if (reviewing) return;
     setReviewing(true);
@@ -692,13 +679,11 @@ export function Send() {
       const [amounts, addressesOk] = await Promise.all([checkAmounts(), Promise.all([checkRecipient(), ...extras.map((x) => checkExtraRecipient(x.id))])]);
       const totals = amounts.totals;
       if (!amounts.ok || !totals || !addressesOk.every(Boolean)) {
-        // Review stays pressable, so what stands in its way is shown, and the
-        // first such field, which may be below the fold, gets the focus.
-        setTimeout(() => {
-          const first = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
-          first?.focus();
-          first?.scrollIntoView({ block: 'center' });
-        }, 0);
+        // Review stays pressable, so what stands in its way is shown: the
+        // first recipient it concerns opens.
+        const first = payees.find((p, i) => !addressesOk[i] || amounts.bad.includes(p.id));
+        if (first) setOpenId(first.id);
+        focusFirstInvalid();
         return;
       }
       const addresses = [form.recipient, ...form.extras.map((x) => x.recipient)].map((a) => a.trim());
@@ -895,8 +880,21 @@ export function Send() {
       setExtras(rest);
       dropRequest();
     } else setExtras((all) => all.filter((x) => x.id !== id));
+    const before = at > 0 ? extras[at - 1].id : 0;
+    setOpenId(before);
     setEditing(null);
-    setTimeout(() => amountRefs.current.get(at > 0 ? extras[at - 1].id : 0)?.focus(), 0);
+    setTimeout(() => amountRefs.current.get(before)?.focus(), 0);
+  };
+  // Opening one folds the other; one with nothing in it yet goes rather than
+  // stay as an empty row. Focus goes to what is most likely to change: the
+  // amount, or the address while there is none.
+  const openRecipient = (id: number) => {
+    const open = payees.find((p) => p.id === openNow);
+    if (open && open.id !== 0 && open.recipient.trim() === '' && open.amount.trim() === '') setExtras((all) => all.filter((x) => x.id !== open.id));
+    setOpenId(id);
+    setEditing(null);
+    if (payees.find((p) => p.id === id)?.recipient.trim() === '') focusField.current = id;
+    else setTimeout(() => amountRefs.current.get(id)?.focus(), 0);
   };
 
   // A link for an added recipient gives its address and amount. The name
@@ -1188,8 +1186,8 @@ export function Send() {
     );
   }
 
-  // One structure at every size: who, how much, the fee, Review. A send to
-  // one recipient leads with the amount, large; several are rows with theirs.
+  // One structure at every size: who, how much, the fee, Review. With several
+  // recipients the one open keeps that shape, and a Total joins the fee.
   const hero = extras.length === 0;
 
   // The review is a sheet over the form, so the form stays in view and
@@ -1486,7 +1484,7 @@ export function Send() {
   // close the form, so nothing else moves as recipients come and go. The
   // note opens where it is asked for: most sends do without one.
   const addRecipientLink = 1 + extras.length < MAX_PAYMENTS && (
-    <UnstyledButton type="button" onClick={addRecipient} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon">
+    <UnstyledButton type="button" onClick={() => void addRecipient()} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start vault-link-icon">
       <IconPlus size={16} aria-hidden />
       Add another recipient
     </UnstyledButton>
@@ -1550,8 +1548,6 @@ export function Send() {
       {formFeeNote && <WarnLine>{formFeeNote}</WarnLine>}
     </>
   );
-  // Every recipient, the first held on its own.
-  const payees = [{ id: 0, recipient, amount, recipientError, amountError }, ...extras];
   // What several amounts and the fee come to, and what there is to spend
   // beside it, which a send to one says under its amount.
   const totalNau = typedTotalNau([...payees.map((p) => p.amount), fee], NAU_PER_COIN);
@@ -1576,11 +1572,12 @@ export function Send() {
       </div>
     </div>
   );
-  // The most a send to one can be: what is spendable, less the fee. No figure
-  // while the fee does not read.
+  // The most the open recipient can get: what is spendable, less the fee and
+  // what the others get. No figure while those do not read.
   const feeNau = fee.trim() === '' ? null : typedTotalNau([fee], NAU_PER_COIN);
-  const maxNau = feeNau !== null && balance.spendableNau > feeNau ? balance.spendableNau - feeNau : 0n;
-  const maxText = feeNau === null ? 'Max' : `Max ${hidden ? '••••' : showNau(maxNau)} NPT`;
+  const othersNau = typedTotalNau(payees.filter((p) => p.id !== openNow).map((p) => p.amount), NAU_PER_COIN);
+  const takenNau = feeNau === null || othersNau === null ? null : feeNau + othersNau;
+  const maxText = takenNau === null ? 'Max' : `Max ${hidden ? '••••' : showNau(balance.spendableNau > takenNau ? balance.spendableNau - takenNau : 0n)} NPT`;
   // `who` names the recipient when there are several.
   const addressField = (id: number, value: string, error: string | null, who: string | null) => (
     <TextInput
@@ -1624,50 +1621,82 @@ export function Send() {
       rightSection={<FieldActions contacts={contacts.length > 0} onPick={() => setPickFor(id)} onScan={() => setScanFor(id)} who={who} />}
     />
   );
-  // One of several: a card or its field, and after them the amount, which
-  // stays mounted as the two trade places so it keeps the focus.
-  const payeeRow = (p: (typeof payees)[number], i: number) => {
-    const name = contactName(p.recipient);
-    const who = name ?? `recipient ${i + 1}`;
-    const estimate = estimateOf(p.amount);
-    const noteId = `payee-${p.id}-note`;
-    const errorId = `payee-${p.id}-error`;
-    return (
-      <div key={p.id} className="vault-payee" role="group" aria-label={`Recipient ${i + 1}`} style={{ '--chars': Math.max(6, p.amount.length) } as CSSProperties}>
-        {asCard(p.id, p.recipient, p.recipientError) ? (
-          <RecipientCard address={p.recipient.trim()} name={name} requestName={p.id === 0 ? (linkMeta?.label ?? null) : null} who={who} onChange={() => changeRecipient(p.id)} changeRef={cardChangeRef(p.id)} inRow />
-        ) : (
-          addressField(p.id, p.recipient, p.recipientError, who)
-        )}
-        <PayeeAmount
-          inputRef={(el) => {
-            if (el) amountRefs.current.set(p.id, el);
-            else amountRefs.current.delete(p.id);
-          }}
-          who={who}
-          value={p.amount}
-          invalid={p.amountError !== null}
-          describedBy={[estimate ? noteId : null, p.amountError ? errorId : null].filter(Boolean).join(' ') || undefined}
-          onChange={(value) => {
-            if (p.id === 0) {
-              setAmount(value);
-              setAmountError(null);
-            } else updateExtra(p.id, { amount: value, amountError: null });
-          }}
-          onBlur={() => void checkAmounts(true)}
-          onRemove={() => removeRecipient(p.id)}
-        />
-        {estimate && (
-          <Text id={noteId} size="sm" c="dimmed" ta="end">
-            <Spoken text={estimate} />
-          </Text>
-        )}
-        {p.amountError && (
-          <Input.Error id={errorId}>
-            <Spoken text={p.amountError} />
-          </Input.Error>
-        )}
+  // A recipient being filled in, the same whether there is one or several.
+  const recipientFields = (p: (typeof payees)[number], who: string | null) => (
+    <>
+      {asCard(p.id, p.recipient, p.recipientError) ? (
+        <RecipientCard address={p.recipient.trim()} name={contactName(p.recipient)} requestName={p.id === 0 ? (linkMeta?.label ?? null) : null} who={who} onChange={() => changeRecipient(p.id)} changeRef={cardChangeRef(p.id)} />
+      ) : (
+        addressField(p.id, p.recipient, p.recipientError, who)
+      )}
+      <AmountHero
+        inputRef={(el) => {
+          if (el) amountRefs.current.set(p.id, el);
+          else amountRefs.current.delete(p.id);
+        }}
+        who={who}
+        value={p.amount}
+        onChange={(value) => changeAmount(p.id, value)}
+        onBlur={() => void checkAmounts(true)}
+        error={p.amountError}
+        estimate={estimatePartsOf(p.amount)}
+        max={maxText}
+        onMax={() => void sendAll()}
+        maxDisabled={balance.spendableNau <= 0n}
+      />
+    </>
+  );
+  // The one open among several, under a heading with the way to take it out.
+  const openRow = (p: (typeof payees)[number], i: number) => (
+    <div key={p.id} className="vault-payee-open" role="group" aria-labelledby={`payee-${p.id}`}>
+      <div className="vault-payee-head">
+        <span className="vault-group-label" id={`payee-${p.id}`}>
+          Recipient {i + 1}
+        </span>
+        <Tooltip label="Remove" interactive>
+          <ActionIcon type="button" variant="subtle" color="gray" size="lg" className="vault-tap" onClick={() => removeRecipient(p.id)} aria-label={`Remove recipient ${i + 1}`}>
+            <IconX size={16} />
+          </ActionIcon>
+        </Tooltip>
       </div>
+      {recipientFields(p, contactName(p.recipient) ?? `recipient ${i + 1}`)}
+    </div>
+  );
+  // The others, folded: who and how much, and a press opens them. What one
+  // still lacks is said here, and at the field once Review has opened it.
+  const foldedRow = (p: (typeof payees)[number]) => {
+    const address = p.recipient.trim();
+    const name = contactName(p.recipient);
+    const requestName = p.id === 0 ? (linkMeta?.label ?? null) : null;
+    const nau = p.amount.trim() === '' ? null : typedTotalNau([p.amount], NAU_PER_COIN);
+    return (
+      <UnstyledButton key={p.id} type="button" className="vault-payee" onClick={() => openRecipient(p.id)}>
+        {name ? (
+          <Avatar name={name} address={address} />
+        ) : (
+          <span className="vault-row-icon out" aria-hidden>
+            <IconUser size={20} />
+          </span>
+        )}
+        <span className="vault-payee-who">
+          {name || requestName ? (
+            <>
+              <span className="vault-payee-name">
+                <bdi>{name ?? requestName}</bdi>
+              </span>
+              {!name && <span className="vault-payee-quiet">(unverified)</span>}
+            </>
+          ) : address ? (
+            <span className="vault-payee-address">{abbreviateAddress(address)}</span>
+          ) : (
+            <span className="vault-payee-quiet">No address yet</span>
+          )}
+        </span>
+        <span className="vault-payee-figure">
+          {nau !== null ? <Amount nau={nau} hidden={hidden} /> : <span className="vault-payee-quiet">{p.amount.trim() === '' ? 'No amount yet' : 'Check the amount'}</span>}
+        </span>
+        <span className="sr-only">Change</span>
+      </UnstyledButton>
     );
   };
 
@@ -1787,31 +1816,13 @@ export function Send() {
         >
           <Stack>
             {hero ? (
-              <Stack className="vault-send-first">
-                {asCard(0, recipient, recipientError) ? <RecipientCard address={recipient.trim()} name={contactName(recipient)} requestName={linkMeta?.label ?? null} who={null} onChange={() => changeRecipient(0)} changeRef={cardChangeRef(0)} /> : addressField(0, recipient, recipientError, null)}
-                <AmountHero
-                  inputRef={(el) => {
-                    if (el) amountRefs.current.set(0, el);
-                  }}
-                  value={amount}
-                  onChange={(value) => {
-                    setAmount(value);
-                    setAmountError(null);
-                  }}
-                  onBlur={() => void checkAmounts(true)}
-                  error={amountError}
-                  estimate={estimatePartsOf(amount)}
-                  max={maxText}
-                  onMax={() => void sendAll()}
-                  maxDisabled={balance.spendableNau <= 0n}
-                />
-              </Stack>
+              <Stack className="vault-send-first">{recipientFields(payees[0], null)}</Stack>
             ) : (
               <div className="vault-payees" role="group" aria-labelledby="payees">
                 <span className="vault-group-label" id="payees">
                   Recipients
                 </span>
-                {payees.map(payeeRow)}
+                {payees.map((p, i) => (p.id === openNow ? openRow(p, i) : foldedRow(p)))}
               </div>
             )}
             {(addRecipientLink || addNoteLink) && (
