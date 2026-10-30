@@ -11,7 +11,7 @@ export interface PrivacySection {
   paragraphs: string[];
 }
 
-export const PRIVACY_UPDATED = '2026-10-13';
+export const PRIVACY_UPDATED = '2026-10-30';
 
 /** The statement in a few lines, before its sections. */
 export const PRIVACY_SUMMARY =
@@ -24,6 +24,7 @@ export const PRIVACY: PrivacySection[] = [
       "Your seed phrase, encrypted with your password (and, if you turn it on, wrapped for your passkey). The coins found by scanning, your history and its notes, your contacts, the names you gave your addresses and which of them you have given out, all encrypted too, so they cannot be read while the wallet is locked. Your seed phrase can open all of it too, so that it can set a new password if you forget yours. Kept without encryption: each wallet's name, network, creation time, start block and address count, a few marks such as whether its seed phrase was confirmed and when you last saved a backup file, and the settings, such as the node's address, the lock times and a record of the last proof. All of it lives in " +
         (NATIVE ? "the app's own storage" : "this browser's storage") +
         ' on this device. Nothing is kept anywhere else by this app.' +
+        (NATIVE ? ' The payment link that last opened the app is kept too, without encryption, so that a page that loads again does not open it twice.' : '') +
         (NATIVE && !DESKTOP ? " Android's own backup and its transfer to a new phone leave it out." : ''),
       'A seed phrase being set up, new or typed in, is never written to storage: it stays in memory until the wallet is made, and a reload during setup starts again.',
       NATIVE
@@ -41,7 +42,7 @@ export const PRIVACY: PrivacySection[] = [
         ? '**GitHub.** The desktop app carries its own files. When it starts, and every six hours while it runs, it asks GitHub whether a newer version has been published. Like any web host, GitHub can log those requests, including your IP address. It receives nothing about your wallet.'
         : NATIVE
           ? '**Updates.** The Android app carries its own files and never asks anyone whether a newer version is out. A new version comes only when you install one.'
-          : '**The host serving the app.** The official site is vault.dev.useneptune.org, hosted on Microsoft Azure. The first visit loads the app\'s files from it, and the browser keeps them. After that the app asks the site whether a newer version is published: when you open it, about every hour while it is open, and each time you come back to it. Like any web host, the site can log those requests, including your IP address. It receives nothing about your wallet.',
+          : '**The host serving the app.** The official site is vault.dev.useneptune.org, hosted on Microsoft Azure. The first visit loads the app\'s files from it, and the browser keeps them. After that the app asks the site whether a newer version is published: when you open it, about every hour while it is open, and each time you come back to it. It also asks the site for the list of open-source licences when you open that page. Like any web host, the site can log those requests, including your IP address. It receives nothing about your wallet.',
       "**The explorer, if you tap a link to it.** On Mainnet, a payment's details in History link each coin to a page about it on neptunefundamentals.org, which then knows that someone looked at that coin. The default node is on the same domain, so whoever runs both could tie the coin you looked at to your other questions. You choose whether to tap.",
       '**Price sites, only if you turn on "Value in another currency" in Settings.** While it is on, and Home, Send, Receive or this setting is on screen, the app asks CoinGecko, or CoinPaprika when CoinGecko does not answer, for the price of NPT in the currency you chose: about every 10 minutes, or every 2 minutes while neither answers. They see your IP address and that this is a Neptune Cash wallet. They receive nothing about your wallet: no address, no balance. With the setting off, the app never contacts them.',
       "**Other links, only when you tap them.** Help, the websites under About, and GitHub (to report a problem, or to see what a new version changes) open in your browser. Those sites see your IP address, but not the page you came from.",
@@ -68,7 +69,7 @@ export const PRIVACY: PrivacySection[] = [
   {
     title: 'What this app does not do',
     paragraphs: [
-      'No analytics, no telemetry, no crash reporting, no advertising, no cookies for tracking. The Diagnostics and Report a problem pages show facts about this device to you; they send them nowhere, and copy them only when you ask.',
+      'No analytics, no telemetry, no crash reporting, no advertising, no cookies for tracking. The Diagnostics and Report a problem pages show you facts about this device, the node's address, and how the last sync and the last failed send went; they send them nowhere, and copy them only when you ask.',
       'The camera, when you scan a code, is read on the device; no frame leaves it. The clipboard is written only when you copy something, and other apps can read it, so clear it after copying your seed phrase. The app never reads the clipboard by itself: it sees only what you paste, into a field or, as an image, into the scanner' +
         (NATIVE ? '.' : ', and the site tells the browser to refuse it clipboard reads altogether.'),
       "Passkeys are made and kept by your device or its platform account, under that platform's own rules, and the platform may sync them; yours is listed there as Neptune Vault followed by the wallet's network, such as Neptune Vault (main). The app keeps only the passkey's id and a key that is useless without it. Removing a wallet does not delete its passkey: delete it in your device's password settings.",
@@ -77,7 +78,7 @@ export const PRIVACY: PrivacySection[] = [
   {
     title: 'Your choices',
     paragraphs: [
-      "You choose the node, and can run your own. You choose how to restore or rescan: Fast, which is preselected, tells the node which payments are yours; Private downloads the blocks and tells it nothing about your coins. You choose what goes into a payment request. Backup files are yours: written where you save them and never uploaded. The seed phrase, contacts, address names, the addresses you have given out, who each send paid with its amounts and fee, and your notes in them are encrypted with your password. Without it, anyone holding a file can still read its network, start block and date, and the file's name says the wallet's name and network.",
+      "You choose the node, and can run your own. You choose how to restore or rescan: Fast, which is preselected, tells the node which payments are yours; Private downloads the blocks and tells it nothing about your coins. You choose what goes into a payment request. Backup files are yours: written where you save them and never uploaded. The seed phrase, contacts, address names, the addresses you have given out, who each send paid with its amounts and fee, and your notes in them are encrypted with your password. Without it, anyone holding a file can still read its network, start block and date, and the file's name says the wallet's name and network. History can also be exported as a spreadsheet. That file is yours too, written where you save it and never uploaded, but it is not encrypted: anyone holding it can read the payments in it, with the addresses, the amounts and your notes.",
       'This statement describes the app as published under this version. If a later version changes what leaves the device, this page changes with it, and the date above moves.',
     ],
   },

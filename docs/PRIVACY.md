@@ -3,7 +3,7 @@
 What this wallet keeps, what it sends and to whom, and what is public. The
 same text is shown in the app under Settings, About, Privacy statement; the
 app's copy (`web/src/content/privacy.ts`) is the reference and this file
-mirrors it. Last changed 2026-10-13.
+mirrors it. Last changed 2026-10-30.
 
 The desktop and Android apps show the same statement with a few sentences
 changed where they differ from a browser; those are marked below.
@@ -29,7 +29,8 @@ times and a record of the last proof. All of it lives in this browser's
 storage on this device. Nothing is kept anywhere else by this app.
 
 *In the desktop and Android apps:* all of it lives in the app's own storage
-on this device.
+on this device. The payment link that last opened the app is kept too,
+without encryption, so that a page that loads again does not open it twice.
 
 *In the Android app*, also: Android's own backup and its transfer to a new
 phone leave it out.
@@ -55,8 +56,9 @@ blocks to scan here, fetches the transactions waiting in its mempool to
 scan them here too, and asks whether it still holds the outputs of your
 pending payments, in and out. It asks for the block of a date, or the date
 of a block, when a restore or rescan starts from a month, when a wallet was
-made while the node could not be reached, and to say when your history
-starts. When you send, it asks for the proofs of the coins the send spends,
+made while the node could not be reached, to say when your history starts,
+and for the month to write down with your seed phrase. When you send, it
+asks for the proofs of the coins the send spends,
 then hands it the send itself.
 
 From this the node can learn roughly when your wallet started (the blocks
@@ -83,9 +85,10 @@ none of that.
 vault.dev.useneptune.org, hosted on Microsoft Azure. The first visit loads
 the app's files from it, and the browser keeps them. After that the app
 asks the site whether a newer version is published: when you open it,
-about every hour while it is open, and each time you come back to it. Like
-any web host, the site can log those requests, including your IP address.
-It receives nothing about your wallet.
+about every hour while it is open, and each time you come back to it. It
+also asks the site for the list of open-source licences when you open that
+page. Like any web host, the site can log those requests, including your IP
+address. It receives nothing about your wallet.
 
 *In the desktop app*, instead: **GitHub.** The desktop app carries its own
 files. When it starts, and every six hours while it runs, it asks GitHub
@@ -174,9 +177,9 @@ screen says so too.
 ## What this app does not do
 
 No analytics, no telemetry, no crash reporting, no advertising, no cookies
-for tracking. The Diagnostics and Report a problem pages show facts about
-this device to you; they send them nowhere, and copy them only when you
-ask.
+for tracking. The Diagnostics and Report a problem pages show you facts
+about this device, the node's address, and how the last sync and the last
+failed send went; they send them nowhere, and copy them only when you ask.
 
 The camera, when you scan a code, is read on the device; no frame leaves
 it. The clipboard is written only when you copy something, and other apps
@@ -205,7 +208,10 @@ address names, the addresses you have given out, who each send paid with
 its amounts and fee, and your notes in them are encrypted with your
 password. Without it, anyone holding a file can still read its network,
 start block and date, and the file's name says the wallet's name and
-network.
+network. History can also be exported as a spreadsheet. That file is yours
+too, written where you save it and never uploaded, but it is not encrypted:
+anyone holding it can read the payments in it, with the addresses, the
+amounts and your notes.
 
 This statement describes the app as published under this version. If a
 later version changes what leaves the device, this page changes with it,
