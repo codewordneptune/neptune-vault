@@ -17,7 +17,7 @@ import { iconSection, PAYEE_ROW, PHONE, useLayout } from '../app/layout';
 import { formatAbout, formatDuration, timeAgo } from '../util/time';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { decimalsProblem, typedTotalNau } from '../util/amount';
-import { fiatOf, fiatOfTyped, formatFiat } from '../util/fiat';
+import { fiatOf, fiatOfTyped, fiatParts, formatFiat } from '../util/fiat';
 import { cleanNote, givenUpRivals, MAX_PAYMENTS, paymentsTotalNau, SEND_NOTE_MAX, RequiresLustrationError, sameSentRecently, SendBusyError, SendUnconfirmedError, type SendStage } from '../app/send';
 import { isCancellation } from '../app/passkey';
 import { WrongPasswordError } from '../storage/envelope';
@@ -174,6 +174,15 @@ function RecipientCard({ address, name, requestName, who, onChange, changeRef, i
   );
 }
 
+/** An estimate in another currency under a figure, as under the balance on Home. */
+function Estimate({ id, figure, code }: { id?: string; figure: string; code: string }) {
+  return (
+    <span id={id} className="vault-amount-estimate">
+      ≈ <Spoken text={figure} /> <span className="vault-unit">{code}</span>
+    </span>
+  );
+}
+
 /**
  * The amount of a send to one recipient: large and centred, the field as
  * wide as what is typed and the unit after it, smaller as the figure grows;
@@ -196,7 +205,7 @@ function AmountHero({
   onChange: (value: string) => void;
   onBlur: () => void;
   error: string | null;
-  estimate: string | undefined;
+  estimate: { figure: string; code: string } | undefined;
   max: string;
   onMax: () => void;
   maxDisabled: boolean;
@@ -239,9 +248,7 @@ function AmountHero({
       <Text size="sm" c="dimmed">
         {estimate && (
           <>
-            <span id={estimateId}>
-              <Spoken text={estimate} />
-            </span>
+            <Estimate id={estimateId} {...estimate} />
             <span className="vault-amount-dot" aria-hidden>
               {' · '}
             </span>
@@ -395,6 +402,11 @@ export function Send() {
   const estimateOf = (text: string) => {
     const value = quote ? fiatOfTyped(text, quote.price) : null;
     return quote && value !== null ? `≈ ${formatFiat(value, quote.currency)}` : undefined;
+  };
+  // The same in its two parts, where it sits under a figure.
+  const estimatePartsOf = (text: string) => {
+    const value = quote ? fiatOfTyped(text, quote.price) : null;
+    return quote && value !== null ? fiatParts(value, quote.currency) : undefined;
   };
   const loadContacts = useCallback(() => {
     if (account) void services.contacts.list(account.id).then(setContacts);
@@ -1543,7 +1555,7 @@ export function Send() {
   // What several amounts and the fee come to, and what there is to spend
   // beside it, which a send to one says under its amount.
   const totalNau = typedTotalNau([...payees.map((p) => p.amount), fee], NAU_PER_COIN);
-  const totalEstimate = totalNau !== null && !hidden ? estimateOf(formatNau(totalNau)) : undefined;
+  const totalEstimate = totalNau !== null && !hidden ? estimatePartsOf(formatNau(totalNau)) : undefined;
   const totalBlock = !hero && (
     <div className="vault-send-total">
       <div>
@@ -1557,8 +1569,8 @@ export function Send() {
           <Spoken text={spendableText} />
         </Text>
         {totalEstimate && (
-          <Text size="sm" c="dimmed">
-            <Spoken text={totalEstimate} />
+          <Text size="sm">
+            <Estimate {...totalEstimate} />
           </Text>
         )}
       </div>
@@ -1788,7 +1800,7 @@ export function Send() {
                   }}
                   onBlur={() => void checkAmounts(true)}
                   error={amountError}
-                  estimate={estimateOf(amount)}
+                  estimate={estimatePartsOf(amount)}
                   max={maxText}
                   onMax={() => void sendAll()}
                   maxDisabled={balance.spendableNau <= 0n}

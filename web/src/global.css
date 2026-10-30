@@ -2010,6 +2010,7 @@ html {
    the balance; inside a sentence it is plain text. */
 .vault-row-amount .vault-unit,
 .vault-balance-fiat-value .vault-unit,
+.vault-amount-estimate .vault-unit,
 .vault-review-row b .vault-unit {
   font-weight: 400;
   color: var(--v-muted);
@@ -3831,6 +3832,12 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 .vault-amount-field > input::placeholder {
   color: var(--v-prompt);
   opacity: 1;
+}
+/* An estimate under a figure, in the weight and colour of the one under the balance. */
+.vault-amount-estimate {
+  font-weight: 600;
+  color: var(--v-text-2);
+  font-variant-numeric: tabular-nums;
 }
 /* Large text: the estimate and Max take a line each, with no dot left hanging. */
 @media (max-width: 19em) {
