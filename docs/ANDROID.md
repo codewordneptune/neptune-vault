@@ -137,22 +137,27 @@ Not built yet; today there are only test builds. The plan:
 
 ## Google's developer verification
 
-Since 30 September 2026 in Brazil, Indonesia, Singapore and Thailand, and
-worldwide from 2027, certified Android phones (those with Google's
-services) install apps normally only from developers verified with Google.
-Without registration, people can still install the app over ADB, or
-through Google's "advanced flow": a setting in Developer options, a
-restart, a one-time wait of one day and a confirmation with the phone's
-fingerprint, face or PIN; after that each install shows a warning with
-"Install anyway". Phones without Google's certification, such as
-GrapheneOS, are not affected.
+Since 30 September 2026, in Brazil, Indonesia, Singapore and Thailand,
+certified Android phones (those with Google's services) install apps from
+Google Play and from the stores of Honor, OPPO, Samsung, Transsion, vivo and
+Xiaomi only if a verified developer registered them. Other stores and direct
+installs are not checked yet. In 2027 it goes worldwide, for apps from any
+source.
+
+From then on, people can install an unregistered app only over ADB, or
+through Google's "advanced flow": a setting in Developer options, a restart,
+a one-time wait of one day and a confirmation with the phone's fingerprint,
+face or PIN; after that each install shows a warning with "Install anyway".
+Its updates need that setting to stay on. Phones without Google's
+certification, such as GrapheneOS, are not affected.
 
 Google also offers limited distribution accounts, which share an app with
 up to 20 devices without an ID or a fee; that could cover test builds.
 Registering an organization rather than a person is the fallback, if the
-advanced flow proves too much for the people using the app; the key stays
+advanced flow proves too much for the people using the app. Registering takes
+the signing key's fingerprint and an APK signed with it, so the key stays
 with the maintainer either way.
 
-Google's terms as checked on 2026-10-03:
-[the requirement](https://android-developers.googleblog.com/2026/06/android-developer-verification.html)
-and [the advanced flow](https://android-developers.googleblog.com/2026/03/android-developer-verification.html).
+Google's terms as checked on 2026-10-30:
+[the guides](https://developer.android.com/developer-verification/guides)
+and [their FAQ](https://developer.android.com/developer-verification/guides/faq).

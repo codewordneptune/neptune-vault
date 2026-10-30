@@ -22,8 +22,8 @@ The Android app is built from the same shell; see [ANDROID.md](ANDROID.md).
    for example:
 
    ```
-   git tag desktop-v0.4.0
-   git push origin desktop-v0.4.0
+   git tag desktop-v0.5.0
+   git push origin desktop-v0.5.0
    ```
 
    The running apps compare the tag's version with their own to tell

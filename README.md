@@ -147,7 +147,7 @@ rather than in a browser's.
   about a week.
 - **Sending takes a minute or more in the web app.** The proof needs about
   1 GB of free memory and one to two minutes on a recent high-end phone,
-  longer on others; devices with 4 GB of RAM or less may run out of memory.
+  longer on others; devices with less than 4 GB of RAM may run out of memory.
   Keep the app open while it proves; where the browser allows, the screen
   stays on. A block that arrives meanwhile is usually no problem, and if the
   node refuses the send, the app proves it again and tells you, up to three
@@ -301,7 +301,7 @@ Use neptune-core 0.17 or later. Start the node with JSON-RPC, the coin index
 never leave the mempool on regtest:
 
 ```bash
-neptune-core --network regtest --data-dir <dir> --listen-rpc 127.0.0.1:9797 --rpc-modules node,chain,wallet,archival,mempool,utxoindex --utxo-index --rpc-port 9799 --peer-port 9798 --max-num-peers 0 --disable-cookie-hint --tx-proving-capability=singleproof --tx-proof-upgrading
+neptune-core --network regtest --data-dir <dir> --listen-rpc 127.0.0.1:9797 --rpc-modules node,chain,wallet,archival,mempool,utxoindex --utxo-index --rpc-port 9799 --peer-port 9798 --peer-listen-addr 127.0.0.1 --max-num-peers 0 --disable-cookie-hint --tx-proving-capability=singleproof --tx-proof-upgrading
 ```
 
 Then:
@@ -328,6 +328,8 @@ Then:
 
 Things to know about regtest:
 
+- `--peer-listen-addr 127.0.0.1` keeps the node on this machine: without it,
+  it asks your router to open a port.
 - Mine only after the node logs `single proof: Done`.
 - On regtest, coins must be published when they are spent (lustration).
   The node's send needs `--accept-lustrations`, and the app's review says
