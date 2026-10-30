@@ -746,7 +746,6 @@ export function Receive() {
     </Text>
   );
   const requestActions = (
-    <>
     <Group className="vault-receive-actions">
       <Button className={requestCopied ? 'vault-copied' : undefined} leftSection={requestCopied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copyRequest} disabled={requestInvalid} aria-label={requestCopied ? 'Request copied' : 'Copy request'} aria-describedby={cautionId}>
         {requestCopied ? 'Copied' : 'Copy'}
@@ -757,6 +756,9 @@ export function Receive() {
         </Button>
       )}
     </Group>
+  );
+  const requestWebLink = (
+    <>
     <UnstyledButton
       onClick={copyWebLink}
       disabled={requestInvalid}
@@ -828,14 +830,16 @@ export function Receive() {
                       {requestCodeNote}
                       {addressBox}
                       {requestActions}
+                      {requestWebLink}
                     </Stack>
                   </div>
                 </Tabs.Panel>
               </>
             ) : (
               // One column: the code first and then what to do with it on the
-              // Address tab; on a request, its fields first and then the code,
-              // in the same order. Which address it is goes under either.
+              // Address tab. On a request, its fields, then Copy and Share,
+              // within reach of whoever just filled them in, then the code
+              // they act on. Which address it is goes under either.
               <>
                 <Tabs.Panel value="address">
                   <Stack>
@@ -852,10 +856,11 @@ export function Receive() {
                   <Stack>
                     {requestFields}
                     {noteOf(requestArrival)}
-                    {requestCode}
-                    {requestCodeNote}
                     {viewingCaution}
                     {requestActions}
+                    {requestCode}
+                    {requestCodeNote}
+                    {requestWebLink}
                   </Stack>
                 </Tabs.Panel>
                 {whichAddress}
