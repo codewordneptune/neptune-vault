@@ -31,6 +31,9 @@
 //
 // Then, whenever the screens change:
 //      VAULT_PASSWORD=<the demo wallet's password> node docs/screenshots/capture.mjs
+// The dev server shows the version it read when it started, so restart it
+// after a version change: Settings shows the version. Home reads "Node
+// behind" when the last block is over an hour old, so mine one first.
 // VAULT_URL (default http://localhost:4400) and CDP_PORT (default 9222)
 // point it elsewhere. It needs Node 22 or later, and nothing else.
 
