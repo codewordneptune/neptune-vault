@@ -12,7 +12,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 
 import { Sheet } from '../components/Sheet';
-import { useLayout, WIDE } from '../app/layout';
+import { PHONE, useLayout, WIDE } from '../app/layout';
 import { QrFullScreen } from '../components/QrFullScreen';
 import { MoreButton } from '../components/MoreButton';
 import { Caution, Done, ErrorLine, Info } from '../components/Notice';
@@ -119,6 +119,7 @@ export function Receive() {
   const hidden = services.settings.hideBalance ?? false;
   const [tab, setTab] = useState<Tab>('address');
   const wide = useLayout(WIDE);
+  const phone = useLayout(PHONE);
   // A phone on its side: the code takes the screen's height, so on the
   // Address tab the address and Copy and Share stay at the left's top, on
   // the first screen.
@@ -748,7 +749,7 @@ export function Receive() {
   );
 
   return (
-    <Paper>
+    <Paper className={phone ? 'vault-bare' : undefined} p={phone ? 0 : undefined}>
       <Stack>
         <Title order={2} className="sr-only">
           Receive

@@ -3,7 +3,8 @@
 // two would switch at different widths.
 //
 // Up to 559 px is a phone held upright: a dialog rises from the foot as a
-// sheet, Send is the page itself, and the seed phrase is two columns.
+// sheet, Send, Receive and History are the page itself rather than a card,
+// and the seed phrase is two columns.
 // From 900 px, or a phone on its side, the tab bar is a rail at the side
 // (global.css); a tablet between the two keeps the tab bar with the wide
 // screen's dialogs and Send's card. From 1100 px every tab widens to 960 px,

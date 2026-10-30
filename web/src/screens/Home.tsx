@@ -28,6 +28,7 @@ import { InstallNudge } from '../components/InstallNudge';
 import { StorageNotice } from '../components/StorageNotice';
 import { Caution, Done, ErrorLine, headingNear, Info } from '../components/Notice';
 import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED, SENT_WAITING, WAITING_FOR_BLOCK } from '../app/words';
+import { PHONE, useLayout } from '../app/layout';
 import { DESKTOP, MOBILE, NATIVE } from '../app/platform';
 import { PULL_READY_PX, usePullToSync } from '../app/pullToSync';
 import { LINKS } from '../app/links';
@@ -48,6 +49,7 @@ const LISTINGS: [Listing, string][] = [
 
 export function Home() {
   const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure, lastSend, dismissLastSend, screenAwake, sendJob } = useApp();
+  const phone = useLayout(PHONE);
   // A send that failed while the person was elsewhere is easy to miss as a
   // toast; it stays here until dismissed, and survives a reload.
   const dismissFailure = () => {
@@ -957,7 +959,7 @@ export function Home() {
       {!showBackupNudge && <InstallNudge />}
       {!showBackupNudge && <StorageNotice />}
 
-      <Paper>
+      <Paper className={phone ? 'vault-bare' : undefined} p={phone ? 0 : undefined}>
         <Stack>
         {/* The title, with search (once History is long) and a menu at its end. */}
         <div className="vault-history-head">
@@ -1099,37 +1101,33 @@ export function Home() {
                           }
                         }}
                       >
-                        <Group gap="sm" wrap="nowrap" className="vault-row-who">
-                          {rowAvatarOf(e)}
-                          <div style={{ minWidth: 0 }}>
-                            {/* A send not going through says so in its title when nothing else names it, in the caution colour. */}
-                            <Text size="md" fw={600} className={!whoOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>
-                              {whoOf(e) ? <bdi>{whoOf(e)}</bdi> : stateTitleOf(e)}
-                            </Text>
-                            <Text size="sm" c="dimmed" className="vault-row-meta vault-tabular">
-                              {formatTime(h.timestampMs)}
-                              {/* A time lock only waits for its date: said in the row's own colour. */}
-                              {lockOf(h) !== null && ` · Spendable from ${showDate(lockOf(h) as number)}`}
-                              {e.kind === 'self' && !hidden && ' · fee only'}
-                              {/* Last, so a long one is what the line cuts short. */}
-                              {noteOf(e) && (
-                                <>
-                                  {' · '}
-                                  <bdi>{noteOf(e)}</bdi>
-                                </>
-                              )}
-                            </Text>
-                          </div>
-                        </Group>
-                        <div className="vault-row-amount">
-                          {/* Nothing left the wallet: the figure is struck through, with no sign. A send that may
-                              still go through has not left it either, but may: dimmed, with no sign, not struck through. */}
-                          <Text size="md" fw={600} c={notSent(e) || mayGo(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-amount-in vault-tabular' : 'vault-tabular'}>
-                            {notSent(e) || mayGo(e) ? '' : incoming ? '+' : '−'}
-                            <Figure text={amount(e.shownNau)} />{' '}
-                            <span className="vault-unit">NPT</span>
+                        {rowAvatarOf(e)}
+                        {/* A send not going through says so in its title when nothing else names it, in the caution colour. */}
+                        <Text fw={500} className={!whoOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>
+                          {whoOf(e) ? <bdi>{whoOf(e)}</bdi> : stateTitleOf(e)}
+                        </Text>
+                        {/* Nothing left the wallet: the figure is struck through, with no sign. A send that may
+                            still go through has not left it either, but may: dimmed, with no sign, not struck through. */}
+                        <Text fw={600} c={notSent(e) || mayGo(e) ? 'dimmed' : undefined} td={notSent(e) ? 'line-through' : undefined} className={incoming ? 'vault-row-amount vault-amount-in vault-tabular' : 'vault-row-amount vault-tabular'}>
+                          {notSent(e) || mayGo(e) ? '' : incoming ? '+' : '−'}
+                          <Figure text={amount(e.shownNau)} />{' '}
+                          <span className="vault-unit">NPT</span>
+                        </Text>
+                        <div className="vault-row-under">
+                          <Text c="dimmed" className="vault-row-meta vault-tabular">
+                            {formatTime(h.timestampMs)}
+                            {/* A time lock only waits for its date: said in the row's own colour. */}
+                            {lockOf(h) !== null && ` · Spendable from ${showDate(lockOf(h) as number)}`}
+                            {e.kind === 'self' && !hidden && ' · fee only'}
+                            {/* Last, so a long one is what the line cuts short. */}
+                            {noteOf(e) && (
+                              <>
+                                {' · '}
+                                <bdi>{noteOf(e)}</bdi>
+                              </>
+                            )}
                           </Text>
-                          {/* Under the figure, so a row keeps its two lines and states line up down the list. */}
+                          {/* At the row's end, so a row keeps its two lines and states line up down the list. */}
                           {stateWordOf(e) && (
                             <span className="vault-state-pill" data-tone={stateWordOf(e)?.tone}>
                               {stateWordOf(e)?.word}

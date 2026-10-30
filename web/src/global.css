@@ -84,6 +84,11 @@
   /* Muted text on the page's glow at its strongest: the rail's other tabs'
      labels and the labels over Settings' groups. */
   --v-muted-on-glow: var(--v-muted);
+  /* The state colours on the page rather than a card: as they are here, where
+     the page is the darker of the two. */
+  --v-ok-on-page: var(--v-ok-text);
+  --v-warn-on-page: var(--v-warn-text);
+  --v-danger-on-page: var(--v-danger-text);
   /* A field's edge is the one exception: the field's fill is 1.2:1 off the
      card, so an empty field was all but invisible. A quiet edge, 1.8:1 on
      the card (#1a2433), marks it without outlining every form: the
@@ -146,6 +151,10 @@
   --v-fs-xs: 0.75rem;
   --v-fs-sm: 0.875rem;
   --v-fs-md: 1rem;
+  /* History's rows, the list read most: a step under the sizes around them,
+     so that a name and an amount share a line on a phone. */
+  --v-fs-row: 0.9375rem;
+  --v-fs-row-meta: 0.8125rem;
   /* Addresses and IDs, wherever they are shown for reading or checking: one
      size, since a monospace face already reads smaller than its size. The
      face itself is the theme's monospace stack (theme.ts), read here through
@@ -165,6 +174,9 @@
   --v-rail-w: 88px;
   --v-header-h: 58px;
   --v-tabbar-h: 62px;
+  /* A card's side padding, which a list in it reaches across so that a row's
+     fill runs from edge to edge. */
+  --v-card-inset: 20px;
   /* The least a control is to hit: 40 px for a mouse, 44 for a finger. */
   --v-tap: 40px;
 }
@@ -224,6 +236,11 @@
      first Settings label: muted text there falls to 4.4:1, this keeps it
      above 4.8:1. */
   --v-muted-on-glow: #546377;
+  /* The state colours on the page rather than the white card, 4.5:1 or more
+     down to the page's foot, in a state's tinted pill too. */
+  --v-ok-on-page: #176e2c;
+  --v-warn-on-page: #845600;
+  --v-danger-on-page: #b42424;
   /* A field's edge: 1.9:1 on the white card, quiet, with the field's
      faint tint (#f7f9fc) setting it apart from the card as the darker fill
      does in the dark palette; 3.1:1 under the pointer. A box or radio,
@@ -1356,16 +1373,16 @@ main :is(h2, h3)[tabindex='-1']:focus {
    stays aligned with the title above. */
 .vault-pick,
 .vault-row-button {
-  width: calc(100% + 40px);
-  margin-left: -20px;
-  margin-right: -20px;
-  padding: 12px 20px;
+  width: calc(100% + 2 * var(--v-card-inset));
+  margin-left: calc(-1 * var(--v-card-inset));
+  margin-right: calc(-1 * var(--v-card-inset));
+  padding: 12px var(--v-card-inset);
   text-align: left;
 }
 .vault-pick + .vault-pick::before,
 .vault-row-button + .vault-row-button::before {
-  left: 20px;
-  right: 20px;
+  left: var(--v-card-inset);
+  right: var(--v-card-inset);
 }
 /* The first row keeps its full padding for a balanced hover fill and is
    pulled up by the same amount so the list starts where it did. */
@@ -1394,19 +1411,19 @@ main :is(h2, h3)[tabindex='-1']:focus {
    number) taking the room, with its number and payments on a quiet line
    beneath, and its action at the end. */
 .vault-address-row {
-  margin: 0 -20px;
-  padding: 0 20px 0 0;
+  margin: 0 calc(-1 * var(--v-card-inset));
+  padding: 0 var(--v-card-inset) 0 0;
 }
 .vault-address-row + .vault-address-row::before {
-  left: 20px;
-  right: 20px;
+  left: var(--v-card-inset);
+  right: var(--v-card-inset);
 }
 .vault-address-show {
   flex: 1;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 12px 12px 20px;
+  padding: 12px 12px 12px var(--v-card-inset);
   text-align: left;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -2039,33 +2056,76 @@ html {
   color: var(--v-ok-text);
 }
 
-/* A history amount takes what it needs, up to half the row: past that
-   (a long figure, large text) its unit goes under it, and the name keeps
-   the rest. */
+/* A History row: the name and the amount on one line, and across the row
+   under them when it was, any note, and the state at the end. Each is one
+   line, cut short with an ellipsis, so that rows keep one height; the
+   payment's details say it whole. A long figure takes what it needs, with
+   its unit going under it past that, and the name keeps the rest. */
+.vault-row-button {
+  display: grid;
+  grid-template-columns: auto minmax(5em, 1fr) minmax(0, max-content);
+  gap: 0 12px;
+  align-items: baseline;
+}
+.vault-row-button > :first-child {
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.vault-row-button .vault-row-title {
+  display: block;
+  font-size: var(--v-fs-row);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .vault-row-amount {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-  flex-shrink: 0;
-  max-width: 50%;
-  min-width: min-content;
-  margin-left: auto;
+  font-size: var(--v-fs-row);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
   text-align: right;
 }
-/* With large text the amount moves under the name, rather than squeeze the
-   name to a few letters. */
-.vault-row-button {
-  flex-wrap: wrap;
+.vault-row-under {
+  grid-column: 2 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
 }
-.vault-row > .vault-row-who {
-  flex: 1 1 0;
-  min-width: min(100%, 10em);
+.vault-row-under .vault-state-pill {
+  flex: none;
 }
-/* A state under the amount is wider than the amount: the name gives way
-   first, so a narrow phone keeps the row whole. */
-.vault-row-button:has(.vault-state-pill) > .vault-row-who {
-  min-width: min(100%, 6.5em);
+.vault-row-meta {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--v-fs-row-meta);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* Large text: the amount takes its own line under the name, and a name or a
+   note can take two, rather than shrink to a few letters. */
+@media (max-width: 19em) {
+  .vault-row-button {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+  .vault-row-button > :first-child {
+    grid-row: 1 / span 3;
+    align-self: start;
+  }
+  .vault-row-button .vault-row-title {
+    display: -webkit-box;
+    white-space: normal;
+  }
+  .vault-row-meta {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: break-word;
+    white-space: normal;
+  }
+  .vault-row-under {
+    flex-wrap: wrap;
+  }
 }
 
 /* Where an amount is shown as a value (History's rows, the estimate under
@@ -2570,13 +2630,6 @@ html {
 /* The line under a history row's title: up to two lines, so its state is
    read whole at any text size. Its last part (who a send went to, or the
    note) is what an ellipsis takes first. */
-.vault-row-meta {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: break-word;
-}
 
 /* The header pill: the wallet's name, then its network as a quieter tag. */
 .vault-network-wallet {
@@ -3806,6 +3859,26 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* On a phone Receive and History are the page itself rather than a card:
+   the width goes to the code and to names. A row's fill runs to the screen's
+   edges, and the quiet colours and the states take the page's, which in the
+   light palette is a shade darker than a card. */
+.mantine-Paper-root.vault-bare {
+  --v-card-inset: var(--mantine-spacing-md);
+  --v-muted: var(--v-muted-on-glow);
+  --mantine-color-dimmed: var(--v-muted-on-glow);
+  --v-ok-text: var(--v-ok-on-page);
+  --v-warn-text: var(--v-warn-on-page);
+  --v-danger-text: var(--v-danger-on-page);
+  background: none;
+  box-shadow: none;
+}
+/* The address stands on the page as a card, as a recipient does on Send. */
+.vault-bare .vault-address-box {
+  background: var(--v-surface);
+  box-shadow: var(--v-card-shadow);
 }
 
 /* On a phone (Send.tsx) Send is the page itself rather than a card, and the
