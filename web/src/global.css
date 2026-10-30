@@ -3849,10 +3849,16 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 }
 /* A step's count ("Step 1 of 3") is part of its heading, so a screen reader
    hears it with the title; it still reads as a line of its own above it. */
-.vault-step-count {
-  display: block;
-  margin-bottom: var(--mantine-spacing-md);
-  line-height: 1.5;
+/* A setup step's first line: the way back, and how far along it is. */
+.vault-step-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 18px;
+}
+.vault-step-top .vault-back-link {
+  margin-block: calc((18px - var(--v-tap)) / 2);
 }
 
 /* The desktop app's keyboard shortcuts in Settings, App: keys, then what

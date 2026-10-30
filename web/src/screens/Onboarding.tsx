@@ -2,7 +2,7 @@
 // confirm it word by word, set a password.
 
 import { Anchor, Button, Group, Paper, Radio, Select, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconChevronRight, IconCode, IconEye, IconFileUpload, IconLock, IconUserOff } from '@tabler/icons-react';
+import { IconChevronLeft, IconChevronRight, IconCode, IconEye, IconFileUpload, IconLock, IconUserOff } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -423,6 +423,7 @@ export function Onboarding() {
       {step === 'welcome' && adding && (
         <Paper>
           <Stack>
+            <StepTop onBack={() => (location.key !== 'default' ? navigate(-1) : navigate('/'))} />
             <Title order={2} tabIndex={-1} className="vault-step-title">
               Add a wallet
             </Title>
@@ -445,22 +446,19 @@ export function Onboarding() {
                 Adds to Mainnet. To add on {NETWORK_LABELS[currentNetwork]}, turn on Developer networks in Settings, Advanced.
               </Text>
             )}
-            <Button variant="subtle" onClick={() => (location.key !== 'default' ? navigate(-1) : navigate('/'))}>
-              Cancel
-            </Button>
           </Stack>
         </Paper>
       )}
       {step === 'existing' && (
         <Paper>
           <Stack>
+            <StepTop onBack={() => setStep('welcome')} />
             <Title order={2} tabIndex={-1} className="vault-step-title">Restore your wallet</Title>
             <Text size="sm" c="dimmed">
               The seed phrase is the 18 words you wrote down; a backup file is the encrypted copy this app saves.
             </Text>
             <Button variant="light" onClick={() => setStep('import')}>With the seed phrase</Button>
             <Button variant="light" onClick={() => setStep('file')}>From a backup file</Button>
-            <Button variant="subtle" onClick={() => setStep('welcome')}>Back</Button>
           </Stack>
         </Paper>
       )}
@@ -469,8 +467,9 @@ export function Onboarding() {
       {step === 'show' && (
         <Paper>
           <Stack>
+            <StepTop count="Step 1 of 3" onBack={() => { markUnfinished(false); setPhrase([]); setRevealed(false); setStep('welcome'); }} />
             <Title order={2} tabIndex={-1} className="vault-step-title">
-              <span className="vault-eyebrow vault-step-count">Step 1 of 3</span>{' '}
+              <span className="sr-only">Step 1 of 3: </span>
               Write down these 18 words
             </Title>
             <Text size="sm" c="dimmed">In order, on paper. Anyone with these words can spend your coins. {NATIVE ? 'If this device is lost, only what you write down brings the wallet back.' : 'Clearing the browser deletes everything except what you write down.'}</Text>
@@ -512,9 +511,6 @@ export function Onboarding() {
                 </Text>
               </Stack>
             )}
-            <Button variant="subtle" onClick={() => { markUnfinished(false); setPhrase([]); setRevealed(false); setStep('welcome'); }}>
-              Cancel
-            </Button>
           </Stack>
         </Paper>
       )}
@@ -522,8 +518,9 @@ export function Onboarding() {
       {step === 'confirm' && (
         <Paper>
           <Stack>
+            <StepTop label="Show the words again" count="Step 2 of 3" onBack={() => setStep('show')} />
             <Title order={2} tabIndex={-1} className="vault-step-title">
-              <span className="vault-eyebrow vault-step-count">Step 2 of 3</span>{' '}
+              <span className="sr-only">Step 2 of 3: </span>
               Confirm your seed phrase
             </Title>
             <Text size="sm" c="dimmed">
@@ -566,7 +563,6 @@ export function Onboarding() {
             )}
             {/* The step's one main button spans the card, as on every other step. */}
             <Button ref={continueRef} disabled={!confirmed} onClick={() => setStep('password')}>Continue</Button>
-            <Button variant="subtle" onClick={() => setStep('show')}>Show the words again</Button>
           </Stack>
         </Paper>
       )}
@@ -645,6 +641,7 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
       }}
     >
       <Stack>
+        <StepTop onBack={onBack} disabled={busy} />
         <Title order={2} tabIndex={-1} className="vault-step-title">Restore from a backup file</Title>
         <input ref={fileInput} type="file" aria-label="Backup file" accept="application/json,.json" hidden onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         <Group align="center">
@@ -695,9 +692,28 @@ function FileStep({ busy, error, onFile, onBack, onPicking }: { busy: boolean; e
           Restore wallet
         </Button>
         {error && <ErrorLine>{error}</ErrorLine>}
-        <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
     </Paper>
+  );
+}
+
+/**
+ * The top of a setup step: the way back, as a Settings page has it, and how
+ * far along the step is, for a screen reader in the title under it.
+ */
+function StepTop({ onBack, disabled = false, label = 'Back', count }: { onBack: () => void; disabled?: boolean; label?: string; count?: string }) {
+  return (
+    <div className="vault-step-top">
+      <UnstyledButton type="button" onClick={onBack} disabled={disabled} c={disabled ? 'var(--v-faint)' : 'var(--v-accent-text)'} fz="sm" className="vault-tap-link vault-tap-link-start vault-back-link">
+        <IconChevronLeft size={16} aria-hidden />
+        {label}
+      </UnstyledButton>
+      {count && (
+        <span className="vault-eyebrow" aria-hidden>
+          {count}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -748,8 +764,9 @@ function PasswordStep({
   return (
     <Paper>
       <Stack>
+        <StepTop count={stepLabel} onBack={onBack} disabled={busy} />
         <Title order={2} tabIndex={-1} className="vault-step-title">
-          <span className="vault-eyebrow vault-step-count">{stepLabel}</span>{' '}
+          <span className="sr-only">{stepLabel}: </span>
           Choose a password
         </Title>
         <Text size="sm" c="dimmed">
@@ -775,7 +792,6 @@ function PasswordStep({
         {/* Pressed early, it says what is missing rather than stay disabled without a reason. */}
         <Button loading={busy} onClick={() => (ok ? onSubmit(password, name) : setChecked((n) => n + 1))}>{actionLabel}</Button>
         {error && <ErrorLine>{error}</ErrorLine>}
-        <Button variant="subtle" disabled={busy} onClick={onBack}>Back</Button>
       </Stack>
     </Paper>
   );
@@ -870,8 +886,9 @@ function ImportStep({
   return (
     <Paper>
       <Stack>
+        <StepTop count="Step 1 of 2" onBack={onBack} />
         <Title order={2} tabIndex={-1} className="vault-step-title">
-          <span className="vault-eyebrow vault-step-count">Step 1 of 2</span>{' '}
+          <span className="sr-only">Step 1 of 2: </span>
           Restore with a seed phrase
         </Title>
         <PhraseField text={text} onText={setText} error={phraseError} onError={setPhraseError} checkPhrase={checkPhrase} />
@@ -927,7 +944,6 @@ function ImportStep({
           </Text>
         )}
         <Button disabled={words.length !== 18 || !startKnown} loading={checking} onClick={() => void continueWithPhrase()}>Continue with this seed phrase</Button>
-        <Button variant="subtle" onClick={onBack}>Back</Button>
       </Stack>
     </Paper>
   );
