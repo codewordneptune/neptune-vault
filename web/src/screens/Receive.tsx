@@ -123,7 +123,8 @@ export function Receive() {
   const [tab, setTab] = useState<Tab>('address');
   const wide = useLayout(WIDE);
   // A phone on its side: the code takes the screen's height, so on the
-  // Address tab Copy and Share stay under the address, on the first screen.
+  // Address tab the address and Copy and Share stay at the left's top, on
+  // the first screen.
   const short = useLayout('(max-height: 500px)');
   const [kind, setKind] = useState<KeyKind>('generation');
   const [indices, setIndices] = useState<Record<KeyKind, number>>({ generation: 0, ec_hybrid: 0, viewing: 0 });
@@ -794,21 +795,22 @@ export function Receive() {
 
             {wide ? (
               // Two columns on either tab: what sets the code on the left (the
-              // address, or the request's fields), with which address it is
-              // under it; the code, with Copy and Share, on the right, in the
-              // same place on both tabs.
+              // request's fields, and which address it is); on the right the
+              // code, the address it carries, shortened, and Copy and Share,
+              // the same on both tabs.
               <>
                 <Tabs.Panel value="address">
                   <div className="vault-receive-wide">
                     <Stack className="vault-receive-main">
                       {noteOf(addressArrival)}
-                      {addressBox}
+                      {short && addressBox}
                       {short && addressActions}
                       {viewingCaution}
                       {whichAddress}
                     </Stack>
                     <Stack className="vault-receive-share">
                       {addressCode}
+                      {!short && addressBox}
                       {!short && addressActions}
                     </Stack>
                   </div>
@@ -824,6 +826,7 @@ export function Receive() {
                     <Stack className="vault-receive-share">
                       {requestCode}
                       {requestCodeNote}
+                      {addressBox}
                       {requestActions}
                     </Stack>
                   </div>

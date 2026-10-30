@@ -3089,9 +3089,10 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   height: auto;
 }
 /* Receive on a wide screen or a phone on its side, on either tab: what sets
-   the code on the left, with which address it is under it; the code, with
-   Copy and Share under it, on the right, in the same place on both tabs. On
-   a phone on its side the code is smaller, so Copy stays on the screen. */
+   the code on the left, with which address it is under it; the code, the
+   address it carries and Copy and Share on the right, in the same place on
+   both tabs. On a phone on its side the code is smaller, so Copy stays on
+   the screen. */
 .vault-receive-wide {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
