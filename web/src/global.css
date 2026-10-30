@@ -306,6 +306,8 @@ body {
     linear-gradient(180deg, var(--v-page) 0%, var(--v-page-end) 100%);
   background-attachment: fixed;
   line-height: 1.5;
+  /* No paragraph ends on one stray word. */
+  text-wrap: pretty;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -1015,6 +1017,7 @@ button.vault-network:focus-visible {
   font-family: var(--mantine-font-family-monospace);
   font-size: var(--v-fs-mono);
   word-break: break-all;
+  text-wrap: wrap;
 }
 /* A send on its way (Home's details): its steps, joined by a line. */
 .vault-steps {
@@ -1558,20 +1561,43 @@ main :is(h2, h3)[tabindex='-1']:focus {
   letter-spacing: -0.01em;
   line-height: 1.3;
 }
+/* A sheet's close: a small cross on a soft round tile, inside the button's
+   whole target. The tile takes the button's own colour, so it sits as quietly
+   on either theme's sheet as on the white of a code shown full size. */
 .mantine-Modal-close {
-  color: var(--v-muted);
-  border-radius: var(--v-radius-xs);
+  position: relative;
+  color: var(--v-text-2);
+  border-radius: 50%;
+}
+.mantine-Modal-close:not(.vault-sheet-back)::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  translate: -50% -50%;
 }
 @media (hover: hover) and (pointer: fine) {
   .mantine-Modal-close:hover {
-    background: var(--v-surface-2);
+    background: none;
     color: var(--v-text);
+  }
+  .mantine-Modal-close:not(.vault-sheet-back):hover::before {
+    background: color-mix(in srgb, currentColor 16%, transparent);
   }
 }
 /* The cross (theme.ts) at the share of its button the library's own took. */
 .mantine-CloseButton-root > svg {
   width: var(--cb-icon-size, 70%);
   height: var(--cb-icon-size, 70%);
+}
+.mantine-Modal-close:not(.vault-sheet-back) > svg {
+  position: relative;
+  width: 16px;
+  height: 16px;
 }
 .mantine-Modal-body {
   padding: 12px 20px 20px;
@@ -2597,12 +2623,9 @@ html {
 .vault-qr-full-header .mantine-Modal-close {
   color: #15202e;
 }
-/* The view is white in both themes, so its close button's hover is too: the
-   general hover takes the theme's surface, which in the dark theme is a dark
-   square on the white. */
+/* The view is white in both themes, so its cross stays dark under a mouse too. */
 @media (hover: hover) and (pointer: fine) {
   .vault-qr-full-header .mantine-Modal-close:hover {
-    background: #e9edf2;
     color: #15202e;
   }
 }
@@ -3029,6 +3052,7 @@ html {
   min-width: 40px;
   min-height: 40px;
   margin: -10px 0 -10px -6px;
+  border-radius: var(--v-radius-xs);
   padding: 0 4px 0 2px;
   background: none;
   color: var(--v-accent-text);
@@ -3666,6 +3690,7 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   font-size: var(--v-fs-mono);
   line-height: 1.5;
   word-break: break-all;
+  text-wrap: wrap;
 }
 
 /* An address being typed or pasted, in the face every address is shown in.
