@@ -1282,7 +1282,7 @@ main :is(h2, h3)[tabindex='-1']:focus {
 }
 .vault-receipt-state.ok {
   color: var(--v-ok-text);
-  background: color-mix(in srgb, var(--v-ok-text) 14%, transparent);
+  background: color-mix(in srgb, var(--v-ok-text) 10%, transparent);
 }
 .vault-receipt-state.wait {
   color: var(--v-accent-text);
@@ -2851,6 +2851,11 @@ html {
       background: var(--v-rail-tile);
       opacity: 0.5;
     }
+  }
+  /* A dialog in the middle of what it belongs to, the content beside the
+     rail; one that fills the window has no middle to find. */
+  body:has(.vault-shell.has-tabs) .mantine-Modal-inner:not(:has([data-full-screen])) {
+    padding-inline-start: calc(var(--v-rail-w) + var(--v-safe-left) + var(--modal-inner-x-offset, var(--modal-x-offset)));
   }
   /* One width for every screen: room for the history table and a form that
      breathes, and not so wide that an amount drifts from what it is for. */

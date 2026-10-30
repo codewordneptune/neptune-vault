@@ -60,9 +60,6 @@ export function ChoiceField({
   const describedBy = [shownReading ? readingId : null, hint ? hintId : null].filter(Boolean).join(' ') || undefined;
   return (
     <div>
-      <Input.Label id={labelId} htmlFor={fieldId} className={row ? 'sr-only' : undefined}>
-        {label}
-      </Input.Label>
       <Combobox
         store={box}
         onOptionSubmit={(v) => {
@@ -72,17 +69,25 @@ export function ChoiceField({
         }}
         position="bottom-start"
       >
-        <Combobox.Target targetType="button" withExpandedAttribute>
-          <button type="button" id={fieldId} className={row ? 'vault-choice-field vault-choice-row' : 'vault-choice-field'} aria-labelledby={`${labelId} ${fieldId}`} aria-describedby={describedBy} onClick={() => box.toggleDropdown()} onBlur={() => box.closeDropdown()}>
-            {row && (
-              <span className="vault-choice-row-label" aria-hidden>
-                {label}
-              </span>
-            )}
-            <span className="vault-choice-face">{face ?? choices.find((c) => c.value === value)?.name}</span>
-            {row ? <IconChevronRight size={16} aria-hidden /> : <IconChevronDown size={16} aria-hidden />}
-          </button>
-        </Combobox.Target>
+        {/* The list is placed against the label and the field together, so opened upwards it leaves the label in view. */}
+        <Combobox.DropdownTarget>
+          <div>
+            <Input.Label id={labelId} htmlFor={fieldId} className={row ? 'sr-only' : undefined}>
+              {label}
+            </Input.Label>
+            <Combobox.EventsTarget targetType="button" withExpandedAttribute>
+              <button type="button" id={fieldId} className={row ? 'vault-choice-field vault-choice-row' : 'vault-choice-field'} aria-labelledby={`${labelId} ${fieldId}`} aria-describedby={describedBy} onClick={() => box.toggleDropdown()} onBlur={() => box.closeDropdown()}>
+                {row && (
+                  <span className="vault-choice-row-label" aria-hidden>
+                    {label}
+                  </span>
+                )}
+                <span className="vault-choice-face">{face ?? choices.find((c) => c.value === value)?.name}</span>
+                {row ? <IconChevronRight size={16} aria-hidden /> : <IconChevronDown size={16} aria-hidden />}
+              </button>
+            </Combobox.EventsTarget>
+          </div>
+        </Combobox.DropdownTarget>
         <Combobox.Dropdown>
           <div className="vault-picker-label" aria-hidden>
             {label}

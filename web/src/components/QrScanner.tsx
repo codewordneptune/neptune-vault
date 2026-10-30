@@ -481,7 +481,7 @@ export function QrScanner({ opened, onClose, onResult }: { opened: boolean; onCl
             </Button>
           )}
           {imageInputs}
-          <UnstyledButton c="var(--v-muted)" fz="sm" className="vault-tap-link" onClick={onClose}>
+          <UnstyledButton c="var(--v-accent-text)" fz="sm" className="vault-tap-link" onClick={onClose}>
             Paste the address instead
           </UnstyledButton>
         </div>

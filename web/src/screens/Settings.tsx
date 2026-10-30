@@ -1492,7 +1492,7 @@ function PasskeyCard() {
             Cancel
           </Button>
           <Button type="submit" loading={busy} disabled={!password}>
-            Create passkey
+            Create
           </Button>
         </Group>
         {error && <ErrorLine onClose={() => setError(null)}>{error}</ErrorLine>}
