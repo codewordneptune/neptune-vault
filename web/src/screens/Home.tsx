@@ -667,21 +667,14 @@ export function Home() {
 
   // Where a payment stands, under its amount in the details: confirmed, and
   // how many blocks have come since (what "wait for several blocks" is
-  // counted in), or a payment still coming in, as a pill. A send on its way
-  // shows its steps instead (SendSteps). One that did not go out is named
-  // by its title already ("Not sent", "Given up"); a sentence says why.
+  // counted in), or a payment still coming in, as a pill. Which block it
+  // was is a row of the details. A send on its way shows its steps instead
+  // (SendSteps). One that did not go out is named by its title already
+  // ("Not sent", "Given up"); a sentence says why.
   const stateOf = (h: HistoryRecord): { pill: string; tone: 'ok' | 'wait' } | { note: string; tone: 'warn' | 'bad' } | null => {
     const since = blocksSince(h);
     if (h.status === 'confirmed') {
-      const block = h.height !== null ? showBlock(h.height) : null;
-      const pill =
-        block === null
-          ? 'Confirmed'
-          : since === null
-            ? `Confirmed in block ${block}`
-            : since === 0
-              ? `Confirmed in the newest block · block ${block}`
-              : `Confirmed ${showBlock(since)} ${since === 1 ? 'block' : 'blocks'} ago · block ${block}`;
+      const pill = since === null ? 'Confirmed' : since === 0 ? 'Confirmed in the newest block' : `Confirmed ${showBlock(since)} ${since === 1 ? 'block' : 'blocks'} ago`;
       return { pill, tone: 'ok' };
     }
     if (h.status === 'pending') return h.kind === 'received' ? { pill: 'Pending', tone: 'wait' } : null;
@@ -1206,6 +1199,7 @@ export function Home() {
               )}
             </div>
             <DetailRow label="When" value={formatDateTime(detail.record.timestampMs)} />
+            {detail.record.status === 'confirmed' && detail.record.height !== null && <DetailRow label="Block" value={showBlock(detail.record.height)} />}
             {/* The fee and the total, as the review showed them, the total set off beneath. */}
             {detail.kind !== 'received' && detail.record.feeNau && (
               <div className="vault-review">
