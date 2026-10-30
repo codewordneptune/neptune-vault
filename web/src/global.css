@@ -2004,47 +2004,6 @@ html {
   flex: 1 1 0;
   min-width: min(100%, 10em);
 }
-/* From 900 px a row is one line in columns, so more of History fits and the
-   eye can run down the times or the amounts: who, its note, its state, the
-   time and the amount. */
-.vault-row-button.vault-row-columns {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1fr) 130px 70px 128px;
-  align-items: center;
-  gap: 12px;
-  min-height: 46px;
-  padding-block: 5px;
-}
-.vault-row-button.vault-row-columns:first-child {
-  padding-top: 5px;
-}
-.vault-row-columns .vault-row-title,
-.vault-row-note {
-  -webkit-line-clamp: 1;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-.vault-row-time {
-  text-align: right;
-  white-space: nowrap;
-}
-.vault-row-columns > .vault-row-amount {
-  flex-direction: row;
-  justify-content: flex-end;
-  max-width: none;
-  min-width: 0;
-  margin-left: 0;
-}
-.vault-row-columns > .vault-row-amount p {
-  white-space: nowrap;
-}
-@media (min-width: 1100px) {
-  .vault-row-button.vault-row-columns {
-    grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1.4fr) 140px 76px 150px;
-  }
-}
 /* A state under the amount is wider than the amount: the name gives way
    first, so a narrow phone keeps the row whole. */
 .vault-row-button:has(.vault-state-pill) > .vault-row-who {
@@ -3151,10 +3110,10 @@ html {
   }
 }
 /* Every tab shares one column, so the content does not jump between them.
-   From 1100 px it is wide enough for Settings' list beside its open page and
-   for History's columns; a send's amount stays close to what it is for, in
-   a narrower column inside its card. The strips under the header keep to
-   the same column; setup and the lock screen, without tabs, keep their own. */
+   From 1100 px it is wide enough for Settings' list beside its open page; a
+   send's amount stays close to what it is for, in a narrower column inside
+   its card. The strips under the header keep to the same column; setup and
+   the lock screen, without tabs, keep their own. */
 @media (min-width: 1100px) {
   .vault-shell.has-tabs {
     --v-content-width: 960px;

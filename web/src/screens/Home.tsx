@@ -8,7 +8,6 @@ import { useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../components/Sheet';
 import { formatNau, NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
-import { HISTORY_COLUMNS, useLayout } from '../app/layout';
 import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../app/addressLabels';
 import { EXPIRED_NOTE, mayStillGo, MEMPOOL_KEEPS_MS, removable, SEND_LIFETIME_MS, SEND_NOTE_MAX } from '../app/send';
 import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNotes } from '../app/receivedNotes';
@@ -183,7 +182,6 @@ export function Home() {
   // address; an amount only while amounts show. A spreadsheet of History
   // is in the menu beside it.
   const SEARCH_FROM = 10;
-  const columns = useLayout(HISTORY_COLUMNS);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [listing, setListing] = useState<Listing>('all');
@@ -1092,22 +1090,9 @@ export function Home() {
                   {day.entries.map((e) => {
                     const h = e.record;
                     const incoming = e.kind === 'received';
-                    const title = (
-                      <Text size="md" fw={600} className={!whoOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>
-                        {whoOf(e) ? <bdi>{whoOf(e)}</bdi> : stateTitleOf(e)}
-                      </Text>
-                    );
-                    // A time lock only waits for its date: said in the row's own colour. The note comes last, so a long one is what the line cuts short.
-                    const details = [lockOf(h) !== null && `Spendable from ${showDate(lockOf(h) as number)}`, e.kind === 'self' && !hidden && 'fee only'].filter(Boolean).join(' · ');
-                    const note = noteOf(e);
-                    const state = stateWordOf(e) && (
-                      <span className="vault-state-pill" data-tone={stateWordOf(e)?.tone}>
-                        {stateWordOf(e)?.word}
-                      </span>
-                    );
                     return (
                       <UnstyledButton
-                        className={`vault-row vault-row-button${columns ? ' vault-row-columns' : ''}${arrived.has(h.key) ? ' vault-row-arrived' : ''}`}
+                        className={arrived.has(h.key) ? 'vault-row vault-row-button vault-row-arrived' : 'vault-row vault-row-button'}
                         key={h.key}
                         onClick={() => setDetail(e)}
                         aria-label={rowLabelOf(e)}
@@ -1121,39 +1106,28 @@ export function Home() {
                           }
                         }}
                       >
-                        {/* A send not going through says so in its title when nothing else names it, in the caution colour. */}
-                        {columns ? (
-                          <>
-                            {rowAvatarOf(e)}
-                            {title}
-                            <Text size="sm" c="dimmed" className="vault-row-note">
-                              {details}
-                              {details && note && ' · '}
-                              {note && <bdi>{note}</bdi>}
+                        <Group gap="sm" wrap="nowrap" className="vault-row-who">
+                          {rowAvatarOf(e)}
+                          <div style={{ minWidth: 0 }}>
+                            {/* A send not going through says so in its title when nothing else names it, in the caution colour. */}
+                            <Text size="md" fw={600} className={!whoOf(e) && isStuck(h) ? 'vault-row-title vault-state-warn' : 'vault-row-title'}>
+                              {whoOf(e) ? <bdi>{whoOf(e)}</bdi> : stateTitleOf(e)}
                             </Text>
-                            <span className="vault-row-state">{state}</span>
-                            <Text size="sm" c="dimmed" className="vault-row-time vault-tabular">
+                            <Text size="sm" c="dimmed" className="vault-row-meta vault-tabular">
                               {formatTime(h.timestampMs)}
+                              {/* A time lock only waits for its date: said in the row's own colour. */}
+                              {lockOf(h) !== null && ` · Spendable from ${showDate(lockOf(h) as number)}`}
+                              {e.kind === 'self' && !hidden && ' · fee only'}
+                              {/* Last, so a long one is what the line cuts short. */}
+                              {noteOf(e) && (
+                                <>
+                                  {' · '}
+                                  <bdi>{noteOf(e)}</bdi>
+                                </>
+                              )}
                             </Text>
-                          </>
-                        ) : (
-                          <Group gap="sm" wrap="nowrap" className="vault-row-who">
-                            {rowAvatarOf(e)}
-                            <div style={{ minWidth: 0 }}>
-                              {title}
-                              <Text size="sm" c="dimmed" className="vault-row-meta vault-tabular">
-                                {formatTime(h.timestampMs)}
-                                {details && ` · ${details}`}
-                                {note && (
-                                  <>
-                                    {' · '}
-                                    <bdi>{note}</bdi>
-                                  </>
-                                )}
-                              </Text>
-                            </div>
-                          </Group>
-                        )}
+                          </div>
+                        </Group>
                         <div className="vault-row-amount">
                           {/* Nothing left the wallet: the figure is struck through, with no sign. A send that may
                               still go through has not left it either, but may: dimmed, with no sign, not struck through. */}
@@ -1163,7 +1137,11 @@ export function Home() {
                             <span className="vault-unit">NPT</span>
                           </Text>
                           {/* Under the figure, so a row keeps its two lines and states line up down the list. */}
-                          {!columns && state}
+                          {stateWordOf(e) && (
+                            <span className="vault-state-pill" data-tone={stateWordOf(e)?.tone}>
+                              {stateWordOf(e)?.word}
+                            </span>
+                          )}
                         </div>
                       </UnstyledButton>
                     );
