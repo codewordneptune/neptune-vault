@@ -606,17 +606,21 @@ h3.mantine-Title-root.vault-prose-heading {
   font-size: var(--v-fs-md);
   letter-spacing: -0.01em;
 }
-/* The mark leads Home once a wallet is open, a full target in the bar's row. */
+/* The mark leads Home once a wallet is open. Its target reaches past the
+   26 px mark to a full tap without taking room in the bar's row. */
 .vault-brand-link {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  min-width: var(--v-tap);
-  min-height: var(--v-tap);
-  margin-block: calc((26px - var(--v-tap)) / 2);
   color: inherit;
   text-decoration: none;
   border-radius: var(--v-radius-xs);
+}
+.vault-brand-link::after {
+  content: '';
+  position: absolute;
+  inset: calc((26px - var(--v-tap)) / 2);
 }
 .vault-brand-link:focus-visible {
   outline: 2px solid var(--v-accent);
