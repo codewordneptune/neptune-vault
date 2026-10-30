@@ -3097,6 +3097,7 @@ html {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-height: var(--v-tap);
   margin-block: -10px;
 }
 .vault-history-tools {
