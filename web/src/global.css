@@ -154,7 +154,8 @@
   --v-content-width: 540px;
   /* The bars, the safe-area insets aside: the rail's width on a wide screen;
      the sticky header's height, its 33 px row (44 on a touch screen) between
-     12 px paddings (4 px on a phone on its side) and its 1 px line; and the
+     12 px paddings (5.5 px on a touch screen, 4 px on a phone on its side)
+     and its 1 px line; and the
      tab bar's height at the default text size. Offsets that clear a bar are
      worked out from these. */
   --v-rail-w: 88px;
@@ -165,7 +166,7 @@
 }
 @media (pointer: coarse) {
   :root {
-    --v-header-h: 69px;
+    --v-header-h: 56px;
     --v-tap: 44px;
   }
 }
@@ -582,6 +583,13 @@ h3.mantine-Title-root.vault-prose-heading {
 }
 .vault-topbar-inner {
   padding-block: var(--mantine-spacing-sm);
+}
+/* On a touch screen the bar is no taller than its 44 px row needs, so a
+   phone keeps more of its screen for the page. */
+@media (pointer: coarse) {
+  .vault-topbar-inner {
+    padding-block: 5.5px;
+  }
 }
 /* The bar's row as tall as the wallet menu, which is there only once a
    wallet is unlocked: the bar keeps one height on the lock screen, in
