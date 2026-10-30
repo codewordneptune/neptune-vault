@@ -2680,6 +2680,99 @@ html {
   text-underline-offset: 3px;
 }
 
+/* Appearance: each theme as a small picture of the app in it, its colours
+   the theme's own whichever is showing. System is half of each. */
+.vault-theme-choice {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 132px));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.vault-theme-choice legend {
+  margin-bottom: 10px;
+  padding: 0;
+}
+.vault-theme-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--v-fs-sm);
+  color: var(--v-text-2);
+  cursor: pointer;
+}
+.vault-theme-tile:has(input:checked) {
+  color: var(--v-text);
+  font-weight: 600;
+}
+.vault-theme-preview {
+  --tile-page: #111923;
+  --tile-card: #1a2433;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  padding: 8px;
+  border: 2px solid var(--v-line);
+  border-radius: var(--v-radius-sm);
+  background: var(--tile-page);
+}
+.vault-theme-preview[data-preview='light'] {
+  --tile-page: #edf1f6;
+  --tile-card: #fff;
+}
+.vault-theme-preview[data-preview='auto'] {
+  background: linear-gradient(90deg, #111923 50%, #edf1f6 50%);
+}
+.vault-theme-preview i {
+  height: 12%;
+  border-radius: 4px;
+  background: var(--tile-card);
+}
+.vault-theme-preview i:first-child {
+  height: 34%;
+}
+.vault-theme-preview[data-preview='auto'] i {
+  background: linear-gradient(90deg, #1a2433 50%, #fff 50%);
+}
+.vault-theme-tile:has(input:checked) .vault-theme-preview {
+  border-color: var(--v-accent);
+}
+.vault-theme-tile:has(input:focus-visible) .vault-theme-preview {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 2px;
+}
+/* Large text: the three names no longer fit side by side. */
+@media (max-width: 19em) {
+  .vault-theme-choice {
+    grid-template-columns: 1fr;
+  }
+  .vault-theme-tile {
+    flex-direction: row;
+    gap: 12px;
+  }
+  .vault-theme-preview {
+    flex: 0 0 72px;
+  }
+}
+/* About's head: the app's face, then what it is. */
+.vault-about-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-block: 4px;
+  text-align: center;
+}
+.vault-about-face svg {
+  margin-bottom: 8px;
+}
 /* A setting tucked under a choice most people make without it: named for
    what it holds, in the muted colour, not a link. Its own chevron instead of
    the browser's marker, so the contents can be indented to line up with its

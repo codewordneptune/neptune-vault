@@ -4,7 +4,7 @@
 // appearance, currency, about (with its pages: report a problem, privacy,
 // open-source licences), removal.
 
-import { Anchor, Button, Checkbox, Divider, Group, Kbd, Paper, SegmentedControl, Select, Stack, Switch, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { Anchor, Button, Checkbox, Divider, Group, Kbd, Paper, Select, Stack, Switch, Text, TextInput, Title, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import {
   IconAdjustmentsHorizontal,
   IconChevronLeft,
@@ -17,20 +17,18 @@ import {
   IconInfoCircle,
   IconKey,
   IconLock,
-  IconMoon,
   IconPencil,
   IconShield,
-  IconSun,
   IconTrash,
   IconUsers,
   type TablerIcon,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import { useMediaQuery } from '@mantine/hooks';
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { Sheet } from '../components/Sheet';
+import { Logo } from '../components/Logo';
 import { BACKGROUND_LOCK_CHOICES_MS, backgroundLockOf, LOCK_CHOICES_MS, lockTimeoutOf } from '../app/accounts';
 import { showBlock, showNau, useApp } from '../app/AppContext';
 import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordFields';
@@ -863,12 +861,18 @@ function SettingsSections({ section }: { section: SectionKey }) {
       {section === 'about' && (
         <Stack gap="md">
           <Paper>
-            <Stack gap="xs">
+            <Stack gap="md">
+              <div className="vault-about-face">
+                <Logo size={56} />
+                <Text fz="xl" fw={600}>
+                  Neptune Vault
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Version {__APP_VERSION__} ({__APP_COMMIT__}), built {formatDate(Date.parse(__APP_BUILT_AT__))}
+                </Text>
+              </div>
               <Text size="sm" c="dimmed">
                 {NATIVE ? 'A Neptune Cash wallet' : 'A Neptune Cash wallet that runs in your browser'}. Your keys stay on this device, and only the node set in Advanced learns about your wallet.
-              </Text>
-              <Text size="xs" c="dimmed">
-                Version {__APP_VERSION__} ({__APP_COMMIT__}), built {formatDate(Date.parse(__APP_BUILT_AT__))}.
               </Text>
             </Stack>
           </Paper>
@@ -1239,38 +1243,36 @@ function Shortcuts() {
   );
 }
 
-// Light, dark, or whatever the device says. The library remembers a manual
-// choice in this browser's storage; "System" is the default and follows the
-// device, so nothing changes unless a person asks.
+const THEMES = [
+  { value: 'auto', name: 'System' },
+  { value: 'light', name: 'Light' },
+  { value: 'dark', name: 'Dark' },
+] as const;
+
+// Light, dark, or whatever the device says, each a small picture of the app
+// in it. The library remembers a manual choice in this browser's storage;
+// "System" is the default and follows the device, so nothing changes unless
+// a person asks.
 function AppearanceCard() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
-  // Narrow by the text's own measure (enlarged text counts): the choices stack.
-  const stacked = useMediaQuery('(max-width: 22em)');
-  // The page's title names it: the control needs no label of its own on screen.
   return (
-    <Stack gap="xs">
-      <SegmentedControl
-        fullWidth
-        orientation={stacked ? 'vertical' : 'horizontal'}
-        aria-label="Appearance"
-        value={colorScheme}
-        onChange={(v) => setColorScheme(v as 'auto' | 'light' | 'dark')}
-        data={[
-          { value: 'auto', label: <SegmentLabel Icon={IconCircleHalf2}>System</SegmentLabel> },
-          { value: 'light', label: <SegmentLabel Icon={IconSun}>Light</SegmentLabel> },
-          { value: 'dark', label: <SegmentLabel Icon={IconMoon}>Dark</SegmentLabel> },
-        ]}
-      />
-    </Stack>
-  );
-}
-
-function SegmentLabel({ Icon, children }: { Icon: TablerIcon; children: ReactNode }) {
-  return (
-    <span className="vault-segment-label">
-      <Icon size={16} aria-hidden />
-      {children}
-    </span>
+    <fieldset className="vault-theme-choice">
+      <Text component="legend" size="sm" fw={600}>
+        Theme
+      </Text>
+      {THEMES.map((t) => (
+        <label key={t.value} className="vault-theme-tile">
+          <input type="radio" name="vault-theme" className="sr-only" checked={colorScheme === t.value} onChange={() => setColorScheme(t.value)} />
+          <span className="vault-theme-preview" data-preview={t.value} aria-hidden>
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+          {t.name}
+        </label>
+      ))}
+    </fieldset>
   );
 }
 
