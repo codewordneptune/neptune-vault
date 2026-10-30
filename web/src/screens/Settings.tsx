@@ -42,7 +42,7 @@ import { abbreviateAddress } from '../util/address';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { MethodChoice } from '../components/MethodChoice';
-import { CopyWords, StartMonth, WordGrid } from '../components/WordGrid';
+import { CopyWords, WordGrid } from '../components/WordGrid';
 import { Spoken } from '../components/Spoken';
 import { PasswordField } from '../components/PasswordField';
 import { ContactsPanel } from './Contacts';
@@ -51,7 +51,7 @@ import { PrivacyStatement } from './Privacy';
 import { ThirdPartyLicences } from './Licences';
 import { usePendingSends } from '../app/pending';
 import { isCancellation } from '../app/passkey';
-import { CLIPBOARD_RISK, FAST_SCAN, INSTALL_BENEFITS, NOT_DURING_SEND } from '../app/words';
+import { CLIPBOARD_RISK, FAST_SCAN, INSTALL_BENEFITS, MONTH_WHY, NOT_DURING_SEND } from '../app/words';
 import { FIAT_CURRENCIES, FIAT_LABELS, formatFiat, isFiatCurrency } from '../util/fiat';
 import { useQuote } from '../app/price';
 import { NETWORK_LABELS } from '../util/network';
@@ -631,8 +631,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               </Button>
               {phrase && (
                 <Stack gap="xs" mt="xs" w="100%">
-                  <WordGrid words={phrase} />
-                  {startMs !== null && <StartMonth at={startMs} />}
+                  <WordGrid words={phrase} month={startMs ?? undefined} />
                   {/* The button, then what copying means, beneath it, as on the setup step. */}
                   <Stack gap={6} align="flex-start">
                     <CopyWords words={phrase} />
@@ -640,6 +639,11 @@ function SettingsSections({ section }: { section: SectionKey }) {
                       {CLIPBOARD_RISK}
                     </Text>
                   </Stack>
+                  {startMs !== null && (
+                    <Text size="sm" c="dimmed">
+                      {MONTH_WHY}
+                    </Text>
+                  )}
                   <Text size="sm" c="dimmed" aria-live="off">
                     Hidden again in {Math.max(0, phraseLeft)} s, or when you leave this screen.
                   </Text>

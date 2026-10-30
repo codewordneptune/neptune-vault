@@ -830,24 +830,19 @@ button.vault-network:focus-visible {
   border-radius: var(--v-radius-xs);
   background: var(--v-well);
 }
-/* The month to write down with the words, in a well like theirs. */
+/* The month to write down with the words: a last row of theirs, in a well
+   like theirs, from the cells' left edge past their numbers. */
 .vault-start-month {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  min-height: 36px;
+  margin-top: 6px;
+  margin-inline-start: calc(var(--mantine-font-size-xs) * 1.8 + 6px);
+  padding: 4px 10px;
   border-radius: var(--v-radius-xs);
   background: var(--v-well);
-  color: var(--v-text-2);
-}
-.vault-start-month svg {
-  flex: none;
-  margin-top: 3px;
-  color: var(--v-accent-text);
-}
-.vault-start-month b {
-  color: var(--v-text);
-  font-weight: 600;
 }
 .vault-word-list.compact .vault-word {
   min-height: 36px;

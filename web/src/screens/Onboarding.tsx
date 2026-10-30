@@ -18,8 +18,8 @@ import { NATIVE } from '../app/platform';
 import { installState } from '../app/install';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { MethodChoice } from '../components/MethodChoice';
-import { CopyWords, StartMonth, WordGrid } from '../components/WordGrid';
-import { CLIPBOARD_RISK, FAST_LEARNS, FAST_SCAN } from '../app/words';
+import { CopyWords, WordGrid } from '../components/WordGrid';
+import { CLIPBOARD_RISK, FAST_LEARNS, FAST_SCAN, MONTH_WHY } from '../app/words';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import type { NodeClient } from '../node/rpc';
 import type { Network } from '../storage/db';
@@ -483,7 +483,7 @@ export function Onboarding() {
                 cells hold dots meanwhile, not the words. */}
             <div className="vault-words-cover-host" ref={wordsRef} tabIndex={-1} aria-label={revealed ? 'Your seed phrase' : undefined}>
               <div inert={!revealed || undefined} aria-hidden={!revealed || undefined}>
-                <WordGrid words={revealed ? phrase : phrase.map(() => '••••••')} />
+                <WordGrid words={revealed ? phrase : phrase.map(() => '••••••')} month={Date.now()} />
               </div>
               {!revealed && (
                 <div className="vault-words-cover">
@@ -496,7 +496,6 @@ export function Onboarding() {
                 </div>
               )}
             </div>
-            <StartMonth at={Date.now()} />
             {/* Pressed before the words were shown, it says so rather than wait disabled. */}
             <Button
               onClick={() => {
@@ -507,12 +506,15 @@ export function Onboarding() {
             >
               I have written them down
             </Button>
-            {/* Under the step's button, so the words and the way on share the first screen; then what copying means. */}
+            {/* Under the step's button, so the words and the way on share the first screen; then what copying means, and the month. */}
             {revealed && (
               <Stack gap={6} align="flex-start">
                 <CopyWords words={phrase} />
                 <Text size="sm" c="dimmed">
                   {CLIPBOARD_RISK}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  {MONTH_WHY}
                 </Text>
               </Stack>
             )}

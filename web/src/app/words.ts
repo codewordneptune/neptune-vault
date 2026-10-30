@@ -58,6 +58,9 @@ export const COINS_SAFE = 'Your coins are safe on the chain.';
 /** Under Copy on the seed phrase: what copying it risks. */
 export const CLIPBOARD_RISK = 'Other apps can read the clipboard: paste into a password manager, then clear it.';
 
+/** Under a shown seed phrase: why its month is worth writing down with it. */
+export const MONTH_WHY = 'Write the month down too: a private restore can then start there instead of the first block.';
+
 /** Why installing the app is worth it. */
 export const INSTALL_BENEFITS = 'An installed app keeps its storage, works full screen, and opens from its own icon.';
 

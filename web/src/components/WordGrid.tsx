@@ -6,7 +6,7 @@
 // lands somewhere the person did not expect.
 
 import { Box, Group, SimpleGrid, Text, UnstyledButton } from '@mantine/core';
-import { IconCalendar, IconCheck, IconCopy, IconX } from '@tabler/icons-react';
+import { IconCheck, IconCopy, IconX } from '@tabler/icons-react';
 
 import { useSecureScreen } from '../app/secureScreen';
 import { PHONE, useLayout } from '../app/layout';
@@ -14,15 +14,16 @@ import { useCopied } from '../util/clipboard';
 import { formatMonth } from '../util/time';
 
 // `only` shows just those places, by their numbers: the confirmation's
-// missing words, without the rest of the phrase on screen again.
-export function WordGrid({ words, blanks = [], next, onClear, only }: { words: string[]; blanks?: number[]; next?: number; onClear?: (i: number) => void; only?: number[] }) {
+// missing words, without the rest of the phrase on screen again. `month`
+// closes the phrase with the month to write down with it.
+export function WordGrid({ words, blanks = [], next, onClear, only, month }: { words: string[]; blanks?: number[]; next?: number; onClear?: (i: number) => void; only?: number[]; month?: number }) {
   useSecureScreen();
   const phone = useLayout(PHONE);
   // A phrase only shown, not checked, is never pressed: its rows are shorter, so it and the button after it fit on a phone.
   const shown = blanks.length === 0;
   // A numbered list to a screen reader. The role is explicit: without
   // list markers some browsers stop announcing a list as one.
-  return (
+  const grid = (
     <SimpleGrid component="ol" role="list" className={shown ? 'vault-word-list compact' : 'vault-word-list'} cols={phone ? 2 : 3} spacing="xs" verticalSpacing={shown ? 6 : 'xs'}>
       {(only ?? words.map((_, i) => i)).map((i) => {
         const w = words[i] ?? '';
@@ -60,18 +61,28 @@ export function WordGrid({ words, blanks = [], next, onClear, only }: { words: s
       })}
     </SimpleGrid>
   );
+  return month === undefined ? (
+    grid
+  ) : (
+    <div>
+      {grid}
+      <StartMonth at={month} />
+    </div>
+  );
 }
 
 /**
- * The month to write down with the words, in a well like theirs: a private
- * restore can start there, and skip every block before it.
+ * The month to write down with the words, as a last row of theirs: a private
+ * restore can start there, and skip every block before it (MONTH_WHY).
  */
-export function StartMonth({ at }: { at: number }) {
+function StartMonth({ at }: { at: number }) {
   return (
     <div className="vault-start-month">
-      <IconCalendar size={16} aria-hidden />
-      <Text size="sm">
-        Write the month down too: <b>{formatMonth(at)}</b>. A private restore can then start from that month instead of the first block.
+      <Text size="sm" c="dimmed">
+        Month
+      </Text>
+      <Text size="sm" fw={600}>
+        {formatMonth(at)}
       </Text>
     </div>
   );
