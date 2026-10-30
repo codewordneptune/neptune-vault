@@ -33,6 +33,7 @@ export function Unlock() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [shaking, setShaking] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   // A passkey that failed is said under its button: it is not the password field's error.
@@ -76,6 +77,12 @@ export function Unlock() {
 
   const unlock = async () => {
     if (!account) return;
+    // Pressed early, it says what is missing rather than stay disabled without a reason.
+    if (!password) {
+      setError('Enter your password');
+      inputRef.current?.focus();
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -84,6 +91,7 @@ export function Unlock() {
     } catch (e) {
       // Overtaken by a lock (another wallet picked, or the app hidden): the screen that follows says enough.
       if (!(e instanceof UnlockCancelledError)) setError(e instanceof WrongPasswordError ? 'Wrong password. Try again.' : (e as Error).message);
+      if (e instanceof WrongPasswordError) setShaking(true);
       // What was typed stays, selected: retyping replaces it, and one slip can
       // be fixed where it is instead of typing the whole password again.
       inputRef.current?.focus();
@@ -125,21 +133,23 @@ export function Unlock() {
                 <Divider label="or use the password" labelPosition="center" />
               </>
             )}
-            <PasswordField
-              ref={inputRef}
-              label="Password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.currentTarget.value);
-                setError(null);
-              }}
-              error={error}
-              // Said as it appears: after Enter, focus is already in the field, and moving it there again says nothing.
-              errorProps={{ role: 'alert' }}
-              autoComplete="current-password"
-              autoFocus={!hasPasskey}
-            />
-            <Button type="submit" variant={hasPasskey ? 'light' : 'filled'} loading={busy} disabled={!password}>
+            <div className={shaking ? 'vault-shake' : undefined} onAnimationEnd={() => setShaking(false)}>
+              <PasswordField
+                ref={inputRef}
+                label="Password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.currentTarget.value);
+                  setError(null);
+                }}
+                error={error}
+                // Said as it appears: after Enter, focus is already in the field, and moving it there again says nothing.
+                errorProps={{ role: 'alert' }}
+                autoComplete="current-password"
+                autoFocus={!hasPasskey}
+              />
+            </div>
+            <Button type="submit" variant={hasPasskey ? 'light' : 'filled'} loading={busy}>
               Unlock
             </Button>
             <Stack gap={4}>

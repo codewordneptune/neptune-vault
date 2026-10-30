@@ -2579,6 +2579,38 @@ html {
   width: 100%;
   max-width: 400px;
 }
+/* A line under the field makes the card taller, downwards only: the same
+   height comes off its margin, so its middle, and with it the field under
+   the cursor, stays where it was. */
+.vault-lock-card:has(.mantine-InputWrapper-error) {
+  margin-bottom: -1.375rem;
+}
+.vault-lock-card:has(.vault-caps-on) {
+  margin-bottom: -1.625rem;
+}
+.vault-lock-card:has(.mantine-InputWrapper-error):has(.vault-caps-on) {
+  margin-bottom: -3rem;
+}
+/* A wrong password: the field shakes its head, once. */
+@media (prefers-reduced-motion: no-preference) {
+  .vault-shake {
+    animation: vault-shake 320ms ease-in-out;
+  }
+}
+@keyframes vault-shake {
+  20% {
+    transform: translateX(-6px);
+  }
+  45% {
+    transform: translateX(5px);
+  }
+  70% {
+    transform: translateX(-3px);
+  }
+  90% {
+    transform: translateX(2px);
+  }
+}
 .vault-lock-name {
   overflow-wrap: anywhere;
 }
