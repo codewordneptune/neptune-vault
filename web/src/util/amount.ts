@@ -7,6 +7,23 @@
 /** The most decimals an amount may be typed with: as many as the app shows. */
 export const MAX_DECIMALS = 8;
 
+/**
+ * Typed amounts added up exactly, in nau, an empty one counting as nothing;
+ * null once one does not read. A figure to read while a form is filled: what
+ * is sent is what the core parses.
+ */
+export function typedTotalNau(texts: string[], nauPerCoin: bigint): bigint | null {
+  let total = 0n;
+  for (const text of texts) {
+    const plain = text.replace(/[\s\u202F\u00A0]/g, '');
+    if (plain === '') continue;
+    if (!/^(\d+(\.\d*)?|\.\d+)$/.test(plain) || decimalsProblem(plain)) return null;
+    const [whole, decimals = ''] = plain.split('.');
+    total += BigInt(whole || '0') * nauPerCoin + (BigInt(decimals.padEnd(MAX_DECIMALS, '0')) * nauPerCoin) / 10n ** BigInt(MAX_DECIMALS);
+  }
+  return total;
+}
+
 /** Why a typed amount has too many decimals, or null. Grouping spaces are ignored. */
 export function decimalsProblem(text: string): string | null {
   const plain = text.replace(/[\s  ]/g, '');

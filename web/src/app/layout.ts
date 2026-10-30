@@ -3,10 +3,10 @@
 // two would switch at different widths.
 //
 // Up to 559 px is a phone held upright: a dialog rises from the foot as a
-// sheet, Send leads with the amount, and the seed phrase is two columns.
+// sheet, Send is the page itself, and the seed phrase is two columns.
 // From 900 px, or a phone on its side, the tab bar is a rail at the side
 // (global.css); a tablet between the two keeps the tab bar with the wide
-// screen's dialogs and Send form. From 1100 px every tab widens to 960 px,
+// screen's dialogs and Send's card. From 1100 px every tab widens to 960 px,
 // and Settings shows its list and a page side by side.
 
 import { useMediaQuery } from '@mantine/hooks';
@@ -17,6 +17,8 @@ export const WIDE = '(min-width: 900px), (max-height: 500px) and (min-width: 560
 export const SETTINGS_SPLIT = '(min-width: 1100px)';
 /** Text large for the screen's width (an em here is the browser's text size): the header's Beta tag moves into the wallet menu (global.css). */
 export const LARGE_TEXT = '(max-width: 19em)';
+/** Room for a recipient's amount on the first line of its row (global.css), from 360 px at the usual text size. */
+export const PAYEE_ROW = '(min-width: 22.5em)';
 
 /** A field's section holding `icons` icon buttons: their targets, 4 px apart and 4 px clear of its sides. */
 export const iconSection = (icons: number): string => `calc(${icons} * var(--v-tap) + ${icons + 1} * 4px)`;

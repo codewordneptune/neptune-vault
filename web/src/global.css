@@ -886,7 +886,7 @@ button.vault-network:focus-visible {
 }
 
 /* A label over a group of rows, as History's day headings read: in
-   sentence case ("This wallet", "App", "Recipient 1"), in the muted grey of
+   sentence case ("This wallet", "App", "Recipients"), in the muted grey of
    the rows' second lines, so the rows under it lead. Spaced capitals
    (.vault-eyebrow) stay for card titles, step counters and menus. */
 .vault-group-label {
@@ -3596,29 +3596,88 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   }
 }
 
-/* A send to several: each recipient after the first is a group of its own,
-   set off by a line, its number and a way to take it out again. The review
-   lists them with what each gets. */
-.vault-payee {
+/* A send to several: the recipients as rows under one label, each a card as
+   a single recipient's is, with its amount and a way to take it out. The
+   address field or the card comes first and the amount after them, under
+   the field and, once the card can spare the room, on its first line, the
+   width of what is typed. The review lists them with what each gets. */
+.vault-payees {
   display: flex;
   flex-direction: column;
-  gap: var(--mantine-spacing-md);
-  padding-top: var(--mantine-spacing-md);
-  border-top: 1px solid var(--v-line);
+  gap: 8px;
 }
-/* With several recipients, a line closes the last one, as one opens each:
-   the fee and the note under it are the whole send's. */
-.vault-send-close {
-  --divider-color: var(--v-line);
+.vault-payee {
+  --payee-field: min(calc(var(--chars) * 0.6rem + 3.25rem), 11rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 0;
+  padding: 8px 8px 8px calc(42px / 3);
+  border: 1px solid var(--v-field-border);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--v-field);
 }
-.vault-payee-head {
+.vault-send-bare .vault-payee {
+  border-color: transparent;
+  background: var(--v-surface);
+  box-shadow: var(--v-card-shadow);
+}
+.vault-payee > :first-child {
+  grid-area: 1 / 1 / 2 / -1;
+}
+.vault-payee > :not(:first-child, .vault-payee-amount) {
+  grid-column: 1 / -1;
+}
+.vault-payee-amount {
   display: flex;
+  grid-area: 2 / 2;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 2px;
 }
-.vault-payee-head .vault-tap-link {
-  margin-right: -4px;
+.vault-payee-amount .mantine-Input-wrapper {
+  width: var(--payee-field);
+}
+.vault-payee-amount input {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.vault-payee-amount .mantine-Input-section {
+  color: var(--v-muted);
+  font-size: var(--v-fs-sm);
+}
+/* A name next to an amount: "(unverified)" takes the next line rather than the name's room. */
+.vault-payee .vault-recipient-name {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+/* The width of app/layout.ts's PAYEE_ROW. */
+@media (min-width: 22.5em) {
+  .vault-payee:has(.vault-recipient) > .vault-payee-amount {
+    grid-area: 1 / 2;
+    align-self: start;
+  }
+  .vault-payee .vault-recipient-head {
+    gap: 4px;
+  }
+  .vault-payee .vault-recipient-head:first-child {
+    min-height: 2.625rem;
+    padding-inline-end: calc(var(--payee-field) + var(--v-tap) + 14px);
+  }
+  .vault-payee .vault-recipient-head .vault-tap-link {
+    margin-right: -4px;
+  }
+}
+/* What the send comes to, and what there is to spend beside it. */
+.vault-send-total {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-inline: 2px;
+}
+.vault-send-total > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  column-gap: 16px;
 }
 /* A tap-link led by its 16 px icon. */
 .vault-link-icon {
@@ -3683,11 +3742,11 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   gap: 12px;
 }
 
-/* On a phone sending to one person (Send.tsx), Send is the page itself
-   rather than a card, and the amount takes its middle: large and centred,
-   the field as wide as the figure (a hidden copy of the figure under it
-   sets the width), smaller as the figure grows so that it fits the width, with an
-   accent line under it while it is typed in. The recipient and the fee
+/* On a phone (Send.tsx) Send is the page itself rather than a card, and the
+   amount of a send to one recipient takes its middle: large and centred, the
+   field as wide as the figure (a hidden copy of the figure under it sets the
+   width), smaller as the figure grows so that it fits the width, with an
+   accent line under it while it is typed in. The recipients and the fee
    stand on the page as cards. */
 .mantine-Paper-root.vault-send-bare {
   display: flex;
@@ -3713,6 +3772,10 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   flex: 1 0 auto;
   flex-direction: column;
 }
+/* Several recipients leave no amount to fill the space: Review stays at the foot. */
+.vault-send-bare .vault-send-form > .mantine-Stack-root > .mantine-Button-root {
+  margin-top: auto;
+}
 .vault-send-bare .vault-amount-hero {
   justify-content: center;
 }
@@ -3720,6 +3783,13 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   border-color: transparent;
   background: var(--v-surface);
   box-shadow: var(--v-card-shadow);
+}
+.vault-payee .vault-recipient.vault-recipient {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
 }
 .vault-amount-hero {
   container-type: inline-size;
@@ -3781,22 +3851,24 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 .vault-send-bare .vault-eyebrow {
   color: var(--v-muted-on-glow);
 }
-/* The fee as one row on that page: its label at the start, the choice and a
-   chevron at the end (components/ChoiceField.tsx). */
+/* The fee as one row: its label at the start, the choice and a chevron at
+   the end (components/ChoiceField.tsx). On a phone's bare page it is a card. */
 .vault-choice-field.vault-choice-row {
   min-height: 48px;
+  font-size: var(--v-fs-sm);
+}
+.vault-send-bare .vault-choice-field.vault-choice-row {
   border-color: transparent;
   border-radius: var(--v-radius-sm);
   background: var(--v-surface);
   box-shadow: var(--v-card-shadow);
-  font-size: var(--v-fs-sm);
 }
-.vault-choice-field.vault-choice-row:hover:not(:focus-visible, [aria-expanded='true']) {
+.vault-send-bare .vault-choice-field.vault-choice-row:hover:not(:focus-visible, [aria-expanded='true']) {
   border-color: transparent;
 }
 /* The row's transparent edge would otherwise hide the focus edge every
    field gets. */
-.vault-choice-field.vault-choice-row:is(:focus-visible, [aria-expanded='true']) {
+.vault-send-bare .vault-choice-field.vault-choice-row:is(:focus-visible, [aria-expanded='true']) {
   border-color: var(--v-accent);
 }
 .vault-choice-row-label {

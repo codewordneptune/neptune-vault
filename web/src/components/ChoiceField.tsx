@@ -28,7 +28,6 @@ export function ChoiceField({
   face,
   hint,
   more,
-  reading,
   row = false,
 }: {
   label: string;
@@ -41,23 +40,18 @@ export function ChoiceField({
   hint?: string;
   /** A last entry that does something else, such as comparing the choices. */
   more?: { label: string; onSelect: () => void };
-  /** A reading under the field, as under an amount field: its estimate in another currency. */
-  reading?: ReactNode;
-  /** On one line, as a list row: the label at the start, the choice at the end, no reading (Send's fee on a phone). */
+  /** On one line, as a list row: the label at the start, the choice at the end (Send's fee). */
   row?: boolean;
 }) {
   const labelId = useId();
   const fieldId = useId();
   const hintId = useId();
-  const readingId = useId();
   const box = useCombobox({
     onDropdownClose: () => box.resetSelectedOption(),
     onDropdownOpen: (source) => {
       if (source === 'keyboard') box.selectActiveOption();
     },
   });
-  const shownReading = row ? null : reading;
-  const describedBy = [shownReading ? readingId : null, hint ? hintId : null].filter(Boolean).join(' ') || undefined;
   return (
     <div>
       <Combobox
@@ -76,7 +70,7 @@ export function ChoiceField({
               {label}
             </Input.Label>
             <Combobox.EventsTarget targetType="button" withExpandedAttribute>
-              <button type="button" id={fieldId} className={row ? 'vault-choice-field vault-choice-row' : 'vault-choice-field'} aria-labelledby={`${labelId} ${fieldId}`} aria-describedby={describedBy} onClick={() => box.toggleDropdown()} onBlur={() => box.closeDropdown()}>
+              <button type="button" id={fieldId} className={row ? 'vault-choice-field vault-choice-row' : 'vault-choice-field'} aria-labelledby={`${labelId} ${fieldId}`} aria-describedby={hint ? hintId : undefined} onClick={() => box.toggleDropdown()} onBlur={() => box.closeDropdown()}>
                 {row && (
                   <span className="vault-choice-row-label" aria-hidden>
                     {label}
@@ -131,11 +125,6 @@ export function ChoiceField({
         <span id={hintId} className="sr-only">
           {hint}
         </span>
-      )}
-      {shownReading && (
-        <Text id={readingId} size="sm" c="dimmed" mt={6}>
-          {shownReading}
-        </Text>
       )}
     </div>
   );

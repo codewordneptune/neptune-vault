@@ -73,8 +73,9 @@ A self-custodial wallet for [Neptune Cash](https://neptune.cash).
   the Android and desktop apps, a `neptunecash:` payment link opens Send,
   filled in. On Android the installed web app takes an address or a payment
   request shared from another app.
-- On a phone, a send to one person starts with the amount, large. The
-  review reads like a receipt, and its button says what it sends.
+- A send to one person starts with the amount, large; a send to several
+  lists them as rows with a total. The review reads like a receipt, and its
+  button says what it sends.
 
 **History**
 
