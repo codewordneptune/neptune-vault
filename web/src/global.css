@@ -3088,26 +3088,24 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
   width: 100%;
   height: auto;
 }
-/* The code, then the address and its buttons; on a phone on its side the
-   code stands at their left, at a size that leaves Copy on the screen. */
-.vault-receive-code {
-  display: flex;
-  flex-direction: column;
-  gap: var(--mantine-spacing-md);
+/* Receive on a wide screen or a phone on its side, on either tab: what sets
+   the code on the left, with which address it is under it; the code, with
+   Copy and Share under it, on the right, in the same place on both tabs. On
+   a phone on its side the code is smaller, so Copy stays on the screen. */
+.vault-receive-wide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--mantine-spacing-md) 32px;
+  align-items: start;
+}
+.vault-receive-wide .vault-qr-code.vault-qr-code {
+  max-width: none;
+  margin-inline: 0;
 }
 @media (max-height: 500px) and (min-width: 560px) and (min-aspect-ratio: 16/10) {
-  .vault-receive-code {
-    flex-direction: row;
-    align-items: flex-start;
-  }
-  .vault-receive-code > .vault-qr-code.vault-qr-code {
-    flex: none;
-    width: min(240px, 40%);
-    margin-inline: 0;
-  }
-  .vault-receive-side {
-    flex: 1;
-    min-width: 0;
+  .vault-receive-wide {
+    grid-template-columns: minmax(0, 1fr) min(240px, 40%);
+    gap: var(--mantine-spacing-md) 24px;
   }
 }
 .vault-qr-code:focus-visible {

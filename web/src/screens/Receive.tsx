@@ -12,6 +12,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 
 import { Sheet } from '../components/Sheet';
+import { useLayout, WIDE } from '../app/layout';
 import { QrFullScreen } from '../components/QrFullScreen';
 import { MoreButton } from '../components/MoreButton';
 import { Caution, Done, ErrorLine, Info } from '../components/Notice';
@@ -117,6 +118,10 @@ export function Receive() {
   const { services, account, history, utxos, checkIncoming, loaded } = useApp();
   const hidden = services.settings.hideBalance ?? false;
   const [tab, setTab] = useState<Tab>('address');
+  const wide = useLayout(WIDE);
+  // A phone on its side: the code takes the screen's height, so on the
+  // Address tab Copy and Share stay under the address, on the first screen.
+  const short = useLayout('(max-height: 500px)');
   const [kind, setKind] = useState<KeyKind>('generation');
   const [indices, setIndices] = useState<Record<KeyKind, number>>({ generation: 0, ec_hybrid: 0, viewing: 0 });
   const [address, setAddress] = useState('');
@@ -523,6 +528,224 @@ export function Receive() {
   const noteOf = (note: { done: boolean; text: string } | null) =>
     note === null ? null : note.done ? <Done role={undefined}><Spoken text={note.text} /></Done> : <Info><Spoken text={note.text} /></Info>;
 
+  // The parts of each tab, for the two arrangements below. Which address it
+  // is, shared by both tabs and most often Standard's main one: its type, a
+  // labelled field as every select is, then the addresses of that type (the
+  // main one first, then each with a name or a payment), then a new one.
+  const whichAddress = (
+    <Stack gap={6}>
+      <ChoiceField
+        label="Address type"
+        value={kind}
+        choices={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({ value: k, name: KIND_LABELS[k], note: <Spoken text={KIND_LINES[k]} /> }))}
+        onChoose={(k) => chooseKind(k as KeyKind)}
+        more={{ label: 'Compare address types', onSelect: () => setComparing(true) }}
+      />
+      <div role="group" aria-label={`${KIND_LABELS[kind]} addresses`}>
+        {listed.map((i) => {
+          const k = addressKey(kind, i);
+          const current = i === index;
+          const count = payments.get(k) ?? 0;
+          const name = labels[k];
+          const title = addressTitle(kind, i);
+          // Only a new address is named; a main address named before can still lose its name.
+          const nameable = i > 0;
+          // Who it is for leads when it has a name; its number and payments go beneath.
+          const number = i === 0 ? 'Main address' : `Address ${i}`;
+          const details = [name ? number : null, count === 0 ? null : count === 1 ? '1 payment' : `${count} payments`].filter(Boolean).join(' · ');
+          return (
+            <div key={k} className="vault-row vault-address-row">
+              <UnstyledButton
+                className="vault-address-show"
+                onClick={() => showIndex(i)}
+                aria-current={current || undefined}
+                ref={(el: HTMLButtonElement | null) => {
+                  if (el) rowButtons.current.set(k, el);
+                  else rowButtons.current.delete(k);
+                }}
+              >
+                <span className="vault-address-mark" aria-hidden>
+                  {current && <IconCheck size={16} />}
+                </span>
+                <span className="vault-address-title">
+                  <Text span size="md" fw={current ? 600 : 400} className="vault-row-title">
+                    {name ? <bdi>{name}</bdi> : number}
+                  </Text>
+                  {details && (
+                    <Text span display="block" size="sm" c="dimmed">
+                      {details}
+                    </Text>
+                  )}
+                </span>
+              </UnstyledButton>
+              <div className="vault-address-action">
+                {nameable && !name && (
+                  <UnstyledButton
+                    onClick={() => setNaming({ kind, index: i })}
+                    aria-label={`Name it, ${title}`}
+                    c="var(--v-accent-text)"
+                    fz="sm"
+                    className="vault-tap-link"
+                    ref={(el: HTMLButtonElement | null) => {
+                      if (el) nameButtons.current.set(k, el);
+                      else nameButtons.current.delete(k);
+                    }}
+                  >
+                    Name it
+                  </UnstyledButton>
+                )}
+                {name && (
+                  <Menu position="bottom-end">
+                    <MoreButton
+                      label={`More for ${title}`}
+                      buttonRef={(el: HTMLButtonElement | null) => {
+                        if (el) moreButtons.current.set(k, el);
+                        else moreButtons.current.delete(k);
+                      }}
+                    />
+                    <Menu.Dropdown>
+                      {nameable && (
+                        <Menu.Item leftSection={<IconPencil size={16} />} onClick={() => setNaming({ kind, index: i })}>
+                          Rename
+                        </Menu.Item>
+                      )}
+                      {/* Red, as Remove is in every other menu. */}
+                      <Menu.Item
+                        leftSection={<IconTrash size={16} />}
+                        c="var(--v-danger-text)"
+                        className="danger"
+                        onClick={() => {
+                          setUnnameError(null);
+                          setUnnaming({ kind, index: i });
+                        }}
+                      >
+                        Remove name
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div className="vault-row vault-address-row">
+          <UnstyledButton ref={newRef} className="vault-address-show vault-address-new" onClick={nextUnused} disabled={!canNew}>
+            <span className="vault-address-mark" aria-hidden>
+              <IconPlus size={16} />
+            </span>
+            <span className="vault-address-title">
+              <Text span display="block" size="sm" fw={600}>
+                New address
+              </Text>
+              {/* Why a new one, on the row that makes it; at the limit, why
+                  there is none. View-only is for watching, not for payers.
+                  A payment announced on the chain carries its address's
+                  receiver identifier in the clear (message[1]; neptune-wallet
+                  calls it "a public fingerprint"), the same for every payment
+                  to that address, so anyone reading the chain can group them,
+                  never seeing the amounts. */}
+              {!canNew ? (
+                <Text span display="block" size="sm" c="dimmed">
+                  More addresses open up once one of these has received a payment.
+                </Text>
+              ) : (
+                kind !== 'viewing' && (
+                  <Text span display="block" size="sm" c="dimmed">
+                    Give each payer their own; anyone reading the blockchain can see which payments went to one address.
+                  </Text>
+                )
+              )}
+            </span>
+          </UnstyledButton>
+        </div>
+      </div>
+    </Stack>
+  );
+  // Copy, Share and the code always carry the address in full, and so does
+  // text copied from the box; a Standard address runs to some 3,500
+  // characters, which nobody reads, so the box shows it shortened, for
+  // recognising it by its start and end.
+  const addressCode = qr ? <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => { giveOut(kind, index); setEnlarged('address'); }} /> : !addressError && <QrPending />;
+  const addressBox = (
+    <>
+      <div className="vault-address-box" onCopy={copyWhole}>
+        <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
+      </div>
+      {addressError && <ErrorLine>Could not derive this address: {addressError}</ErrorLine>}
+    </>
+  );
+  // Its exposure cannot be taken back: read right before sharing.
+  const viewingCaution = kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>;
+  const addressActions = (
+    <Group className="vault-receive-actions">
+      {/* One word, as Share is: the code says what it copies, and
+          so does the note it leaves. A screen reader hears it whole. */}
+      <Button className={addressCopied ? 'vault-copied' : undefined} leftSection={addressCopied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copy} disabled={!address} aria-label={addressCopied ? 'Address copied' : 'Copy address'} aria-describedby={cautionId}>
+        {addressCopied ? 'Copied' : 'Copy'}
+      </Button>
+      {canShare && (
+        <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby={cautionId}>
+          Share
+        </Button>
+      )}
+    </Group>
+  );
+  const requestFields = (
+    <>
+      <TextInput
+        label="Amount (NPT, optional)"
+        inputMode="decimal"
+        value={requestAmount}
+        onChange={(e) => {
+          setRequestAmount(e.currentTarget.value);
+          setAmountLeft(false);
+        }}
+        onBlur={() => setAmountLeft(true)}
+        error={amountLeft ? amountError : null}
+        description={requestEstimate && <Spoken text={requestEstimate} />}
+        inputWrapperOrder={['label', 'input', 'description', 'error']}
+      />
+      {/* All three shown from the start: a request is written before it is
+          shared, so they read as what a request can hold, not a hidden extra. */}
+      <TextInput
+        label="Your name (optional)"
+        description="Shown to the sender as an unverified name."
+        autoComplete="name"
+        value={requestLabel}
+        onChange={(e) => setRequestLabel(e.currentTarget.value)}
+        error={labelError}
+        maxLength={255}
+      />
+      <TextInput
+        label="Note for the sender (optional)"
+        description="Shown to the sender only; it does not reach you."
+        value={requestNote}
+        onChange={(e) => setRequestNote(e.currentTarget.value)}
+        error={noteError}
+        maxLength={255}
+      />
+    </>
+  );
+  // While the amount is unfinished the code keeps its place.
+  const requestCode = requestInvalid ? <QrPending waiting={false} /> : requestQr ? <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => { giveOut(kind, index); setEnlarged('request'); }} /> : <QrPending />;
+  const requestCodeNote = requestQrNote && !requestInvalid && (
+    <Text size="sm" c="dimmed">
+      {requestQrNote}
+    </Text>
+  );
+  const requestActions = (
+    <Group className="vault-receive-actions">
+      <Button className={requestCopied ? 'vault-copied' : undefined} leftSection={requestCopied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copyRequest} disabled={requestInvalid} aria-label={requestCopied ? 'Request copied' : 'Copy request'} aria-describedby={cautionId}>
+        {requestCopied ? 'Copied' : 'Copy'}
+      </Button>
+      {canShare && (
+        <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareRequest()} disabled={requestInvalid} aria-describedby={cautionId}>
+          Share
+        </Button>
+      )}
+    </Group>
+  );
+
   return (
     <Paper>
       <Stack>
@@ -532,10 +755,8 @@ export function Receive() {
         <div className="sr-only" role="status">
           {said}
         </div>
-        {/* What the card is for comes first, then the code and what to do with
-            it: on the first screen for an address, after its fields for a
-            request. Which address it is, shared by both tabs and most often
-            Standard's main one, is a list under the buttons. */}
+        {/* What the card is for comes first, then the code and what to do
+            with it, and which address it is for. */}
         <Tabs value={tab} onChange={(v) => setTab((v as Tab) ?? 'address')} className="vault-tabs" keepMounted={false}>
           <Stack>
             <Tabs.List grow>
@@ -544,231 +765,72 @@ export function Receive() {
               <Tabs.Tab value="request">Payment request</Tabs.Tab>
             </Tabs.List>
 
-            <Tabs.Panel value="address">
-              <Stack>
-                {noteOf(addressArrival)}
-                {/* On a phone on its side the code stands beside the rest, so Copy is on the first screen. */}
-                <div className="vault-receive-code">
-                  {qr ? <QrCode src={qr} alt={`${KIND_LABELS[kind]} address QR code`} onOpen={() => { giveOut(kind, index); setEnlarged('address'); }} /> : !addressError && <QrPending />}
-                  <Stack className="vault-receive-side">
-                    {/* The address shortened, for recognising it by its start and end.
-                        Copy, Share and the code always carry it in full, and so does
-                        text copied from here; a Standard address runs to some 3,500
-                        characters, which nobody reads. */}
-                    <div className="vault-address-box" onCopy={copyWhole}>
-                      <span className="vault-address-text">{address ? abbreviateAddress(address) : addressError ? 'No address' : 'Deriving the address…'}</span>
-                    </div>
-                    {addressError && <ErrorLine>Could not derive this address: {addressError}</ErrorLine>}
-                    {/* Its exposure cannot be taken back: read right before sharing. */}
-                    {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
-                    <Group className="vault-receive-actions">
-                      {/* One word, as Share is: the code says what it copies, and
-                          so does the note it leaves. A screen reader hears it whole. */}
-                      <Button className={addressCopied ? 'vault-copied' : undefined} leftSection={addressCopied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copy} disabled={!address} aria-label={addressCopied ? 'Address copied' : 'Copy address'} aria-describedby={cautionId}>
-                        {addressCopied ? 'Copied' : 'Copy'}
-                      </Button>
-                      {canShare && (
-                        <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareAddress()} disabled={!address} aria-describedby={cautionId}>
-                          Share
-                        </Button>
-                      )}
-                    </Group>
+            {wide ? (
+              // Two columns on either tab: what sets the code on the left (the
+              // address, or the request's fields), with which address it is
+              // under it; the code, with Copy and Share, on the right, in the
+              // same place on both tabs.
+              <>
+                <Tabs.Panel value="address">
+                  <div className="vault-receive-wide">
+                    <Stack className="vault-receive-main">
+                      {noteOf(addressArrival)}
+                      {addressBox}
+                      {short && addressActions}
+                      {viewingCaution}
+                      {whichAddress}
+                    </Stack>
+                    <Stack className="vault-receive-share">
+                      {addressCode}
+                      {!short && addressActions}
+                    </Stack>
+                  </div>
+                </Tabs.Panel>
+                <Tabs.Panel value="request">
+                  <div className="vault-receive-wide">
+                    <Stack className="vault-receive-main">
+                      {requestFields}
+                      {noteOf(requestArrival)}
+                      {viewingCaution}
+                      {whichAddress}
+                    </Stack>
+                    <Stack className="vault-receive-share">
+                      {requestCode}
+                      {requestCodeNote}
+                      {requestActions}
+                    </Stack>
+                  </div>
+                </Tabs.Panel>
+              </>
+            ) : (
+              // One column: the code first and then what to do with it on the
+              // Address tab; on a request, its fields first and then the code,
+              // in the same order. Which address it is goes under either.
+              <>
+                <Tabs.Panel value="address">
+                  <Stack>
+                    {noteOf(addressArrival)}
+                    {addressCode}
+                    <Stack>
+                      {addressBox}
+                      {viewingCaution}
+                      {addressActions}
+                    </Stack>
                   </Stack>
-                </div>
-              </Stack>
-            </Tabs.Panel>
-
-            <Tabs.Panel value="request">
-              <Stack>
-                <TextInput
-                  label="Amount (NPT, optional)"
-                  inputMode="decimal"
-                  value={requestAmount}
-                  onChange={(e) => {
-                    setRequestAmount(e.currentTarget.value);
-                    setAmountLeft(false);
-                  }}
-                  onBlur={() => setAmountLeft(true)}
-                  error={amountLeft ? amountError : null}
-                  description={requestEstimate && <Spoken text={requestEstimate} />}
-                  inputWrapperOrder={['label', 'input', 'description', 'error']}
-                />
-                {/* All three shown from the start: a request is written before it is
-                    shared, so they read as what a request can hold, not a hidden extra. */}
-                <TextInput
-                  label="Your name (optional)"
-                  description="Shown to the sender as an unverified name."
-                  autoComplete="name"
-                  value={requestLabel}
-                  onChange={(e) => setRequestLabel(e.currentTarget.value)}
-                  error={labelError}
-                  maxLength={255}
-                />
-                <TextInput
-                  label="Note for the sender (optional)"
-                  description="Shown to the sender only; it does not reach you."
-                  value={requestNote}
-                  onChange={(e) => setRequestNote(e.currentTarget.value)}
-                  error={noteError}
-                  maxLength={255}
-                />
-                {noteOf(requestArrival)}
-                {/* The code, then what to do with it: the same order as the Address
-                    tab. While the amount is unfinished the code keeps its place. */}
-                <div className="vault-receive-code">
-                  {requestInvalid ? <QrPending waiting={false} /> : requestQr ? <QrCode src={requestQr} alt="Payment request QR code" onOpen={() => { giveOut(kind, index); setEnlarged('request'); }} /> : <QrPending />}
-                  <Stack className="vault-receive-side">
-                    {requestQrNote && !requestInvalid && (
-                      <Text size="sm" c="dimmed">
-                        {requestQrNote}
-                      </Text>
-                    )}
-                    {kind === 'viewing' && <Caution id="kind-note">{VIEWING_CAUTION}</Caution>}
-                    <Group className="vault-receive-actions">
-                      <Button className={requestCopied ? 'vault-copied' : undefined} leftSection={requestCopied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copyRequest} disabled={requestInvalid} aria-label={requestCopied ? 'Request copied' : 'Copy request'} aria-describedby={cautionId}>
-                        {requestCopied ? 'Copied' : 'Copy'}
-                      </Button>
-                      {canShare && (
-                        <Button variant="light" leftSection={<IconShare size={16} />} onClick={() => void shareRequest()} disabled={requestInvalid} aria-describedby={cautionId}>
-                          Share
-                        </Button>
-                      )}
-                    </Group>
+                </Tabs.Panel>
+                <Tabs.Panel value="request">
+                  <Stack>
+                    {requestFields}
+                    {noteOf(requestArrival)}
+                    {requestCode}
+                    {requestCodeNote}
+                    {viewingCaution}
+                    {requestActions}
                   </Stack>
-                </div>
-              </Stack>
-            </Tabs.Panel>
-
-            {/* Which address shows, for both tabs: its type, a labelled field as
-                every select is, then the addresses of that type (the main one
-                first, then each with a name or a payment), then a new one. */}
-            <Stack gap={6}>
-              <ChoiceField
-                label="Address type"
-                value={kind}
-                choices={(Object.keys(KIND_LABELS) as KeyKind[]).map((k) => ({ value: k, name: KIND_LABELS[k], note: <Spoken text={KIND_LINES[k]} /> }))}
-                onChoose={(k) => chooseKind(k as KeyKind)}
-                more={{ label: 'Compare address types', onSelect: () => setComparing(true) }}
-              />
-              <div role="group" aria-label={`${KIND_LABELS[kind]} addresses`}>
-                {listed.map((i) => {
-                  const k = addressKey(kind, i);
-                  const current = i === index;
-                  const count = payments.get(k) ?? 0;
-                  const name = labels[k];
-                  const title = addressTitle(kind, i);
-                  // Only a new address is named; a main address named before can still lose its name.
-                  const nameable = i > 0;
-                  // Who it is for leads when it has a name; its number and payments go beneath.
-                  const number = i === 0 ? 'Main address' : `Address ${i}`;
-                  const details = [name ? number : null, count === 0 ? null : count === 1 ? '1 payment' : `${count} payments`].filter(Boolean).join(' · ');
-                  return (
-                    <div key={k} className="vault-row vault-address-row">
-                      <UnstyledButton
-                        className="vault-address-show"
-                        onClick={() => showIndex(i)}
-                        aria-current={current || undefined}
-                        ref={(el: HTMLButtonElement | null) => {
-                          if (el) rowButtons.current.set(k, el);
-                          else rowButtons.current.delete(k);
-                        }}
-                      >
-                        <span className="vault-address-mark" aria-hidden>
-                          {current && <IconCheck size={16} />}
-                        </span>
-                        <span className="vault-address-title">
-                          <Text span size="md" fw={current ? 600 : 400} className="vault-row-title">
-                            {name ? <bdi>{name}</bdi> : number}
-                          </Text>
-                          {details && (
-                            <Text span display="block" size="sm" c="dimmed">
-                              {details}
-                            </Text>
-                          )}
-                        </span>
-                      </UnstyledButton>
-                      <div className="vault-address-action">
-                        {nameable && !name && (
-                          <UnstyledButton
-                            onClick={() => setNaming({ kind, index: i })}
-                            aria-label={`Name it, ${title}`}
-                            c="var(--v-accent-text)"
-                            fz="sm"
-                            className="vault-tap-link"
-                            ref={(el: HTMLButtonElement | null) => {
-                              if (el) nameButtons.current.set(k, el);
-                              else nameButtons.current.delete(k);
-                            }}
-                          >
-                            Name it
-                          </UnstyledButton>
-                        )}
-                        {name && (
-                          <Menu position="bottom-end">
-                            <MoreButton
-                              label={`More for ${title}`}
-                              buttonRef={(el: HTMLButtonElement | null) => {
-                                if (el) moreButtons.current.set(k, el);
-                                else moreButtons.current.delete(k);
-                              }}
-                            />
-                            <Menu.Dropdown>
-                              {nameable && (
-                                <Menu.Item leftSection={<IconPencil size={16} />} onClick={() => setNaming({ kind, index: i })}>
-                                  Rename
-                                </Menu.Item>
-                              )}
-                              {/* Red, as Remove is in every other menu. */}
-                              <Menu.Item
-                                leftSection={<IconTrash size={16} />}
-                                c="var(--v-danger-text)"
-                                className="danger"
-                                onClick={() => {
-                                  setUnnameError(null);
-                                  setUnnaming({ kind, index: i });
-                                }}
-                              >
-                                Remove name
-                              </Menu.Item>
-                            </Menu.Dropdown>
-                          </Menu>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                <div className="vault-row vault-address-row">
-                  <UnstyledButton ref={newRef} className="vault-address-show vault-address-new" onClick={nextUnused} disabled={!canNew}>
-                    <span className="vault-address-mark" aria-hidden>
-                      <IconPlus size={16} />
-                    </span>
-                    <span className="vault-address-title">
-                      <Text span display="block" size="sm" fw={600}>
-                        New address
-                      </Text>
-                      {/* Why a new one, on the row that makes it; at the limit, why
-                          there is none. View-only is for watching, not for payers.
-                          A payment announced on the chain carries its address's
-                          receiver identifier in the clear (message[1]; neptune-wallet
-                          calls it "a public fingerprint"), the same for every payment
-                          to that address, so anyone reading the chain can group them,
-                          never seeing the amounts. */}
-                      {!canNew ? (
-                        <Text span display="block" size="sm" c="dimmed">
-                          More addresses open up once one of these has received a payment.
-                        </Text>
-                      ) : (
-                        kind !== 'viewing' && (
-                          <Text span display="block" size="sm" c="dimmed">
-                            Give each payer their own; anyone reading the blockchain can see which payments went to one address.
-                          </Text>
-                        )
-                      )}
-                    </span>
-                  </UnstyledButton>
-                </div>
-              </div>
-            </Stack>
+                </Tabs.Panel>
+                {whichAddress}
+              </>
+            )}
           </Stack>
         </Tabs>
 
