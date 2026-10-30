@@ -314,7 +314,13 @@ export function Home() {
   // A node can be up to date with itself and still behind the network: its
   // newest block is then hours old, although blocks come about every ten
   // minutes. Recent payments would not show, and sends may not go through.
-  const behindMs = sync?.phase === 'done' && sync.tipTimestampMs ? Date.now() - sync.tipTimestampMs : 0;
+  // The status shows the last pass that ended until the next one does: the
+  // check every few seconds that finds nothing new does not make it blink.
+  const lastDone = useRef<typeof sync>(null);
+  if (sync?.phase === 'done') lastDone.current = sync;
+  else if (sync?.phase !== 'checking') lastDone.current = null;
+  const statusSync = sync?.phase === 'checking' && lastDone.current ? lastDone.current : sync;
+  const behindMs = statusSync?.phase === 'done' && statusSync.tipTimestampMs ? Date.now() - statusSync.tipTimestampMs : 0;
   const behind = behindMs > 60 * 60 * 1000;
   // How far a long pass has got, and how long the rest should take at the
   // pace measured since it was first seen here: from 15 s in, so one slow
@@ -327,26 +333,58 @@ export function Home() {
   const leftS = work && pace.current && elapsedMs >= 15_000 && work.done > pace.current.done ? ((work.total - work.done) * elapsedMs) / (work.done - pace.current.done) / 1000 : null;
   const progressText = work ? ` · ${Math.min(99, Math.floor((100 * work.done) / work.total))}%${leftS !== null ? ` · ${formatAbout(leftS)} left` : ''}` : '';
   const syncText =
-    sync === null
+    statusSync === null
       ? 'Not synced yet'
-      : sync.phase === 'checking'
+      : statusSync.phase === 'checking'
         ? 'Checking the chain'
-        : sync.phase === 'restoring'
-          ? (sync.message ?? 'Finding your payments') + progressText
-          : sync.phase === 'scanning'
-          ? `Scanning block ${showBlock(sync.syncedHeight)} of ${showBlock(sync.tipHeight)}${progressText}`
-          : sync.phase === 'done'
+        : statusSync.phase === 'restoring'
+          ? (statusSync.message ?? 'Finding your payments') + progressText
+          : statusSync.phase === 'scanning'
+          ? `Scanning block ${showBlock(statusSync.syncedHeight)} of ${showBlock(statusSync.tipHeight)}${progressText}`
+          : statusSync.phase === 'done'
             ? behind
-              ? `Synced to block ${showBlock(sync.tipHeight)}, but that block is ${Math.round(behindMs / 3_600_000)} h old, so the node may be behind`
-              : `Up to date · block ${showBlock(sync.syncedHeight)}${lastSyncedAt ? ` · ${timeAgo(lastSyncedAt)}` : ''}`
-            : sync.message ?? 'Sync failed';
+              ? `Synced to block ${showBlock(statusSync.tipHeight)}, but that block is ${Math.round(behindMs / 3_600_000)} h old, so the node may be behind`
+              : `Up to date · block ${showBlock(statusSync.syncedHeight)}${lastSyncedAt ? ` · ${timeAgo(lastSyncedAt)}` : ''}`
+            : statusSync.message ?? 'Sync failed';
   // What the status line says is announced after the person asked for a
   // sync, and a payment arriving is announced as it arrives: once each, in
   // a region that is always there, never on every render.
   const [said, setSaid] = useState('');
-  // While all is well the status is a chip; the block and the time are a tap away.
-  const calmStatus = online && sync?.phase === 'done' && !behind;
+  // The status is a chip in every state, a word or two; a tap says the
+  // rest, in the chip while all is well (the block and the time), under it
+  // otherwise.
+  const calmStatus = online && statusSync?.phase === 'done' && !behind;
+  const statusTone = !online || statusSync?.phase === 'error' ? 'bad' : statusSync?.phase === 'done' ? (behind ? 'warn' : 'ok') : 'busy';
+  const workShare = work ? ` · ${Math.min(99, Math.floor((100 * work.done) / work.total))}%` : '';
+  const statusWord = !online
+    ? 'Offline'
+    : statusSync === null
+      ? 'Not synced yet'
+      : statusSync.phase === 'checking'
+        ? 'Checking the chain'
+        : statusSync.phase === 'restoring'
+          ? `Finding your payments${workShare}`
+          : statusSync.phase === 'scanning'
+            ? `Scanning blocks${workShare}`
+            : statusSync.phase === 'done'
+              ? behind
+                ? 'Node behind'
+                : 'Up to date'
+              : statusSync.slow
+                ? 'Node too slow'
+                : statusSync.nodeDown
+                  ? 'Node not answering'
+                  : 'Sync failed';
   const [statusOpen, setStatusOpen] = useState(false);
+  // What was opened stays open through a sync, and closes once the status
+  // settles on another state.
+  const settledWord = statusTone === 'busy' ? null : statusWord;
+  const lastSettled = useRef(settledWord);
+  useEffect(() => {
+    if (settledWord === null || settledWord === lastSettled.current) return;
+    lastSettled.current = settledWord;
+    setStatusOpen(false);
+  }, [settledWord]);
   const asked = useRef(false);
   const askSync = () => {
     asked.current = true;
@@ -690,39 +728,37 @@ export function Home() {
           blue while working, amber when the node looks behind (a caution:
           recent payments may not show), red when it cannot say. */}
       <div className="vault-status">
-        {calmStatus ? (
-          <button type="button" className="vault-status-chip" aria-expanded={statusOpen} onClick={() => setStatusOpen((v) => !v)}>
-            <span className="vault-status-pill">
-              <span className="vault-status-dot ok" aria-hidden />
-              <Spoken text={statusOpen ? syncText : 'Up to date'} />
-            </span>
-          </button>
-        ) : (
-          <span className="vault-status-text">
-            <span className={`vault-status-dot ${!online || sync?.phase === 'error' ? 'bad' : sync?.phase === 'done' ? (behind ? 'warn' : 'ok') : 'busy'}`} aria-hidden />
-            {!online && <IconWifiOff size={16} />}
-            {busy && <IconRefresh size={16} className="vault-spin" />}
-            <Spoken text={syncText} />
+        <button type="button" className="vault-status-chip" aria-expanded={statusOpen} onClick={() => setStatusOpen((v) => !v)}>
+          <span className="vault-status-pill" data-tone={statusTone}>
+            <span className={`vault-status-dot ${statusTone}`} aria-hidden />
+            {!online && <IconWifiOff size={16} aria-hidden />}
+            {statusTone === 'busy' && <IconRefresh size={16} className="vault-spin" aria-hidden />}
+            <Spoken text={calmStatus && statusOpen ? syncText : statusWord} />
           </span>
-        )}
+        </button>
         {/* The actions stay where they are while a sync runs, unavailable
             rather than gone, so focus on them is not dropped. */}
         {online && (
           <span className="vault-status-actions">
-            {sync?.phase === 'error' && !busy && (
-              <>
-                <UnstyledButton onClick={() => navigate('/settings/report', { state: { from: 'home' } })} fz="xs" c="var(--v-accent-text)" className="vault-tap-link" aria-label="Report a problem">
-                  Report
-                </UnstyledButton>
-                <UnstyledButton onClick={() => navigate('/settings/advanced', { state: { from: 'home' } })} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
-                  Settings
-                </UnstyledButton>
-              </>
-            )}
             <UnstyledButton onClick={() => !busy && askSync()} aria-disabled={busy} fz="xs" c={busy ? 'dimmed' : 'var(--v-accent-text)'} className="vault-tap-link">
               {busy ? 'Syncing…' : sync?.phase === 'error' ? 'Try again' : 'Sync'}
             </UnstyledButton>
           </span>
+        )}
+        {statusOpen && !calmStatus && (
+          <div className="vault-status-sentence">
+            <Spoken text={!online ? 'You are offline. The balance shown is from the last sync.' : syncText} />
+            {online && sync?.phase === 'error' && (
+              <span className="vault-status-links">
+                <UnstyledButton onClick={() => navigate('/settings/report', { state: { from: 'home' } })} fz="xs" c="var(--v-accent-text)" className="vault-tap-link vault-tap-link-start">
+                  Report a problem
+                </UnstyledButton>
+                <UnstyledButton onClick={() => navigate('/settings/advanced', { state: { from: 'home' } })} fz="xs" c="var(--v-accent-text)" className="vault-tap-link">
+                  Settings
+                </UnstyledButton>
+              </span>
+            )}
+          </div>
         )}
       </div>
       <div className="sr-only" role="status">

@@ -1663,23 +1663,29 @@ main.vault-main {
 .vault-status-dot.bad {
   background: var(--v-danger-text);
 }
-/* A long sentence (a sync that failed) keeps the line's width, and its
-   actions go under it, at the end. */
-.vault-status-text {
-  display: inline-flex;
-  flex: 1 1 16rem;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
 .vault-status-actions {
   display: inline-flex;
   gap: 12px;
   flex-shrink: 0;
   margin-left: auto;
 }
-/* While all is well the status is a chip, drawn small inside a full touch
-   target; a tap shows the block and the time in it. */
+/* The status's whole sentence, opened from the chip: a line of its own,
+   with what can be done about it under it. */
+.vault-status-sentence {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-basis: 100%;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.vault-status-links {
+  display: flex;
+  gap: 12px;
+}
+/* The status is a chip, drawn small inside a full touch target. One that
+   asks for attention (the node behind, a sync that failed) is tinted in its
+   dot's colour. */
 .vault-status-chip {
   display: inline-flex;
   align-items: center;
@@ -1704,6 +1710,12 @@ main.vault-main {
   border-radius: 999px;
   color: var(--v-text-2);
   line-height: 18px;
+}
+.vault-status-pill[data-tone='warn'] {
+  background: color-mix(in srgb, var(--v-warn-text) 10%, transparent);
+}
+.vault-status-pill[data-tone='bad'] {
+  background: color-mix(in srgb, var(--v-danger-text) 10%, transparent);
 }
 .vault-status-chip:focus-visible {
   outline: none;
