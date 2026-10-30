@@ -1345,7 +1345,7 @@ function InstallCard() {
   if (state.kind === 'ios-share') {
     return (
       <Text size="sm" c="dimmed">
-        To install on iPhone or iPad: tap Share in Safari, then "Add to Home Screen".
+        To install on iPhone or iPad: tap Share in Safari, then "Add to Home Screen". The app starts empty: bring a wallet with its seed phrase or a backup file.
       </Text>
     );
   }

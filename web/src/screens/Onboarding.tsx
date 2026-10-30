@@ -15,6 +15,7 @@ import { NewPasswordFields, newPasswordOk } from '../components/NewPasswordField
 import { PhraseField, phraseWords } from '../components/PhraseField';
 import { Caution, ErrorLine, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
+import { installState } from '../app/install';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { MethodChoice } from '../components/MethodChoice';
 import { CopyWords, StartMonth, WordGrid } from '../components/WordGrid';
@@ -379,6 +380,10 @@ export function Onboarding() {
             </li>
           </ul>
           <Stack gap="sm" className="vault-welcome-foot">
+            {/* A Home Screen app has storage of its own: a wallet made in Safari would not be in it. */}
+            {installState().kind === 'ios-share' && (
+              <Caution title="Add the app to your Home Screen first">Tap Share, then Add to Home Screen, and start there. A wallet made here stays in Safari, which deletes it if you do not open it for about a week.</Caution>
+            )}
             {interruptedNotice}
             {elsewhere.length > 0 && (
               <Info>

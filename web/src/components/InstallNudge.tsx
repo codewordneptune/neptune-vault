@@ -7,6 +7,7 @@
 
 import { Group, UnstyledButton } from '@mantine/core';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../app/AppContext';
 import { installState, onInstallChange, promptInstall, type InstallState } from '../app/install';
@@ -17,18 +18,25 @@ const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
 export function InstallNudge() {
   const { services } = useApp();
+  const navigate = useNavigate();
   const [state, setState] = useState<InstallState>(installState());
   const [dismissedAt, setDismissedAt] = useState<number | undefined>(services.settings.installNudgeDismissedAt);
   useEffect(() => onInstallChange(() => setState(installState())), []);
 
   // On an iPhone or iPad, Safari deletes what a site keeps once it has not
   // been opened for about a week, unless it was added to the Home Screen:
-  // this is a caution, and it comes back until the app is installed. One
-  // sentence: the risk, then the two taps that remove it.
+  // this is a caution, and it comes back until the app is installed. A Home
+  // Screen app has storage of its own and opens empty (WebKit bug 181849),
+  // so the wallet moves there by its backup.
   if (state.kind === 'ios-share') {
     return (
-      <Caution title="Add Neptune Vault to the Home Screen">
-        Safari deletes this wallet if you do not open it for about a week; to keep it, tap Share, then Add to Home Screen.
+      <Caution title="Move this wallet to the Home Screen">
+        <span>Safari deletes this wallet if you do not open it for about a week. The Home Screen app starts empty, so back up first. Then tap Share, then Add to Home Screen, and restore the wallet there.</span>
+        <Group gap="sm" mt={4}>
+          <UnstyledButton onClick={() => navigate('/settings/backup', { state: { from: 'home' } })} c="var(--v-accent-text)" fz="sm" className="vault-tap-link vault-tap-link-start">
+            Back up
+          </UnstyledButton>
+        </Group>
       </Caution>
     );
   }
