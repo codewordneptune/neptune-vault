@@ -15,6 +15,7 @@ import { Logo } from './components/Logo';
 import { NetworkMenu } from './components/NetworkMenu';
 import { PocTag } from './components/PocNotice';
 import { SendStrip } from './components/SendStrip';
+import { Starting } from './components/Starting';
 import { UpdateStrip } from './components/UpdateStrip';
 import { ReportProblemScreen } from './screens/Diagnostics';
 import { Home } from './screens/Home';
@@ -240,14 +241,7 @@ export function App() {
 
   // Do not route until the stored account has been looked up, or a reload
   // would bounce an existing account to onboarding.
-  if (!ready)
-    return (
-      <div className="vault-starting" role="status" aria-label="Starting">
-        <span className="vault-starting-glow">
-          <Logo size={64} />
-        </span>
-      </div>
-    );
+  if (!ready) return <Starting />;
 
   // Any interaction postpones the idle lock, and from the first one on a
   // change of screen moves focus to its heading.

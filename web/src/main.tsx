@@ -2,7 +2,7 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './global.css';
 
-import { Loader, MantineProvider } from '@mantine/core';
+import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -12,6 +12,7 @@ import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FailureScreen } from './components/FailureScreen';
 import { OpenElsewhere } from './components/OpenElsewhere';
+import { Starting } from './components/Starting';
 import { captureInstallPrompt } from './app/install';
 import { installNativeBehaviour, NATIVE } from './app/platform';
 import { AppProvider } from './app/AppContext';
@@ -55,8 +56,7 @@ function Root() {
   }, [where, owner]);
   if (where === 'elsewhere') return <OpenElsewhere owner={owner} onHere={() => setWhere('here')} />;
   if (failure) return <FailureScreen title="Neptune Vault could not start" said={failure.said} error={failure.error} />;
-  // Said by what it is, not as a spinner with a label nothing reads.
-  if (!services) return <Loader className="vault-starting" role="status" aria-label="Starting" />;
+  if (!services) return <Starting />;
   return (
     <AppProvider services={services}>
       <BrowserRouter>
