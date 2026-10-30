@@ -12,6 +12,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Sheet } from '../components/Sheet';
 import { formatNau, NAU_PER_COIN, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { clearSendDraft, keepSendDraft, sendDraft, type ExtraPayee, type SendDraft } from '../app/sendDraft';
+import { useGlide } from '../app/glide';
 import { DESKTOP } from '../app/platform';
 import { iconSection, PHONE, useLayout } from '../app/layout';
 import { formatAbout, formatDuration, timeAgo } from '../util/time';
@@ -669,6 +670,8 @@ export function Send() {
   };
 
   const formRef = useRef<HTMLFormElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  useGlide(formRef, cardRef, '.vault-send-form > .mantine-Stack-root > *, .vault-payees > *, .vault-send-first > *, .vault-amount-line');
   const [reviewing, setReviewing] = useState(false);
   // What stands in the way gets the focus: it may be below the fold.
   const focusFirstInvalid = () =>
@@ -1756,7 +1759,7 @@ export function Send() {
   };
 
   return (
-    <Paper className={phone ? 'vault-send-bare' : undefined} p={phone ? 0 : undefined}>
+    <Paper ref={cardRef} className={phone ? 'vault-send-bare' : undefined} p={phone ? 0 : undefined}>
       <Stack>
         <Sheet opened={reviewSheet !== null} onClose={() => setStep('form')} title="Review" back="Edit" size={560} centered>
           {reviewSheet}
