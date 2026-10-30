@@ -23,7 +23,7 @@ A high-trust app that needs no personal registration with Google:
   when run by hand from the Actions tab on a branch made from `main`; on
   `main` itself it stops at once (see [HOSTING.md](HOSTING.md#deploying)).
   It also runs on a push to `cwn/android`, which was merged into `main`
-  on 2026-10-01 and has not moved since. Each APK is signed with a key made
+  on 2026-10-01 and is no longer on GitHub. Each APK is signed with a key made
   for that run and thrown away, and is kept on the run's page for 14 days.
   A newer test build installs only after the older one is uninstalled,
   which deletes that app's wallet data.
@@ -84,8 +84,9 @@ A high-trust app that needs no personal registration with Google:
    stop here: the web app is the Android app. Done: 16 to 23 s against 97 s
    in Chrome on the same phone, so the plan goes on.
 2. **Fix what the test build lacks** (not done yet):
-   - Backup export. The shell writes the file to the path the save dialog
-     returns, and on Android that is a content URI, not a path. Write through
+   - Saving files: backup export, and History's spreadsheet. The shell writes
+     the file to the path the save dialog returns, and on Android that is a
+     content URI, not a path. Write through
      the Android file plugin instead. The save dialog is one of Android's
      own screens too, so the wallet must wait for it without locking.
    - Keep the screen on from the native side while a send is proved or a

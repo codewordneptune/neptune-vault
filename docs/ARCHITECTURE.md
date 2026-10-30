@@ -14,7 +14,7 @@ The web code calls a wallet an account (`AccountRecord`, `accountId`); the
 core calls it a wallet (`wallet_id`, `wallet:<id>`). They are the same
 thing.
 
-Last reviewed 2026-10-07 against the code.
+Last reviewed 2026-10-30 against the code.
 
 ## 1. Overview
 
@@ -66,8 +66,8 @@ Rust crates (root `Cargo.toml` workspace):
 - `crates/vault-fixtures`: writes deterministic `PrimitiveWitness` fixtures
   for the prover benchmark (`web/prover-bench`).
 - `crates/vendor`: neptune-consensus 0.19.0, neptune-primitives 0.19.0,
-  twenty-first 3.0.0 and triton-vm 9.0.0, with small changes, applied
-  through `[patch.crates-io]` ([crates/vendor/VENDOR.md](../crates/vendor/VENDOR.md)).
+  twenty-first 3.0.1, triton-vm 9.0.0 and bfieldcodec_derive 0.7.2, with
+  small changes, applied through `[patch.crates-io]` ([crates/vendor/VENDOR.md](../crates/vendor/VENDOR.md)).
 
 The native shell (`shells/tauri/src/lib.rs`) has no wallet logic of its
 own: each wallet, store and prover command decodes its arguments, calls
@@ -241,8 +241,8 @@ from `neptune-vault`. `ENGINE_PARTS` (`web/src/backend/types.ts`) is
 `contacts, scan, sync, utxos, blocks, history, private`; the chain parts
 move as one batch, and a new wallet's parts move, empty, when it is made.
 `private` holds named notes that must not be readable while the wallet is
-locked: the last failed send, the last send, a send in progress, address
-names, the addresses given out, a fast restore's progress, who each send
+locked: the last failed send, the last send, a send in progress, when the
+password last changed (`passwordChangedAt`), address names, the addresses given out, a fast restore's progress, who each send
 paid with its amounts, fee and note (`sendDetails`, by the coins it spent),
 and notes added in History: on payments received (`receivedNotes`, by the
 coin each brought) and on sends (`sentNotes`, by the first of the coins
@@ -433,7 +433,7 @@ calls:
 |---|---|---|
 | Sync | `node_network`, `chain_tipHeader`, `archival_isBlockCanonical`, `wallet_getBlocks` | every pass |
 | Fast restore, rebuild | `utxoindex_blockHeightsByFlags`, `utxoindex_blockHeightsByAbsoluteIndexSets` | while restoring |
-| Dates | `archival_getBlockHeader` | restore or rescan from a month, a wallet made offline, Home's first block |
+| Dates | `archival_getBlockHeader` | restore or rescan from a month, a wallet made offline, Home's first block, the Start month shown with the seed phrase in Settings, Backup |
 | Mempool watcher | `mempool_transactions`, `mempool_getTransactionKernel`, `mempool_getTransactionsByAdditionRecords` | after each sync and every 30 s |
 | A send | `chain_tipHeader`, `wallet_restoreMembershipProof`, `wallet_submitTransaction` | each attempt |
 
@@ -551,9 +551,12 @@ for a block or confirmed less than a day ago, the review says so
 5. The claim version for tip height + 1, the first block that can carry the
    transaction: 8, or the send stops with "update the app".
 6. Prove, or on regtest take `mock_proof_collection`.
-7. `assemble_submission`. The pending row is written and the inputs held
-   (`recordPending`) before `wallet_submitTransaction`, whether or not
-   blocks arrived during the proof. Nodes from neptune-core 0.18 admit a
+7. `assemble_submission`. A device that says it is offline keeps the proof
+   and waits for the connection, at most `OFFLINE_WAIT_MS` (10 minutes),
+   with nothing written or held; after that the send ends with nothing sent.
+   The pending row is then written and the inputs held (`recordPending`)
+   before `wallet_submitTransaction`, whether or not blocks arrived during
+   the proof. Nodes from neptune-core 0.18 admit a
    transaction built up to three blocks behind the tip and carry it forward
    (`MAX_TX_SYNC_DEPTH` in neptune-core's mempool); older nodes often take
    one a block behind. Cancel works up to this point.
@@ -577,8 +580,9 @@ transactions that spend one coin cannot both confirm, and once the new one
 does, the old one never can. After three days and an
 hour of the chain's time, when a block is unlikely to take it, the sync
 releases its coins and marks it expired (`SEND_LIFETIME_MS`). Unlikely, not
-impossible: a send given up on or expired shows as "May still go through"
-until one of its coins is spent in a block (`mayStillGo`). Notes in the
+impossible: a send given up on or expired says it may still go through, on
+its row or, when the row names who it paid, in its details, until one of its
+coins is spent in a block (`mayStillGo`). Notes in the
 sealed log let the next unlock say how a send ended if the app was closed
 during it.
 
@@ -627,7 +631,12 @@ lock. The Android app has no native wake lock yet.
 
 Screens (`web/src/App.tsx`): Home `/`, `/send`, `/receive`, `/settings`
 with a page per row (`/settings/:section`), `/onboarding` (`?add=1` adds a
-wallet), `/diagnostics` and `/privacy`. While a wallet is locked, every
+wallet), `/diagnostics` and `/privacy`; `/contacts` leads to its page in
+Settings. In the web app a payment can also arrive from elsewhere
+(`web/src/app/sharedLinks.ts`): `/share`, the manifest's `share_target`,
+takes text shared from another app, and `/pay` takes a request after the
+`#`, which never reaches the server. Either opens Send filled in, and
+nothing goes out without the review. While a wallet is locked, every
 screen but `/privacy` shows the lock screen. Dialogs are `Sheet`
 (`web/src/components/Sheet.tsx`), never Mantine's `Modal` directly: a sheet
 adds a history entry, so Back (Android's or the browser's) closes it rather
@@ -636,6 +645,17 @@ screen a sheet rises from the bottom with a handle, and a swipe down closes
 it; one that is a step of a task names the step it returns to (`back`) in
 place of the cross. Closing the tab or the desktop window during a send
 asks first (`CloseGuard`).
+
+Motion. A change of screen is a view transition
+(`web/src/app/screenTransition.ts`): between tabs the new screen fades and
+rises, going deeper and coming back move a short way sideways, and within
+Settings on a wide window only the open page changes. A swipe back the
+browser has animated itself is left to it. Send's form moves with
+`useGlide` (`web/src/app/glide.ts`): what stays glides to its new place as
+parts come and go. Other changes within a screen fade. With reduced motion
+asked for, none of this runs. Home, come back to by its tab or by going back,
+keeps its scroll position (`web/src/App.tsx`); every other way into a screen
+starts at its top.
 
 One window owns the wallet (`web/src/app/windowOwner.ts`): it holds the Web
 Lock `neptune-vault-window`, and other windows say where the wallet is open
@@ -667,8 +687,9 @@ it, a sheet warns and offers Stay unlocked (`IDLE_WARNING_MS`). The wallet
 also locks when the page is hidden (on the desktop, when the window is
 minimized): at once by default, or after 30 seconds or 2 minutes
 (`BACKGROUND_LOCK_CHOICES_MS`). A file picker or camera prompt the app
-opened holds that lock for up to two minutes. A send holds off both locks,
-a long scan only the idle one (section 5). The screen locks at once: in
+opened holds that lock for up to two minutes. A send holds off both locks; a
+long scan, and new seed words being shown or checked while another wallet is
+open, only the idle one (section 5). The screen locks at once: in
 the browser a lock terminates the wallet worker, and the seed, keys, content
 key and open logs go with its memory; natively `wallet_lock` drops the
 account and content key once the ledger operation in progress lets go.
@@ -705,6 +726,9 @@ Native shell (`shells/tauri/src/lib.rs`). Beyond the wallet it does little:
 - QR codes: `app_read_qr` reads a camera frame or picture (greyscale, as
   base64) with vault-qr.
 - Storage: sealed logs under `<app data dir>/logs`.
+- Page loads: a page that starts loading locks the wallet and abandons any
+  proof (`on_page_load`), since the page that unlocked it is gone, and
+  `createBackend()` locks it again as it starts.
 - Permissions: the window may use `core:default`, set its page zoom, and
   close itself once a close during a send is confirmed
   (`shells/tauri/capabilities/default.json`); it may also read the payment
@@ -717,8 +741,8 @@ Links leaving the app, and `window.open`, go to the system browser through
 `app_open_url`. F5, Ctrl+R and Ctrl+P are blocked; stray file drops are
 refused; the web view's context menu shows only in fields and over selected
 text. On the desktop, `web/src/App.tsx` adds Ctrl or Cmd with L (lock, after
-a running send), N (send) and 1 to 4 (tabs), and backups go through the
-native Save dialog (not yet on Android). Passkey unlock depends on the web
+a running send), N (send) and 1 to 4 (tabs), and backups and History's
+spreadsheet go through the native Save dialog (not yet on Android). Passkey unlock depends on the web
 view and is reported as unavailable when it is not.
 
 Android app. The same shell, built with `tauri android` (`lib.rs` has the
@@ -727,7 +751,9 @@ and `ANDROID` in `web/src/app/platform.ts`. Payment links (`neptunecash:`)
 open the app through Tauri's deep-link plugin, as on the desktop, and fill in
 Send (`web/src/app/paymentLinks.ts`) once: the link is then taken off its
 history entry, so neither Back nor Send coming back after an unlock fills
-it in again. While a seed phrase is shown or typed,
+it in again, and kept in the web view's sessionStorage
+(`neptune-vault.handled-link`), so a page that loads again does not open it
+twice. While a seed phrase is shown or typed,
 `app_secure_screen` keeps the window out of screenshots and the recent-apps
 preview (FLAG_SECURE, `web/src/app/secureScreen.ts`). The app draws under
 the status and navigation bars, as Tauri's Android template sets it up; the
@@ -738,8 +764,9 @@ web view reports them as 0 or wrongly before version 140
 top of Home syncs (`web/src/app/pullToSync.ts`). The window and the web view
 start in the app's navy (`shells/tauri/tauri.android.conf.json`, and the
 theme `android-test.yml` patches in), so the launch is not white. There is
-no update notice, no close guard and no passkey unlock. Backup export and a
-native screen wake lock are still missing ([ANDROID.md](ANDROID.md)).
+no update notice, no close guard and no passkey unlock. Saving a file (backup
+export, History's spreadsheet) and a native screen wake lock are still
+missing ([ANDROID.md](ANDROID.md)).
 
 ## 7. Build and test
 

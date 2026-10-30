@@ -28,8 +28,10 @@ replacing a folder. bfieldcodec_derive's `src/lib.rs` also says, at its
 top, what was changed and when, as the Apache-2.0 licence asks of a changed
 file.
 
-Update: raise the version in the vault-* manifests that use the crate. The
-old copy then no longer matches (cargo warns that the patch is unused), so
+Update: raise the version in the vault-* manifests that use the crate
+(twenty-first and bfieldcodec_derive are in none: take a new release of
+either from crates.io by hand and let `Cargo.lock` follow). The old copy then
+no longer matches (cargo warns that the patch is unused), so
 cargo fetches the new release into `~/.cargo/registry/src/*/<crate>-<version>`.
 Replace the folder with it, delete `.cargo-ok`, apply the changes above to
 `Cargo.toml` (not `Cargo.toml.orig`) and the sources, and update this

@@ -155,7 +155,8 @@ signing command goes into `bundle.windows` in `tauri.conf.json`.
 and keep the private key and its password as `TAURI_SIGNING_PRIVATE_KEY`
 and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Then add the plugin to the shell
 (`tauri-plugin-updater`, and `updater:default` in
-`capabilities/default.json`), put the public key in
+`capabilities/desktop.json`, which applies to the desktop only), put the
+public key in
 `plugins.updater.pubkey` and the endpoint in `plugins.updater.endpoints`,
 and set `bundle.createUpdaterArtifacts` to `true`; the app then checks the
 release's `latest.json`. GitHub's `releases/latest` skips pre-releases, as

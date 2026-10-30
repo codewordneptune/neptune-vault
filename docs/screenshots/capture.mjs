@@ -4,7 +4,9 @@
 // well on both of GitHub's themes; light ones melt into its white page.
 // The web build also copies Home, the review, Receive and the wide Home
 // into the site, where Chrome's install sheet shows them (web/vite.config.ts,
-// installScreenshots): retaking them updates both, at the same sizes.
+// installScreenshots): retaking them updates both, at the same sizes. The
+// site gets them at its next deploy: a push that touches only this folder
+// starts none, so run the deploy workflow by hand on main.
 //
 // Once:
 // 1. Run the app and a Regtest node (README, "Run the web app" and "Local
@@ -13,19 +15,19 @@
 //      chrome --headless=new --remote-debugging-port=9222 --user-data-dir=<dir> http://localhost:4400/
 // 3. In that profile, make the demo wallet the screenshots show, on a new
 //    Regtest chain (a node started with a fresh --data-dir). The first
-//    wallet goes on Mainnet: make one, tick Developer networks in Settings,
-//    Advanced, then choose Add a wallet in the header's wallet menu. Choose
-//    Regtest in its Network line and restore the public test phrase
-//    ("abandon" 17 times, then "agent") as "Personal", answering "Never:
-//    this seed phrase is new".
+//    wallet goes on Mainnet: make one, turn on Developer networks in
+//    Settings, Advanced, then choose Add a wallet in the header's wallet
+//    menu. Choose Regtest in its Network line and restore the public test
+//    phrase ("abandon" 17 times, then "agent") as "Personal": press Change,
+//    choose Private restore, and answer "Never: this seed phrase is new".
 //    On Receive, add address 1 and name it "Alice". From the node, pay
 //    12.5 NPT to the main address and 3 NPT to Alice's, mining a block
 //    after each (the node's mined coins need `neptune-cli send
 //    --accept-lustrations`). Save the node's address as the contact "Bob",
 //    send Bob 2 NPT at the Medium fee (the review asks to publish the coins
-//    that pay for it: Send anyway), and mine a block. Nothing is left
-//    pending. Where the browser does not keep the wallet's storage, dismiss
-//    Home's notice about it.
+//    that pay for it: press its button again), and mine a block. Nothing is left
+//    pending. Where the browser does not keep the wallet's storage, open
+//    Home's notice about it and choose Dismiss.
 //
 // Then, whenever the screens change:
 //      VAULT_PASSWORD=<the demo wallet's password> node docs/screenshots/capture.mjs

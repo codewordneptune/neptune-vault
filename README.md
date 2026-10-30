@@ -63,8 +63,8 @@ A self-custodial wallet for [Neptune Cash](https://neptune.cash).
 - A review before anything is sent: the amount, the fee and the total. The
   app asks for your password (or passkey) before each send; you can turn
   that off in Settings, Security.
-- Fee presets (Low, Medium, High) or a fee of your own. Max sends everything
-  that can be spent.
+- Fee presets (Low, Medium, High) or a fee of your own. Max fills in the most
+  that can be sent after the fee and any other recipients.
 - Saved contacts. A typed or pasted address that is a contact shows its
   name; a name that came in a payment request is marked unverified.
 - Pay up to 10 recipients in one transaction, with one proof and one fee,
@@ -73,14 +73,19 @@ A self-custodial wallet for [Neptune Cash](https://neptune.cash).
   the Android and desktop apps, a `neptunecash:` payment link opens Send,
   filled in. On Android the installed web app takes an address or a payment
   request shared from another app.
-- A send starts with the amount, large. With several recipients one is open
-  at a time, the rest fold into rows, and a total joins the fee. The review
-  reads like a receipt, and its button says what it sends.
+- One form at every size: who, how much, the fee. The amount is large. With
+  several recipients the one being filled in stays open, the rest fold into
+  rows, and a total joins the fee. The review reads like a receipt, and its
+  button says what it sends.
 
 **History**
 
 - Payments by day, each with its details: the coins, and on Mainnet a link
   to each on the explorer.
+- Search once History is long, by name, note, amount or address, and show
+  only what was sent, received or is waiting.
+- Export History as a spreadsheet (CSV), all of it or one year, for
+  bookkeeping. The file is not encrypted.
 - A note of your own on any send, and on any payment received once a block
   confirms it, added or changed in its details.
 - A send that the node has stopped carrying is marked "Not going through".
@@ -113,7 +118,7 @@ A self-custodial wallet for [Neptune Cash](https://neptune.cash).
 | Platform | Status |
 |---|---|
 | Android, Chrome (installed web app) | Main target. Tested on a Galaxy S24, including Mainnet sends. |
-| Android app | In testing. Test builds by GitHub Actions, tested on a Galaxy S24, including a Mainnet send. Not released or signed for release yet. Backup export does not work in it yet, and Android's own backup may copy its data, the encrypted seed phrase included, to your Google account; see [docs/ANDROID.md](docs/ANDROID.md). |
+| Android app | In testing. Test builds by GitHub Actions, tested on a Galaxy S24, including a Mainnet send. Not released or signed for release yet. Saving a backup file or History's spreadsheet does not work in it yet; see [docs/ANDROID.md](docs/ANDROID.md). |
 | iOS, Safari (installed web app) | Intended. Not tested yet. |
 | Desktop browsers | Work. Good for trying the app out. |
 | Windows desktop app | Builds and runs. Not signed yet. |
@@ -201,7 +206,9 @@ rather than in a browser's.
 ## Backup and recovery
 
 - **Seed phrase.** Restores your funds in any wallet that supports
-  Neptune's 18-word seed phrases, including this app on another device.
+  Neptune's 18-word seed phrases, including this app on another device. Write
+  down the Start month shown with it too: a private restore can then start
+  there instead of the first block.
 - **Backup file.** Export one from Settings, Backup, with your password. It
   restores the seed phrase, the network, the start block, your contacts,
   the names you gave your addresses, which addresses you have given out,
@@ -223,7 +230,8 @@ rather than in a browser's.
 
 - **Bugs:** [open an issue](https://github.com/codewordneptune/neptune-vault/issues).
   - Tap Copy details under Settings, About, Report a problem, and paste them
-    into the issue, with the network and what you did.
+    into the issue, with what you did. They already name the network and the
+    node.
   - **Never share your seed phrase or a backup file.**
 - **Questions:** the [Neptune Cash Telegram](https://t.me/neptune_project)
   or the [forum](https://talk.neptune.cash/).
@@ -241,7 +249,7 @@ crates/vault-qr         QR code reader (rxing), Rust to wasm for the web app, na
 crates/vault-bridge     vault-core, the prover and the QR reader as native code, for the desktop and Android apps
 crates/vault-fixtures   deterministic witnesses for the prover benchmark (web/prover-bench)
 crates/vendor           neptune-consensus, neptune-primitives, triton-vm, twenty-first,
-                        with small patches (see crates/vendor/VENDOR.md)
+                        bfieldcodec_derive, with small patches (see crates/vendor/VENDOR.md)
 shells/tauri            the desktop and Android apps (Tauri 2)
 fixtures/, test-vectors/  test inputs
 docs/                   design, privacy, hosting, releases, Android
@@ -304,7 +312,7 @@ Then:
    neptune-cli --data-dir <dir> --port 9799 mine-blocks-to-wallet 5
    ```
 
-2. In the app, make a first wallet (it always goes on Mainnet), then tick
+2. In the app, make a first wallet (it always goes on Mainnet), then turn on
    Developer networks in Settings, Advanced.
 3. Choose Add a wallet in the header's wallet menu, pick Regtest in the
    Network line under its card, and create the wallet.
@@ -323,14 +331,15 @@ Things to know about regtest:
 - Mine only after the node logs `single proof: Done`.
 - On regtest, coins must be published when they are spent (lustration).
   The node's send needs `--accept-lustrations`, and the app's review says
-  "Part of this send will be public": choose Send anyway.
+  "Part of this send will be public": press its button again, which now
+  ends in "anyway".
 - Restarting the node empties its mempool.
 - Regtest nodes accept only mock proofs, so the app skips real proving on
   regtest.
 
 ### Networks and nodes
 
-- New wallets go on Mainnet unless Developer networks is ticked in
+- New wallets go on Mainnet unless Developer networks is on in
   Settings, Advanced. Then Add a wallet also offers Testnet and Regtest,
   and the wallet menu in the header switches between all three. With it
   off, a test network stays in that menu only while a wallet is on it. Each
