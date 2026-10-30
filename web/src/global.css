@@ -1136,11 +1136,12 @@ main :is(h2, h3)[tabindex='-1']:focus {
 
 /* Send-in-progress strip under the header. */
 .vault-sendstrip {
+  position: relative;
   display: block;
   width: 100%;
   max-width: 100%;
-  padding: 8px 16px 10px;
-  background: var(--v-accent-soft);
+  padding: 8px 16px;
+  background: var(--v-surface);
   color: var(--v-text);
   border-bottom: 1px solid var(--v-line);
 }
@@ -1156,17 +1157,34 @@ main :is(h2, h3)[tabindex='-1']:focus {
 }
 .vault-sendstrip-row {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  margin: 0 auto 6px;
+  align-items: center;
+  gap: 10px;
+}
+.vault-sendstrip-row > .vault-avatar,
+.vault-sendstrip-row > .vault-row-icon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  font-size: var(--v-fs-xs);
+}
+.vault-sendstrip-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.vault-sendstrip-time {
+  flex: none;
 }
 /* A progress bar's whole length shows: its track has a 3:1 edge. */
 .mantine-Progress-root {
   box-shadow: inset 0 0 0 1px var(--v-control-edge);
 }
+/* Along the strip's foot, edge to edge. */
 .vault-sendstrip .mantine-Progress-root {
-  margin: 0 auto;
+  position: absolute;
+  inset: auto 0 -1px;
+  max-width: none;
+  margin: 0;
 }
 
 /* Review step rows. */
