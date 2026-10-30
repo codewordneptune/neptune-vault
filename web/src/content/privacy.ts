@@ -69,7 +69,7 @@ export const PRIVACY: PrivacySection[] = [
   {
     title: 'What this app does not do',
     paragraphs: [
-      'No analytics, no telemetry, no crash reporting, no advertising, no cookies for tracking. The Diagnostics and Report a problem pages show you facts about this device, the node's address, and how the last sync and the last failed send went; they send them nowhere, and copy them only when you ask.',
+      'No analytics, no telemetry, no crash reporting, no advertising, no cookies for tracking. The Diagnostics and Report a problem pages show you facts about this device, the node\'s address, and how the last sync and the last failed send went; they send them nowhere, and copy them only when you ask.',
       'The camera, when you scan a code, is read on the device; no frame leaves it. The clipboard is written only when you copy something, and other apps can read it, so clear it after copying your seed phrase. The app never reads the clipboard by itself: it sees only what you paste, into a field or, as an image, into the scanner' +
         (NATIVE ? '.' : ', and the site tells the browser to refuse it clipboard reads altogether.'),
       "Passkeys are made and kept by your device or its platform account, under that platform's own rules, and the platform may sync them; yours is listed there as Neptune Vault followed by the wallet's network, such as Neptune Vault (main). The app keeps only the passkey's id and a key that is useless without it. Removing a wallet does not delete its passkey: delete it in your device's password settings.",
