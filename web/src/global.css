@@ -128,6 +128,11 @@
   --v-hero-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   --v-hero-muted: #bccada;
   --v-hero-link: #a6cdfb;
+  /* The main action on the card: white, as the theme's blue would sink into
+     the card's own. */
+  --v-hero-send: #f1f5fb;
+  --v-hero-send-hover: #dfe7f3;
+  --v-hero-send-text: #12233f;
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
   --v-danger-text: #ff8a80;
@@ -274,6 +279,9 @@
   --v-hero-shadow: var(--v-card-shadow);
   --v-hero-muted: #4f5f73;
   --v-hero-link: #1a5fc4;
+  --v-hero-send: var(--mantine-primary-color-filled);
+  --v-hero-send-hover: var(--mantine-primary-color-filled-hover);
+  --v-hero-send-text: #fff;
   --v-ok-text: #1a7a31;
   --v-warn-text: #8a5a00;
   --v-danger-text: #c62828;
@@ -929,7 +937,7 @@ button.vault-network:focus-visible {
    figure still not fit, it breaks rather than run out of the card. */
 .vault-balance {
   font-size: clamp(1.5rem, 8.6vw, 2.25rem);
-  font-weight: 650;
+  font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
@@ -3065,6 +3073,22 @@ html {
 /* Send and Receive as pills. */
 .vault-balance-actions .vault-pill {
   border-radius: 999px;
+}
+/* The card's two actions: one solid, one an outline that fills a little
+   under a mouse and while pressed, as a light button does. */
+.vault-balance-actions {
+  --v-accent-soft: transparent;
+  --v-row-press: color-mix(in srgb, var(--v-hero-link) 14%, transparent);
+  --v-light-button-ring: inset 0 0 0 1px color-mix(in srgb, var(--v-hero-link) 40%, transparent);
+}
+.vault-balance-actions .vault-pill:not([data-variant='light']) {
+  background: var(--v-hero-send);
+  color: var(--v-hero-send-text);
+}
+@media (hover: hover) and (pointer: fine) {
+  .vault-balance-actions .vault-pill:not([data-variant='light']):hover {
+    background: var(--v-hero-send-hover);
+  }
 }
 /* History's title with its tools at its end, search and the menu: their
    targets reach into the space around the line, so the title keeps it. */
