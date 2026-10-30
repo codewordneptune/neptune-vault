@@ -9,6 +9,7 @@ import type { AccountRecord } from './storage/db';
 import { DESKTOP, MOBILE, NATIVE } from './app/platform';
 import { useScreenTransition } from './app/screenTransition';
 import { paymentTextIn, requestInFragment } from './app/sharedLinks';
+import { useThemeColor } from './app/themeColor';
 import { DesktopUpdateNotice } from './components/DesktopUpdateNotice';
 import { Logo } from './components/Logo';
 import { NetworkMenu } from './components/NetworkMenu';
@@ -132,6 +133,15 @@ export function App() {
   // Whether this device has a wallet on any network: the header's menu is
   // the way back from a network without one.
   const [anyWallet, setAnyWallet] = useState(false);
+  useThemeColor();
+  // The header's line shows once the page has scrolled under it.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 0);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   useEffect(() => {
     void services.db.count('accounts').then((n) => setAnyWallet(n > 0), () => undefined);
   }, [services, account]);
@@ -255,7 +265,7 @@ export function App() {
           Skip to navigation
         </a>
       )}
-      <header className={account && locked ? 'vault-topbar vault-topbar-locked' : 'vault-topbar'}>
+      <header className={`vault-topbar${account && locked ? ' vault-topbar-locked' : ''}${scrolled ? ' scrolled' : ''}`}>
         <Container size="xs" className="vault-topbar-inner">
           <Group justify="space-between" align="center">
             {/* The desktop app's title bar already names it: the header keeps

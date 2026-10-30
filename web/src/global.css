@@ -576,10 +576,14 @@ h3.mantine-Title-root.vault-prose-heading {
   top: 0;
   z-index: 40;
   background: var(--v-page);
-  border-bottom: 1px solid var(--v-line);
+  border-bottom: 1px solid transparent;
   padding-top: var(--v-safe-top);
   padding-left: var(--v-safe-left);
   padding-right: var(--v-safe-right);
+  transition: border-color 160ms ease;
+}
+.vault-topbar.scrolled {
+  border-bottom-color: var(--v-line);
 }
 .vault-topbar-inner {
   padding-block: var(--mantine-spacing-sm);
