@@ -1,7 +1,7 @@
 import { Box, Button, Container, Group, Stack, Text } from '@mantine/core';
 import { IconArrowDownLeft, IconArrowUpRight, IconHome, IconSettings } from '@tabler/icons-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
-import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, NavigationType, NavLink, Route, Routes, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 
 import { Sheet } from './components/Sheet';
 import { useApp } from './app/AppContext';
@@ -66,6 +66,9 @@ function shortcutProps(label: string, digit: number): { title: string; 'aria-key
   return { title: `${label} (${mac ? 'Cmd' : 'Ctrl'}+${digit})`, 'aria-keyshortcuts': `${mac ? 'Meta' : 'Control'}+${digit}` };
 }
 
+/** The state of a link back to Home that returns to where it was left. */
+const KEEP_PLACE = { keepPlace: true };
+
 export function App() {
   const { ready, account, locked, services } = useApp();
   // The screen on show, a view transition behind the router while screens
@@ -76,9 +79,17 @@ export function App() {
   // Onboarding is closed once a wallet exists, except to add another.
   const addingWallet = new URLSearchParams(search).has('add');
   // A new screen starts at its top, already when the browser pictures it;
-  // the router alone keeps the old scroll position.
+  // the router alone keeps the old scroll position. Home, come back to by its
+  // tab or by going back, is where it was left, somewhere down History.
+  const navigationType = useNavigationType();
+  const homeScroll = useRef(0);
+  const scrollPath = useRef(pathname);
   useLayoutEffect(() => {
-    window.scrollTo(0, 0);
+    scrollPath.current = pathname;
+    const returning = navigationType === NavigationType.Pop || (shown.state as typeof KEEP_PLACE | null)?.keepPlace === true;
+    window.scrollTo(0, pathname === '/' && returning ? homeScroll.current : 0);
+    // The rest is read as it stands when the screen changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   // The title names the screen, so a tab, the window list and a screen
@@ -146,7 +157,10 @@ export function App() {
   // The header's line shows once the page has scrolled under it.
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 0);
+    const onScroll = () => {
+      setScrolled(window.scrollY > 0);
+      if (scrollPath.current === '/') homeScroll.current = window.scrollY;
+    };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -177,7 +191,8 @@ export function App() {
         navigate('/send', { state: { fresh: true } });
       } else if (/^[1-4]$/.test(key) && open) {
         event.preventDefault();
-        navigate(TABS[Number(key) - 1].to);
+        const { to } = TABS[Number(key) - 1];
+        navigate(to, { state: to === '/' ? KEEP_PLACE : undefined });
       }
     };
     window.addEventListener('keydown', onKey);
@@ -341,7 +356,7 @@ export function App() {
           <Container size="xs" px={0} className="vault-tabbar-inner">
             <Group gap={0} wrap="nowrap" className="vault-tabs">
               {TABS.map(({ to, label, Icon }, i) => (
-                <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`} {...(DESKTOP ? shortcutProps(label, i + 1) : {})}>
+                <NavLink key={to} to={to} state={to === '/' ? KEEP_PLACE : undefined} end={to === '/'} className={({ isActive }) => `vault-tab${isActive ? ' active' : ''}`} {...(DESKTOP ? shortcutProps(label, i + 1) : {})}>
                   <Icon size={20} />
                   <span className="vault-tab-label">{label}</span>
                 </NavLink>
