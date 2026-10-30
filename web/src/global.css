@@ -2353,6 +2353,7 @@ html {
   margin: 0;
   padding: 10px 8px;
   border: 0;
+  border-radius: var(--mantine-radius-sm);
   white-space: normal;
   color: var(--v-muted-on-glow);
   font-weight: 400;
