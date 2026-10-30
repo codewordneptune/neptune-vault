@@ -1651,6 +1651,19 @@ main.vault-main {
 ::view-transition-new(root) {
   animation-duration: 160ms;
 }
+/* Within Settings on a wide window only its page changes: the list beside
+   it stays as it is, and the page comes in where it stands. */
+html[data-move='pane'] .vault-settings-split .vault-settings-list {
+  view-transition-name: vault-settings-list;
+}
+html[data-move='pane']::view-transition-new(vault-screen) {
+  animation: vault-fade-in 160ms ease-out both;
+}
+@keyframes vault-fade-in {
+  from {
+    opacity: 0;
+  }
+}
 @keyframes vault-screen-out {
   to {
     opacity: 0;
