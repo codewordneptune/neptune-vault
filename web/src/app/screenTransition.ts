@@ -6,7 +6,10 @@
 // Without view transitions in the browser, with reduced motion asked for, or
 // within one screen (a hash, a query, state), it is the router's location
 // at once. The move is named on the root element while it runs, for
-// global.css: within Settings on a wide window only the open page changes.
+// global.css: going deeper and coming back move sideways, so the way the
+// person went shows, and within Settings on a wide window only the open page
+// changes. A swipe back the browser has already animated is left to it, or
+// the screen would move twice.
 
 import { useLayoutEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
@@ -14,11 +17,21 @@ import type { Location } from 'react-router-dom';
 
 import { SETTINGS_SPLIT } from './layout';
 
-type Move = 'screen' | 'pane';
+type Move = 'screen' | 'pane' | 'deeper' | 'back';
 
 function moveOf(from: string, to: string): Move {
-  return from.startsWith('/settings') && to.startsWith('/settings') && window.matchMedia(SETTINGS_SPLIT).matches ? 'pane' : 'screen';
+  const [fromTop, ...fromRest] = from.split('/').filter(Boolean);
+  const [toTop, ...toRest] = to.split('/').filter(Boolean);
+  if (fromTop !== toTop) return 'screen';
+  if (fromTop === 'settings' && window.matchMedia(SETTINGS_SPLIT).matches) return 'pane';
+  if (toRest.length === fromRest.length) return 'screen';
+  return toRest.length > fromRest.length ? 'deeper' : 'back';
 }
+
+let browserMoved = false;
+window.addEventListener('popstate', (e) => {
+  browserMoved = 'hasUAVisualTransition' in e && e.hasUAVisualTransition === true;
+});
 
 let running: ViewTransition | null = null;
 
@@ -42,8 +55,10 @@ export function useScreenTransition(location: Location): Location {
     const show = () => setShown(location);
     const glide =
       location.pathname !== shown.pathname &&
+      !browserMoved &&
       typeof document.startViewTransition === 'function' &&
       !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    browserMoved = false;
     if (glide) moveTo(moveOf(shown.pathname, location.pathname), show);
     else show();
     // shown is what the transition starts from, not a reason to start one.

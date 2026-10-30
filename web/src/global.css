@@ -1651,6 +1651,32 @@ main.vault-main {
 ::view-transition-new(root) {
   animation-duration: 160ms;
 }
+/* Going deeper and coming back move a short way sideways, so the way the
+   person went shows. */
+html[data-move='deeper'] {
+  --v-move: 24px;
+}
+html[data-move='back'] {
+  --v-move: -24px;
+}
+html:is([data-move='deeper'], [data-move='back'])::view-transition-old(vault-screen) {
+  animation: vault-move-out 100ms ease-in both;
+}
+html:is([data-move='deeper'], [data-move='back'])::view-transition-new(vault-screen) {
+  animation: vault-move-in 190ms cubic-bezier(0.2, 0.8, 0.2, 1) 20ms both;
+}
+@keyframes vault-move-out {
+  to {
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--v-move)));
+  }
+}
+@keyframes vault-move-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--v-move));
+  }
+}
 /* Within Settings on a wide window only its page changes: the list beside
    it stays as it is, and the page comes in where it stands. */
 html[data-move='pane'] .vault-settings-split .vault-settings-list {
