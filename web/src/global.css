@@ -1682,20 +1682,18 @@ main.vault-main {
   color: var(--v-ok-text);
   flex-shrink: 0;
 }
-/* A History row's state, after its time, as a pill tinted in its colour:
+/* A History row's state, under its amount, as a pill tinted in its colour:
    neutral while it only waits, amber where something is asked of the
    person, red where it did not happen. Rows that are not final are found
-   by shape as well as colour. One that wraps onto a line of its own (a
-   narrow phone) gives the row a third line, so a note after it still shows;
-   on a column narrower than its words, its words wrap inside it. */
+   by shape as well as colour, down one column. */
 .vault-state-pill {
   display: inline-block;
   max-width: 100%;
-  padding: 0 8px;
-  border-radius: 10px;
+  padding: 0 7px;
+  border-radius: 9px;
   font-size: var(--v-fs-xs);
   font-weight: 600;
-  line-height: 20px;
+  line-height: 18px;
   color: var(--v-text-2);
   background: color-mix(in srgb, var(--v-text) 10%, transparent);
 }
@@ -1706,9 +1704,6 @@ main.vault-main {
 .vault-state-pill[data-tone='failed'] {
   color: var(--v-danger-text);
   background: color-mix(in srgb, var(--v-danger-text) 10%, transparent);
-}
-.vault-row-meta:has(.vault-state-pill) {
-  -webkit-line-clamp: 3;
 }
 /* A state said in words elsewhere (a row's title, the details): amber where
    something is asked of the person, red where it did not happen. */
@@ -1955,6 +1950,10 @@ html {
    (a long figure, large text) its unit goes under it, and the name keeps
    the rest. */
 .vault-row-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
   flex-shrink: 0;
   max-width: 50%;
   min-width: min-content;
@@ -1969,6 +1968,11 @@ html {
 .vault-row > .vault-row-who {
   flex: 1 1 0;
   min-width: min(100%, 10em);
+}
+/* A state under the amount is wider than the amount: the name gives way
+   first, so a narrow phone keeps the row whole. */
+.vault-row-button:has(.vault-state-pill) > .vault-row-who {
+  min-width: min(100%, 6.5em);
 }
 
 /* Where an amount is shown as a value (History's rows, the estimate under

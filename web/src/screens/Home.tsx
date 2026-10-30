@@ -1092,15 +1092,6 @@ export function Home() {
                             </Text>
                             <Text size="sm" c="dimmed" className="vault-row-meta vault-tabular">
                               {formatTime(h.timestampMs)}
-                              {/* After a space, so a pill that wraps starts at the line's edge. */}
-                              {stateWordOf(e) && (
-                                <>
-                                  {' '}
-                                  <span className="vault-state-pill" data-tone={stateWordOf(e)?.tone}>
-                                    {stateWordOf(e)?.word}
-                                  </span>
-                                </>
-                              )}
                               {/* A time lock only waits for its date: said in the row's own colour. */}
                               {lockOf(h) !== null && ` · Spendable from ${showDate(lockOf(h) as number)}`}
                               {e.kind === 'self' && !hidden && ' · fee only'}
@@ -1122,6 +1113,12 @@ export function Home() {
                             <Figure text={amount(e.shownNau)} />{' '}
                             <span className="vault-unit">NPT</span>
                           </Text>
+                          {/* Under the figure, so a row keeps its two lines and states line up down the list. */}
+                          {stateWordOf(e) && (
+                            <span className="vault-state-pill" data-tone={stateWordOf(e)?.tone}>
+                              {stateWordOf(e)?.word}
+                            </span>
+                          )}
                         </div>
                       </UnstyledButton>
                     );
