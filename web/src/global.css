@@ -2835,6 +2835,36 @@ html {
 .vault-history-tools {
   margin-right: -8px;
 }
+/* History's quick filters: drawn small, each a full target. */
+.vault-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.vault-filter-chip {
+  position: relative;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: var(--v-fs-sm);
+  line-height: 20px;
+  color: var(--v-text-2);
+  background: color-mix(in srgb, var(--v-text) 8%, transparent);
+}
+.vault-filter-chip::after {
+  content: '';
+  position: absolute;
+  inset: calc((28px - var(--v-tap)) / 2) -4px;
+}
+.vault-filter-chip[aria-pressed='true'] {
+  background: var(--v-accent-soft);
+  color: var(--v-accent-text);
+  font-weight: 600;
+}
+.vault-filter-chip:focus-visible {
+  outline: 2px solid var(--v-accent);
+  outline-offset: 2px;
+}
 /* An empty History as a wallet starts: a drawing in the accent, what
    happens next, and the way to begin. */
 .vault-empty {

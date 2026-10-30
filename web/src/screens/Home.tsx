@@ -37,6 +37,15 @@ import { coinKeyOfReceipt, groupHistory, type HistoryEntry } from '../util/histo
 import { arrivals, type Listed } from '../util/arrivals';
 import { dayAhead, dayKey, dayLabel, formatAbout, formatDate, formatDateTime, formatTime, timeAgo, whenInSentence } from '../util/time';
 
+/** What History's quick filters list, under its search field. */
+type Listing = 'all' | 'sent' | 'received' | 'waiting';
+const LISTINGS: [Listing, string][] = [
+  ['all', 'All'],
+  ['sent', 'Sent'],
+  ['received', 'Received'],
+  ['waiting', 'Waiting'],
+];
+
 export function Home() {
   const { balance, sync, history, utxos, syncNow, lastSyncedAt, online, services, refresh, account, dismissSendJob, loaded, sendFailure: failure, dismissSendFailure, lastSend, dismissLastSend, screenAwake, sendJob } = useApp();
   // A send that failed while the person was elsewhere is easy to miss as a
@@ -175,11 +184,13 @@ export function Home() {
   const SEARCH_FROM = 10;
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
+  const [listing, setListing] = useState<Listing>('all');
   const searchRef = useRef<HTMLInputElement>(null);
   const searchButton = useRef<HTMLButtonElement>(null);
   const closeSearch = () => {
     setSearching(false);
     setQuery('');
+    setListing('all');
     setTimeout(() => searchButton.current?.focus(), 0);
   };
   const [exportOpen, setExportOpen] = useState(false);
@@ -600,7 +611,12 @@ export function Home() {
     if (!hidden) texts.push(formatNau(e.shownNau), showNau(e.shownNau));
     return texts.some((t) => t?.toLowerCase().includes(sought));
   };
-  const listedEntries = sought ? entries.filter(matches) : entries.slice(0, shown);
+  // The quick filters under the search field: a move to yourself is money out too, and waiting is anything a block has yet to confirm.
+  const inListing = (e: HistoryEntry) => (listing === 'all' ? true : listing === 'waiting' ? e.record.status === 'pending' : listing === 'received' ? e.kind === 'received' : e.kind !== 'received');
+  const narrowed = sought !== '' || (searching && listing !== 'all');
+  const listedEntries = narrowed ? entries.filter((e) => inListing(e) && (!sought || matches(e))) : entries.slice(0, shown);
+  const listingWord = listing === 'all' ? '' : ` ${listing}`;
+  const withQuery = sought ? ` with “${query.trim()}”` : '';
   // The listed entries by calendar day, in the order they come (newest
   // first): a heading says the day once, and each row keeps only its time.
   const days: { key: string; label: string; entries: HistoryEntry[] }[] = [];
@@ -1006,8 +1022,15 @@ export function Home() {
                 </ActionIcon>
               }
             />
+            <div className="vault-filter-chips" role="group" aria-label="Show">
+              {LISTINGS.map(([value, name]) => (
+                <UnstyledButton key={value} className="vault-filter-chip" aria-pressed={listing === value} onClick={() => setListing(value)}>
+                  {name}
+                </UnstyledButton>
+              ))}
+            </div>
             <Text size="sm" c="dimmed" role="status">
-              {sought ? (listedEntries.length === 0 ? `No payments with “${query.trim()}”` : `${listedEntries.length} ${listedEntries.length === 1 ? 'payment' : 'payments'} with “${query.trim()}”`) : ''}
+              {narrowed ? `${listedEntries.length === 0 ? 'No' : listedEntries.length} ${listedEntries.length === 1 ? 'payment' : 'payments'}${listingWord}${withQuery}` : ''}
             </Text>
           </Stack>
         )}
@@ -1126,7 +1149,7 @@ export function Home() {
                 </div>
               </section>
             ))}
-            {!sought && entries.length > shown && (
+            {!narrowed && entries.length > shown && (
               <UnstyledButton
                 c="var(--v-accent-text)"
                 fz="sm"
