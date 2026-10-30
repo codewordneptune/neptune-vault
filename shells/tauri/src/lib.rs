@@ -325,14 +325,16 @@ fn app_error(message: impl Into<String>) -> BridgeError {
 /// Offers the native Save dialog and writes `contents` where the person
 /// chooses. The dialog is opened here, not from the page, so the page can
 /// never write to a path of its own choosing. The path saved to, or none
-/// when the person cancelled.
+/// when the person cancelled. The kind of file follows the suggested name:
+/// History as a spreadsheet, or a backup.
 #[tauri::command]
 async fn app_save_file(app: tauri::AppHandle, suggested_name: String, contents: String) -> Result<Option<String>> {
+    let (kind, extension) = if suggested_name.ends_with(".csv") { ("Spreadsheet", "csv") } else { ("Neptune Vault backup", "json") };
     let chosen = app
         .dialog()
         .file()
         .set_file_name(&suggested_name)
-        .add_filter("Neptune Vault backup", &["json"])
+        .add_filter(kind, &[extension])
         .blocking_save_file();
     let Some(chosen) = chosen else {
         return Ok(None);

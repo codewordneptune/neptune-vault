@@ -2682,6 +2682,18 @@ html {
 .vault-balance-actions .vault-pill {
   border-radius: 999px;
 }
+/* History's title with its tools at its end, search and the menu: their
+   targets reach into the space around the line, so the title keeps it. */
+.vault-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block: -10px;
+}
+.vault-history-tools {
+  margin-right: -8px;
+}
 /* An empty History as a wallet starts: a drawing in the accent, what
    happens next, and the way to begin. */
 .vault-empty {

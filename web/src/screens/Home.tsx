@@ -1,13 +1,13 @@
 // Balance, sync status and history.
 
-import { ActionIcon, Button, Group, Paper, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Button, Group, Menu, Paper, Select, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useReducedMotion } from '@mantine/hooks';
-import { IconAlertCircle, IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCheck, IconChevronRight, IconCircleCheck, IconCircleDot, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconWifiOff } from '@tabler/icons-react';
+import { IconAlertCircle, IconArrowDownLeft, IconArrowUpRight, IconArrowsExchange, IconCheck, IconChevronRight, IconCircleCheck, IconCircleDot, IconClockPause, IconCopy, IconExternalLink, IconEye, IconEyeOff, IconHourglass, IconInfoCircle, IconRefresh, IconSearch, IconDownload, IconTable, IconWifiOff, IconX } from '@tabler/icons-react';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../components/Sheet';
-import { NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
+import { formatNau, NAU_PER_COIN, showBlock, showNau, UNANSWERED_TITLE, useApp } from '../app/AppContext';
 import { coinAddressKey, addressKey, readLabels, type AddressLabels } from '../app/addressLabels';
 import { EXPIRED_NOTE, mayStillGo, MEMPOOL_KEEPS_MS, removable, SEND_LIFETIME_MS, SEND_NOTE_MAX } from '../app/send';
 import { readReceivedNotes, receivedCoinOf, writeReceivedNote, type ReceivedNotes } from '../app/receivedNotes';
@@ -21,10 +21,12 @@ import { Spoken, spokenText } from '../components/Spoken';
 import { QUOTE_OLD_MS, useQuote } from '../app/price';
 import { fiatOf, fiatParts } from '../util/fiat';
 import type { StoredUtxo } from '../backend/types';
-import type { AccountRecord, ContactRecord, HistoryRecord, SendDetails } from '../storage/db';
+import { walletName, type AccountRecord, type ContactRecord, type HistoryRecord, type SendDetails } from '../storage/db';
+import { MoreButton } from '../components/MoreButton';
+import { csvDate, historyCsv, type CsvRow } from '../util/historyCsv';
 import { InstallNudge } from '../components/InstallNudge';
 import { StorageNotice } from '../components/StorageNotice';
-import { Caution, ErrorLine, headingNear, Info } from '../components/Notice';
+import { Caution, Done, ErrorLine, headingNear, Info } from '../components/Notice';
 import { COINS_SAFE, MAY_HAVE_GONE_OUT, notSentReason, SENDING_UNTIL_CONFIRMED, SENT_WAITING, WAITING_FOR_BLOCK } from '../app/words';
 import { DESKTOP, MOBILE, NATIVE } from '../app/platform';
 import { PULL_READY_PX, usePullToSync } from '../app/pullToSync';
@@ -167,15 +169,20 @@ export function Home() {
   useEffect(() => setTech(false), [opened]);
   const PAGE = 50;
   const [shown, setShown] = useState(PAGE);
-  // The shown entries by calendar day, in the order they come (newest first):
-  // a heading says the day once, and each row keeps only its time.
-  const days: { key: string; label: string; entries: HistoryEntry[] }[] = [];
-  for (const e of entries.slice(0, shown)) {
-    const key = dayKey(e.record.timestampMs);
-    const day = days.find((d) => d.key === key);
-    if (day) day.entries.push(e);
-    else days.push({ key, label: dayLabel(e.record.timestampMs), entries: [e] });
-  }
+  // Search, offered once History is long: by who, note, state, amount or
+  // address; an amount only while amounts show. A spreadsheet of History
+  // is in the menu beside it.
+  const SEARCH_FROM = 10;
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
+  const searchButton = useRef<HTMLButtonElement>(null);
+  const closeSearch = () => {
+    setSearching(false);
+    setQuery('');
+    setTimeout(() => searchButton.current?.focus(), 0);
+  };
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Giving up on a pending send frees its reserved coins; confirmed first.
   const [givingUp, setGivingUp] = useState<HistoryRecord | null>(null);
@@ -545,6 +552,62 @@ export function Home() {
     );
   };
 
+  // Search, as typed, against a row: who, its title, its note, its addresses
+  // and their contacts' names, and its amount unless amounts are hidden.
+  const sought = searching ? query.trim().toLowerCase() : '';
+  const matches = (e: HistoryEntry) => {
+    const r = e.record;
+    const addresses = r.payments?.length ? r.payments.map((p) => p.recipient) : r.recipient ? [r.recipient] : [];
+    const texts = [whoOf(e), stateTitleOf(e), noteOf(e), labelOf(r), ...addresses, ...addresses.map((a) => contactFor(a)?.name)];
+    if (!hidden) texts.push(formatNau(e.shownNau), showNau(e.shownNau));
+    return texts.some((t) => t?.toLowerCase().includes(sought));
+  };
+  const listedEntries = sought ? entries.filter(matches) : entries.slice(0, shown);
+  // The listed entries by calendar day, in the order they come (newest
+  // first): a heading says the day once, and each row keeps only its time.
+  const days: { key: string; label: string; entries: HistoryEntry[] }[] = [];
+  for (const e of listedEntries) {
+    const key = dayKey(e.record.timestampMs);
+    const day = days.find((d) => d.key === key);
+    if (day) day.entries.push(e);
+    else days.push({ key, label: dayLabel(e.record.timestampMs), entries: [e] });
+  }
+
+  // History as a spreadsheet, a row per payment, for bookkeeping.
+  const csvRowOf = (e: HistoryEntry): CsvRow => {
+    const r = e.record;
+    const several = severalOf(e);
+    const addresses = several ? several.map((p) => p.recipient) : e.kind !== 'received' && r.recipient ? [r.recipient] : [];
+    const unmoved = notSent(e) || mayGo(e);
+    const state =
+      r.status === 'confirmed'
+        ? 'Confirmed'
+        : r.status === 'pending'
+          ? e.kind === 'received'
+            ? 'Pending'
+            : isStuck(r)
+              ? 'Not going through'
+              : waitingOf(r)
+          : mayGo(e)
+            ? `${r.expired ? 'Expired' : 'Given up'}: may still go through`
+            : notSent(e)
+              ? 'Not sent'
+              : 'Failed';
+    return {
+      date: csvDate(r.timestampMs),
+      type: e.kind === 'received' ? 'Received' : e.kind === 'self' ? 'Moved to yourself' : 'Sent',
+      state,
+      who: whoOf(e) ?? '',
+      address: addresses.join(' '),
+      amount: formatNau(e.kind === 'received' ? e.shownNau : BigInt(r.amountNau)),
+      fee: e.kind !== 'received' && r.feeNau ? formatNau(BigInt(r.feeNau)) : null,
+      total: unmoved ? '0' : formatNau(e.netNau),
+      block: r.status === 'confirmed' ? r.height : null,
+      note: noteOf(e) ?? '',
+      transaction: r.txid,
+    };
+  };
+
   // The explorer knows Mainnet only.
   const explorer = account?.network === 'main' ? LINKS.explorerOutput : null;
 
@@ -851,9 +914,67 @@ export function Home() {
 
       <Paper>
         <Stack>
-        <Title order={3} ref={historyTitle} tabIndex={-1}>
-          History
-        </Title>
+        {/* The title, with search (once History is long) and a menu at its end. */}
+        <div className="vault-history-head">
+          <Title order={3} ref={historyTitle} tabIndex={-1}>
+            History
+          </Title>
+          {loaded && entries.length > 0 && (
+            <Group gap={0} wrap="nowrap" className="vault-history-tools">
+              {entries.length > SEARCH_FROM && (
+                <Tooltip label="Search History" interactive>
+                  <ActionIcon
+                    ref={searchButton}
+                    variant="subtle"
+                    size="lg"
+                    className="vault-tap"
+                    c={searching ? 'var(--v-accent-text)' : undefined}
+                    aria-label="Search History"
+                    aria-expanded={searching}
+                    onClick={() => {
+                      if (searching) return closeSearch();
+                      setSearching(true);
+                      setTimeout(() => searchRef.current?.focus(), 0);
+                    }}
+                  >
+                    <IconSearch size={20} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+              <Menu position="bottom-end">
+                <MoreButton label="More for History" />
+                <Menu.Dropdown>
+                  <Menu.Item leftSection={<IconTable size={16} />} onClick={() => setExportOpen(true)}>
+                    Export as a spreadsheet
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
+          )}
+        </div>
+        {searching && (
+          <Stack gap={6}>
+            <TextInput
+              ref={searchRef}
+              aria-label="Search History"
+              placeholder="Name, note, amount or address"
+              leftSection={<IconSearch size={16} />}
+              value={query}
+              onChange={(e) => setQuery(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') closeSearch();
+              }}
+              rightSection={
+                <ActionIcon variant="subtle" size="lg" className="vault-tap" aria-label="Close search" onClick={closeSearch}>
+                  <IconX size={18} />
+                </ActionIcon>
+              }
+            />
+            <Text size="sm" c="dimmed" role="status">
+              {sought ? (listedEntries.length === 0 ? `No payments with “${query.trim()}”` : `${listedEntries.length} ${listedEntries.length === 1 ? 'payment' : 'payments'} with “${query.trim()}”`) : ''}
+            </Text>
+          </Stack>
+        )}
         {!loaded ? (
           <Text c="dimmed" size="sm">
             Loading…
@@ -971,7 +1092,7 @@ export function Home() {
                 </div>
               </section>
             ))}
-            {entries.length > shown && (
+            {!sought && entries.length > shown && (
               <UnstyledButton
                 c="var(--v-accent-text)"
                 fz="sm"
@@ -1160,6 +1281,8 @@ export function Home() {
         )}
       </Sheet>
 
+      {account && <ExportHistory opened={exportOpen} onClose={() => setExportOpen(false)} account={account} entries={entries} rowOf={csvRowOf} />}
+
       <Sheet opened={givingUp !== null} onClose={closeGiveUp} returnFocus={false} title={nothingToGiveUp ? 'Nothing to give up' : 'Give up on this send?'}>
         {givingUpNow &&
           (nothingToGiveUp ? (
@@ -1213,6 +1336,76 @@ function ReceiptRow({ label, figure, total }: { label: string; figure: string; t
         <Spoken text={figure} /> <span className="vault-unit">NPT</span>
       </b>
     </div>
+  );
+}
+
+/**
+ * History as a spreadsheet (CSV): which payments, what the file holds and
+ * that it is not encrypted, then the save, through the system's Save dialog
+ * in the apps and as a download in a browser.
+ */
+function ExportHistory({ opened, onClose, account, entries, rowOf }: { opened: boolean; onClose: () => void; account: AccountRecord; entries: HistoryEntry[]; rowOf: (e: HistoryEntry) => CsvRow }) {
+  const [period, setPeriod] = useState('all');
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<{ done: boolean; text: string } | null>(null);
+  useEffect(() => {
+    if (opened) setSaid(null);
+  }, [opened]);
+  const yearOf = (e: HistoryEntry) => String(new Date(e.record.timestampMs).getFullYear());
+  const years = [...new Set(entries.map(yearOf))];
+  const chosen = period === 'all' ? entries : entries.filter((e) => yearOf(e) === period);
+  const count = (n: number) => `${n} ${n === 1 ? 'payment' : 'payments'}`;
+  const save = async () => {
+    setBusy(true);
+    setSaid(null);
+    try {
+      // Oldest first, as a ledger reads.
+      const text = historyCsv([...chosen].reverse().map(rowOf));
+      const slug = walletName(account).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const fileName = `neptune-vault-${account.network}-${slug}-history-${csvDate(Date.now()).slice(0, 10)}.csv`;
+      if (NATIVE) {
+        const { saveFile } = await import('../backend/native/appClient');
+        const where = await saveFile(fileName, text);
+        setSaid(where ? { done: true, text: `Saved to ${where}.` } : { done: false, text: 'Not saved.' });
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      setSaid({ done: true, text: `${count(chosen.length)} saved as ${fileName}.` });
+    } catch (e) {
+      setSaid({ done: false, text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet opened={opened} onClose={onClose} title="Export History">
+      <Stack>
+        <Text size="sm">A spreadsheet of the payments in History, for bookkeeping or taxes: one row per payment, with its date, who, amount, fee, state and note.</Text>
+        {years.length > 1 ? (
+          <Select
+            label="Payments"
+            data={[{ value: 'all', label: `All of History, ${count(entries.length)}` }, ...years.map((y) => ({ value: y, label: `${y}, ${count(entries.filter((e) => yearOf(e) === y).length)}` }))]}
+            value={period}
+            allowDeselect={false}
+            onChange={(v) => v && setPeriod(v)}
+          />
+        ) : (
+          <Text size="sm" c="dimmed">
+            All of History: {count(entries.length)}.
+          </Text>
+        )}
+        <Caution title="The file is not encrypted">Anyone who opens it sees these payments, who you paid, the amounts and your notes. Keep it as you would a bank statement.</Caution>
+        <Button leftSection={<IconDownload size={16} />} loading={busy} onClick={() => void save()}>
+          Save spreadsheet (CSV)
+        </Button>
+        <div role="status">{said && (said.done ? <Done role={undefined}>{said.text}</Done> : <ErrorLine role={undefined}>{said.text}</ErrorLine>)}</div>
+      </Stack>
+    </Sheet>
   );
 }
 
