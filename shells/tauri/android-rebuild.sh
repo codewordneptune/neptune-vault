@@ -18,6 +18,7 @@ BUILD_DIR=${BUILD_DIR:-/home/vagrant/build/org.useneptune.vault}
 export REPO BUILD_DIR
 
 NDK=30.0.16248370
+CLI_RUST=1.97.1
 NODE=22.20.0
 NODE_SHA256=00bbd05e306ea68b6e13e17360d0e2f680b493ef95f2fea1c4296ff7437530bc
 
@@ -35,9 +36,11 @@ if [ "${1:-}" = as-user ]; then
   rustup toolchain install "$channel" --profile minimal --component rust-src --target aarch64-linux-android
   rustup default "$channel"
 
-  # Built from source at the version the lock file holds, not taken from npm.
+  # Built from source at the version the lock file holds, not taken from npm,
+  # and on stable: its locked rustix does not compile on the app's nightly.
   tauri_cli=$(node -p "require('./web/package-lock.json').packages['node_modules/@tauri-apps/cli'].version")
-  cargo install tauri-cli --version "$tauri_cli" --locked
+  rustup toolchain install "$CLI_RUST" --profile minimal
+  cargo "+$CLI_RUST" install tauri-cli --version "$tauri_cli" --locked
 
   npm --prefix web ci
 

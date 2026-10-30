@@ -45,14 +45,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # The container writes to the system disk, which the runner's own SDKs
-      # mostly fill.
-      - name: Room for the build
-        run: |
-          df -h /
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
-
       - name: Build in F-Droid's image
         env:
           BUILD_USER: ${{ matrix.user }}
