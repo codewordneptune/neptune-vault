@@ -44,7 +44,7 @@ import { abbreviateAddress } from '../util/address';
 import { WrongPasswordError } from '../storage/envelope';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { MethodChoice } from '../components/MethodChoice';
-import { CopyWords, WordGrid } from '../components/WordGrid';
+import { CopyWords, StartMonth, WordGrid } from '../components/WordGrid';
 import { Spoken } from '../components/Spoken';
 import { PasswordField } from '../components/PasswordField';
 import { ContactsPanel } from './Contacts';
@@ -574,6 +574,31 @@ function SettingsSections({ section }: { section: SectionKey }) {
   useEffect(() => {
     if (phrase && phraseLeft <= 0) setPhrase(null);
   }, [phrase, phraseLeft]);
+  // The month to write down with the phrase: the date of the block this
+  // wallet's scan starts at, or when it was made while that block is not
+  // known yet. None for a wallet that looks at the whole chain (a scan from
+  // the first block, a restore through the node's coin index): its start
+  // says nothing about when its payments began.
+  const [startMs, setStartMs] = useState<number | null>(null);
+  useEffect(() => {
+    setStartMs(null);
+    if (!phrase || !account || account.restore === 'fast' || account.restoredAt || account.birthdayHeight === 1) return;
+    if (account.birthdayHeight === 0) {
+      setStartMs(account.createdAt);
+      return;
+    }
+    let live = true;
+    void services
+      .node()
+      .blockHeaderAt(account.birthdayHeight)
+      .then(
+        (h) => live && setStartMs(h?.timestamp ?? null),
+        () => {},
+      );
+    return () => {
+      live = false;
+    };
+  }, [phrase, account, services]);
 
   // Without persistent storage the browser may evict the wallet's data when
   // space runs low. The first request happens at start-up; this one is the
@@ -609,6 +634,7 @@ function SettingsSections({ section }: { section: SectionKey }) {
               {phrase && (
                 <Stack gap="xs" mt="xs" w="100%">
                   <WordGrid words={phrase} />
+                  {startMs !== null && <StartMonth at={startMs} />}
                   {/* The button, then what copying means, beneath it, as on the setup step. */}
                   <Stack gap={6} align="flex-start">
                     <CopyWords words={phrase} />

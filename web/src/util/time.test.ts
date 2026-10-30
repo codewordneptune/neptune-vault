@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dayAhead, dayKey, dayLabel, formatAbout, formatDate, formatDateTime, formatDuration, formatTime, formatWhen, whenInSentence } from './time';
+import { dayAhead, dayKey, dayLabel, formatAbout, formatDate, formatDateTime, formatDuration, formatMonth, formatTime, formatWhen, whenInSentence } from './time';
 
 // Sunday 13 September 2026, 16:30 on this machine's clock.
 const now = new Date(2026, 8, 13, 16, 30).getTime();
@@ -49,6 +49,13 @@ describe('formatDate and formatDateTime', () => {
   it('put the day first, with an English month', () => {
     expect(formatDate(at(2026, 8, 22))).toMatch(/^22 Sept? 2026$/);
     expect(formatDateTime(at(2026, 8, 22, 20, 55))).toMatch(/^22 Sept? 2026, /);
+  });
+});
+
+describe('formatMonth', () => {
+  it('names the month in English, with its year', () => {
+    expect(formatMonth(at(2026, 9, 30))).toBe('October 2026');
+    expect(formatMonth(at(2027, 0, 1, 0, 0))).toBe('January 2027');
   });
 });
 

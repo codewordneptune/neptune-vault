@@ -17,7 +17,7 @@ import { Caution, ErrorLine, Info } from '../components/Notice';
 import { NATIVE } from '../app/platform';
 import { StartBlockPicker, type StartLookup } from '../components/StartBlockPicker';
 import { MethodChoice } from '../components/MethodChoice';
-import { CopyWords, WordGrid } from '../components/WordGrid';
+import { CopyWords, StartMonth, WordGrid } from '../components/WordGrid';
 import { CLIPBOARD_RISK, FAST_LEARNS, FAST_SCAN } from '../app/words';
 import { NETWORK_LABELS, NETWORK_OPTIONS } from '../util/network';
 import type { NodeClient } from '../node/rpc';
@@ -492,6 +492,7 @@ export function Onboarding() {
                 </div>
               )}
             </div>
+            <StartMonth at={Date.now()} />
             {/* Pressed before the words were shown, it says so rather than wait disabled. */}
             <Button
               onClick={() => {

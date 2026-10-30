@@ -25,6 +25,11 @@ export function formatDate(ms: number): string {
   return new Date(ms).toLocaleDateString(DATE_LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/** A month: "October 2026". */
+export function formatMonth(ms: number): string {
+  return new Date(ms).toLocaleDateString(DATE_LOCALE, { month: 'long', year: 'numeric' });
+}
+
 /** A date and time: "22 Sept 2026, 8:55 PM". */
 export function formatDateTime(ms: number): string {
   return `${formatDate(ms)}, ${formatTime(ms)}`;

@@ -6,11 +6,12 @@
 // lands somewhere the person did not expect.
 
 import { Box, Group, SimpleGrid, Text, UnstyledButton } from '@mantine/core';
-import { IconCheck, IconCopy, IconX } from '@tabler/icons-react';
+import { IconCalendar, IconCheck, IconCopy, IconX } from '@tabler/icons-react';
 
 import { useSecureScreen } from '../app/secureScreen';
 import { PHONE, useLayout } from '../app/layout';
 import { useCopied } from '../util/clipboard';
+import { formatMonth } from '../util/time';
 
 // `only` shows just those places, by their numbers: the confirmation's
 // missing words, without the rest of the phrase on screen again.
@@ -58,6 +59,21 @@ export function WordGrid({ words, blanks = [], next, onClear, only }: { words: s
         );
       })}
     </SimpleGrid>
+  );
+}
+
+/**
+ * The month to write down with the words, in a well like theirs: a private
+ * restore can start there, and skip every block before it.
+ */
+export function StartMonth({ at }: { at: number }) {
+  return (
+    <div className="vault-start-month">
+      <IconCalendar size={16} aria-hidden />
+      <Text size="sm">
+        Write the month down too: <b>{formatMonth(at)}</b>. A private restore can then start from that month instead of the first block.
+      </Text>
+    </div>
   );
 }
 
