@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { fromPayLink, payLink, paymentTextIn, requestInFragment } from './sharedLinks';
+import { fromPayLink, paymentTextIn, requestInFragment } from './sharedLinks';
 
 const ADDRESS = 'nolgar1' + 'q'.repeat(60);
 const REQUEST = `neptunecash:${ADDRESS}?amount=2.5&label=Alice%20B`;
 
 describe('links that reach the app from elsewhere', () => {
-  it('reads a /pay link back to the request it was made from', () => {
-    const link = payLink('https://vault.example.org/', REQUEST);
-    expect(link).toBe(`https://vault.example.org/pay#${REQUEST}`);
-    expect(fromPayLink(link)).toBe(REQUEST);
+  it('reads the request a /pay link carries', () => {
+    expect(fromPayLink(`https://vault.example.org/pay#${REQUEST}`)).toBe(REQUEST);
   });
 
   it('takes a request whose colon an app encoded, and nothing that is not a request', () => {

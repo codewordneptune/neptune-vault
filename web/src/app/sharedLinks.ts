@@ -42,8 +42,3 @@ export function paymentTextIn(shared: string): string {
     .map((piece) => fromPayLink(piece) ?? piece);
   return pieces.find((piece) => PAYMENT_LIKE.test(piece) && !parsePaymentText(piece).error) ?? shared.trim();
 }
-
-/** A web link that opens this payment request at Send in Neptune Vault, in a browser. */
-export function payLink(base: string, request: string): string {
-  return `${base.replace(/\/+$/, '')}/pay#${request}`;
-}

@@ -72,8 +72,7 @@ A self-custodial wallet for [Neptune Cash](https://neptune.cash).
 - Scan a QR code with the camera, or from an image you choose or paste. In
   the Android and desktop apps, a `neptunecash:` payment link opens Send,
   filled in. On Android the installed web app takes an address or a payment
-  request shared from another app, and a request's web link (`/pay`) opens
-  Send in a browser.
+  request shared from another app.
 - On a phone, a send to one person starts with the amount, large. The
   review reads like a receipt, and its button says what it sends.
 
