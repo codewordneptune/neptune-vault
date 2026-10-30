@@ -494,17 +494,18 @@ export function Home() {
     return 'Sent';
   };
   /**
-   * The state beside the time, unless the title already says it: in the
-   * row's own muted colour while it simply waits for a block (Waiting for a
-   * block, Pending), amber where something is asked of the person (Not
-   * going through) or a send given up on may still go through, red where
-   * it did not happen.
+   * The state after the time, as a pill, unless the title already says it:
+   * neutral while it simply waits for a block (Waiting for a block,
+   * Pending), amber where something is asked of the person (Not going
+   * through) or a send given up on may still go through, red where it did
+   * not happen. A send given up on says only Given up here; that it may
+   * still go through is in its details and its spoken label.
    */
   const stateWordOf = (e: HistoryEntry): { word: string; tone: 'muted' | 'warn' | 'failed' } | null => {
     // A send waiting for a block says so even where its title is the state: the title says only Sent.
     if (e.kind === 'sent' && e.record.status === 'pending' && !notSent(e) && !isStuck(e.record)) return { word: waitingOf(e.record), tone: 'muted' };
     const saidInTitle = !whoOf(e) && e.kind !== 'received';
-    if (mayGo(e)) return { word: saidInTitle ? 'May still go through' : `${e.record.expired ? 'Expired' : 'Given up'}: may still go through`, tone: 'warn' };
+    if (mayGo(e)) return { word: saidInTitle ? 'May still go through' : e.record.expired ? 'Expired' : 'Given up', tone: 'warn' };
     if (saidInTitle) return null;
     if (notSent(e)) return { word: 'Not sent', tone: 'failed' };
     if (e.record.status === 'pending') {
@@ -515,7 +516,6 @@ export function Home() {
     if (e.record.status === 'failed') return { word: 'Failed', tone: 'failed' };
     return null;
   };
-  const toneClass = { muted: undefined, warn: 'vault-state-warn', failed: 'vault-state-failed' } as const;
   // After "Show older", the first of the rows it showed, which takes the focus.
   const firstNew = useRef<string | null>(null);
   // Each row's button, for giving focus back to a row once a dialog about it has closed.
@@ -1092,12 +1092,13 @@ export function Home() {
                             </Text>
                             <Text size="sm" c="dimmed" className="vault-row-meta vault-tabular">
                               {formatTime(h.timestampMs)}
+                              {/* After a space, so a pill that wraps starts at the line's edge. */}
                               {stateWordOf(e) && (
                                 <>
-                                  {' · '}
-                                  <Text span inherit className={toneClass[stateWordOf(e)?.tone ?? 'muted']}>
+                                  {' '}
+                                  <span className="vault-state-pill" data-tone={stateWordOf(e)?.tone}>
                                     {stateWordOf(e)?.word}
-                                  </Text>
+                                  </span>
                                 </>
                               )}
                               {/* A time lock only waits for its date: said in the row's own colour. */}

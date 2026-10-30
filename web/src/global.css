@@ -1666,9 +1666,36 @@ main.vault-main {
   color: var(--v-ok-text);
   flex-shrink: 0;
 }
-/* A row's state, on its second line: in the row's own muted colour while
-   it only waits (Sending, Pending, a time lock), amber where something is
-   asked of the person (Not going through), red where it did not happen. */
+/* A History row's state, after its time, as a pill tinted in its colour:
+   neutral while it only waits, amber where something is asked of the
+   person, red where it did not happen. Rows that are not final are found
+   by shape as well as colour. One that wraps onto a line of its own (a
+   narrow phone) gives the row a third line, so a note after it still shows;
+   on a column narrower than its words, its words wrap inside it. */
+.vault-state-pill {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: var(--v-fs-xs);
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--v-text-2);
+  background: color-mix(in srgb, var(--v-text) 10%, transparent);
+}
+.vault-state-pill[data-tone='warn'] {
+  color: var(--v-warn-text);
+  background: color-mix(in srgb, var(--v-warn-text) 10%, transparent);
+}
+.vault-state-pill[data-tone='failed'] {
+  color: var(--v-danger-text);
+  background: color-mix(in srgb, var(--v-danger-text) 10%, transparent);
+}
+.vault-row-meta:has(.vault-state-pill) {
+  -webkit-line-clamp: 3;
+}
+/* A state said in words elsewhere (a row's title, the details): amber where
+   something is asked of the person, red where it did not happen. */
 .vault-state-warn {
   color: var(--v-warn-text);
 }
