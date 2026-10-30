@@ -115,10 +115,14 @@
   --v-hue-3-fg: #fda4af;
   --v-hue-4-bg: rgba(129, 140, 248, 0.18);
   --v-hue-4-fg: #a5b4fc;
-  /* Home's balance card: the accent's glow in its corner, and a hairline
-     of light along its top. */
-  --v-hero-glow: rgba(58, 139, 243, 0.22);
-  --v-hero-highlight: rgba(255, 255, 255, 0.07);
+  /* Home's balance card: rich for its first third, then a long glide into
+     the surface, turning a little towards indigo so its middle stays clear
+     of grey; a hairline of light along its top, on the dark theme only; and
+     its quiet text and links a step stronger, for the blue under them. */
+  --v-hero: linear-gradient(115deg, #264a80 0%, #223c68 32%, #1f2f4f 66%, #1c2639 100%);
+  --v-hero-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --v-hero-muted: #bccada;
+  --v-hero-link: #a6cdfb;
   --v-ok-text: #3fb950;
   --v-warn-text: #e3b341;
   --v-danger-text: #ff8a80;
@@ -247,8 +251,10 @@
   --v-hue-3-fg: #be123c;
   --v-hue-4-bg: rgba(79, 70, 229, 0.12);
   --v-hue-4-fg: #4338ca;
-  --v-hero-glow: rgba(43, 125, 233, 0.1);
-  --v-hero-highlight: rgba(255, 255, 255, 0.85);
+  --v-hero: linear-gradient(115deg, #d7e6fc 0%, #e5edfd 34%, #f3f5fe 68%, #fdfdff 100%);
+  --v-hero-shadow: var(--v-card-shadow);
+  --v-hero-muted: #4f5f73;
+  --v-hero-link: #1a5fc4;
   --v-ok-text: #1a7a31;
   --v-warn-text: #8a5a00;
   --v-danger-text: #c62828;
@@ -2811,8 +2817,12 @@ html {
 }
 /* The balance card stands apart from the cards under it. */
 .vault-balance-card.vault-balance-card {
-  background: radial-gradient(120% 95% at 0% 0%, var(--v-hero-glow), transparent 58%), var(--v-surface);
-  box-shadow: inset 0 1px 0 var(--v-hero-highlight), var(--v-card-shadow);
+  --v-muted: var(--v-hero-muted);
+  --mantine-color-dimmed: var(--v-hero-muted);
+  --v-accent: var(--v-hero-link);
+  --v-accent-text: var(--v-hero-link);
+  background: var(--v-hero);
+  box-shadow: var(--v-hero-shadow);
 }
 /* On a phone a sheet rises from the bottom (Sheet.tsx): the screen's
    width, rounded on top, at most the screen's height less a strip, with a
