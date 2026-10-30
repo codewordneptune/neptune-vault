@@ -177,7 +177,8 @@ function RecipientCard({ address, name, requestName, who, onChange, changeRef, i
 /**
  * The amount of a send to one recipient: large and centred, the field as
  * wide as what is typed and the unit after it, smaller as the figure grows;
- * under it its estimate in another currency, and what can be spent, with Max.
+ * under it its estimate in another currency, and the most it can be, which
+ * a press fills in.
  */
 function AmountHero({
   inputRef,
@@ -186,7 +187,7 @@ function AmountHero({
   onBlur,
   error,
   estimate,
-  spendable,
+  max,
   onMax,
   maxDisabled,
 }: {
@@ -196,13 +197,13 @@ function AmountHero({
   onBlur: () => void;
   error: string | null;
   estimate: string | undefined;
-  spendable: string;
+  max: string;
   onMax: () => void;
   maxDisabled: boolean;
 }) {
   const id = useId();
   const estimateId = useId();
-  const spendableId = useId();
+  const maxId = useId();
   const errorId = useId();
   const input = useRef<HTMLInputElement | null>(null);
   return (
@@ -228,25 +229,29 @@ function AmountHero({
             onChange={(e) => onChange(e.currentTarget.value)}
             onBlur={onBlur}
             aria-invalid={error ? true : undefined}
-            aria-describedby={[estimate ? estimateId : null, spendableId, error ? errorId : null].filter(Boolean).join(' ')}
+            aria-describedby={[estimate ? estimateId : null, maxId, error ? errorId : null].filter(Boolean).join(' ')}
           />
         </span>
         <span className="vault-amount-unit" aria-hidden>
           NPT
         </span>
       </div>
-      {estimate && (
-        <Text id={estimateId} size="sm" c="dimmed">
-          <Spoken text={estimate} />
-        </Text>
-      )}
       <Text size="sm" c="dimmed">
-        <span id={spendableId}>
-          <Spoken text={spendable} />
-        </span>
-        {' · '}
-        <UnstyledButton type="button" onClick={onMax} disabled={maxDisabled} c={maxDisabled ? 'var(--v-faint)' : 'var(--v-accent-text)'} fz="sm" className="vault-tap-link vault-link-in-line">
-          Max
+        {estimate && (
+          <>
+            <span id={estimateId}>
+              <Spoken text={estimate} />
+            </span>
+            <span className="vault-amount-dot" aria-hidden>
+              {' · '}
+            </span>
+          </>
+        )}
+        {/* Its weight sets it apart from the estimate: their colours are too close. */}
+        <UnstyledButton type="button" onClick={onMax} disabled={maxDisabled} c={maxDisabled ? 'var(--v-faint)' : 'var(--v-accent-text)'} fz="sm" fw={600} className="vault-tap-link">
+          <span id={maxId}>
+            <Spoken text={max} />
+          </span>
         </UnstyledButton>
       </Text>
       {error && (
@@ -1559,6 +1564,11 @@ export function Send() {
       </div>
     </div>
   );
+  // The most a send to one can be: what is spendable, less the fee. No figure
+  // while the fee does not read.
+  const feeNau = fee.trim() === '' ? null : typedTotalNau([fee], NAU_PER_COIN);
+  const maxNau = feeNau !== null && balance.spendableNau > feeNau ? balance.spendableNau - feeNau : 0n;
+  const maxText = feeNau === null ? 'Max' : `Max ${hidden ? '••••' : showNau(maxNau)} NPT`;
   // `who` names the recipient when there are several.
   const addressField = (id: number, value: string, error: string | null, who: string | null) => (
     <TextInput
@@ -1779,7 +1789,7 @@ export function Send() {
                   onBlur={() => void checkAmounts(true)}
                   error={amountError}
                   estimate={estimateOf(amount)}
-                  spendable={spendableText}
+                  max={maxText}
                   onMax={() => void sendAll()}
                   maxDisabled={balance.spendableNau <= 0n}
                 />

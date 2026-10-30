@@ -2087,12 +2087,6 @@ html {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-/* A tap-link inside a line of dimmed words (Max after what can be spent)
-   is underlined at rest: its colour alone barely sets it apart. */
-.vault-tap-link.vault-link-in-line:not(:disabled) {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
 /* One that cannot be pressed yet (Send's Clear on an empty form) does not act like a link. */
 .vault-tap-link:disabled {
   text-decoration: none;
@@ -3837,6 +3831,14 @@ main :is(.vault-notice, .vault-error-line):not(.mantine-Paper-root *, .mantine-M
 .vault-amount-field > input::placeholder {
   color: var(--v-prompt);
   opacity: 1;
+}
+/* Large text: the estimate and Max take a line each, with no dot left hanging. */
+@media (max-width: 19em) {
+  .vault-amount-dot {
+    display: block;
+    height: 0;
+    overflow: hidden;
+  }
 }
 /* An empty field is only as wide as its "0": the whole line takes the tap. */
 .vault-amount-line {
