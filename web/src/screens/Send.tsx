@@ -5,7 +5,7 @@
 
 import { ActionIcon, Badge, Button, Checkbox, Divider, Group, Input, Paper, Stack, Text, TextInput, Title, Tooltip, UnstyledButton } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconArrowsExchange, IconCheck, IconCircle, IconCircleCheck, IconCircleDot, IconFingerprint, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
+import { IconArrowsExchange, IconCheck, IconCircle, IconCircleCheck, IconCircleDot, IconFingerprint, IconInfoCircle, IconPlus, IconScan, IconUser, IconUsers } from '@tabler/icons-react';
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -375,6 +375,8 @@ export function Send() {
   // An unusually high fee, or one so low the send may never confirm, must be
   // agreed to on the review sheet, in so many words.
   const [feeAgreed, setFeeAgreed] = useState(false);
+  // The sentence behind what is left to spend, opened from its ⓘ on the review.
+  const [changeWhy, setChangeWhy] = useState(false);
   // "Max" in exact nau: the shown text has eight decimals and the balance has more.
   const [maxExact, setMaxExact] = useState<{ text: string; nau: bigint } | null>(null);
   const [recipientError, setRecipientError] = useState<string | null>(null);
@@ -677,6 +679,7 @@ export function Send() {
     setPassword('');
     setPasswordError(null);
     setPasskeyError(null);
+    setChangeWhy(false);
     // Consent to publish the coins is given on the review it was asked on.
     setAskLustration(false);
   }, [step]);
@@ -1270,17 +1273,21 @@ export function Send() {
           {!hidden && spendableWhile !== spendableAfter && (
             <div className="vault-review vault-receipt-after">
               <div className="vault-review-row">
-                <span>Spendable while it is pending</span>
+                <span>Left to spend until it confirms</span>
                 <b>
                   <Amount nau={spendableWhile} figure />
+                  <Tooltip label="What does this mean?" interactive>
+                    <ActionIcon variant="transparent" size="sm" className="vault-tap vault-info-button" aria-label="What does this mean?" aria-expanded={changeWhy} onClick={() => setChangeWhy((v) => !v)}>
+                      <IconInfoCircle size={16} />
+                    </ActionIcon>
+                  </Tooltip>
                 </b>
               </div>
-              <div className="vault-review-row">
-                <span>Change, on hold until it confirms</span>
-                <b>
-                  <Amount nau={spendableAfter - spendableWhile} figure />
-                </b>
-              </div>
+              {changeWhy && (
+                <Text size="sm" c="dimmed">
+                  This send's change, <Amount nau={spendableAfter - spendableWhile} />, is on hold until then: it comes back once a block confirms the send.
+                </Text>
+              )}
             </div>
           )}
           {reviewFeeNote && (
