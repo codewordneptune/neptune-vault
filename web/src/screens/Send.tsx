@@ -250,7 +250,7 @@ function AmountHero({
           </>
         )}
         {/* Its weight sets it apart from the estimate: their colours are too close. */}
-        <UnstyledButton type="button" onClick={onMax} disabled={maxDisabled} c={maxDisabled ? 'var(--v-faint)' : 'var(--v-accent-text)'} fz="sm" fw={600} className="vault-tap-link">
+        <UnstyledButton type="button" onMouseDown={(e) => e.preventDefault()} onClick={onMax} disabled={maxDisabled} c={maxDisabled ? 'var(--v-faint)' : 'var(--v-accent-text)'} fz="sm" fw={600} className="vault-tap-link">
           <span id={maxId}>
             <Spoken text={max} />
           </span>
@@ -438,11 +438,17 @@ export function Send() {
     } else updateExtra(id, { amount: value, amountError: null });
   };
   const setAmountErrorOf = (id: number, message: string) => (id === 0 ? setAmountError(message) : updateExtra(id, { amountError: message }));
-  // Every recipient, the first held on its own. With several, one is open,
-  // laid out as a send to one is, and the rest are folded into rows.
+  // Every recipient, the first held on its own. With several, the one being
+  // filled in is open, laid out as a send to one is; the rest are rows, and
+  // so is that one once it is whole and the person has left it. A draft
+  // comes back open only where it still lacks something.
   const payees = [{ id: 0, recipient, amount, recipientError, amountError }, ...extras];
-  const [openId, setOpenId] = useState(draft?.extras.at(-1)?.id ?? 0);
-  const openNow = payees.some((p) => p.id === openId) ? openId : payees[payees.length - 1].id;
+  const [openId, setOpenId] = useState<number | null>(() => {
+    const last = draft?.extras.at(-1);
+    if (!draft || !last) return 0;
+    return [draft, ...draft.extras].every((p) => p.recipient.trim() !== '' && p.amount.trim() !== '') ? null : last.id;
+  });
+  const openNow = extras.length === 0 ? 0 : payees.some((p) => p.id === openId) ? openId : null;
   // The address field to take the focus as it comes: a recipient just added,
   // so its fields are where the person is and not somewhere below them
   // unseen, or a card's on Change and the first one's on Clear.
@@ -450,12 +456,14 @@ export function Send() {
   // The open recipient comes first: what it still needs is said there, so the
   // form never gathers empty rows.
   const addRecipient = async () => {
-    const open = payees.find((p) => p.id === openNow) ?? payees[0];
-    const [addressOk, typed] = await Promise.all([open.id === 0 ? checkRecipient() : checkExtraRecipient(open.id), parsePositive(open.amount, 'amount')]);
-    if ('message' in typed) setAmountErrorOf(open.id, typed.message);
-    if (!addressOk || 'message' in typed) {
-      focusFirstInvalid();
-      return;
+    const open = payees.find((p) => p.id === openNow);
+    if (open) {
+      const [addressOk, typed] = await Promise.all([open.id === 0 ? checkRecipient() : checkExtraRecipient(open.id), parsePositive(open.amount, 'amount')]);
+      if ('message' in typed) setAmountErrorOf(open.id, typed.message);
+      if (!addressOk || 'message' in typed) {
+        focusFirstInvalid();
+        return;
+      }
     }
     const id = nextExtraId.current++;
     focusField.current = id;
@@ -620,8 +628,8 @@ export function Send() {
       if (total + f.nau > balance.spendableNau) {
         // The figure itself only while amounts are shown.
         const spendable = hidden ? 'the spendable balance' : `the spendable balance of ${showNau(balance.spendableNau)} NPT`;
-        // Said at the recipient open, the one being typed in.
-        const at = extras.findIndex((x) => x.id === openNow);
+        // Said at the recipient open, the one being typed in, or the last.
+        const at = openNow === null ? extras.length - 1 : extras.findIndex((x) => x.id === openNow);
         if (extras.length === 0) amountMessage = `Amount plus fee exceeds ${spendable}`;
         else if (at < 0) amountMessage = `The amounts plus the fee exceed ${spendable}`;
         else moreMessages[at] = `The amounts plus the fee exceed ${spendable}`;
@@ -652,11 +660,11 @@ export function Send() {
     const max = balance.spendableNau - f.nau - others;
     if (max <= 0n) {
       const spendable = hidden ? 'the spendable balance' : `the spendable balance of ${showNau(balance.spendableNau)} NPT`;
-      setAmountErrorOf(openNow, others > 0n ? `The fee and the other amounts take all of ${spendable}` : `The fee alone exceeds ${spendable}`);
+      setAmountErrorOf(openNow ?? 0, others > 0n ? `The fee and the other amounts take all of ${spendable}` : `The fee alone exceeds ${spendable}`);
       return;
     }
     const text = formatNau(max);
-    changeAmount(openNow, text);
+    changeAmount(openNow ?? 0, text);
     if (extras.length === 0) setMaxExact({ text, nau: max });
   };
 
@@ -885,6 +893,44 @@ export function Send() {
     setEditing(null);
     setTimeout(() => amountRefs.current.get(before)?.focus(), 0);
   };
+  // A whole recipient settles into its row once the focus has left it, as an
+  // address turns into a card. The form moves up as it does, so that waits for
+  // any press to land, and it does not happen under a contact or scan sheet.
+  const pressing = useRef(false);
+  useEffect(() => {
+    const down = () => {
+      pressing.current = true;
+    };
+    const up = () => {
+      pressing.current = false;
+    };
+    window.addEventListener('pointerdown', down, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+    return () => {
+      window.removeEventListener('pointerdown', down, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+    };
+  }, []);
+  const canSettle = useRef<(id: number) => boolean>(() => false);
+  canSettle.current = (id) => {
+    const p = payees.find((x) => x.id === id);
+    if (!p || openNow !== id || extras.length === 0 || pickFor !== null || scanFor !== null) return false;
+    if (formRef.current?.querySelector('.vault-payee-open')?.contains(document.activeElement)) return false;
+    return p.recipientError === null && p.amountError === null && validAddresses.has(p.recipient.trim().toLowerCase()) && (typedTotalNau([p.amount], NAU_PER_COIN) ?? 0n) > 0n;
+  };
+  const settleOpen = async (id: number) => {
+    const { bad } = await checkAmounts(true);
+    if (bad.includes(id)) return;
+    const settle = () => {
+      setTimeout(() => {
+        if (canSettle.current(id)) setOpenId(null);
+      }, 120);
+    };
+    if (pressing.current) window.addEventListener('pointerup', settle, { once: true });
+    else settle();
+  };
   // Opening one folds the other; one with nothing in it yet goes rather than
   // stay as an empty row. Focus goes to what is most likely to change: the
   // amount, or the address while there is none.
@@ -1050,6 +1096,7 @@ export function Send() {
     setRecipient(first?.recipient ?? '');
     setAmount(first?.amount ?? '');
     setExtras(rest.map((p) => ({ id: nextExtraId.current++, recipient: p.recipient, amount: p.amount, recipientError: null, amountError: null })));
+    setOpenId(null);
     setFeePreset(FEE_PRESETS.find((p) => p.fee === request.fee)?.value ?? 'custom');
     setFee(request.fee);
     setNote(sentNote ?? '');
@@ -1648,7 +1695,15 @@ export function Send() {
   );
   // The one open among several, under a heading with the way to take it out.
   const openRow = (p: (typeof payees)[number], i: number) => (
-    <div key={p.id} className="vault-payee-open" role="group" aria-labelledby={`payee-${p.id}`}>
+    <div
+      key={p.id}
+      className="vault-payee-open"
+      role="group"
+      aria-labelledby={`payee-${p.id}`}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) void settleOpen(p.id);
+      }}
+    >
       <div className="vault-payee-head">
         <span className="vault-group-label" id={`payee-${p.id}`}>
           Recipient {i + 1}
